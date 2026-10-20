@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* Mobile UX & Touch Optimization */
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* Safe Area Inset Support for Modern Mobile Devices */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
+
+/* Mobile Smooth Momentum Scrolling */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Dinosaur Jumping & Tilting (Dancing) Animation Keyframes */
+@keyframes dino-jump-tilt {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1, 1);
+  }
+  15% {
+    transform: translateY(-28px) rotate(-12deg) scale(1.06, 0.95);
+  }
+  30% {
+    transform: translateY(0) rotate(0deg) scale(1.08, 0.92);
+  }
+  45% {
+    transform: translateY(-6px) rotate(3deg) scale(0.98, 1.02);
+  }
+  60% {
+    transform: translateY(-28px) rotate(12deg) scale(1.06, 0.95);
+  }
+  75% {
+    transform: translateY(0) rotate(0deg) scale(1.08, 0.92);
+  }
+  90% {
+    transform: translateY(-6px) rotate(-3deg) scale(0.98, 1.02);
+  }
+}
+
+/* Ground shadow squash/stretch synchronized with the dinosaur's jump */
+@keyframes dino-shadow {
+  0%, 30%, 75%, 100% {
+    transform: scaleX(1) scaleY(1);
+    opacity: 0.35;
+  }
+  15% {
+    transform: scaleX(0.6) scaleY(0.6) translateX(-8px);
+    opacity: 0.15;
+  }
+  60% {
+    transform: scaleX(0.6) scaleY(0.6) translateX(8px);
+    opacity: 0.15;
+  }
+}
+
+.animate-dino-jump-tilt,
+.animate-dino-dance,
+.animate-jump-tilt {
+  display: inline-block;
+  animation: dino-jump-tilt 1.2s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+
+.animate-dino-shadow {
+  animation: dino-shadow 1.2s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+@keyframes dino-bar {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
