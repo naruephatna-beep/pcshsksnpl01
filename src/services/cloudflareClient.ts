@@ -24,6 +24,8 @@ export function sanitizeCloudflareUrl(rawUrl: string): string {
   return url.replace(/\/+$/, '');
 }
 
+export const DEFAULT_CLOUDFLARE_WORKER_URL = 'https://pcshs-eduplan-db.naruephat-na.workers.dev';
+
 export function getDatabaseProvider(): DatabaseProvider {
   return 'cloudflare';
 }
@@ -37,7 +39,7 @@ export function getSavedCloudflareConfig(): CloudflareSettings {
   const envUrl = sanitizeCloudflareUrl(
     metaEnv.VITE_CLOUDFLARE_WORKER_URL ||
     metaEnv.CLOUDFLARE_WORKER_URL ||
-    ''
+    DEFAULT_CLOUDFLARE_WORKER_URL
   );
   const envKey = (metaEnv.VITE_CLOUDFLARE_API_KEY || metaEnv.CLOUDFLARE_API_KEY || '').trim();
 
@@ -45,8 +47,9 @@ export function getSavedCloudflareConfig(): CloudflareSettings {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
+      const configuredUrl = sanitizeCloudflareUrl(parsed.workerUrl);
       return {
-        workerUrl: sanitizeCloudflareUrl(parsed.workerUrl || envUrl),
+        workerUrl: configuredUrl || DEFAULT_CLOUDFLARE_WORKER_URL,
         apiKey: parsed.apiKey || envKey,
         accountId: parsed.accountId || '',
         databaseId: parsed.databaseId || '',
@@ -58,7 +61,7 @@ export function getSavedCloudflareConfig(): CloudflareSettings {
   }
 
   return {
-    workerUrl: envUrl,
+    workerUrl: envUrl || DEFAULT_CLOUDFLARE_WORKER_URL,
     apiKey: envKey,
     accountId: '',
     databaseId: '',

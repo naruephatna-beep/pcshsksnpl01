@@ -20,6 +20,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { PdfPermissionNotice } from './PdfPermissionNotice';
 
 interface SubmitPlanModalProps {
   currentTeacher: Teacher;
@@ -58,6 +59,7 @@ export interface SubmissionItem {
   fileUrl: string;
   fileName: string;
   notes: string;
+  isPermissionConfirmed?: boolean;
 }
 
 export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
@@ -112,6 +114,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
     fileUrl: '',
     fileName: '',
     notes: inheritFrom?.notes || '',
+    isPermissionConfirmed: false,
   });
 
   const [items, setItems] = useState<SubmissionItem[]>([
@@ -239,15 +242,30 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
       }
 
       const isGoogleDrive = /drive\.google\.com|docs\.google\.com/i.test(finalUrl);
+      const isGoogleDriveFolder = isGoogleDrive && /\/folders\/|\/drive\/folders\//i.test(finalUrl);
       const isCloudDoc =
         /onedrive|1drv\.ms|dropbox\.com|sharepoint\.com|supabase\.co|storage\.googleapis\.com/i.test(
           finalUrl
         );
       const isPdfExt = /\.pdf(\?|$|#)/i.test(finalUrl);
 
+      if (isGoogleDriveFolder) {
+        setError(
+          `[${itemLabel}] ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร PDF! กรุณาคัดลอกลิงก์ของตัวไฟล์ PDF โดยตรง`
+        );
+        return;
+      }
+
       if (!isPdfExt && !isGoogleDrive && !isCloudDoc) {
         setError(
           `[${itemLabel}] บังคับส่งเฉพาะลิงก์ไฟล์ PDF เท่านั้น! (เช่น ลิงก์ไฟล์ PDF บน Google Drive หรือลิงก์ที่ลงท้ายด้วย .pdf)`
+        );
+        return;
+      }
+
+      if (!item.isPermissionConfirmed) {
+        setError(
+          `[${itemLabel}] กรุณาตรวจสอบสิทธิ์ไฟล์ PDF ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และกดยืนยันในช่องสี่เหลี่ยมก่อนกดส่ง`
         );
         return;
       }
@@ -725,12 +743,23 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                         onClick={() => handleTestOpenLink(item.fileUrl)}
                         disabled={!item.fileUrl.trim()}
                         className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold shrink-0 disabled:opacity-40 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                        title="ทดสอบเปิดลิงก์ PDF ของวิชานี้"
+                        title="ทดสอบเปิดลิงก์ PDF ของวิชานี้ในแท็บใหม่"
                       >
                         <span>ทดสอบเปิด</span>
                         <span>↗</span>
                       </button>
                     </div>
+
+                    {/* PDF Permission Notice & Checkbox */}
+                    <PdfPermissionNotice
+                      url={item.fileUrl}
+                      isConfirmed={item.isPermissionConfirmed}
+                      onConfirmChange={(confirmed) =>
+                        handleUpdateItem(item.id, 'isPermissionConfirmed', confirmed)
+                      }
+                      required={true}
+                      showStepByStep={true}
+                    />
                   </div>
 
                   {/* Field 6: Notes */}

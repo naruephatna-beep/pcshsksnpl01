@@ -28,6 +28,7 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { PdfPermissionNotice } from './PdfPermissionNotice';
 
 interface DynamicSubmitModalProps {
   currentTeacher: Teacher;
@@ -62,6 +63,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   const [uploadingFieldId, setUploadingFieldId] = useState<string | null>(null);
   const [fileInputModes, setFileInputModes] = useState<Record<string, 'upload' | 'link'>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPermissionConfirmed, setIsPermissionConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
@@ -244,15 +246,30 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
           }
 
           const isGoogleDrive = /drive\.google\.com|docs\.google\.com/i.test(finalUrl);
+          const isGoogleDriveFolder = isGoogleDrive && /\/folders\/|\/drive\/folders\//i.test(finalUrl);
           const isCloudDoc =
             /onedrive|1drv\.ms|dropbox\.com|sharepoint\.com|supabase\.co|storage\.googleapis\.com|canva\.com|icloud\.com/i.test(
               finalUrl
             );
           const isPdfExt = /\.pdf(\?|$|#)/i.test(finalUrl);
 
+          if (isGoogleDriveFolder) {
+            setError(
+              `[${f.label}] ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร PDF! กรุณาคัดลอกลิงก์ของตัวไฟล์ PDF โดยตรง`
+            );
+            return;
+          }
+
           if (!isPdfExt && !isGoogleDrive && !isCloudDoc) {
             setError(
               `[${f.label}] บังคับส่งเฉพาะลิงก์ไฟล์ PDF เท่านั้น! (เช่น ลิงก์ไฟล์ PDF บน Google Drive หรือลิงก์ที่ลงท้ายด้วย .pdf)`
+            );
+            return;
+          }
+
+          if (f.required && !isPermissionConfirmed) {
+            setError(
+              `[${f.label}] กรุณาตรวจสอบสิทธิ์ไฟล์ PDF ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และทำเครื่องหมายยืนยันก่อนกดส่ง`
             );
             return;
           }
@@ -705,9 +722,14 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                           </div>
                         )}
 
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
-                          💡 <strong>คำแนะนำ:</strong> กรุณาอัปโหลดไฟล์ PDF ไว้บน <strong>Google Drive / OneDrive</strong> แล้วคัดลอกลิงก์มาวาง โดยตั้งค่าสิทธิ์แชร์เป็น <em>&ldquo;ทุกคนที่มีลิงก์สามารถดูได้&rdquo;</em> เพื่อให้ผู้ตรวจเปิดอ่านได้ทันทีและช่วยประหยัดทรัพยากรเซิร์ฟเวอร์
-                        </p>
+                        {/* PDF Permission Notice & Enforced Confirmation */}
+                        <PdfPermissionNotice
+                          url={val}
+                          isConfirmed={isPermissionConfirmed}
+                          onConfirmChange={setIsPermissionConfirmed}
+                          required={field.required}
+                          showStepByStep={true}
+                        />
                       </div>
                     </div>
                   )}

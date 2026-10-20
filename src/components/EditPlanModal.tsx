@@ -18,6 +18,7 @@ import {
   Award,
   ShieldCheck,
 } from 'lucide-react';
+import { PdfPermissionNotice } from './PdfPermissionNotice';
 
 interface EditPlanModalProps {
   plan: LessonPlan;
@@ -59,6 +60,7 @@ export const EditPlanModal: React.FC<EditPlanModalProps> = ({
   }, [currentDeadlines]);
 
   const [formData, setFormData] = useState<LessonPlan>({ ...plan });
+  const [isPermissionConfirmed, setIsPermissionConfirmed] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -80,11 +82,22 @@ export const EditPlanModal: React.FC<EditPlanModalProps> = ({
     }
 
     const isGoogleDrive = /drive\.google\.com|docs\.google\.com/i.test(finalUrl);
+    const isGoogleDriveFolder = isGoogleDrive && /\/folders\/|\/drive\/folders\//i.test(finalUrl);
     const isCloudDoc = /onedrive|1drv\.ms|dropbox\.com|sharepoint\.com|supabase\.co|storage\.googleapis\.com/i.test(finalUrl);
     const isPdfExt = /\.pdf(\?|$|#)/i.test(finalUrl);
 
+    if (isGoogleDriveFolder) {
+      setError('ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร PDF! กรุณาคัดลอกลิงก์ของตัวไฟล์ PDF โดยตรง');
+      return;
+    }
+
     if (!isPdfExt && !isGoogleDrive && !isCloudDoc) {
       setError('บังคับส่งเฉพาะลิงก์ไฟล์ PDF เท่านั้น! (เช่น ลิงก์ไฟล์ PDF บน Google Drive หรือลิงก์ที่ลงท้ายด้วย .pdf)');
+      return;
+    }
+
+    if (!isPermissionConfirmed) {
+      setError('กรุณาตรวจสอบสิทธิ์ไฟล์ PDF ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และกดยืนยันก่อนบันทึก');
       return;
     }
 
@@ -318,17 +331,28 @@ export const EditPlanModal: React.FC<EditPlanModalProps> = ({
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                ลิงก์ไฟล์แผนการสอน (URL PDF บังคับ)
+                ลิงก์ไฟล์แผนการสอน (URL PDF บังคับ) <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 required
                 value={formData.file_url}
-                onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, file_url: e.target.value });
+                  setIsPermissionConfirmed(false);
+                }}
                 className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono"
                 placeholder="https://drive.google.com/... หรือ .pdf"
+              />
+              <PdfPermissionNotice
+                url={formData.file_url}
+                isConfirmed={isPermissionConfirmed}
+                onConfirmChange={setIsPermissionConfirmed}
+                required={true}
+                compact={true}
+                showStepByStep={true}
               />
             </div>
 

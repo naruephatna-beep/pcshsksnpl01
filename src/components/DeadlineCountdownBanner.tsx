@@ -177,19 +177,30 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
                   </span>
                 </p>
               ) : (
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                  <span className="text-xs sm:text-sm font-bold text-slate-800">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-slate-800">
                     เหลือเวลาอีก:
                   </span>
-                  <div className="inline-flex items-center gap-1 bg-[#0B1329] text-white px-2.5 py-1 rounded-lg font-mono font-black text-xs sm:text-sm shadow-inner">
-                    <span className="text-amber-400 font-bold">{days}</span> วัน
-                    <span className="text-amber-400 font-bold ml-1">{hours}</span> ชม.
-                    <span className="text-amber-400 font-bold ml-1">{minutes}</span> นาที
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-sm border border-slate-700/60">
+                      <span className="text-amber-400 font-extrabold text-xs sm:text-sm">{days}</span>
+                      <span className="text-[10px] text-slate-300">วัน</span>
+                    </div>
+                    <span className="text-slate-700 font-bold">:</span>
+                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-sm border border-slate-700/60">
+                      <span className="text-amber-400 font-extrabold text-xs sm:text-sm">{hours}</span>
+                      <span className="text-[10px] text-slate-300">ชม.</span>
+                    </div>
+                    <span className="text-slate-700 font-bold">:</span>
+                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-sm border border-slate-700/60">
+                      <span className="text-amber-400 font-extrabold text-xs sm:text-sm">{minutes}</span>
+                      <span className="text-[10px] text-slate-300">นาที</span>
+                    </div>
                   </div>
                 </div>
               )}
 
-              <span className="text-[11px] sm:text-xs text-slate-800/90 hidden lg:inline">
+              <span className="text-[11px] sm:text-xs text-slate-900/80 font-medium hidden lg:inline">
                 (กำหนดส่ง: {formatThaiDateTime(`${config.end_date} ${config.end_time || '23:59'}`)} น.)
               </span>
             </div>
@@ -201,18 +212,17 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
           {!allCompleted && !isAdmin && (
             <button
               onClick={handleScrollToPending}
-              className="flex-1 md:flex-initial px-4 sm:px-5 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-amber-300 hover:text-white rounded-xl text-xs sm:text-sm font-black shadow-md flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+              className="flex-1 md:flex-initial px-4 py-2 bg-[#0B1329] hover:bg-slate-900 text-amber-300 hover:text-white rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer border border-slate-800"
               title="เลื่อนลงไปยังรายการงานที่ยังไม่ได้ส่ง"
             >
-              <ArrowDown className="w-4 h-4 text-amber-400 animate-bounce" />
-              <span>เลื่อนไปงานที่ยังไม่ส่ง</span>
-              <ArrowDown className="w-3.5 h-3.5 ml-0.5" />
+              <ArrowDown className="w-4 h-4 text-amber-400" />
+              <span>ไปยังงานที่ยังไม่ส่ง</span>
             </button>
           )}
 
           {isAdmin && (
-            <div className="px-3 py-1.5 bg-[#0B1329]/90 text-amber-300 rounded-xl text-xs font-bold border border-amber-400/40">
-              สถานะเปิดรับส่งทั้งโรงเรียน
+            <div className="px-3 py-1.5 bg-[#0B1329] text-amber-300 rounded-xl text-xs font-bold border border-amber-400/40 shadow-xs">
+              ระบบเปิดรับส่งทั้งโรงเรียน
             </div>
           )}
 

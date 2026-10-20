@@ -10,6 +10,7 @@ import {
   Loader2,
   RotateCcw,
 } from 'lucide-react';
+import { PdfPermissionNotice } from './PdfPermissionNotice';
 
 interface ResubmitPlanModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
 }) => {
   const [fileUrl, setFileUrl] = useState(plan?.file_url || '');
   const [resubmitNote, setResubmitNote] = useState('');
+  const [isPermissionConfirmed, setIsPermissionConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,6 +37,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
       setFileUrl(plan.file_url || '');
       setResubmitNote('');
       setError('');
+      setIsPermissionConfirmed(false);
     }
   }, [plan]);
 
@@ -56,11 +59,22 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
     }
 
     const isGoogleDrive = /drive\.google\.com|docs\.google\.com/i.test(finalUrl);
+    const isGoogleDriveFolder = isGoogleDrive && /\/folders\/|\/drive\/folders\//i.test(finalUrl);
     const isCloudDoc = /onedrive|1drv\.ms|dropbox\.com|sharepoint\.com|supabase\.co|storage\.googleapis\.com/i.test(finalUrl);
     const isPdfExt = /\.pdf(\?|$|#)/i.test(finalUrl);
 
+    if (isGoogleDriveFolder) {
+      setError('ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร PDF! กรุณาคัดลอกลิงก์ของตัวไฟล์ PDF โดยตรง');
+      return;
+    }
+
     if (!isPdfExt && !isGoogleDrive && !isCloudDoc) {
       setError('บังคับส่งเฉพาะลิงก์ไฟล์ PDF เท่านั้น! (เช่น Google Drive PDF หรือลิงก์ที่ลงท้ายด้วย .pdf)');
+      return;
+    }
+
+    if (!isPermissionConfirmed) {
+      setError('กรุณาตรวจสอบสิทธิ์ไฟล์ PDF ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และทำเครื่องหมายยืนยันก่อนกดส่ง');
       return;
     }
 
@@ -191,6 +205,15 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
               <FileText className="w-3.5 h-3.5 text-slate-400" />
               <span>หากอัปโหลดทับไฟล์เดิมบน Google Drive สามารถใช้ลิงก์เดิมได้เลย</span>
             </p>
+
+            {/* PDF Permission Notice & Enforced Confirmation */}
+            <PdfPermissionNotice
+              url={fileUrl}
+              isConfirmed={isPermissionConfirmed}
+              onConfirmChange={setIsPermissionConfirmed}
+              required={true}
+              showStepByStep={true}
+            />
           </div>
 
           {/* Resubmit Note */}

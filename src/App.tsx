@@ -46,8 +46,6 @@ import { ForcePasswordModal } from './components/ForcePasswordModal';
 import { LoginModal } from './components/LoginModal';
 import { LoginScreen } from './components/LoginScreen';
 import { SubmissionReceiptModal } from './components/SubmissionReceiptModal';
-import { DatabaseConfigModal } from './components/DatabaseConfigModal';
-import { SupabaseConfigModal } from './components/SupabaseConfigModal';
 import { getDatabaseProvider } from './services/cloudflareClient';
 import { TeacherDirectoryModal } from './components/TeacherDirectoryModal';
 import { FileStorageInfoModal } from './components/FileStorageInfoModal';
@@ -90,6 +88,7 @@ import {
   Clock,
   ChevronRight,
   Upload,
+  RefreshCw,
   BrainCircuit,
   Cloud,
 } from 'lucide-react';
@@ -125,8 +124,6 @@ export default function App() {
   const [isDynamicSubmitModalOpen, setIsDynamicSubmitModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isDirectoryModalOpen, setIsDirectoryModalOpen] = useState(false);
   const [isFileStorageModalOpen, setIsFileStorageModalOpen] = useState(false);
   const [isAdminTrackerModalOpen, setIsAdminTrackerModalOpen] = useState(false);
@@ -843,28 +840,15 @@ export default function App() {
   // If user is not logged in, show full-page LoginScreen with school logo
   if (!currentTeacher) {
     return (
-      <>
-        <LoginScreen
-          teachers={teachers}
-          isSupabaseConnected={isSupabaseConnected}
-          onLogin={handleSetCurrentUser}
-          onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)}
-          onShowLoadingDemo={() => {
-            setIsLoading(true);
-            setTimeout(() => setIsLoading(false), 2200);
-          }}
-        />
-        <DatabaseConfigModal
-          isOpen={isDatabaseModalOpen || isSupabaseModalOpen}
-          onClose={() => {
-            setIsDatabaseModalOpen(false);
-            setIsSupabaseModalOpen(false);
-          }}
-          onConfigSaved={() => syncWithDatabase(false)}
-          teachers={teachers}
-          plans={plans}
-        />
-      </>
+      <LoginScreen
+        teachers={teachers}
+        isSupabaseConnected={isSupabaseConnected}
+        onLogin={handleSetCurrentUser}
+        onShowLoadingDemo={() => {
+          setIsLoading(true);
+          setTimeout(() => setIsLoading(false), 2200);
+        }}
+      />
     );
   }
 
@@ -897,7 +881,6 @@ export default function App() {
           onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
           onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
           onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
-          onOpenDatabaseModal={() => setIsDatabaseModalOpen(true)}
           onScrollToAssignments={handleScrollToAssignments}
           onLogout={handleLogout}
           lastSyncTime={lastSyncTime}
@@ -939,10 +922,6 @@ export default function App() {
               onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
               onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
               onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
-              onOpenDatabaseModal={() => {
-                setIsMobileSidebarOpen(false);
-                setIsDatabaseModalOpen(true);
-              }}
               onScrollToAssignments={handleScrollToAssignments}
               onLogout={handleLogout}
               lastSyncTime={lastSyncTime}
@@ -960,87 +939,99 @@ export default function App() {
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95"
+              className="p-1.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95 transition-all"
               aria-label="เปิดเมนูนำทาง"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2 min-w-0">
-              <img src="/logo.svg" alt="ตราสัญลักษณ์โรงเรียน" className="w-7 h-7 object-contain shrink-0" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-white/10 p-1 flex items-center justify-center shrink-0 border border-white/20">
+                <img src="/logo.svg" alt="ตราสัญลักษณ์โรงเรียน" className="w-full h-full object-contain" />
+              </div>
               <div className="min-w-0">
-                <span className="font-bold text-xs text-white block truncate leading-tight">
+                <span className="font-extrabold text-xs text-white block truncate leading-tight">
                   ระบบส่งแผนการสอน
                 </span>
-                <span className="text-[10px] text-amber-400 block truncate">
-                  จ.ภ. กาฬสินธุ์
+                <span className="text-[10px] text-amber-400 font-semibold block truncate">
+                  จ.ภ. กาฬสินธุ์ · ภาคเรียนที่ 2/2567
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {!isAdmin && (
-              <button
-                onClick={() => {
-                  setSubmitModalInitialType(undefined);
-                  setIsSubmitModalOpen(true);
-                }}
-                className="px-2.5 py-1.5 bg-[#F59E0B] text-slate-950 rounded-xl text-xs font-black shadow-xs flex items-center gap-1 active:scale-95 cursor-pointer"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>ส่งงาน</span>
-              </button>
-            )}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 setTeacherToEdit(currentTeacher);
                 setIsProfileModalOpen(true);
               }}
-              className="p-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-300"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-800/90 border border-slate-700 text-slate-200 text-xs font-semibold active:scale-95 transition-all"
               title="ข้อมูลส่วนตัว"
             >
-              <User className="w-4 h-4" />
+              <User className="w-3.5 h-3.5 text-amber-400" />
+              <span className="max-w-[70px] truncate">{currentTeacher.Name.split(' ')[0]}</span>
             </button>
           </div>
         </header>
 
-        {/* Desktop Top Sub-header (Notion/Linear Breadcrumb & Quick Controls) */}
-        <div className="hidden md:flex sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-3 border-b border-slate-200/90 items-center justify-between shadow-2xs">
+        {/* Desktop Top Sub-header (Institutional Modern Academic Bar) */}
+        <div className="hidden md:flex sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-2.5 border-b border-slate-200/90 items-center justify-between shadow-2xs">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-              <span>จ.ภ. กาฬสินธุ์</span>
-              <span>/</span>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">จ.ภ. กาฬสินธุ์</span>
+              <span className="text-slate-300">/</span>
+              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-semibold text-[11px] border border-amber-200/60">
+                ภาคเรียนที่ 2/2567
+              </span>
+              <span className="text-slate-300">/</span>
               <span className="font-bold text-slate-900">
-                {mainView === 'executive' ? '📊 แดชบอร์ดฝ่ายบริหาร' : '📑 รายการแผนการจัดการเรียนรู้'}
+                {mainView === 'executive'
+                  ? executiveMode === 'ddo'
+                    ? '🧠 วิเคราะห์ Data-Driven Org'
+                    : '📊 แดชบอร์ดภาพรวมผู้บริหาร'
+                  : '📑 รายการแผนการจัดการเรียนรู้'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setIsDatabaseModalOpen(true)}
-              className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-950 font-bold rounded-xl text-xs border border-orange-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-              title="จัดการฐานข้อมูล Cloudflare D1 & Worker"
-            >
-              <Cloud className="w-3.5 h-3.5 text-orange-600" />
-              <span>ฐานข้อมูล Cloudflare D1</span>
-            </button>
-            {!isAdmin && (
+          <div className="flex items-center gap-3">
+            {/* Live Sync Pill */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-mono text-slate-600">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[11px] text-slate-500">ซิงค์:</span>
+              <span className="text-[11px] font-bold text-slate-700">{lastSyncTime}</span>
               <button
-                onClick={() => {
-                  setSubmitModalInitialType(undefined);
-                  setIsSubmitModalOpen(true);
-                }}
-                className="px-4 py-2 bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                onClick={() => syncWithDatabase(false)}
+                disabled={isSyncing}
+                title="คลิกเพื่อซิงค์ข้อมูลกับ Cloud ทันที"
+                className="text-slate-400 hover:text-indigo-600 ml-0.5 transition-colors cursor-pointer"
               >
-                <PlusCircle className="w-4 h-4 text-slate-950" />
-                <span>ส่งเอกสารแผนการสอน</span>
+                <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
               </button>
-            )}
-            <div className="text-xs text-slate-400 font-mono flex items-center gap-1">
-              <span>ซิงค์:</span>
-              <span className="text-slate-600">{lastSyncTime}</span>
             </div>
+
+            {/* Teacher Profile Chip */}
+            <button
+              onClick={() => {
+                setTeacherToEdit(currentTeacher);
+                setIsProfileModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 transition-all cursor-pointer group"
+              title="แก้ไขข้อมูลส่วนตัว"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#0B1329] text-amber-400 flex items-center justify-center font-bold text-[10px]">
+                {currentTeacher.Name.slice(0, 1)}
+              </div>
+              <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-950 transition-colors">
+                {currentTeacher.Name}
+              </span>
+              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
+                {isAdmin ? 'Admin' : currentTeacher.Learning_Area}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -1104,85 +1095,58 @@ export default function App() {
             onScrollToAssignments={handleScrollToAssignments}
           />
 
-          {/* Welcome & Overview Header Card (Pure White with crisp borders) */}
+          {/* Welcome & Overview Header Card (Pure White with crisp borders & soft gradient glow) */}
           <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200/90 shadow-2xs relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-40 bg-gradient-to-bl from-amber-100/40 via-indigo-50/30 to-transparent pointer-events-none rounded-bl-full" />
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
-                  <Sparkles className="w-3 h-3 text-amber-500" />
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200/80 shadow-2xs">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span>โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</span>
+                  <span className="text-amber-400">·</span>
+                  <span className="text-slate-600 font-medium">กลุ่มสาระฯ {currentTeacher.Learning_Area}</span>
                 </div>
-                <h2 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  {isTeacherExecutive(currentTeacher)
-                    ? `ยินดีต้อนรับ ${currentTeacher.Name} (ศูนย์ข้อมูลผู้บริหาร)`
-                    : `ยินดีต้อนรับ ${currentTeacher?.Name || 'อาจารย์'}`}
+                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
+                  <span>
+                    {isTeacherExecutive(currentTeacher)
+                      ? `ยินดีต้อนรับ ${currentTeacher.Name}`
+                      : `ยินดีต้อนรับ ${currentTeacher?.Name || 'อาจารย์'}`}
+                  </span>
+                  {isAdmin && (
+                    <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-[#0B1329] text-amber-400 border border-amber-400/30">
+                      Super Admin
+                    </span>
+                  )}
                 </h2>
                 <p className="text-slate-500 text-xs sm:text-sm max-w-2xl leading-relaxed">
                   {isTeacherExecutive(currentTeacher)
                     ? 'ศูนย์บัญชาการข้อมูลฝ่ายบริหาร: ติดตามสถานะการส่งงานรายคน รายกลุ่มสาระ สรุปช้าเร็วตรงเวลา พร้อมกราฟและรายงานผู้บริหาร'
                     : isAdmin
-                    ? 'ระบบจัดการและส่งแผนการจัดการเรียนรู้ออนไลน์ พร้อมระบบอนุมัติและประเมินคุณภาพทุกกลุ่มสาระ'
-                    : `เชื่อมต่อฐานข้อมูลบุคลากรครู ${teachers.length} ท่าน พร้อมระบบส่งเอกสารออนไลน์`}
+                    ? 'ระบบจัดการและส่งแผนการจัดการเรียนรู้ออนไลน์ พร้อมระบบอนุมัติและประเมินคุณภาพทุกกลุ่มสาระการเรียนรู้'
+                    : `ระบบจัดส่งเอกสารและติดตามผลการตรวจแผนการจัดการเรียนรู้ ประจำภาคเรียนที่ 2/2567`}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
-                {/* Submit Document button: สีแสดทอง (#F59E0B) */}
-                {!isAdmin && (
-                  <button
-                    onClick={() => {
-                      setSubmitModalInitialType(undefined);
-                      setIsSubmitModalOpen(true);
-                    }}
-                    className="px-4 py-2.5 bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 text-slate-950 rounded-xl text-xs sm:text-sm font-black shadow-md shadow-amber-500/20 transition-transform active:scale-95 flex items-center gap-2 cursor-pointer"
-                  >
-                    <PlusCircle className="w-4 h-4 text-slate-950" />
-                    <span>ส่งเอกสาร</span>
-                  </button>
-                )}
-
-                {/* Quick View Toggle for Admins */}
-                {isAdmin && (
-                  <button
-                    onClick={() => setMainView(mainView === 'executive' ? 'plans' : 'executive')}
-                    className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all active:scale-95 flex items-center gap-2 cursor-pointer ${
-                      mainView === 'executive'
-                        ? 'bg-slate-900 text-white hover:bg-slate-800'
-                        : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                    }`}
-                  >
-                    {mainView === 'executive' ? (
-                      <>
-                        <FileText className="w-4 h-4 text-amber-300" />
-                        <span>ดูรายการแผน ({plans.length})</span>
-                      </>
-                    ) : (
-                      <>
-                        <BarChart3 className="w-4 h-4 text-white" />
-                        <span>ดูแดชบอร์ดบริหาร</span>
-                      </>
-                    )}
-                  </button>
-                )}
-
-                {isAdmin && (
-                  <button
-                    onClick={() => setIsAdminTrackerModalOpen(true)}
-                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs sm:text-sm font-bold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <ClipboardList className="w-4 h-4 text-slate-600" />
-                    <span>ติดตามรายคน</span>
-                  </button>
-                )}
+                <button
+                  onClick={() => setIsDirectoryModalOpen(true)}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="ดูรายชื่อครูและข้อมูลติดต่อ"
+                >
+                  <Users className="w-4 h-4 text-slate-500" />
+                  <span>ทำเนียบบุคลากร (27 ท่าน)</span>
+                </button>
 
                 <button
                   onClick={() => {
                     setTeacherToEdit(currentTeacher);
                     setIsProfileModalOpen(true);
                   }}
-                  className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-medium transition-colors"
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  title="แก้ไขข้อมูลส่วนตัว"
                 >
-                  แก้ไขข้อมูล
+                  <User className="w-4 h-4 text-amber-400" />
+                  <span>ข้อมูลส่วนตัว</span>
                 </button>
               </div>
             </div>
@@ -1666,18 +1630,6 @@ export default function App() {
           }}
         />
       )}
-
-      {/* Database Config & Cloudflare / Supabase Migration Modal */}
-      <DatabaseConfigModal
-        isOpen={isDatabaseModalOpen || isSupabaseModalOpen}
-        onClose={() => {
-          setIsDatabaseModalOpen(false);
-          setIsSupabaseModalOpen(false);
-        }}
-        onConfigSaved={() => syncWithDatabase(false)}
-        teachers={teachers}
-        plans={plans}
-      />
 
       {/* File Storage Hub Info Modal */}
       <FileStorageInfoModal

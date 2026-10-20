@@ -20,13 +20,11 @@ interface LoginScreenProps {
   isSupabaseConnected: boolean;
   onLogin: (teacher: Teacher) => void;
   onShowLoadingDemo?: () => void;
-  onOpenDatabaseModal?: () => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   teachers,
   onLogin,
-  onOpenDatabaseModal,
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -88,17 +86,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {onOpenDatabaseModal && (
-            <button
-              type="button"
-              onClick={onOpenDatabaseModal}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-colors cursor-pointer"
-              title="จัดการฐานข้อมูล Cloudflare D1 & Worker"
-            >
-              <Cloud className="w-3.5 h-3.5 text-orange-400" />
-              <span>Cloudflare D1</span>
-            </button>
-          )}
           <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
             ระบบสารสนเทศวิชาการ
           </span>
@@ -236,16 +223,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
               <div className="flex items-center gap-2">
                 <span>กลุ่มบริหารวิชาการ • จ.ภ. กาฬสินธุ์</span>
-                {onOpenDatabaseModal && (
-                  <button
-                    type="button"
-                    onClick={onOpenDatabaseModal}
-                    className="text-orange-600 hover:text-orange-700 font-semibold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Cloud className="w-3 h-3 text-orange-500" />
-                    <span>Cloudflare D1</span>
-                  </button>
-                )}
               </div>
               <span className="text-slate-500 font-mono">v2.5 (2569)</span>
             </div>

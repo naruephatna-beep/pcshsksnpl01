@@ -29,7 +29,6 @@ interface NavbarProps {
   onOpenAdminTrackerModal: () => void;
   onOpenDeadlineManager?: () => void;
   onOpenExecutiveDashboard?: () => void;
-  onOpenDatabaseModal?: () => void;
   onLogout: () => void;
   lastSyncTime?: string;
   isSyncing?: boolean;
@@ -46,7 +45,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdminTrackerModal,
   onOpenDeadlineManager,
   onOpenExecutiveDashboard,
-  onOpenDatabaseModal,
   onLogout,
   pendingAssignmentsCount,
   onScrollToAssignments,
@@ -131,20 +129,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Users className="w-3.5 h-3.5 text-slate-600" />
                       <span>บุคลากร</span>
                     </button>
-
-                    {onOpenDatabaseModal && (
-                      <button
-                        onClick={onOpenDatabaseModal}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-800 hover:text-orange-950 hover:bg-orange-50/80 rounded-xl transition-all border border-orange-300 shadow-2xs cursor-pointer active:scale-95"
-                        title="จัดการฐานข้อมูล Cloudflare D1 & Worker"
-                      >
-                        <Cloud className="w-3.5 h-3.5 text-orange-600" />
-                        <span className="hidden xl:inline">ฐานข้อมูล</span>
-                        <span className="text-[10px] bg-orange-100 text-orange-900 px-1.5 py-0.2 rounded font-extrabold flex items-center gap-1">
-                          <span>Cloudflare D1</span>
-                        </span>
-                      </button>
-                    )}
                   </div>
                 )}
 
@@ -354,20 +338,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Users className="w-4 h-4 text-slate-600" />
                   <span>สมุดรายชื่อบุคลากร (27 ท่าน)</span>
                 </button>
-                {onOpenDatabaseModal && (
-                  <button
-                    onClick={() => handleMobileAction(onOpenDatabaseModal)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-orange-950 bg-orange-50 border border-orange-200 hover:bg-orange-100"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Cloud className="w-4 h-4 text-orange-600" />
-                      <span>ฐานข้อมูล Cloudflare D1</span>
-                    </div>
-                    <span className="text-[10px] bg-orange-200 text-orange-900 px-2 py-0.5 rounded font-extrabold">
-                      D1 Edge
-                    </span>
-                  </button>
-                )}
               </div>
             )}
 

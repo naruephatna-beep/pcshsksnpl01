@@ -60,22 +60,22 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
       {/* Top 4 KPI Cards: Compact 2x2 on mobile, 4-col on desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         {/* Card 1: Total Plans */}
-        <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-colors">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all group">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-500">
+            <span className="text-[11px] sm:text-xs font-bold text-slate-500">
               {isAdmin ? 'แผนการสอนทั้งหมด' : 'แผนการสอนของฉัน'}
             </span>
-            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 group-hover:bg-slate-900 group-hover:text-white transition-colors">
               <FileCheck2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums tracking-tight">
               {totalPlans}
             </span>
-            <span className="text-xs text-slate-400">ฉบับ</span>
+            <span className="text-xs text-slate-400 font-medium">ฉบับ</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">
             {isAdmin
               ? `จากครูผู้สอน ${teachers.length} ท่าน`
               : `${currentTeacher.Name}`}
@@ -83,64 +83,66 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
 
         {/* Card 2: Approved Plans */}
-        <div className="bg-white rounded-xl p-3 sm:p-4 border border-emerald-200/90 shadow-2xs hover:border-emerald-300 transition-colors">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-emerald-200/90 shadow-2xs hover:shadow-xs hover:border-emerald-300 transition-all group">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-semibold text-emerald-800">
+            <span className="text-[11px] sm:text-xs font-bold text-emerald-800">
               อนุมัติแล้ว
             </span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-700">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-xl sm:text-2xl font-bold text-emerald-700 tabular-nums">
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold text-emerald-700 tabular-nums tracking-tight">
               {approvedPlans}
             </span>
-            <span className="text-xs text-emerald-600 font-semibold">({approvalRate}%)</span>
+            <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+              {approvalRate}%
+            </span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-emerald-600/80 mt-0.5">
+          <p className="text-[10px] sm:text-[11px] text-emerald-600/90 mt-1 font-medium">
             ผ่านเกณฑ์การประเมิน
           </p>
         </div>
 
         {/* Card 3: Pending Review */}
-        <div className="bg-white rounded-xl p-3 sm:p-4 border border-amber-200/90 shadow-2xs hover:border-amber-300 transition-colors">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-amber-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all group">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-semibold text-amber-800">
+            <span className="text-[11px] sm:text-xs font-bold text-amber-800">
               รอตรวจสอบ
             </span>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-700">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
               <Clock className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-xl sm:text-2xl font-bold text-amber-700 tabular-nums">
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold text-amber-700 tabular-nums tracking-tight">
               {pendingPlans}
             </span>
-            <span className="text-xs text-amber-600">ฉบับ</span>
+            <span className="text-xs text-amber-600 font-medium">ฉบับ</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-amber-600/80 mt-0.5">
-            {isAdmin ? 'รอฝ่ายวิชาการตรวจ' : 'อยู่ระหว่างรอตรวจ'}
+          <p className="text-[10px] sm:text-[11px] text-amber-600/90 mt-1 font-medium">
+            {isAdmin ? 'รอฝ่ายวิชาการตรวจ' : 'อยู่ระหว่างรอการตรวจ'}
           </p>
         </div>
 
         {/* Card 4: Needs Revision */}
-        <div className="bg-white rounded-xl p-3 sm:p-4 border border-rose-200/90 shadow-2xs hover:border-rose-300 transition-colors">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-rose-200/90 shadow-2xs hover:shadow-xs hover:border-rose-300 transition-all group">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-semibold text-rose-800">
+            <span className="text-[11px] sm:text-xs font-bold text-rose-800">
               ส่งกลับแก้ไข
             </span>
-            <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-700">
+            <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-colors">
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-xl sm:text-2xl font-bold text-rose-700 tabular-nums">
+          <div className="mt-2.5 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold text-rose-700 tabular-nums tracking-tight">
               {revisionPlans}
             </span>
-            <span className="text-xs text-rose-600">ฉบับ</span>
+            <span className="text-xs text-rose-600 font-medium">ฉบับ</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-rose-600/80 mt-0.5">
+          <p className="text-[10px] sm:text-[11px] text-rose-600/90 mt-1 font-medium">
             {isAdmin ? 'รอครูผู้สอนส่งใหม่' : 'มีข้อเสนอแนะให้ปรับปรุง'}
           </p>
         </div>

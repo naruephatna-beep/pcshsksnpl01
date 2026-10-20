@@ -19,7 +19,6 @@ interface FileStorageInfoModalProps {
   plans: LessonPlan[];
   isOpen: boolean;
   onClose: () => void;
-  onOpenSupabaseModal?: () => void;
 }
 
 export const FileStorageInfoModal: React.FC<FileStorageInfoModalProps> = ({

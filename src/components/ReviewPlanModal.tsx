@@ -170,16 +170,19 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                 ครู: <strong className="text-slate-700">{plan.teacher_name}</strong> ({plan.teacher_id}) · {plan.learning_area} · ชั้น {plan.grade_level}
               </p>
             </div>
-            <a
-              href={plan.file_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-medium shadow-sm transition-colors active:scale-95"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>เปิดดูไฟล์</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
+            <div className="flex flex-col items-end shrink-0">
+              <a
+                href={plan.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-medium shadow-sm transition-colors active:scale-95"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>เปิดดูไฟล์</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+              <span className="text-[10px] text-slate-400 mt-1">สิทธิ์: ทุกคนที่มีลิงก์</span>
+            </div>
           </div>
         </div>
 
@@ -338,10 +341,25 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
           {/* Comment & Feedback */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1.5">
-              <MessageSquare className="w-4 h-4 text-indigo-600" />
-              ข้อเสนอแนะและข้อคิดเห็นของฝ่ายวิชาการ
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <MessageSquare className="w-4 h-4 text-indigo-600" />
+                <span>ข้อเสนอแนะและข้อคิดเห็นของฝ่ายวิชาการ</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatus('needs_revision');
+                  setComment(
+                    'ไม่สามารถเปิดไฟล์ PDF ได้เนื่องจากยังไม่ได้เปิดสิทธิ์แชร์เป็น "ทุกคนที่มีลิงก์" (Anyone with the link) กรุณาเข้าไปใน Google Drive คลิกขวาที่ไฟล์ > แชร์ > การเข้าถึงทั่วไปเปลี่ยนเป็น "ทุกคนที่มีลิงก์" แล้วกดส่งใหม่อีกครั้งครับ/ค่ะ'
+                  );
+                }}
+                className="text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                title="คลิกเพื่อใส่ข้อความแจ้งครูว่าไฟล์ PDF ติดสิทธิ์เข้าถึง"
+              >
+                <span>⚠️ แจ้งไฟล์ PDF ติดสิทธิ์</span>
+              </button>
+            </div>
             <textarea
               rows={3}
               value={comment}
