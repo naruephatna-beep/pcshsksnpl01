@@ -1,0 +1,8 @@
+{
+  "name": "Remix EduPlan Portal",
+  "description": "A secure platform for teachers to manage personal profiles and submit lesson plans integrated with Supabase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
