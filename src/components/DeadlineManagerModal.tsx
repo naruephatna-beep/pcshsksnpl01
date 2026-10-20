@@ -516,8 +516,8 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                       <span>
                         {isSupabaseConnected
                           ? tableStatus.checked && !tableStatus.exists
-                            ? 'สถานะ: เชื่อมต่อ Supabase แล้ว (แต่ยังไม่ได้สร้างตาราง system_settings)'
-                            : 'สถานะ: เชื่อมต่อ Cloud Database แล้ว (ออนไลน์)'
+                            ? 'สถานะ: เชื่อมต่อ Cloudflare แล้ว (แต่ยังไม่ได้สร้างตาราง system_settings)'
+                            : 'สถานะ: เชื่อมต่อ Cloudflare D1 สำเร็จ (ออนไลน์)'
                           : 'สถานะ: โหมดจัดเก็บเฉพาะในบราวเซอร์ของเครื่องนี้ (Local Storage)'}
                       </span>
                       <span
@@ -528,7 +528,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         }`}
                       >
                         {isSupabaseConnected && tableStatus.exists
-                          ? 'ซิงค์ข้ามคอมพิวเตอร์ทุกเครื่อง Realtime'
+                          ? 'ซิงค์ข้ามคอมพิวเตอร์ทุกเครื่อง'
                           : 'บันทึกในเครื่องนี้ (ยังไม่ซิงค์ข้ามเครื่อง)'}
                       </span>
                     </div>
@@ -537,22 +537,22 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         tableStatus.checked && !tableStatus.exists ? (
                           <>
                             <strong className="text-amber-900">เหตุผลที่ประเภทเอกสารยังไม่ขึ้นในคอมเครื่องอื่น:</strong>{' '}
-                            ฐานข้อมูล Supabase ยังไม่มีตาราง <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-amber-900">system_settings</code>{' '}
-                            สำหรับเก็บประเภทเอกสาร ให้กดปุ่ม <strong>&quot;คัดลอก SQL สร้างตารางระบบ&quot;</strong> แล้วนำไปวางใน Supabase SQL Editor แล้วกด Run เพียง 1 ครั้ง ข้อมูลจะซิงค์ไปคอมเครื่องอื่นทันที!
+                            ฐานข้อมูล Cloudflare D1 ยังไม่มีตาราง <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-amber-900">system_settings</code>{' '}
+                            สำหรับเก็บประเภทเอกสาร ให้คัดลอก SQL ในหน้าต่างฐานข้อมูลไปรันใน Cloudflare D1 Console เพียง 1 ครั้ง ข้อมูลจะซิงค์ไปคอมเครื่องอื่นทันที!
                           </>
                         ) : (
                           <>
-                            ประเภทเอกสารทุกประเภท (เช่น แผนการจัดการเรียนรู้ฉบับย่อ, แผนการจัดการเรียนรู้ฉบับสมบูรณ์ และประเภทเอกสารที่เพิ่มใหม่) บันทึกลงตาราง{' '}
+                            ประเภทเอกสารทุกประเภท บันทึกลงตาราง{' '}
                             <code className="bg-emerald-100/80 px-1 py-0.5 rounded text-emerald-800 font-mono">
                               system_settings
                             </code>{' '}
-                            บน Supabase และซิงค์ตรงกันในทุกเครื่องคอมพิวเตอร์ของครูทุกคนทันที
+                            บน Cloudflare D1 และซิงค์ตรงกันในทุกเครื่องคอมพิวเตอร์ของครูทุกคนทันที
                           </>
                         )
                       ) : (
                         <>
                           <strong className="text-amber-900">เหตุผลที่ยังไม่ขึ้นที่คอมเครื่องอื่น:</strong>{' '}
-                          เพราะปัจจุบันเว็บยังไม่ได้ตั้งค่าเชื่อมต่อฐานข้อมูลคลาวด์ (Supabase) ข้อมูลจึงถูกบันทึกไว้ใน Local Storage ของเครื่องนี้เท่านั้น หากเปิดจากคอมเครื่องอื่นระบบจะแสดงประเภทเอกสารเริ่มต้นแทน
+                          เพราะปัจจุบันเว็บยังไม่ได้ตั้งค่าเชื่อมต่อฐานข้อมูลคลาวด์ (Cloudflare D1) ข้อมูลจึงถูกบันทึกไว้ใน Local Storage ของเครื่องนี้เท่านั้น หากเปิดจากคอมเครื่องอื่นระบบจะแสดงประเภทเอกสารเริ่มต้นแทน
                         </>
                       )}
                     </p>
@@ -643,7 +643,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
             <div className="flex items-center justify-between px-1 text-xs text-slate-400">
               <span className="flex items-center gap-1.5 text-[11px]">
                 <span className={`w-2 h-2 rounded-full ${isSupabaseConnected ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                <span>{isSupabaseConnected ? 'ระบบเชื่อมต่อ Cloud SQL อัตโนมัติ (Online)' : 'โหมดในเครื่อง'}</span>
+                <span>{isSupabaseConnected ? 'ระบบเชื่อมต่อ Cloudflare D1 (Online)' : 'โหมดในเครื่อง'}</span>
               </span>
               <button
                 type="button"
@@ -1037,7 +1037,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
 
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-medium text-slate-500 hidden sm:inline">
-                        {isSupabaseConnected ? '☁️ ซิงค์ Cloud (เห็นทุกเครื่อง)' : '💾 บันทึกลงเครื่องนี้'}
+                        {isSupabaseConnected ? '☁️ ซิงค์ Cloudflare D1 (เห็นทุกเครื่อง)' : '💾 บันทึกลงเครื่องนี้'}
                       </span>
                       <button
                         type="button"

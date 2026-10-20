@@ -1,6 +1,6 @@
 {
-  "name": "Remix EduPlan Portal",
-  "description": "A secure platform for teachers to manage personal profiles and submit lesson plans integrated with Supabase.",
+  "name": "ระบบส่งแผนการสอน | PCSHS Kalasin",
+  "description": "ระบบส่งและติดตามแผนการจัดการเรียนรู้ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์ พร้อมจัดการข้อมูลบุคลากรและเชื่อมต่อ Cloudflare D1",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

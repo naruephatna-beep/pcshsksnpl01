@@ -36,7 +36,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
       onClick={(e) => {
         if (!isDeleting && e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -69,7 +69,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
             <div className="text-xs text-rose-800 leading-relaxed">
               <p className="font-semibold mb-1">คุณแน่ใจหรือไม่ว่าต้องการลบแผนการสอนนี้?</p>
               <p>
-                ข้อมูลจะถูกลบออกจากระบบ และจะซิงก์ลบออกจากฐานข้อมูล Supabase SQL (ตาราง <code className="font-mono bg-rose-100 px-1 rounded">lesson_plans</code>) โดยอัตโนมัติทันที
+                ข้อมูลจะถูกลบออกจากระบบ และจะซิงก์ลบออกจากฐานข้อมูล Cloudflare D1 (ตาราง <code className="font-mono bg-rose-100 px-1 rounded">lesson_plans</code>) โดยอัตโนมัติทันที
               </p>
             </div>
           </div>

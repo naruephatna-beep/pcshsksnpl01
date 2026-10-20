@@ -4,7 +4,7 @@ import { INITIAL_TEACHERS } from '../data/initialTeachers';
 const STORAGE_KEY_CF_CONFIG = 'lp_cloudflare_config';
 const STORAGE_KEY_DB_PROVIDER = 'lp_database_provider'; // 'cloudflare' | 'supabase' | 'local'
 
-export type DatabaseProvider = 'cloudflare' | 'supabase' | 'local';
+export type DatabaseProvider = 'cloudflare' | 'local';
 
 export interface CloudflareSettings {
   workerUrl: string; // e.g. https://pcshs-d1.your-account.workers.dev
@@ -25,24 +25,11 @@ export function sanitizeCloudflareUrl(rawUrl: string): string {
 }
 
 export function getDatabaseProvider(): DatabaseProvider {
-  const metaEnv = (import.meta as any).env || {};
-  const envProvider = metaEnv.VITE_DB_PROVIDER;
-  const saved = localStorage.getItem(STORAGE_KEY_DB_PROVIDER);
-  if (saved === 'cloudflare' || saved === 'supabase' || saved === 'local') {
-    return saved;
-  }
-  if (envProvider === 'cloudflare') return 'cloudflare';
-  if (envProvider === 'supabase') return 'supabase';
-
-  // Auto-detect based on configured credentials
-  const cf = getSavedCloudflareConfig();
-  if (cf.workerUrl) return 'cloudflare';
-
-  return 'supabase';
+  return 'cloudflare';
 }
 
 export function setDatabaseProvider(provider: DatabaseProvider) {
-  localStorage.setItem(STORAGE_KEY_DB_PROVIDER, provider);
+  localStorage.setItem(STORAGE_KEY_DB_PROVIDER, 'cloudflare');
 }
 
 export function getSavedCloudflareConfig(): CloudflareSettings {
@@ -113,11 +100,16 @@ async function cfFetch<T = any>(
     headers['x-api-key'] = config.apiKey;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 9000);
+
   try {
     const res = await fetch(url, {
       ...options,
       headers,
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     const isJson = res.headers.get('content-type')?.includes('application/json');
     const body = isJson ? await res.json() : await res.text();
@@ -136,9 +128,13 @@ async function cfFetch<T = any>(
       status: res.status,
     };
   } catch (err: any) {
+    clearTimeout(timeoutId);
+    const isTimeout = err?.name === 'AbortError';
     return {
       success: false,
-      error: err?.message || 'ไม่สามารถเชื่อมต่อไปยัง Cloudflare Worker ได้ โปรดตรวจสอบ URL และ CORS',
+      error: isTimeout
+        ? 'การเชื่อมต่อหมดเวลา (Timeout) โปรดตรวจสอบว่า Cloudflare Worker ทำงานอยู่หรือไม่'
+        : (err?.message || 'ไม่สามารถเชื่อมต่อไปยัง Cloudflare Worker ได้ โปรดตรวจสอบ URL และ CORS'),
     };
   }
 }

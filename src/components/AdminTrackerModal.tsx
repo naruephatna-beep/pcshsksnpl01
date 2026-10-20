@@ -502,9 +502,18 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               </div>
 
               <div className="p-5 max-h-[60vh] overflow-y-auto space-y-3">
-                {plans
-                  .filter((p) => p.teacher_id === selectedTeacherForPlans.Teacher_ID)
-                  .map((plan) => (
+                {(() => {
+                  const currentTeacherPlans = plans.filter((p) => p.teacher_id === selectedTeacherForPlans.Teacher_ID);
+                  if (currentTeacherPlans.length === 0) {
+                    return (
+                      <div className="py-8 text-center text-slate-400 space-y-2">
+                        <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                        <p className="text-sm font-semibold text-slate-600">คุณครูท่านนี้ไม่มีรายการแผนการสอนในระบบ</p>
+                        <p className="text-xs text-slate-400">แผนการสอนถูกลบออกจากระบบเรียบร้อยแล้ว</p>
+                      </div>
+                    );
+                  }
+                  return currentTeacherPlans.map((plan) => (
                     <div
                       key={plan.id}
                       className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3 text-xs"
@@ -532,7 +541,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                             setSelectedTeacherForPlans(null);
                             onEditPlan(plan);
                           }}
-                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold flex items-center gap-1 shadow-xs"
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold flex items-center gap-1 shadow-xs cursor-pointer"
                         >
                           <Edit className="w-3.5 h-3.5" />
                           แก้ไขแผน
@@ -542,13 +551,14 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                             onDeletePlan(plan.id);
                           }}
                           className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
-                          title="ลบแผน"
+                          title="ลบแผนนี้"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
-                  ))}
+                  ));
+                })()}
               </div>
             </div>
           </div>

@@ -395,19 +395,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
               </button>
 
-              {/* จัดการฐานข้อมูล Cloudflare D1 / Supabase */}
+              {/* จัดการฐานข้อมูล Cloudflare D1 */}
               {onOpenDatabaseModal && (
                 <button
                   onClick={() => handleNavClick(onOpenDatabaseModal)}
                   className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-orange-300 hover:text-white hover:bg-orange-950/40 border border-orange-500/25 transition-colors cursor-pointer"
-                  title="ตั้งค่าและย้ายฐานข้อมูล Cloudflare D1 / Supabase"
+                  title="จัดการฐานข้อมูล Cloudflare D1 & Worker"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Cloud className="w-4 h-4 text-orange-400 shrink-0" />
-                    <span className="truncate font-medium">จัดการฐานข้อมูล (Cloudflare)</span>
+                    <span className="truncate font-medium">ฐานข้อมูล Cloudflare D1</span>
                   </div>
                   <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-orange-500 text-slate-950">
-                    {getDatabaseProvider() === 'cloudflare' ? 'D1' : 'SQL'}
+                    D1 Edge
                   </span>
                 </button>
               )}
@@ -423,11 +423,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={() => handleNavClick(onOpenDatabaseModal)}
               className="flex items-center gap-1.5 hover:text-orange-300 transition-colors cursor-pointer truncate"
-              title="คลิกเพื่อจัดการและย้ายฐานข้อมูล Cloudflare D1 / Supabase"
+              title="คลิกเพื่อจัดการฐานข้อมูล Cloudflare D1"
             >
               <Cloud className="w-3.5 h-3.5 text-orange-400 shrink-0" />
               <span className="truncate">
-                {getDatabaseProvider() === 'cloudflare' ? 'Cloudflare D1' : 'Supabase SQL'}
+                Cloudflare D1 (Edge SQL)
               </span>
             </button>
           ) : (

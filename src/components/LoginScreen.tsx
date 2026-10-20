@@ -93,10 +93,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               type="button"
               onClick={onOpenDatabaseModal}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-colors cursor-pointer"
-              title="ตั้งค่าและย้ายฐานข้อมูล Cloudflare D1 / Supabase"
+              title="จัดการฐานข้อมูล Cloudflare D1 & Worker"
             >
               <Cloud className="w-3.5 h-3.5 text-orange-400" />
-              <span>ฐานข้อมูล</span>
+              <span>Cloudflare D1</span>
             </button>
           )}
           <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">

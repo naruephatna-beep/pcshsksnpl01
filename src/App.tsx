@@ -256,7 +256,7 @@ export default function App() {
           type: 'success',
           message: 'ซิงค์ข้อมูลกับฐานข้อมูลล่าสุดสำเร็จแล้ว!',
           details: `ดึงข้อมูลแผนการสอน ${plansRes.data.length} รายการ และบุคลากร ${teachersRes.data.length} ท่าน (สถานะ: ${
-            plansRes.isSupabase ? 'เชื่อมต่อ Supabase SQL เรียบร้อย' : 'ใช้งาน Local Storage'
+            plansRes.isSupabase ? 'เชื่อมต่อ Cloudflare D1 เรียบร้อย' : 'ใช้งาน Local Storage'
           })`,
         });
       }
@@ -446,7 +446,7 @@ export default function App() {
       details: !isAdmin
         ? 'รหัสผ่านใหม่ของคุณมีผลใช้งานทันทีและระบบบันทึกเรียบร้อยแล้ว'
         : res.isSupabase
-        ? 'ข้อมูลรหัสผ่านใหม่ถูกอัปเดตลงฐานข้อมูล Supabase SQL (ตาราง teachers) อัตโนมัติแล้ว'
+        ? 'ข้อมูลรหัสผ่านใหม่ถูกอัปเดตลงฐานข้อมูล Cloudflare D1 (ตาราง teachers) อัตโนมัติแล้ว'
         : 'บันทึกในเครื่องเรียบร้อยแล้ว',
     });
   };
@@ -481,8 +481,8 @@ export default function App() {
       details: !isAdmin
         ? 'ข้อมูลของคุณได้รับการอัปเดตเรียบร้อยแล้ว'
         : res.isSupabase
-        ? 'ระบบได้อัปเดตข้อมูลของคุณลงในฐานข้อมูล Supabase SQL (ตาราง teachers) อัตโนมัติเรียบร้อยแล้ว'
-        : 'บันทึกในเครื่องเรียบร้อยแล้ว (ยังไม่ได้เชื่อมต่อ Supabase SQL)',
+        ? 'ระบบได้อัปเดตข้อมูลของคุณลงในฐานข้อมูล Cloudflare D1 (ตาราง teachers) อัตโนมัติเรียบร้อยแล้ว'
+        : 'บันทึกในเครื่องเรียบร้อยแล้ว (ยังไม่ได้เชื่อมต่อ Cloudflare D1)',
     });
   };
 
@@ -520,24 +520,24 @@ export default function App() {
               ? `บันทึกแผน ${count} รายการลงในเครื่อง (Local Storage) แล้ว`
               : 'บันทึกแผนลงในเครื่อง (Local Storage) แล้ว',
           details:
-            '⚠️ ยังไม่ได้เชื่อมต่อ Supabase Database จึงยังไม่เข้าตาราง SQL ในฐานข้อมูลภายนอก กรุณาคลิก "ตั้งค่า Supabase" เพื่อเชื่อมต่อและรันคำสั่งสร้างตาราง',
+            '⚠️ ยังไม่ได้เชื่อมต่อ Cloudflare D1 กรุณาคลิก "ฐานข้อมูล" เพื่อนำ Cloudflare Worker URL มาเชื่อมต่อ',
         });
       } else if (!lastRes.success) {
         setToastNotice({
           type: 'error',
-          message: 'บันทึกในเครื่องแล้ว แต่ Supabase SQL บันทึกไม่สำเร็จ',
+          message: 'บันทึกในเครื่องแล้ว แต่ Cloudflare D1 บันทึกไม่สำเร็จ',
           details:
             lastRes.error ||
-            'โปรดตรวจสอบว่าได้สร้างตาราง lesson_plans ใน Supabase SQL แล้วหรือไม่',
+            'โปรดตรวจสอบว่าได้สร้างตาราง lesson_plans ใน Cloudflare D1 แล้วหรือไม่',
         });
       } else {
         setToastNotice({
           type: 'success',
           message:
             count > 1
-              ? `ส่งแผนการสอนสำเร็จ ${count} รายการ และบันทึกลงตาราง Supabase SQL เรียบร้อยแล้ว!`
-              : 'ส่งแผนการสอนสำเร็จและบันทึกลงตาราง Supabase SQL เรียบร้อยแล้ว!',
-          details: 'ข้อมูลบนเว็บไซต์และในฐานข้อมูล SQL อัปเดตตรงกันทันที',
+              ? `ส่งแผนการสอนสำเร็จ ${count} รายการ และบันทึกลงฐานข้อมูล Cloudflare D1 เรียบร้อยแล้ว!`
+              : 'ส่งแผนการสอนสำเร็จและบันทึกลงฐานข้อมูล Cloudflare D1 เรียบร้อยแล้ว!',
+          details: 'ข้อมูลบนเว็บไซต์และในฐานข้อมูล Cloudflare D1 อัปเดตตรงกันทันที',
         });
       }
     }
@@ -555,8 +555,8 @@ export default function App() {
     if (res.isSupabase && res.success) {
       setToastNotice({
         type: 'success',
-        message: 'อัปเดตผลการตรวจแผนลงใน Supabase SQL เรียบร้อยแล้ว!',
-        details: 'ข้อมูลบนเว็บไซต์และในฐานข้อมูล SQL อัปเดตตรงกันทันที',
+        message: 'อัปเดตผลการตรวจแผนลงใน Cloudflare D1 เรียบร้อยแล้ว!',
+        details: 'ข้อมูลบนเว็บไซต์และในฐานข้อมูล Cloudflare D1 อัปเดตตรงกันทันที',
       });
     }
     return res;
@@ -574,8 +574,8 @@ export default function App() {
       details: !isAdmin
         ? 'ระบบได้ลบข้อมูลออกจากระบบเรียบร้อยแล้ว'
         : res.isSupabase
-        ? 'ระบบได้ลบข้อมูลออกจากฐานข้อมูล Supabase SQL (ตาราง lesson_plans) อัตโนมัติแล้ว'
-        : 'ลบออกจากเครื่องเรียบร้อยแล้ว (ยังไม่ได้เชื่อมต่อ Supabase SQL)',
+        ? 'ระบบได้ลบข้อมูลออกจากฐานข้อมูล Cloudflare D1 (ตาราง lesson_plans) อัตโนมัติแล้ว'
+        : 'ลบออกจากเครื่องเรียบร้อยแล้ว',
     });
   };
 
@@ -624,19 +624,19 @@ export default function App() {
       setToastNotice({
         type: 'success',
         message: 'บันทึกประเภทเอกสารและวันส่งงานลง Cloud Database สำเร็จ!',
-        details: `บันทึกข้อมูลประเภทเอกสาร ${newConfigs.length} รายการ (รวมแผนการจัดการเรียนรู้ฉบับย่อ, แผนฉบับสมบูรณ์ และประเภทใหม่) ลงใน Supabase เรียบร้อย ข้อมูลจะซิงค์ไปยังอุปกรณ์และคอมพิวเตอร์ของครูทุกคนทันที`,
+        details: `บันทึกข้อมูลประเภทเอกสาร ${newConfigs.length} รายการ (รวมแผนการจัดการเรียนรู้ฉบับย่อ, แผนฉบับสมบูรณ์ และประเภทใหม่) ลงใน Cloudflare D1 เรียบร้อย ข้อมูลจะซิงค์ไปยังอุปกรณ์และคอมพิวเตอร์ของครูทุกคนทันที`,
       });
     } else if (!dbRes.success && dbRes.isSupabase) {
       setToastNotice({
         type: 'warning',
-        message: 'บันทึกในเครื่องนี้แล้ว (แต่ยังไม่บันทึกลง Cloud Supabase)',
-        details: `ข้อความจากฐานข้อมูล: ${dbRes.error || 'ตาราง system_settings อาจยังไม่ได้ถูกสร้าง'} — แนะนำกดปุ่ม "คัดลอก SQL ตารางระบบ" ในหน้าต่างกำหนดส่งงานไปรันใน Supabase SQL Editor เพื่อเปิดการซิงค์ข้ามเครื่อง`,
+        message: 'บันทึกในเครื่องนี้แล้ว (แต่ยังไม่บันทึกลง Cloudflare D1)',
+        details: `ข้อความจากฐานข้อมูล: ${dbRes.error || 'ตาราง system_settings อาจยังไม่ได้ถูกสร้าง'} — แนะนำคัดลอก SQL ในหน้าต่างฐานข้อมูลไปรันใน Cloudflare D1 Console`,
       });
     } else {
       setToastNotice({
         type: 'info',
         message: 'บันทึกประเภทเอกสารในเบราว์เซอร์เครื่องนี้เรียบร้อย',
-        details: `บันทึกใน Local Storage เครื่องนี้แล้ว (เชื่อมต่อ Supabase หรือใช้ปุ่มคัดลอก JSON ส่งต่อไปยังคอมพิวเตอร์เครื่องอื่น)`,
+        details: `บันทึกใน Local Storage เครื่องนี้แล้ว (เชื่อมต่อ Cloudflare D1 เพื่อซิงค์ข้ามเครื่อง)`,
       });
     }
   };
@@ -655,8 +655,8 @@ export default function App() {
     } else if (!dbRes.success && dbRes.isSupabase) {
       setToastNotice({
         type: 'warning',
-        message: 'บันทึกลงเครื่องนี้แล้ว (แต่ยังไม่บันทึกลง Cloud)',
-        details: `เกิดข้อผิดพลาด: ${dbRes.error || 'ตาราง system_settings ยังไม่ถูกสร้าง'} — กรุณาสร้างตาราง system_settings ใน Supabase`,
+        message: 'บันทึกลงเครื่องนี้แล้ว (แต่ยังไม่บันทึกลง Cloudflare D1)',
+        details: `เกิดข้อผิดพลาด: ${dbRes.error || 'ตาราง system_settings ยังไม่ถูกสร้าง'} — กรุณาสร้างตาราง system_settings ใน Cloudflare D1`,
       });
     } else {
       setToastNotice({
@@ -1020,10 +1020,10 @@ export default function App() {
             <button
               onClick={() => setIsDatabaseModalOpen(true)}
               className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-950 font-bold rounded-xl text-xs border border-orange-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-              title="ตั้งค่าและย้ายฐานข้อมูล Cloudflare D1 / Supabase"
+              title="จัดการฐานข้อมูล Cloudflare D1 & Worker"
             >
               <Cloud className="w-3.5 h-3.5 text-orange-600" />
-              <span>ฐานข้อมูล ({getDatabaseProvider() === 'cloudflare' ? 'Cloudflare D1' : 'Supabase'})</span>
+              <span>ฐานข้อมูล Cloudflare D1</span>
             </button>
             {!isAdmin && (
               <button
@@ -1733,7 +1733,7 @@ export default function App() {
             setToastNotice({
               type: 'success',
               message: `ส่งภาระงาน "${selectedDynamicConfig.name}" เรียบร้อยแล้ว!`,
-              details: 'บันทึกข้อมูลและส่งเข้าระบบ Supabase เรียบร้อยแล้ว',
+              details: 'บันทึกข้อมูลและส่งเข้าระบบ Cloudflare D1 เรียบร้อยแล้ว',
             });
           }}
         />
@@ -1759,8 +1759,8 @@ export default function App() {
               type: 'success',
               message: 'บันทึกการแก้ไขแผนเรียบร้อยแล้ว',
               details: res.isSupabase
-                ? 'ระบบได้อัปเดตข้อมูลลงฐานข้อมูล Supabase SQL (ตาราง lesson_plans) อัตโนมัติแล้ว'
-                : 'บันทึกในเครื่องเรียบร้อยแล้ว (ยังไม่ได้เชื่อมต่อ Supabase SQL)',
+                ? 'ระบบได้อัปเดตข้อมูลลงฐานข้อมูล Cloudflare D1 (ตาราง lesson_plans) อัตโนมัติแล้ว'
+                : 'บันทึกในเครื่องเรียบร้อยแล้ว',
             });
           }}
         />
