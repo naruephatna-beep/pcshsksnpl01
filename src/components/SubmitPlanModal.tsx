@@ -328,10 +328,10 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
 
       if (res && res.isSupabase && !res.success) {
         const hint = res.error?.includes('relation')
-          ? '\n(อาจยังไม่ได้สร้างตาราง lesson_plans ใน Supabase SQL — ให้คลิก "ตั้งค่า Supabase" ด้านบนเพื่อดูคำสั่ง SQL)'
+          ? '\n(อาจยังไม่ได้สร้างตาราง lesson_plans ใน Cloudflare D1 — ให้ตรวจสอบตาราง lesson_plans ใน Cloudflare D1)'
           : '';
         setError(
-          `บันทึกในเครื่องแล้ว แต่ Supabase SQL ปฏิเสธ: ${res.error}${hint}`
+          `บันทึกในเครื่องแล้ว แต่ Cloudflare D1 ปฏิเสธ: ${res.error}${hint}`
         );
         setIsSubmitting(false);
         return;

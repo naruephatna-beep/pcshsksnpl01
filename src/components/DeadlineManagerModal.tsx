@@ -21,6 +21,7 @@ import {
   SYSTEM_SETTINGS_TABLE_SQL,
   checkSystemSettingsTableStatus,
   seedDocumentTypesToSupabase,
+  saveSystemSetting,
 } from '../services/supabaseClient';
 import {
   X,
@@ -241,27 +242,27 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Save deadlines with automatic instant update to SQL (Supabase)
+  // Save deadlines with automatic instant update to Cloudflare D1
   const handleSaveDeadlines = async (updatedList: PlanTypeDeadlineConfig[]) => {
     setDeadlines(updatedList);
     onSaveDeadlineConfigs(updatedList);
 
-    // Auto-update to SQL (Supabase) immediately
+    // Auto-update to Cloudflare D1 immediately
     if (isSupabaseConnected) {
       try {
         const res = await seedDocumentTypesToSupabase(updatedList);
         if (res.success) {
           setSyncCloudNotice(
-            `⚡ อัปเดตเข้า SQL อัตโนมัติเรียบร้อยแล้ว! (${updatedList.length} ประเภทเอกสาร) เครื่องอื่นเห็นข้อมูลทันที`
+            `⚡ อัปเดตเข้า Cloudflare D1 เรียบร้อยแล้ว! (${updatedList.length} ประเภทเอกสาร) เครื่องอื่นเห็นข้อมูลทันที`
           );
           setTableStatus({ checked: true, exists: true });
         } else {
           setSyncCloudNotice(
-            `⚠️ บันทึกลงเครื่องแล้ว แต่ส่งไป SQL ไม่สำเร็จ: ${res.error || 'กรุณารันคำสั่งสร้างตาราง system_settings'}`
+            `⚠️ บันทึกลงเครื่องแล้ว แต่ส่งไป Cloudflare D1 ไม่สำเร็จ: ${res.error || 'โปรดตรวจสอบการเชื่อมต่อ Worker'}`
           );
         }
       } catch (err: any) {
-        setSyncCloudNotice(`⚠️ เกิดข้อผิดพลาดขณะส่งเข้า SQL: ${err?.message}`);
+        setSyncCloudNotice(`⚠️ เกิดข้อผิดพลาดขณะส่งเข้า Cloudflare: ${err?.message}`);
       }
     } else {
       setSyncCloudNotice(
@@ -332,9 +333,16 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   };
 
   // Status management
-  const handleSaveStatuses = (updatedList: PlanStatusConfig[]) => {
+  const handleSaveStatuses = async (updatedList: PlanStatusConfig[]) => {
     setStatuses(updatedList);
     onSaveStatusConfigs(updatedList);
+    if (isSupabaseConnected) {
+      try {
+        await saveSystemSetting('status_configs', updatedList);
+      } catch (err: any) {
+        console.warn('Could not auto-save status_configs to cloud:', err);
+      }
+    }
   };
 
   const handleAddNewStatus = (e: React.FormEvent) => {
