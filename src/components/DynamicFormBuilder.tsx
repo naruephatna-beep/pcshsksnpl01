@@ -35,6 +35,14 @@ interface DynamicFormBuilderProps {
   onChange: (fields: DynamicFormField[]) => void;
   availableTemplates?: PlanTypeDeadlineConfig[];
   currentTeacher?: Teacher | null;
+  sampleUrl?: string;
+  sampleTitle?: string;
+  exampleDocuments?: Array<{ title: string; url: string }>;
+  onSampleDocumentsChange?: (sampleData: {
+    sample_url?: string;
+    sample_title?: string;
+    example_documents?: Array<{ title: string; url: string }>;
+  }) => void;
 }
 
 const FIELD_TYPE_OPTIONS: {
@@ -80,6 +88,12 @@ const FIELD_TYPE_OPTIONS: {
     description: 'เลือกได้ว่าจะให้ส่งไฟล์ตรง, วางลิงก์ PDF หรือบังคับส่งแค่ลิงก์',
   },
   {
+    type: 'link_reference',
+    label: 'ลิงก์เอกสารตัวอย่าง / แบบฟอร์ม',
+    icon: ExternalLink,
+    description: 'การ์ดปุ่มกดลิงก์ตัวอย่างเอกสาร/ดาวน์โหลดแบบฟอร์ม สำหรับให้ครูเปิดดู',
+  },
+  {
     type: 'user_profile',
     label: 'ข้อมูลบัญชีครู (อ่านอย่างเดียว)',
     icon: UserCheck,
@@ -104,10 +118,17 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
   onChange,
   availableTemplates = [],
   currentTeacher,
+  sampleUrl = '',
+  sampleTitle = '',
+  exampleDocuments = [],
+  onSampleDocumentsChange,
 }) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewValues, setPreviewValues] = useState<Record<string, any>>({});
   const [newOptionTexts, setNewOptionTexts] = useState<Record<string, string>>({});
+  const [showGlobalSampleEditor, setShowGlobalSampleEditor] = useState<boolean>(
+    Boolean(sampleUrl || (exampleDocuments && exampleDocuments.length > 0))
+  );
 
   // Helper to add a new blank field or with preset
   const handleAddField = (
@@ -123,12 +144,22 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
           ? 'ครูผู้สอน'
           : type === 'file'
           ? 'ลิงก์ไฟล์เอกสาร / PDF (Google Drive)'
+          : type === 'link_reference'
+          ? 'ลิงก์เอกสารตัวอย่าง / แบบฟอร์มต้นแบบ'
           : `ช่องข้อมูลที่ ${fields.length + 1}`),
-      description: preset?.description || '',
+      description:
+        preset?.description ||
+        (type === 'link_reference'
+          ? 'คลิกปุ่มด้านล่างเพื่อเปิดดูเอกสารตัวอย่าง หรือดาวน์โหลดแบบฟอร์มต้นแบบ'
+          : ''),
       placeholder:
         preset?.placeholder ||
-        (type === 'file' ? 'https://drive.google.com/file/d/... หรือลิงก์ตรง .pdf' : ''),
-      required: preset?.required ?? true,
+        (type === 'file'
+          ? 'https://drive.google.com/file/d/... หรือลิงก์ตรง .pdf'
+          : type === 'link_reference'
+          ? 'https://drive.google.com/... หรือ ลิงก์ตรง .pdf'
+          : ''),
+      required: preset?.required ?? (type === 'link_reference' ? false : true),
       order: fields.length + 1,
       options:
         preset?.options ||
@@ -136,6 +167,10 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
           ? ['ตัวเลือกที่ 1', 'ตัวเลือกที่ 2', 'ตัวเลือกที่ 3']
           : undefined),
       profile_key: preset?.profile_key || (type === 'user_profile' ? 'name' : undefined),
+      example_title:
+        preset?.example_title || (type === 'link_reference' ? 'เปิดดูตัวอย่างเอกสาร' : undefined),
+      example_url: preset?.example_url || undefined,
+      example_links: preset?.example_links || undefined,
       file_config:
         type === 'file'
           ? {
@@ -414,6 +449,190 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
         </div>
       </div>
 
+      {/* Global Sample / Template Documents for this Assignment (เผื่อครูอยากดูตัวอย่าง) */}
+      {onSampleDocumentsChange && (
+        <div className="bg-sky-50/80 rounded-2xl border-2 border-sky-200/90 p-3.5 sm:p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-xl bg-sky-100 text-sky-700">
+                <LinkIcon className="w-4 h-4" />
+              </span>
+              <div>
+                <h5 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                  <span>แปะลิงก์เอกสารตัวอย่าง & แบบฟอร์มต้นแบบประจำประเภทนี้</span>
+                  {(sampleUrl || (exampleDocuments && exampleDocuments.length > 0)) && (
+                    <span className="text-[10px] bg-sky-200 text-sky-900 px-2 py-0.2 rounded-full font-bold">
+                      มี {(sampleUrl ? 1 : 0) + (exampleDocuments?.length || 0)} ลิงก์
+                    </span>
+                  )}
+                </h5>
+                <p className="text-[11px] text-sky-800">
+                  แปะลิงก์ Google Docs, PDF, Google Drive หรือเว็บตัวอย่าง เพื่อให้ครูคลิกเปิดดูตัวอย่างก่อนกรอกส่ง
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGlobalSampleEditor(!showGlobalSampleEditor)}
+              className="px-3 py-1 bg-white hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+            >
+              {showGlobalSampleEditor ? 'ย่อแผงตัวอย่าง' : '+ แปะลิงก์ตัวอย่างเอกสาร'}
+            </button>
+          </div>
+
+          {showGlobalSampleEditor && (
+            <div className="pt-2 space-y-3 border-t border-sky-200/70">
+              {/* Primary Sample Link */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+                <div className="sm:col-span-5">
+                  <label className="block text-[11px] font-bold text-sky-950 mb-1">
+                    ชื่อเอกสารตัวอย่างหลัก
+                  </label>
+                  <input
+                    type="text"
+                    value={sampleTitle}
+                    onChange={(e) =>
+                      onSampleDocumentsChange({
+                        sample_url: sampleUrl,
+                        sample_title: e.target.value,
+                        example_documents: exampleDocuments,
+                      })
+                    }
+                    placeholder="เช่น ตัวอย่างแบบฟอร์มวิจัยในชั้นเรียนหน้าเดียว (Google Docs)"
+                    className="w-full px-3 py-1.5 border border-sky-300 rounded-xl text-xs bg-white text-slate-800 font-medium"
+                  />
+                </div>
+                <div className="sm:col-span-5">
+                  <label className="block text-[11px] font-bold text-sky-950 mb-1">
+                    ลิงก์ตัวอย่าง (URL)
+                  </label>
+                  <input
+                    type="url"
+                    value={sampleUrl}
+                    onChange={(e) =>
+                      onSampleDocumentsChange({
+                        sample_url: e.target.value,
+                        sample_title: sampleTitle,
+                        example_documents: exampleDocuments,
+                      })
+                    }
+                    placeholder="https://docs.google.com/... หรือ drive.google.com/..."
+                    className="w-full px-3 py-1.5 border border-sky-300 rounded-xl text-xs bg-white font-mono text-slate-800"
+                  />
+                </div>
+                <div className="sm:col-span-2 flex items-end">
+                  <button
+                    type="button"
+                    disabled={!sampleUrl}
+                    onClick={() => {
+                      if (!sampleUrl) return;
+                      let url = sampleUrl.trim();
+                      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="w-full py-1.5 px-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>ทดสอบเปิด</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Additional Sample Documents list */}
+              {exampleDocuments && exampleDocuments.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-sky-950 block">
+                    เอกสารตัวอย่างเพิ่มเติม ({exampleDocuments.length} รายการ):
+                  </span>
+                  {exampleDocuments.map((doc, dIdx) => (
+                    <div key={dIdx} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-sky-200 text-xs">
+                      <input
+                        type="text"
+                        value={doc.title}
+                        onChange={(e) => {
+                          const updated = [...exampleDocuments];
+                          updated[dIdx] = { ...updated[dIdx], title: e.target.value };
+                          onSampleDocumentsChange({
+                            sample_url: sampleUrl,
+                            sample_title: sampleTitle,
+                            example_documents: updated,
+                          });
+                        }}
+                        placeholder="ชื่อเอกสารตัวอย่างเพิ่มเติม..."
+                        className="w-1/3 px-2.5 py-1 text-xs border border-slate-200 rounded-lg"
+                      />
+                      <input
+                        type="url"
+                        value={doc.url}
+                        onChange={(e) => {
+                          const updated = [...exampleDocuments];
+                          updated[dIdx] = { ...updated[dIdx], url: e.target.value };
+                          onSampleDocumentsChange({
+                            sample_url: sampleUrl,
+                            sample_title: sampleTitle,
+                            example_documents: updated,
+                          });
+                        }}
+                        placeholder="URL ตัวอย่าง..."
+                        className="flex-1 px-2.5 py-1 text-xs border border-slate-200 rounded-lg font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          let url = (doc.url || '').trim();
+                          if (!url) return;
+                          if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
+                        className="p-1 text-sky-600 hover:text-sky-800 cursor-pointer"
+                        title="ทดสอบเปิดลิงก์"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = exampleDocuments.filter((_, i) => i !== dIdx);
+                          onSampleDocumentsChange({
+                            sample_url: sampleUrl,
+                            sample_title: sampleTitle,
+                            example_documents: updated,
+                          });
+                        }}
+                        className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                        title="ลบลิงก์นี้"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = [...(exampleDocuments || [])];
+                  updated.push({
+                    title: `เอกสารตัวอย่าง ${updated.length + 2}`,
+                    url: '',
+                  });
+                  onSampleDocumentsChange({
+                    sample_url: sampleUrl,
+                    sample_title: sampleTitle,
+                    example_documents: updated,
+                  });
+                }}
+                className="text-[11px] font-bold text-sky-700 hover:text-sky-900 flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>+ เพิ่มลิงก์เอกสารตัวอย่างอีก 1 รายการ</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Fields List */}
       <div className="space-y-3">
         {fields.length === 0 ? (
@@ -548,18 +767,34 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
                     </select>
                   </div>
 
-                  {/* Required Checkbox */}
+                  {/* Required Checkbox or Link Reference badge */}
                   <div className="sm:col-span-3 flex items-center sm:justify-center pt-2 sm:pt-4">
-                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={field.required}
-                        onChange={(e) => handleUpdateField(field.id, { required: e.target.checked })}
-                        className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                      />
-                      <span>จำเป็นต้องกรอก</span>
-                    </label>
+                    {field.type === 'link_reference' ? (
+                      <span className="text-[11px] font-bold text-sky-800 bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200">
+                        🔗 การ์ดตัวอย่าง (อ่านอย่างเดียว)
+                      </span>
+                    ) : (
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={field.required}
+                          onChange={(e) => handleUpdateField(field.id, { required: e.target.checked })}
+                          className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                        />
+                        <span>จำเป็นต้องกรอก</span>
+                      </label>
+                    )}
                   </div>
+
+                  {/* Link Reference explanatory note */}
+                  {field.type === 'link_reference' && (
+                    <div className="sm:col-span-12 bg-sky-50/90 p-3 rounded-xl border border-sky-300 text-xs text-sky-950 flex items-start gap-2">
+                      <ExternalLink className="w-4 h-4 text-sky-600 mt-0.5 shrink-0" />
+                      <div>
+                        <strong>การ์ดแสดงลิงก์เอกสารตัวอย่าง:</strong> ในหน้าส่งงาน ช่องนี้จะแสดงเป็นการ์ดสีฟ้าพร้อมปุ่มให้ครูกดคลิกเปิดดูตัวอย่างเอกสาร หรือดาวน์โหลดแบบฟอร์มต้นแบบที่แอดมินแปะไว้ (ไม่ต้องกรอกข้อมูลกลับ)
+                      </div>
+                    </div>
+                  )}
 
                   {/* Field Description / Instruction */}
                   <div className="sm:col-span-7">
@@ -878,6 +1113,141 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
                       )}
                     </div>
                   )}
+
+                  {/* Sample / Reference Document Links for this Field (เผื่อครูอยากดูตัวอย่าง) */}
+                  <div className="sm:col-span-12 bg-sky-50/70 p-3 sm:p-3.5 rounded-2xl border border-sky-200/90 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-sky-950">
+                        <LinkIcon className="w-4 h-4 text-sky-600" />
+                        <span>แปะลิงก์เอกสารตัวอย่าง / ไฟล์ต้นแบบ (เผื่อครูอยากดูตัวอย่างก่อนกรอก)</span>
+                      </div>
+                      <span className="text-[10px] text-sky-700 font-medium">Google Drive, Docs, PDF, หรือเว็บไซต์</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+                      {/* Example Link Title */}
+                      <div className="sm:col-span-4">
+                        <label className="block text-[11px] font-semibold text-sky-900 mb-1">
+                          ชื่อตัวอย่างเอกสาร
+                        </label>
+                        <input
+                          type="text"
+                          value={field.example_title || ''}
+                          onChange={(e) => handleUpdateField(field.id, { example_title: e.target.value })}
+                          placeholder="เช่น ตัวอย่างแบบฟอร์ม (PDF)"
+                          className="w-full px-3 py-1.5 border border-sky-300 rounded-xl text-xs bg-white text-slate-800 font-medium placeholder:text-slate-400 focus:ring-1 focus:ring-sky-500"
+                        />
+                      </div>
+
+                      {/* Example Link URL */}
+                      <div className="sm:col-span-6">
+                        <label className="block text-[11px] font-semibold text-sky-900 mb-1">
+                          ลิงก์ตัวอย่าง (URL)
+                        </label>
+                        <input
+                          type="url"
+                          value={field.example_url || ''}
+                          onChange={(e) => handleUpdateField(field.id, { example_url: e.target.value })}
+                          placeholder="https://drive.google.com/... หรือ ลิงก์ตรง .pdf"
+                          className="w-full px-3 py-1.5 border border-sky-300 rounded-xl text-xs bg-white font-mono text-slate-800 placeholder:text-slate-400 focus:ring-1 focus:ring-sky-500"
+                        />
+                      </div>
+
+                      {/* Test Link Button */}
+                      <div className="sm:col-span-2 flex items-end">
+                        <button
+                          type="button"
+                          disabled={!field.example_url}
+                          onClick={() => {
+                            if (!field.example_url) return;
+                            let url = field.example_url.trim();
+                            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="w-full py-1.5 px-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:hover:bg-sky-600 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                          title="ทดสอบเปิดลิงก์ตัวอย่างเอกสารนี้"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>ทดสอบ</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Additional Example Links (if admin wants to add more than 1 sample document) */}
+                    {field.example_links && field.example_links.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[11px] font-bold text-sky-900 block">ลิงก์ตัวอย่างเพิ่มเติม ({field.example_links.length} รายการ):</span>
+                        {field.example_links.map((link, lIdx) => (
+                          <div key={lIdx} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-sky-200">
+                            <input
+                              type="text"
+                              value={link.title}
+                              onChange={(e) => {
+                                const updated = [...(field.example_links || [])];
+                                updated[lIdx] = { ...updated[lIdx], title: e.target.value };
+                                handleUpdateField(field.id, { example_links: updated });
+                              }}
+                              placeholder="ชื่อเอกสารตัวอย่าง..."
+                              className="w-1/3 px-2 py-1 text-xs border border-slate-200 rounded-lg"
+                            />
+                            <input
+                              type="url"
+                              value={link.url}
+                              onChange={(e) => {
+                                const updated = [...(field.example_links || [])];
+                                updated[lIdx] = { ...updated[lIdx], url: e.target.value };
+                                handleUpdateField(field.id, { example_links: updated });
+                              }}
+                              placeholder="URL ตัวอย่าง..."
+                              className="flex-1 px-2 py-1 text-xs border border-slate-200 rounded-lg font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                let url = link.url.trim();
+                                if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                                window.open(url, '_blank', 'noopener,noreferrer');
+                              }}
+                              className="p-1 text-sky-600 hover:text-sky-800"
+                              title="ทดสอบเปิด"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = (field.example_links || []).filter((_, i) => i !== lIdx);
+                                handleUpdateField(field.id, { example_links: updated });
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600"
+                              title="ลบลิงก์นี้"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = field.example_links || [];
+                          handleUpdateField(field.id, {
+                            example_links: [...current, { title: `เอกสารตัวอย่าง ${current.length + 2}`, url: '' }],
+                          });
+                        }}
+                        className="text-[11px] font-bold text-sky-700 hover:text-sky-900 flex items-center gap-1 hover:underline cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+ เพิ่มลิงก์เอกสารตัวอย่างเพิ่มเติม</span>
+                      </button>
+                      <span className="text-[10px] text-slate-500">
+                        💡 ลิงก์ตัวอย่างจะแสดงเป็นปุ่มให้ครูกดคลิกดูตัวอย่างขณะกรอกข้อมูล
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             );
@@ -886,23 +1256,31 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
       </div>
 
       {/* Add Field Button Bar */}
-      <div className="p-3 bg-slate-100 rounded-2xl border border-slate-200/90 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-          <Plus className="w-4 h-4 text-indigo-600" />
-          <span>เพิ่มช่องกรอกข้อมูลประเภท:</span>
-        </span>
+      <div className="p-3.5 bg-gradient-to-r from-slate-100 via-indigo-50/40 to-slate-100 rounded-2xl border-2 border-slate-200/90 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-2xs">
+            <Plus className="w-4 h-4" />
+          </span>
+          <span className="text-xs font-bold text-slate-800">เพิ่มช่องกรอกข้อมูลประเภท:</span>
+        </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {FIELD_TYPE_OPTIONS.slice(0, 7).map((t) => {
+        <div className="flex flex-wrap items-center gap-1.5">
+          {FIELD_TYPE_OPTIONS.map((t) => {
             const Icon = t.icon;
+            const isSample = t.type === 'link_reference';
             return (
               <button
                 type="button"
                 key={t.type}
                 onClick={() => handleAddField(t.type)}
-                className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                  isSample
+                    ? 'bg-sky-600 hover:bg-sky-700 text-white border-sky-600 font-bold shadow-sky-600/20'
+                    : 'bg-white hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border-slate-300'
+                }`}
+                title={t.description}
               >
-                <Icon className="w-3.5 h-3.5 text-indigo-600" />
+                <Icon className={`w-3.5 h-3.5 ${isSample ? 'text-white' : 'text-indigo-600'}`} />
                 <span>+ {t.label.split(' ')[0]}</span>
               </button>
             );
@@ -932,12 +1310,133 @@ export const DynamicFormBuilder: React.FC<DynamicFormBuilderProps> = ({
             </div>
 
             <div className="p-5 overflow-y-auto space-y-4 touch-scroll flex-1">
+              {/* Preview Global Sample Documents Banner */}
+              {(sampleUrl || (exampleDocuments && exampleDocuments.length > 0)) && (
+                <div className="p-4 rounded-2xl bg-sky-50 border-2 border-sky-200 text-sky-950 space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-sky-900">
+                    <LinkIcon className="w-4 h-4 text-sky-600" />
+                    <span>เอกสารตัวอย่าง & แบบฟอร์มต้นแบบสำหรับงานนี้</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {sampleUrl && (
+                      <a
+                        href={/^https?:\/\//i.test(sampleUrl) ? sampleUrl : `https://${sampleUrl}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>{sampleTitle || 'เปิดดูตัวอย่างเอกสารหลัก'}</span>
+                      </a>
+                    )}
+                    {(exampleDocuments || [])
+                      .filter((d) => d.url)
+                      .map((doc, dIdx) => (
+                        <a
+                          key={dIdx}
+                          href={/^https?:\/\//i.test(doc.url) ? doc.url : `https://${doc.url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold shadow-2xs transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-sky-600" />
+                          <span>{doc.title || `เอกสารตัวอย่าง ${dIdx + 2}`}</span>
+                        </a>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               {fields.map((f, idx) => (
-                <div key={f.id} className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-800">
-                    {idx + 1}. {f.label} {f.required && <span className="text-rose-500">*</span>}
-                  </label>
+                <div key={f.id} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="block text-xs font-bold text-slate-800">
+                      {idx + 1}. {f.label} {f.required && <span className="text-rose-500">*</span>}
+                    </label>
+                  </div>
                   {f.description && <p className="text-[11px] text-slate-500">{f.description}</p>}
+
+                  {/* Sample links attached to this field */}
+                  {(f.example_url || (f.example_links && f.example_links.length > 0)) && (
+                    <div className="flex flex-wrap items-center gap-1.5 py-1">
+                      <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1">
+                        <LinkIcon className="w-3 h-3 text-sky-600" />
+                        <span>ตัวอย่าง:</span>
+                      </span>
+                      {f.example_url && (
+                        <a
+                          href={/^https?:\/\//i.test(f.example_url) ? f.example_url : `https://${f.example_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3 text-sky-700" />
+                          <span>{f.example_title || 'ดูตัวอย่างเอกสาร'}</span>
+                        </a>
+                      )}
+                      {(f.example_links || []).filter((l) => l.url).map((link, lIdx) => (
+                        <a
+                          key={lIdx}
+                          href={/^https?:\/\//i.test(link.url) ? link.url : `https://${link.url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3 text-sky-600" />
+                          <span>{link.title || `เอกสารตัวอย่าง ${lIdx + 2}`}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Preview: Link Reference Card */}
+                  {f.type === 'link_reference' && (
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50 border-2 border-sky-200 text-sky-950 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <ExternalLink className="w-4 h-4 text-sky-600 shrink-0" />
+                          <span className="text-xs font-bold text-sky-950">{f.label}</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-sky-800 bg-white/80 px-2 py-0.5 rounded-full border border-sky-200">
+                          เอกสารอ้างอิง
+                        </span>
+                      </div>
+                      {f.description && (
+                        <p className="text-[11px] text-sky-800 leading-relaxed">{f.description}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {f.example_url ? (
+                          <a
+                            href={/^https?:\/\//i.test(f.example_url) ? f.example_url : `https://${f.example_url}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>{f.example_title || 'เปิดดูตัวอย่างเอกสารนี้'}</span>
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">
+                            (ยังไม่ได้ใส่ลิงก์ตัวอย่างในช่องนี้)
+                          </span>
+                        )}
+                        {(f.example_links || [])
+                          .filter((l) => l.url)
+                          .map((link, lIdx) => (
+                            <a
+                              key={lIdx}
+                              href={/^https?:\/\//i.test(link.url) ? link.url : `https://${link.url}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 transition-colors"
+                            >
+                              <ExternalLink className="w-3 h-3 text-sky-600" />
+                              <span>{link.title || `เอกสาร ${lIdx + 2}`}</span>
+                            </a>
+                          ))}
+                      </div>
+                    </div>
+                  )}
 
                   {f.type === 'user_profile' && (
                     <div className="px-3.5 py-2 bg-slate-100 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-between">

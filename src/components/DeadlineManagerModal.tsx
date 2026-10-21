@@ -51,6 +51,7 @@ import {
   FileJson,
   Award,
   List,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 interface DeadlineManagerModalProps {
@@ -291,6 +292,12 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       is_active: newDeadline.is_active ?? true,
       evaluation_type: newDeadline.evaluation_type || 'rubric_score',
       notes: newDeadline.notes?.trim() || '',
+      sample_url: newDeadline.sample_url?.trim() || undefined,
+      sample_title: newDeadline.sample_title?.trim() || undefined,
+      example_documents:
+        newDeadline.example_documents && newDeadline.example_documents.length > 0
+          ? newDeadline.example_documents.filter((d) => d.url?.trim())
+          : undefined,
       fields:
         useCustomFormForNew && newDeadline.fields && newDeadline.fields.length > 0
           ? newDeadline.fields
@@ -314,6 +321,9 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       evaluation_type: 'rubric_score',
       notes: '',
       fields: [],
+      sample_url: '',
+      sample_title: '',
+      example_documents: [],
     });
     await handleSaveDeadlines(nextList);
   };
@@ -1020,7 +1030,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                       </label>
                     </div>
 
-                    {useCustomFormForNew && (
+                    {useCustomFormForNew ? (
                       <div className="pt-2">
                         <DynamicFormBuilder
                           fields={newDeadline.fields || []}
@@ -1029,7 +1039,43 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                           }
                           availableTemplates={deadlines}
                           currentTeacher={currentTeacher}
+                          sampleUrl={newDeadline.sample_url || ''}
+                          sampleTitle={newDeadline.sample_title || ''}
+                          exampleDocuments={newDeadline.example_documents || []}
+                          onSampleDocumentsChange={(sampleData) =>
+                            setNewDeadline({ ...newDeadline, ...sampleData })
+                          }
                         />
+                      </div>
+                    ) : (
+                      <div className="bg-sky-50/70 p-3.5 rounded-xl border border-sky-200/90 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                            <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
+                            <span>แปะลิงก์เอกสารตัวอย่าง / แบบฟอร์มต้นแบบ (เผื่อครูอยากดูตัวอย่างก่อนส่ง)</span>
+                          </span>
+                          <span className="text-[10px] text-sky-700">Google Docs, PDF, หรือ Drive</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+                          <div className="sm:col-span-5">
+                            <input
+                              type="text"
+                              value={newDeadline.sample_title || ''}
+                              onChange={(e) => setNewDeadline({ ...newDeadline, sample_title: e.target.value })}
+                              placeholder="ชื่อตัวอย่าง เช่น แบบฟอร์มแผนการสอน (Google Docs)"
+                              className="w-full px-3 py-1.5 border border-sky-300 rounded-lg text-xs bg-white text-slate-800"
+                            />
+                          </div>
+                          <div className="sm:col-span-7">
+                            <input
+                              type="url"
+                              value={newDeadline.sample_url || ''}
+                              onChange={(e) => setNewDeadline({ ...newDeadline, sample_url: e.target.value })}
+                              placeholder="ลิงก์ตัวอย่าง https://docs.google.com/... หรือ drive.google.com/..."
+                              className="w-full px-3 py-1.5 border border-sky-300 rounded-lg text-xs bg-white font-mono text-slate-800"
+                            />
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1210,6 +1256,40 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                                 <span className="text-[10px] text-indigo-600 font-bold ml-0.5">+ กำหนด Dropdown</span>
                               </button>
                             )}
+                            {/* Sample documents indicator */}
+                            {dl.sample_url || (dl.example_documents && dl.example_documents.length > 0) ? (
+                              <a
+                                href={
+                                  /^https?:\/\//i.test(dl.sample_url || '')
+                                    ? dl.sample_url
+                                    : dl.example_documents?.[0]?.url
+                                    ? dl.example_documents[0].url.startsWith('http')
+                                      ? dl.example_documents[0].url
+                                      : `https://${dl.example_documents[0].url}`
+                                    : '#'
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-800 border border-sky-300 hover:bg-sky-100 transition-colors"
+                                title="คลิกเพื่อเปิดดูเอกสารตัวอย่างของประเภทนี้"
+                              >
+                                <LinkIcon className="w-3 h-3 text-sky-600" />
+                                <span>มีลิงก์ตัวอย่าง ({(dl.sample_url ? 1 : 0) + (dl.example_documents?.length || 0)})</span>
+                                <ExternalLink className="w-2.5 h-2.5 text-sky-500 ml-0.5" />
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingDeadlineId(dl.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium text-slate-500 hover:text-sky-700 hover:bg-sky-50 border border-dashed border-slate-300 transition-colors cursor-pointer"
+                                title="คลิกเพื่อแปะลิงก์ตัวอย่างเอกสารสำหรับประเภทนี้"
+                              >
+                                <LinkIcon className="w-3 h-3 text-slate-400" />
+                                <span>+ แปะลิงก์ตัวอย่าง</span>
+                              </button>
+                            )}
                           </div>
 
                           {dl.description && (
@@ -1281,6 +1361,41 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                                     }
                                     className="px-2.5 py-1.5 border border-rose-300 rounded-lg text-xs bg-white font-bold text-rose-900"
                                   />
+                                </div>
+                              </div>
+
+                              {/* Sample Document Links in edit mode */}
+                              <div className="sm:col-span-2 p-3.5 bg-sky-50/80 rounded-xl border border-sky-300 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                                    <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
+                                    <span>แปะลิงก์เอกสารตัวอย่าง / แบบฟอร์มต้นแบบ (เผื่อครูอยากดูตัวอย่าง)</span>
+                                  </span>
+                                  <span className="text-[10px] text-sky-700 font-medium">Google Docs, Drive หรือ PDF</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+                                  <div className="sm:col-span-5">
+                                    <input
+                                      type="text"
+                                      value={dl.sample_title || ''}
+                                      onChange={(e) =>
+                                        handleUpdateDeadlineItem(dl.id, { sample_title: e.target.value })
+                                      }
+                                      placeholder="ชื่อตัวอย่าง เช่น แบบฟอร์มวิจัย (Google Docs)"
+                                      className="w-full px-2.5 py-1.5 border border-sky-300 rounded-lg text-xs bg-white text-slate-800"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-7">
+                                    <input
+                                      type="url"
+                                      value={dl.sample_url || ''}
+                                      onChange={(e) =>
+                                        handleUpdateDeadlineItem(dl.id, { sample_url: e.target.value })
+                                      }
+                                      placeholder="https://docs.google.com/... หรือ drive.google.com/..."
+                                      className="w-full px-2.5 py-1.5 border border-sky-300 rounded-lg text-xs bg-white font-mono text-slate-800"
+                                    />
+                                  </div>
                                 </div>
                               </div>
 
@@ -1450,6 +1565,12 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                             }
                             availableTemplates={deadlines}
                             currentTeacher={currentTeacher}
+                            sampleUrl={dl.sample_url || ''}
+                            sampleTitle={dl.sample_title || ''}
+                            exampleDocuments={dl.example_documents || []}
+                            onSampleDocumentsChange={(sampleData) =>
+                              handleUpdateDeadlineItem(dl.id, sampleData)
+                            }
                           />
                         </div>
                       )}

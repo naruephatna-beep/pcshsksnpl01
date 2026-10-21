@@ -27,6 +27,8 @@ export const DEFAULT_DEADLINE_CONFIGS: PlanTypeDeadlineConfig[] = [
     is_active: true,
     evaluation_type: 'approval_only', // ตรวจแค่อนุมัติ/ไม่อนุมัติ ไม่ต้องให้คะแนน
     notes: 'ส่งก่อนเปิดภาคเรียนอย่างน้อย 1 สัปดาห์',
+    sample_url: 'https://docs.google.com/document/d/1sample_summary_plan/edit?usp=sharing',
+    sample_title: 'แบบฟอร์มแผนการสอนฉบับย่อ 1-2 หน้า (Google Docs)',
   },
   {
     id: 'type_full',
@@ -42,6 +44,8 @@ export const DEFAULT_DEADLINE_CONFIGS: PlanTypeDeadlineConfig[] = [
     is_active: true,
     evaluation_type: 'rubric_score', // ตรวจแบบให้คะแนนรูบริก 100 คะแนน
     notes: 'ส่งไฟล์ PDF ทางลิงก์ พร้อมบันทึกข้อเสนอแนะและแบบรูบริกส์',
+    sample_url: 'https://drive.google.com/file/d/1sample_active_learning_plan/view?usp=sharing',
+    sample_title: 'ตัวอย่างแผนจัดการเรียนรู้เชิงรุก (Active Learning) ฉบับสมบูรณ์ (PDF)',
   },
   {
     id: 'type_classroom_research_2569_2',
@@ -57,6 +61,14 @@ export const DEFAULT_DEADLINE_CONFIGS: PlanTypeDeadlineConfig[] = [
     is_active: true,
     evaluation_type: 'approval_only',
     notes: 'ดึงข้อมูลครูอัตโนมัติ กรอกรายละเอียดประเด็นวิจัย และแนบเอกสารไฟล์ประกอบ',
+    sample_url: 'https://docs.google.com/document/d/1sample_classroom_research_one_page/edit?usp=sharing',
+    sample_title: 'แบบฟอร์มวิจัยในชั้นเรียนหน้าเดียว (Google Docs)',
+    example_documents: [
+      {
+        title: 'แนวทางการเขียนประเด็นวิจัยในชั้นเรียน (PDF)',
+        url: 'https://drive.google.com/file/d/1sample_research_guideline/view',
+      },
+    ],
     fields: [
       {
         id: 'fld_teacher_name',

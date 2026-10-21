@@ -35,7 +35,8 @@ export type DynamicFieldType =
   | 'radio'
   | 'checkbox'
   | 'file'
-  | 'user_profile';
+  | 'user_profile'
+  | 'link_reference';
 
 export type SubmissionMode = 'both' | 'link_only' | 'file_only';
 
@@ -56,6 +57,9 @@ export interface DynamicFormField {
     allow_link?: boolean;
     require_link_only?: boolean;
   };
+  example_url?: string; // ลิงก์ตัวอย่างเอกสาร/ไฟล์ต้นแบบสำหรับช่องนี้
+  example_title?: string; // คำอธิบาย/ชื่อตัวอย่าง เช่น "ดูตัวอย่างแบบฟอร์ม PDF"
+  example_links?: Array<{ title: string; url: string }>; // รายการลิงก์เอกสารตัวอย่าง/ไฟล์ต้นแบบ
   order: number;
 }
 
@@ -75,6 +79,9 @@ export interface PlanTypeDeadlineConfig {
   notes?: string;
   fields?: DynamicFormField[]; // แบบฟอร์มข้อมูลที่กำหนดให้ผู้ส่งกรอก (Dynamic Form Fields)
   form_version?: number;
+  sample_url?: string; // ลิงก์เอกสารตัวอย่าง / Template ประจำประเภทงานนี้
+  sample_title?: string; // ชื่อตัวอย่างเอกสาร เช่น "แบบฟอร์มวิจัยในชั้นเรียนหน้าเดียว (Google Docs)"
+  example_documents?: Array<{ title: string; url: string }>; // รายการเอกสารตัวอย่างและแบบฟอร์มต้นแบบสำหรับประเภทนี้
 }
 
 export interface AssignmentSubmission {

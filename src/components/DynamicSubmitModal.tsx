@@ -469,6 +469,58 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
             </div>
           )}
 
+          {/* Sample Documents / Templates for this Assignment */}
+          {(config.sample_url || (config.example_documents && config.example_documents.length > 0)) && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 to-blue-50/80 border-2 border-sky-200 text-sky-950 space-y-2.5 shadow-2xs">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-xl bg-sky-200/80 text-sky-800 shrink-0">
+                    <LinkIcon className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                      <span>เอกสารตัวอย่าง & แบบฟอร์มต้นแบบสำหรับงานนี้</span>
+                      <span className="text-[10px] bg-sky-200 text-sky-900 px-2 py-0.2 rounded-full font-bold">
+                        ตัวอย่างสำหรับครู
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-sky-800">
+                      คลิกเพื่อเปิดดูแนวทางการจัดทำ หรือคัดลอกแบบฟอร์มต้นแบบไปใช้งาน
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {config.sample_url && (
+                  <a
+                    href={/^https?:\/\//i.test(config.sample_url) ? config.sample_url : `https://${config.sample_url}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>{config.sample_title || 'เปิดดูตัวอย่างเอกสารหลัก'}</span>
+                  </a>
+                )}
+                {(config.example_documents || [])
+                  .filter((d) => d.url)
+                  .map((doc, dIdx) => (
+                    <a
+                      key={dIdx}
+                      href={/^https?:\/\//i.test(doc.url) ? doc.url : `https://${doc.url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold shadow-2xs transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-sky-600" />
+                      <span>{doc.title || `เอกสารตัวอย่าง ${dIdx + 2}`}</span>
+                    </a>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {/* DYNAMIC FIELDS RENDERER */}
           <div className="space-y-4">
             {fields.map((field, index) => {
@@ -494,10 +546,83 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                         <span>ดึงจากโปรไฟล์ครูอัตโนมัติ</span>
                       </span>
                     )}
+
+                    {field.type === 'link_reference' && (
+                      <span className="text-[10px] font-bold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-200 flex items-center gap-1">
+                        <ExternalLink className="w-3 h-3" />
+                        <span>เอกสารอ้างอิง / ตัวอย่าง</span>
+                      </span>
+                    )}
                   </div>
 
                   {field.description && (
                     <p className="text-[11px] text-slate-500">{field.description}</p>
+                  )}
+
+                  {/* Sample links attached to this field */}
+                  {(field.example_url || (field.example_links && field.example_links.length > 0)) && (
+                    <div className="flex flex-wrap items-center gap-1.5 py-1">
+                      <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1">
+                        <LinkIcon className="w-3 h-3 text-sky-600" />
+                        <span>ตัวอย่าง:</span>
+                      </span>
+                      {field.example_url && (
+                        <a
+                          href={/^https?:\/\//i.test(field.example_url) ? field.example_url : `https://${field.example_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3 text-sky-700" />
+                          <span>{field.example_title || 'ดูตัวอย่างเอกสาร'}</span>
+                        </a>
+                      )}
+                      {(field.example_links || []).filter((l) => l.url).map((link, lIdx) => (
+                        <a
+                          key={lIdx}
+                          href={/^https?:\/\//i.test(link.url) ? link.url : `https://${link.url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3 text-sky-600" />
+                          <span>{link.title || `เอกสารตัวอย่าง ${lIdx + 2}`}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* FIELD TYPE: LINK REFERENCE (READ-ONLY SAMPLE/TEMPLATE) */}
+                  {field.type === 'link_reference' && (
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50/60 border border-sky-200 text-sky-950 space-y-2">
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {field.example_url && (
+                          <a
+                            href={/^https?:\/\//i.test(field.example_url) ? field.example_url : `https://${field.example_url}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>{field.example_title || 'เปิดดูตัวอย่างเอกสารนี้'}</span>
+                          </a>
+                        )}
+                        {(field.example_links || [])
+                          .filter((l) => l.url)
+                          .map((link, lIdx) => (
+                            <a
+                              key={lIdx}
+                              href={/^https?:\/\//i.test(link.url) ? link.url : `https://${link.url}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 transition-colors"
+                            >
+                              <ExternalLink className="w-3 h-3 text-sky-600" />
+                              <span>{link.title || `เอกสาร ${lIdx + 2}`}</span>
+                            </a>
+                          ))}
+                      </div>
+                    </div>
                   )}
 
                   {/* FIELD TYPE: USER PROFILE (READ-ONLY) */}

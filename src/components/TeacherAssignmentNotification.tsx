@@ -21,6 +21,7 @@ import {
   ArrowRight,
   ShieldAlert,
   Flame,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 interface TeacherAssignmentNotificationProps {
@@ -456,6 +457,50 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                         <Info className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
                         <div>
                           <strong>คำชี้แจง:</strong> {config.notes}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sample Documents / Templates preview for this assignment */}
+                    {(config.sample_url || (config.example_documents && config.example_documents.length > 0)) && (
+                      <div className="p-2.5 rounded-lg bg-sky-50/80 border border-sky-200 space-y-1.5 mb-3 text-xs">
+                        <div className="flex items-center justify-between text-sky-950 font-bold text-[11px]">
+                          <span className="flex items-center gap-1 text-sky-900">
+                            <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
+                            <span>เอกสารตัวอย่าง & แบบฟอร์มต้นแบบ:</span>
+                          </span>
+                          <span className="text-[10px] text-sky-600">คลิกเปิดดู</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {config.sample_url && (
+                            <a
+                              href={
+                                /^https?:\/\//i.test(config.sample_url)
+                                  ? config.sample_url
+                                  : `https://${config.sample_url}`
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-md text-[11px] font-semibold transition-colors shadow-2xs"
+                            >
+                              <ExternalLink className="w-3 h-3 text-sky-600" />
+                              <span>{config.sample_title || 'ดูตัวอย่างเอกสาร'}</span>
+                            </a>
+                          )}
+                          {(config.example_documents || [])
+                            .filter((d) => d.url)
+                            .map((doc, dIdx) => (
+                              <a
+                                key={dIdx}
+                                href={/^https?:\/\//i.test(doc.url) ? doc.url : `https://${doc.url}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-white hover:bg-sky-100 text-sky-900 border border-sky-200 rounded-md text-[10px] font-medium transition-colors"
+                              >
+                                <ExternalLink className="w-3 h-3 text-sky-600" />
+                                <span>{doc.title || `ตัวอย่าง ${dIdx + 2}`}</span>
+                              </a>
+                            ))}
                         </div>
                       </div>
                     )}

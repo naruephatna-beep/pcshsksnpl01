@@ -18,6 +18,7 @@ import {
   Trash2,
   Copy,
   BookOpen,
+  ExternalLink,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PdfPermissionNotice } from './PdfPermissionNotice';
@@ -654,6 +655,59 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                         </option>
                       ))}
                     </select>
+
+                    {/* Sample Documents for this Plan Type */}
+                    {(() => {
+                      const matchingTypeConfig = (deadlineConfigs || []).find((c) => c.name === item.planType);
+                      if (
+                        !matchingTypeConfig?.sample_url &&
+                        (!matchingTypeConfig?.example_documents || matchingTypeConfig.example_documents.length === 0)
+                      ) {
+                        return null;
+                      }
+                      return (
+                        <div className="mt-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-sky-900 flex items-center gap-1.5">
+                              <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
+                              <span>เอกสารตัวอย่าง & แบบฟอร์มต้นแบบสำหรับ {item.planType}:</span>
+                            </span>
+                            <span className="text-[10px] text-sky-700 font-medium">คลิกเพื่อเปิดดูตัวอย่าง</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2 pt-0.5">
+                            {matchingTypeConfig.sample_url && (
+                              <a
+                                href={
+                                  /^https?:\/\//i.test(matchingTypeConfig.sample_url)
+                                    ? matchingTypeConfig.sample_url
+                                    : `https://${matchingTypeConfig.sample_url}`
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>{matchingTypeConfig.sample_title || 'เปิดดูตัวอย่างเอกสาร'}</span>
+                              </a>
+                            )}
+                            {(matchingTypeConfig.example_documents || [])
+                              .filter((d) => d.url)
+                              .map((doc, dIdx) => (
+                                <a
+                                  key={dIdx}
+                                  href={/^https?:\/\//i.test(doc.url) ? doc.url : `https://${doc.url}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5 text-sky-600" />
+                                  <span>{doc.title || `เอกสารตัวอย่าง ${dIdx + 2}`}</span>
+                                </a>
+                              ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Deadline notice for this item */}
                     {itemTimeliness.configFound && (
