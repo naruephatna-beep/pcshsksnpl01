@@ -17,6 +17,14 @@ import {
   EmailNotificationLog,
 } from '../services/emailService';
 import {
+  subscribeGoogleAuth,
+  signInWithGoogleWorkspace,
+  signOutGoogleWorkspace,
+  getGoogleAccessToken,
+  getCurrentGoogleUser,
+} from '../services/googleAuthService';
+import { User } from 'firebase/auth';
+import {
   X,
   ShieldCheck,
   Search,
@@ -121,6 +129,41 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     plan: LessonPlan;
     allMatching: LessonPlan[];
   } | null>(null);
+
+  // Google Workspace Authentication State
+  const [googleUser, setGoogleUser] = useState<User | null>(getCurrentGoogleUser());
+  const [googleToken, setGoogleToken] = useState<string | null>(getGoogleAccessToken());
+  const [isGoogleLoggingIn, setIsGoogleLoggingIn] = useState(false);
+
+  React.useEffect(() => {
+    return subscribeGoogleAuth((user, token) => {
+      setGoogleUser(user);
+      setGoogleToken(token);
+    });
+  }, []);
+
+  const handleConnectGoogle = async () => {
+    setIsGoogleLoggingIn(true);
+    try {
+      const res = await signInWithGoogleWorkspace();
+      setGoogleUser(res.user);
+      setGoogleToken(res.accessToken);
+      showToast(`เชื่อมต่อ Gmail (${res.user.email}) สำเร็จ พร้อมส่งเมลจริงแล้ว!`);
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        showToast(`เข้าสู่ระบบไม่สำเร็จ: ${err?.message || 'โปรดลองใหม่อีกครั้ง'}`);
+      }
+    } finally {
+      setIsGoogleLoggingIn(false);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    await signOutGoogleWorkspace();
+    setGoogleUser(null);
+    setGoogleToken(null);
+    showToast('ออกจากระบบ Google Workspace เรียบร้อยแล้ว');
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -557,6 +600,78 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
             </button>
           </div>
         )}
+
+        {/* Google Workspace Account Connection Banner for Real Email Delivery */}
+        <div
+          className={`px-3.5 sm:px-5 py-2.5 border-b flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0 ${
+            googleUser
+              ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
+              : 'bg-amber-50/90 border-amber-300 text-amber-950'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-xl bg-white shadow-2xs border border-slate-200 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              {googleUser ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-black text-emerald-900">🟢 บริการส่งอีเมลจริงผ่าน Gmail:</span>
+                  <span className="text-emerald-800">ส่งตรงจาก</span>
+                  <span className="font-mono bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md font-bold text-[11px] truncate">
+                    {googleUser.email}
+                  </span>
+                  <span className="text-emerald-700 font-medium hidden sm:inline">
+                    (อีเมลจะส่งเข้า Inbox ของครูผู้สอนทุกคนจริงทันที)
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-black text-amber-900">⚠️ บริการส่งอีเมลจริง (@pcshsksn.ac.th):</span>
+                  <span className="text-amber-800">
+                    โปรดเชื่อมต่อ Google Workspace เพื่อให้ระบบส่งอีเมลแจ้งเตือนเข้า Inbox ของครูอัตโนมัติ
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {googleUser ? (
+              <button
+                type="button"
+                onClick={handleDisconnectGoogle}
+                className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold cursor-pointer transition-colors shadow-2xs"
+              >
+                สลับบัญชี Google
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleConnectGoogle}
+                disabled={isGoogleLoggingIn}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all disabled:opacity-60"
+              >
+                {isGoogleLoggingIn ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>กำลังเชื่อมต่อ Google...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-3.5 h-3.5 text-amber-300" />
+                    <span>เชื่อมต่อ Google Workspace (@pcshsksn.ac.th)</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Top KPI Cards (4 Cards) */}
         <div className="bg-slate-50 p-3 sm:p-4 border-b border-slate-200 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
@@ -1302,6 +1417,41 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                   </div>
                 </div>
 
+                {/* Real Email Sender Status Badge */}
+                <div
+                  className={`p-3 rounded-2xl border text-xs flex flex-wrap items-center justify-between gap-2.5 ${
+                    googleUser
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                      : 'bg-amber-50 border-amber-300 text-amber-950'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Mail className={`w-4 h-4 shrink-0 ${googleUser ? 'text-emerald-600' : 'text-amber-600'}`} />
+                    <span className="truncate">
+                      {googleUser ? (
+                        <>
+                          <strong>ผู้ส่งจริง:</strong> {googleUser.email} (ส่งตรงเข้า Inbox <strong>{reminderModalData.teacher.Email}</strong>)
+                        </>
+                      ) : (
+                        <>
+                          <strong>ยังไม่ได้เชื่อมต่อ Google:</strong> เชื่อมต่อ Google Workspace เพื่อให้อีเมลส่งจริงเข้า Inbox ของคุณครูอัตโนมัติ
+                        </>
+                      )}
+                    </span>
+                  </div>
+
+                  {!googleUser && (
+                    <button
+                      type="button"
+                      onClick={handleConnectGoogle}
+                      disabled={isGoogleLoggingIn}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-[11px] shrink-0 cursor-pointer shadow-2xs"
+                    >
+                      {isGoogleLoggingIn ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อ Google'}
+                    </button>
+                  )}
+                </div>
+
                 {/* Message preview toggle */}
                 <details className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs">
                   <summary className="font-bold text-slate-700 cursor-pointer select-none">
@@ -1341,28 +1491,60 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                       navigator.clipboard.writeText(body);
                       showToast('คัดลอกข้อความทวงงานสำหรับ LINE เรียบร้อยแล้ว!');
                     }}
-                    className="px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-xs"
+                    className="px-3 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-xs"
                   >
                     <Copy className="w-3.5 h-3.5 text-slate-500" />
                     <span>คัดลอกสำหรับ LINE</span>
                   </button>
 
-                  {/* DIRECT 1-CLICK SEND BUTTON: Sends immediately without opening apps */}
+                  {/* Fallback Direct Gmail Web link */}
+                  {(() => {
+                    const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${reminderModalData.teacher.Name} มีงานค้างส่ง ${reminderModalData.missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+                    const body = buildReminderText(reminderModalData.teacher, reminderModalData.missingTasks);
+                    const gmailUrl = buildGmailComposeUrl(
+                      reminderModalData.teacher.Email,
+                      subject,
+                      body
+                    );
+                    return (
+                      <a
+                        href={gmailUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-xs"
+                        title="เปิดส่งใน Gmail ทันที (เขียนเมลให้เรียบร้อยแล้ว)"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                        <span>เปิดส่งใน Gmail Web</span>
+                      </a>
+                    );
+                  })()}
+
+                  {/* DIRECT 1-CLICK SEND BUTTON */}
                   <button
                     type="button"
-                    disabled={isSendingEmail}
+                    disabled={isSendingEmail || isGoogleLoggingIn}
                     onClick={handleSendDirectEmailNow}
-                    className="px-5 py-2.5 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black flex items-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50 text-xs"
+                    className={`px-5 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50 text-xs ${
+                      googleUser
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white'
+                        : 'bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950'
+                    }`}
                   >
-                    {isSendingEmail ? (
+                    {isSendingEmail || isGoogleLoggingIn ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>กำลังส่งอีเมลถึง {reminderModalData.teacher.Name}...</span>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>กำลังดำเนินการ...</span>
+                      </>
+                    ) : googleUser ? (
+                      <>
+                        <Zap className="w-4 h-4 text-emerald-100" />
+                        <span>⚡ ส่งอีเมลจริงผ่าน Gmail ทันที</span>
                       </>
                     ) : (
                       <>
                         <Zap className="w-4 h-4 text-slate-950" />
-                        <span>⚡ กดส่งอีเมลทันที</span>
+                        <span>⚡ เชื่อมต่อ Google & ส่งอีเมลทันที</span>
                       </>
                     )}
                   </button>

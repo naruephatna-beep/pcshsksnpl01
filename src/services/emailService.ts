@@ -1,6 +1,12 @@
 import { Teacher } from '../types';
 import { getSavedCloudflareConfig } from './cloudflareClient';
 import { saveSystemSetting, fetchSystemSetting } from './supabaseClient';
+import {
+  sendEmailViaGmailApi,
+  getGoogleAccessToken,
+  getCurrentGoogleUser,
+  signInWithGoogleWorkspace,
+} from './googleAuthService';
 
 export interface EmailNotificationLog {
   id: string;
@@ -183,7 +189,7 @@ export function generateHtmlEmailTemplate({
         </div>
       </div>
 
-      <p style="font-size: 12px; line-height: 1.6; color: #64748b; margin-top: 20px; border-top: 1px solid #f1f5f9; pt: 16px;">
+      <p style="font-size: 12px; line-height: 1.6; color: #64748b; margin-top: 20px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
         หากท่านได้ดำเนินการส่งเอกสารแล้วหรือมีข้อขัดข้องประการใด โปรดติดต่อฝ่ายบริหารวิชาการเพื่อตรวจสอบข้อมูล<br>
         ขอขอบพระคุณในความร่วมมือเป็นอย่างสูงครับ/ค่ะ 🙏
       </p>
@@ -202,7 +208,8 @@ export function generateHtmlEmailTemplate({
 
 /**
  * Direct email sender function:
- * Sends email directly through backend API or Cloudflare Worker with instant receipt
+ * Sends email directly through Google Workspace Gmail REST API (real delivery)
+ * or fallback SMTP / Cloudflare Worker
  */
 export async function sendDirectEmailNotification({
   to,
@@ -212,6 +219,7 @@ export async function sendDirectEmailNotification({
   learningArea,
   missingTasks,
   customText,
+  autoPromptGoogleAuth = true,
 }: {
   to: string;
   subject: string;
@@ -229,11 +237,13 @@ export async function sendDirectEmailNotification({
     statusText: string;
   }>;
   customText?: string;
+  autoPromptGoogleAuth?: boolean;
 }): Promise<{
   success: boolean;
   message: string;
   log?: EmailNotificationLog;
   method?: string;
+  needAuth?: boolean;
 }> {
   const systemUrl = typeof window !== 'undefined' ? window.location.origin : 'https://pcshs-eduplan-db.naruephat-na.workers.dev';
   const html = generateHtmlEmailTemplate({
@@ -244,56 +254,76 @@ export async function sendDirectEmailNotification({
     systemUrl,
   });
 
-  const payload = {
-    to,
-    subject,
-    text: customText || `แจ้งเตือนภาระงานค้างส่ง คุณครู ${teacherName}: มีงานค้างส่ง ${missingTasks.length} รายการ ที่ ${systemUrl}`,
-    html,
-    teacherId,
-    teacherName,
-    taskNames: missingTasks.map((t) => t.name),
-  };
-
   let deliveryMethod = 'direct_dispatcher';
-  let isApiSuccess = false;
+  let isDelivered = false;
+  let deliveryError: string | null = null;
 
-  // 1. Try local Vite backend API endpoint (/api/send-email)
-  try {
-    const res = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      isApiSuccess = true;
-      deliveryMethod = data.method || 'smtp_gateway';
+  // 1. Check if user is logged into Google Workspace
+  let token = getGoogleAccessToken();
+  if (!token && autoPromptGoogleAuth) {
+    try {
+      const authRes = await signInWithGoogleWorkspace();
+      token = authRes.accessToken;
+    } catch (authErr: any) {
+      console.warn('Google Workspace sign in skipped/failed:', authErr);
     }
-  } catch (e) {
-    // continue to Cloudflare fallback
   }
 
-  // 2. If local endpoint didn't respond, try Cloudflare Worker
-  if (!isApiSuccess) {
-    const cf = getSavedCloudflareConfig();
-    if (cf.workerUrl) {
-      try {
-        const cfRes = await fetch(`${cf.workerUrl}/api/send-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(cf.apiKey ? { Authorization: `Bearer ${cf.apiKey}` } : {}),
-          },
-          body: JSON.stringify(payload),
-        });
-        if (cfRes.ok) {
-          isApiSuccess = true;
-          deliveryMethod = 'cloudflare_worker';
-        }
-      } catch (e) {
-        // continue
+  // If we have token, send REAL email via official Google Workspace Gmail API!
+  if (token) {
+    try {
+      const gRes = await sendEmailViaGmailApi({
+        to,
+        subject,
+        html,
+        fromName: 'กลุ่มบริหารวิชาการ จ.ภ. กาฬสินธุ์',
+      });
+      if (gRes.success) {
+        isDelivered = true;
+        deliveryMethod = 'google_workspace_gmail';
       }
+    } catch (gErr: any) {
+      console.warn('Gmail API sending error:', gErr);
+      deliveryError = gErr?.message || 'ส่งผ่าน Gmail API ไม่สำเร็จ';
     }
+  }
+
+  // 2. Fallback to local Vite backend API endpoint (/api/send-email) with SMTP
+  if (!isDelivered) {
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          subject,
+          text: customText || `แจ้งเตือนภาระงานค้างส่ง คุณครู ${teacherName}: มีงานค้างส่ง ${missingTasks.length} รายการ ที่ ${systemUrl}`,
+          html,
+          teacherId,
+          teacherName,
+          taskNames: missingTasks.map((t) => t.name),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.method === 'smtp') {
+          isDelivered = true;
+          deliveryMethod = 'smtp';
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // If still not delivered via real channel
+  if (!isDelivered) {
+    return {
+      success: false,
+      needAuth: true,
+      method: 'unauthenticated',
+      message: deliveryError || 'กรุณาเชื่อมต่อ Google Workspace (@pcshsksn.ac.th) เพื่อส่งอีเมลจริงเข้า Inbox ของคุณครู หรือกดเปิดส่งใน Gmail',
+    };
   }
 
   // 3. Create persistent audit log
@@ -307,14 +337,14 @@ export async function sendDirectEmailNotification({
     sent_at: new Date().toISOString(),
     status: 'delivered',
     channel: 'email_direct',
-    notes: `ส่งตรงผ่าน ${deliveryMethod}`,
+    notes: `ส่งจริงผ่าน ${deliveryMethod === 'google_workspace_gmail' ? 'Google Workspace Gmail API' : 'SMTP'}`,
   };
 
   await recordEmailLog(newLog);
 
   return {
     success: true,
-    message: `ส่งอีเมลแจ้งเตือนถึง ${to} สำเร็จเรียบร้อยแล้ว!`,
+    message: `ส่งอีเมลจริงผ่าน Gmail ถึง ${to} สำเร็จเรียบร้อยแล้ว!`,
     log: newLog,
     method: deliveryMethod,
   };
@@ -339,7 +369,7 @@ export async function broadcastNewAssignmentDirectEmail({
   description?: string;
   sampleUrl?: string;
   teacherEmails: string[];
-}): Promise<{ success: boolean; count: number; message: string }> {
+}): Promise<{ success: boolean; count: number; message: string; needAuth?: boolean }> {
   const systemUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const subject = `[แจ้งภาระงานใหม่] ${assignmentName} (กำหนดส่ง ${deadlineFormatted}) - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
 
@@ -371,37 +401,56 @@ export async function broadcastNewAssignmentDirectEmail({
     </div>
   `;
 
-  // Dispatch via local or worker API
-  try {
-    await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: teacherEmails.join(','),
-        subject,
-        html,
-        text: `แจ้งภาระงานใหม่: ${assignmentName} กำหนดส่ง ${deadlineFormatted} เข้าสู่ระบบที่ ${systemUrl}`,
-      }),
-    });
-  } catch (e) {}
+  let token = getGoogleAccessToken();
+  if (!token) {
+    try {
+      const authRes = await signInWithGoogleWorkspace();
+      token = authRes.accessToken;
+    } catch (e) {
+      // not authenticated
+    }
+  }
 
-  // Record broadcast log
-  await recordEmailLog({
-    id: `broadcast_${Date.now()}`,
-    teacher_id: 'ALL',
-    teacher_name: `ครูผู้สอนทุกคน (${teacherEmails.length} ท่าน)`,
-    recipient_email: teacherEmails.join(', '),
-    subject,
-    task_names: [assignmentName],
-    sent_at: new Date().toISOString(),
-    status: 'delivered',
-    channel: 'email_direct',
-    notes: `Broadcast แจ้งงานใหม่`,
-  });
+  if (token) {
+    let sentCount = 0;
+    for (const email of teacherEmails) {
+      try {
+        await sendEmailViaGmailApi({
+          to: email,
+          subject,
+          html,
+          fromName: 'กลุ่มบริหารวิชาการ จ.ภ. กาฬสินธุ์',
+        });
+        sentCount++;
+      } catch (err) {
+        console.warn(`Failed to send to ${email}:`, err);
+      }
+    }
+
+    await recordEmailLog({
+      id: `broadcast_${Date.now()}`,
+      teacher_id: 'ALL',
+      teacher_name: `ครูผู้สอนทุกคน (${sentCount} ท่าน)`,
+      recipient_email: teacherEmails.join(', '),
+      subject,
+      task_names: [assignmentName],
+      sent_at: new Date().toISOString(),
+      status: 'delivered',
+      channel: 'email_direct',
+      notes: `ส่งจริงผ่าน Google Workspace Gmail API ถึง ${sentCount} ท่าน`,
+    });
+
+    return {
+      success: true,
+      count: sentCount,
+      message: `ส่งอีเมลจริงผ่าน Gmail ถึงคุณครู ${sentCount} ท่านเรียบร้อยแล้ว!`,
+    };
+  }
 
   return {
-    success: true,
-    count: teacherEmails.length,
-    message: `ส่งอีเมลแจ้งเตือนภาระงานใหม่ให้คุณครูทั้ง ${teacherEmails.length} ท่านเรียบร้อยแล้ว!`,
+    success: false,
+    count: 0,
+    needAuth: true,
+    message: 'กรุณาเชื่อมต่อ Google Workspace เพื่อส่งอีเมลจริงเข้า Inbox ครูทุกคน',
   };
 }

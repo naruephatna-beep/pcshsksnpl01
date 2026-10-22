@@ -2210,6 +2210,30 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   <span>คัดลอกข้อความ</span>
                 </button>
 
+                {/* Fallback Direct Gmail Web link */}
+                {(() => {
+                  const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
+                  const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
+                  const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งแผนการสอนออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+                  const gmailUrl = buildGmailComposeUrl(
+                    teacherEmails.join(','),
+                    subject,
+                    body
+                  );
+                  return (
+                    <a
+                      href={gmailUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-xs"
+                      title="เปิดส่งใน Gmail ทันที (เขียนเมลให้เรียบร้อยแล้ว)"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                      <span>เปิดส่งใน Gmail Web</span>
+                    </a>
+                  );
+                })()}
+
                 {/* Direct 1-Click Send Button */}
                 <button
                   type="button"
@@ -2250,7 +2274,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   ) : (
                     <>
                       <Zap className="w-4 h-4 text-slate-950" />
-                      <span>⚡ กดส่งอีเมลหาครูทุกคนทันที ({teacherEmails.length} ท่าน)</span>
+                      <span>⚡ ส่งอีเมลจริงผ่าน Gmail ถึงครูทุกคน ({teacherEmails.length} ท่าน)</span>
                     </>
                   )}
                 </button>
