@@ -611,3 +611,92 @@ export function getPlanStatusInfo(
     style: getStatusStyle('amber'),
   };
 }
+
+export interface TaskTimeStatus {
+  isOverdue: boolean;
+  days: number;
+  hours: number;
+  minutes: number;
+  statusText: string; // e.g. "เลยกำหนดส่งแล้ว 5 วัน" หรือ "เหลือเวลาอีก 3 วัน 4 ชั่วโมง"
+  badgeText: string; // e.g. "เลยกำหนด 5 วัน" หรือ "เหลือ 3 วัน"
+  deadlineDate: Date;
+  deadlineFormatted: string;
+}
+
+/**
+ * Calculates whether a task is overdue, how many days it is overdue, or how much time remains
+ */
+export function calculateTaskTimeStatus(
+  endDateStr: string,
+  endTimeStr: string = '23:59'
+): TaskTimeStatus {
+  const deadlineDate = constructDateTime(endDateStr, endTimeStr);
+  const now = new Date();
+  const diffMs = deadlineDate.getTime() - now.getTime();
+  const isOverdue = diffMs < 0;
+  const absMs = Math.abs(diffMs);
+
+  const days = Math.floor(absMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((absMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60));
+
+  let statusText = '';
+  let badgeText = '';
+
+  if (isOverdue) {
+    if (days > 0) {
+      statusText = `เลยกำหนดส่งแล้ว ${days} วัน ${hours > 0 ? `${hours} ชั่วโมง` : ''}`;
+      badgeText = `เลยกำหนด ${days} วัน`;
+    } else if (hours > 0) {
+      statusText = `เลยกำหนดส่งแล้ว ${hours} ชั่วโมง ${minutes} นาที`;
+      badgeText = `เลยกำหนด ${hours} ชม.`;
+    } else {
+      statusText = `เลยกำหนดส่งแล้ว ${minutes} นาที`;
+      badgeText = `เลยกำหนด ${minutes} นาที`;
+    }
+  } else {
+    if (days > 0) {
+      statusText = `เหลือเวลาอีก ${days} วัน ${hours > 0 ? `${hours} ชั่วโมง` : ''}`;
+      badgeText = `เหลือ ${days} วัน`;
+    } else if (hours > 0) {
+      statusText = `เหลือเวลาอีก ${hours} ชั่วโมง ${minutes} นาที`;
+      badgeText = `เหลือ ${hours} ชม.`;
+    } else {
+      statusText = `เหลือเวลาอีก ${minutes} นาทีสุดท้าย`;
+      badgeText = `เหลือ ${minutes} นาที`;
+    }
+  }
+
+  return {
+    isOverdue,
+    days,
+    hours,
+    minutes,
+    statusText,
+    badgeText,
+    deadlineDate,
+    deadlineFormatted: formatThaiDateTime(deadlineDate),
+  };
+}
+
+/**
+ * Creates Google Webmail composer URL (for Google Workspace users @pcshsksn.ac.th)
+ */
+export function buildGmailComposeUrl(to: string, subject: string, body: string): string {
+  const params = new URLSearchParams({
+    view: 'cm',
+    fs: '1',
+    to,
+    su: subject,
+    body,
+  });
+  return `https://mail.google.com/mail/?${params.toString()}`;
+}
+
+/**
+ * Creates mailto link
+ */
+export function buildMailtoUrl(to: string, subject: string, body: string): string {
+  return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
