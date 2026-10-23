@@ -104,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-white text-sm tracking-tight truncate">
-                  ส่งแผนการสอน
+                  ส่งเอกสารวิชาการ
                 </span>
                 <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs shrink-0">
                   จ.ภ.
@@ -203,7 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
 
-            {/* แผนการสอนทั้งหมด */}
+            {/* เอกสารทั้งหมด */}
             <button
               onClick={() =>
                 handleNavClick(() => {
@@ -220,7 +220,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="flex items-center gap-2.5 min-w-0">
                 <FileText className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0" />
                 <span className="truncate font-medium">
-                  {isAdmin ? 'รายการแผนทั้งหมด' : 'แผนของฉัน'}
+                  {isAdmin ? 'เอกสารทั้งหมด' : 'เอกสารของฉัน'}
                 </span>
               </div>
               <span className="text-[10px] font-mono text-slate-400 bg-slate-800/90 px-1.5 py-0.5 rounded shrink-0 border border-slate-700/60">

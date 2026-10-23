@@ -4,6 +4,7 @@ import {
   constructDateTime,
   formatThaiDateTime,
   getPlanStatusInfo,
+  isPlanMatchingAssignment,
 } from '../utils/deadlineUtils';
 import {
   Bell,
@@ -102,9 +103,7 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
       const startDate = constructDateTime(config.start_date, config.start_time || '00:00');
 
       // Check if teacher has submitted any plan for this document type
-      const matchingPlans = myPlans.filter(
-        (p) => p.plan_type.trim().toLowerCase() === config.name.trim().toLowerCase()
-      );
+      const matchingPlans = myPlans.filter((p) => isPlanMatchingAssignment(p, config));
       const isSubmitted = matchingPlans.length > 0;
       // Sort newest first
       const sortedMatching = [...matchingPlans].sort(

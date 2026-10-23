@@ -32,6 +32,7 @@ import {
   checkSubmissionTimeliness,
   getPlanStatusInfo,
   getSavedSubmissions,
+  classifyDocumentType,
   DEFAULT_DEADLINE_CONFIGS,
   DEFAULT_STATUS_CONFIGS,
 } from './utils/deadlineUtils';
@@ -109,6 +110,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [areaFilter, setAreaFilter] = useState<string>('');
+  const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
 
   // Auto-switch to executive dashboard for leadership accounts
   useEffect(() => {
@@ -762,6 +764,32 @@ export default function App() {
     }
   };
 
+  const userVisiblePlans = useMemo(() => {
+    if (isAdmin) return plans;
+    return plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID);
+  }, [isAdmin, plans, currentTeacher]);
+
+  const docCategoryCounts = useMemo(() => {
+    let summary = 0;
+    let full = 0;
+    let research = 0;
+    let general = 0;
+    for (const p of userVisiblePlans) {
+      const meta = classifyDocumentType(p.plan_type);
+      if (meta.key === 'summary_plan') summary++;
+      else if (meta.key === 'full_plan') full++;
+      else if (meta.key === 'classroom_research') research++;
+      else general++;
+    }
+    return {
+      all: userVisiblePlans.length,
+      summary,
+      full,
+      research,
+      general,
+    };
+  }, [userVisiblePlans]);
+
   // Filtered plans logic
   const filteredPlans = plans.filter((plan) => {
     // CRITICAL: Regular teachers can ONLY see their own plans! Normalized comparison prevents case/whitespace bugs
@@ -807,6 +835,22 @@ export default function App() {
     // Area filter (Admin)
     if (isAdmin && areaFilter && plan.learning_area !== areaFilter) {
       return false;
+    }
+
+    // Document Type Filter (แยกประเภทเอกสาร)
+    if (docTypeFilter !== 'all') {
+      const docTypeMeta = classifyDocumentType(plan.plan_type);
+      if (docTypeFilter === 'general_academic') {
+        if (
+          docTypeMeta.key === 'summary_plan' ||
+          docTypeMeta.key === 'full_plan' ||
+          docTypeMeta.key === 'classroom_research'
+        ) {
+          return false;
+        }
+      } else if (docTypeMeta.key !== docTypeFilter) {
+        return false;
+      }
     }
 
     // Search query
@@ -950,7 +994,7 @@ export default function App() {
               </div>
               <div className="min-w-0">
                 <span className="font-extrabold text-xs text-white block truncate leading-tight">
-                  ระบบส่งแผนการสอน
+                  ระบบส่งเอกสารวิชาการ
                 </span>
                 <span className="text-[10px] text-amber-400 font-semibold block truncate">
                   จ.ภ. กาฬสินธุ์ · ภาคเรียนที่ 2/2567
@@ -1198,7 +1242,7 @@ export default function App() {
                 }`}
               >
                 <FileText className="w-4 h-4 text-indigo-400" />
-                <span className="truncate">รายการแผน ({plans.length})</span>
+                <span className="truncate">เอกสารทั้งหมด ({plans.length})</span>
               </button>
             </div>
 
@@ -1289,6 +1333,8 @@ export default function App() {
               currentTeacher={currentTeacher}
               selectedArea={areaFilter}
               onSelectArea={(area) => setAreaFilter(area)}
+              selectedDocType={docTypeFilter}
+              onSelectDocType={(dt) => setDocTypeFilter(dt)}
             />
 
         {/* Lesson Plans Control Bar */}
@@ -1305,7 +1351,7 @@ export default function App() {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  แผนของฉันทั้งหมด ({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
+                  เอกสารของฉันทั้งหมด ({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
                 </button>
                 <button
                   onClick={() => setViewTab('pending_review')}
@@ -1358,7 +1404,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <div className="px-3.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-950 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs">
                   <Layers className="w-4 h-4 text-indigo-600" />
-                  <span>แผนทั้งหมดในระบบ ({plans.length} แผน)</span>
+                  <span>เอกสารทั้งหมดในระบบ ({plans.length} รายการ)</span>
                 </div>
               </div>
             )}
@@ -1403,6 +1449,101 @@ export default function App() {
             )}
           </div>
 
+          {/* Document Type Category Filter (แยกประเภทเอกสารชัดเจน) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-1.5 border-t border-slate-100 text-xs">
+            <span className="text-slate-400 font-semibold text-[11px] shrink-0 mr-1 flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5 text-indigo-500" />
+              ประเภทเอกสาร:
+            </span>
+            <button
+              onClick={() => setDocTypeFilter('all')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                docTypeFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+            >
+              <span>ทุกประเภท</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  docTypeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {docCategoryCounts.all}
+              </span>
+            </button>
+            <button
+              onClick={() => setDocTypeFilter('summary_plan')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                docTypeFilter === 'summary_plan'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/80'
+              }`}
+            >
+              <span>📄 แผนฯ ฉบับย่อ</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  docTypeFilter === 'summary_plan' ? 'bg-white/20 text-white' : 'bg-sky-200/80 text-sky-900'
+                }`}
+              >
+                {docCategoryCounts.summary}
+              </span>
+            </button>
+            <button
+              onClick={() => setDocTypeFilter('full_plan')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                docTypeFilter === 'full_plan'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80'
+              }`}
+            >
+              <span>📘 แผนฯ ฉบับสมบูรณ์</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  docTypeFilter === 'full_plan' ? 'bg-white/20 text-white' : 'bg-emerald-200/80 text-emerald-900'
+                }`}
+              >
+                {docCategoryCounts.full}
+              </span>
+            </button>
+            <button
+              onClick={() => setDocTypeFilter('classroom_research')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                docTypeFilter === 'classroom_research'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/80'
+              }`}
+            >
+              <span>🔬 วิจัยในชั้นเรียน</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  docTypeFilter === 'classroom_research' ? 'bg-white/20 text-white' : 'bg-purple-200/80 text-purple-900'
+                }`}
+              >
+                {docCategoryCounts.research}
+              </span>
+            </button>
+            {docCategoryCounts.general > 0 && (
+              <button
+                onClick={() => setDocTypeFilter('general_academic')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  docTypeFilter === 'general_academic'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80'
+                }`}
+              >
+                <span>📑 เอกสารวิชาการอื่นๆ</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    docTypeFilter === 'general_academic' ? 'bg-white/20 text-white' : 'bg-indigo-200/80 text-indigo-900'
+                  }`}
+                >
+                  {docCategoryCounts.general}
+                </span>
+              </button>
+            )}
+          </div>
+
           {/* Search bar & Active filter indicators */}
           <div className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 pt-2 border-t border-slate-100">
             <div className="relative flex-1 w-full">
@@ -1415,6 +1556,28 @@ export default function App() {
                 className="w-full pl-10 pr-4 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
               />
             </div>
+
+            {docTypeFilter !== 'all' && (
+              <div className="flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 border border-purple-200">
+                <span>
+                  ประเภท:{' '}
+                  {docTypeFilter === 'summary_plan'
+                    ? 'แผนฯ ฉบับย่อ'
+                    : docTypeFilter === 'full_plan'
+                    ? 'แผนฯ ฉบับสมบูรณ์'
+                    : docTypeFilter === 'classroom_research'
+                    ? 'วิจัยในชั้นเรียน'
+                    : 'เอกสารวิชาการ'}
+                </span>
+                <button
+                  onClick={() => setDocTypeFilter('all')}
+                  className="hover:text-purple-900 font-bold ml-1 cursor-pointer"
+                  title="แสดงทุกประเภท"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             {areaFilter && (
               <div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0">
@@ -1435,7 +1598,7 @@ export default function App() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <FileCheck2 className="w-4 h-4 text-amber-500" />
-              <span>รายการแผนการจัดการเรียนรู้</span>
+              <span>รายการเอกสารวิชาการ / แผนการจัดการเรียนรู้</span>
               <span className="text-xs text-slate-500 font-normal">
                 (พบ {filteredPlans.length} รายการ)
               </span>

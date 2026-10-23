@@ -10,6 +10,7 @@ import {
 import {
   getSavedStatusConfigs,
   getPlanEvaluationType,
+  classifyDocumentType,
 } from '../utils/deadlineUtils';
 import {
   X,
@@ -62,6 +63,20 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   const evaluationType =
     plan.evaluation_type || getPlanEvaluationType(plan.plan_type, deadlineConfigs);
   const isApprovalOnly = evaluationType === 'approval_only';
+  const docMeta = classifyDocumentType(plan.plan_type);
+
+  const parsedFormFields = React.useMemo(() => {
+    if (!plan.notes) return null;
+    try {
+      const parsed = JSON.parse(plan.notes);
+      if (typeof parsed === 'object' && parsed !== null && Object.keys(parsed).length > 0) {
+        return parsed as Record<string, any>;
+      }
+    } catch {
+      // not json
+    }
+    return null;
+  }, [plan.notes]);
 
   if (!isOpen) return null;
 
@@ -150,6 +165,9 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${docMeta.badgeClass}`}>
+                  <span>{docMeta.shortBadge}</span>
+                </span>
                 <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-indigo-100 text-indigo-700">
                   {plan.subject_code} - {plan.subject_name}
                 </span>
@@ -184,6 +202,39 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
               <span className="text-[10px] text-slate-400 mt-1">สิทธิ์: ทุกคนที่มีลิงก์</span>
             </div>
           </div>
+
+          {/* Details parsed from dynamic form submission if available */}
+          {parsedFormFields && Object.keys(parsedFormFields).length > 0 && (
+            <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200/90 text-xs space-y-1.5">
+              <div className="font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-1">
+                <span className="w-1.5 h-3 rounded-full bg-purple-600"></span>
+                <span>ข้อมูลและรายละเอียดที่ครูกรอกส่ง ({docMeta.label}):</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600 text-[11px] pt-1">
+                {Object.entries(parsedFormFields).map(([key, value]) => {
+                  if (typeof value !== 'string' && typeof value !== 'number') return null;
+                  const labelMap: Record<string, string> = {
+                    fld_teacher_name: 'ครูผู้สอน',
+                    fld_learning_area: 'กลุ่มสาระฯ',
+                    fld_research_format: 'รูปแบบวิจัย',
+                    fld_subject: 'วิชา',
+                    fld_content_topic: 'เนื้อหา/เรื่อง',
+                    fld_target_students: 'กลุ่มเป้าหมาย',
+                    fld_research_issue: 'ประเด็นการวิจัย',
+                    fld_methodology: 'วิธีการดำเนินงาน',
+                    fld_title: 'หัวข้อ',
+                  };
+                  const fieldLabel = labelMap[key] || key.replace(/^fld_/, '');
+                  return (
+                    <div key={key} className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <span className="font-semibold text-slate-700">{fieldLabel}: </span>
+                      <span className="text-slate-900 break-words">{String(value)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Review Form */}

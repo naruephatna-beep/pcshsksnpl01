@@ -10,6 +10,7 @@ import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   getPlanStatusInfo,
   checkSubmissionTimeliness,
+  classifyDocumentType,
 } from '../utils/deadlineUtils';
 import {
   FileText,
@@ -64,6 +65,7 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
 
   // Dynamic Status Info configured by Admin
   const statusInfo = getPlanStatusInfo(plan.status, statusConfigs);
+  const docMeta = classifyDocumentType(plan.plan_type);
 
   return (
     <div
@@ -110,20 +112,32 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           </div>
         </div>
 
+        {/* Prominent Document Type Tag (แยกชนิดเอกสารชัดเจน) */}
+        <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold border ${docMeta.badgeClass} shadow-2xs`}>
+            <span>{docMeta.shortBadge}</span>
+          </span>
+          <span className="text-[11px] text-slate-400 font-mono">
+            เทอม {plan.semester}/{plan.academic_year} · {plan.grade_level}
+          </span>
+        </div>
+
         {/* Title */}
-        <h3 className="mt-2.5 text-sm sm:text-base font-bold text-slate-900 group-hover:text-amber-600 transition-colors line-clamp-2 leading-snug">
+        <h3 className="mt-2 text-sm sm:text-base font-bold text-slate-900 group-hover:text-amber-600 transition-colors line-clamp-2 leading-snug">
           {plan.plan_title}
         </h3>
 
-        {/* Metadata (Zero-Pill discipline: unboxed with typographic · separators) */}
-        <div className="mt-2 flex items-center gap-1.5 flex-wrap text-xs text-slate-500">
-          <span>{plan.grade_level}</span>
-          <span aria-hidden="true">·</span>
-          <span>เทอม {plan.semester}/{plan.academic_year}</span>
-          <span aria-hidden="true">·</span>
-          <span>{plan.total_hours} ชม.</span>
-          <span aria-hidden="true">·</span>
-          <span className="text-slate-700 font-medium">{plan.plan_type}</span>
+        {/* Metadata */}
+        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-xs text-slate-500">
+          {plan.total_hours && !plan.plan_type.includes('วิจัย') ? (
+            <>
+              <span>{plan.total_hours} ชม.</span>
+              <span aria-hidden="true">·</span>
+            </>
+          ) : null}
+          <span className="text-slate-600 font-medium truncate max-w-[220px]" title={plan.plan_type}>
+            {plan.plan_type}
+          </span>
         </div>
 
         {/* Teacher details */}

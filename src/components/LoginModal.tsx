@@ -81,7 +81,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   จ.ภ. กาฬสินธุ์
                 </div>
                 <h1 className="text-lg font-bold text-white tracking-tight">
-                  เข้าสู่ระบบส่งแผนการสอน
+                  เข้าสู่ระบบส่งเอกสารวิชาการ
                 </h1>
               </div>
             </div>

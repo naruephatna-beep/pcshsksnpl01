@@ -2160,7 +2160,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                     หัวข้อ: [แจ้งภาระงานใหม่] {broadcastConfig.name} - กำหนดส่ง {formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`)} (จ.ภ. กาฬสินธุ์)
                   </div>
                   <p>เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
-                  <p>ฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งแผนการสอนออนไลน์:</p>
+                  <p>ฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งเอกสารวิชาการออนไลน์:</p>
                   <p className="text-amber-200">
                     📌 ภาระงาน: {broadcastConfig.name}<br />
                     📅 ภาคเรียนที่ {broadcastConfig.semester} ปีการศึกษา {broadcastConfig.academic_year}<br />
@@ -2199,7 +2199,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   onClick={() => {
                     const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
                     const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
-                    const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งแผนการสอนออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+                    const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งเอกสารวิชาการออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
                     navigator.clipboard.writeText(body);
                     setBroadcastCopied(true);
                     setTimeout(() => setBroadcastCopied(false), 2000);
@@ -2217,7 +2217,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                     if (!broadcastConfig) return;
                     const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
                     const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
-                    const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งแผนการสอนออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+                    const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งเอกสารวิชาการออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
 
                     openGmailComposeTab({
                       to: teacherEmails.join(','),

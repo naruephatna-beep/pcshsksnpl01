@@ -9,6 +9,7 @@ import {
   TaskTimeStatus,
   buildGmailComposeUrl,
   buildMailtoUrl,
+  isPlanMatchingAssignment,
 } from '../utils/deadlineUtils';
 import {
   openGmailComposeTab,
@@ -164,13 +165,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
       return (tId && pId === tId) || (tName && pName === tName);
     });
 
-    const cfgName = normalize(config.name);
-    const cfgId = normalize(config.id);
-
-    const matchingPlans = teacherPlans.filter((p) => {
-      const pType = normalize(p.plan_type);
-      return pType === cfgName || pType === cfgId || (p.notes && p.notes.includes(config.id));
-    });
+    const matchingPlans = teacherPlans.filter((p) => isPlanMatchingAssignment(p, config));
 
     const isSubmitted = matchingPlans.length > 0;
     const sorted = [...matchingPlans].sort(
@@ -301,7 +296,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   // Helper to construct personalized reminder text for LINE / Chat
   const buildReminderText = (teacher: Teacher, missingTasks: TeacherMissingTask[]) => {
     const lines = [
-      `📢 [แจ้งเตือนส่งงาน] ระบบส่งแผนการสอนออนไลน์ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`,
+      `📢 [แจ้งเตือนส่งงาน] ระบบส่งเอกสารวิชาการออนไลน์ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`,
       `เรียน คุณครู ${teacher.Name} (${teacher.Teacher_ID})`,
       `กลุ่มสาระการเรียนรู้: ${teacher.Learning_Area}`,
       ``,

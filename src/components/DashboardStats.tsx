@@ -1,5 +1,5 @@
-import React from 'react';
 import { LessonPlan, Teacher, isTeacherAdmin } from '../types';
+import { classifyDocumentType } from '../utils/deadlineUtils';
 import {
   FileCheck2,
   CheckCircle2,
@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   BarChart3,
   Lock,
+  Layers,
 } from 'lucide-react';
 
 interface DashboardStatsProps {
@@ -15,6 +16,8 @@ interface DashboardStatsProps {
   currentTeacher: Teacher;
   selectedArea?: string;
   onSelectArea: (area: string) => void;
+  selectedDocType?: string;
+  onSelectDocType?: (docType: string) => void;
 }
 
 export const DashboardStats: React.FC<DashboardStatsProps> = ({
@@ -23,6 +26,8 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
   currentTeacher,
   selectedArea,
   onSelectArea,
+  selectedDocType,
+  onSelectDocType,
 }) => {
   const isAdmin = isTeacherAdmin(currentTeacher);
 
@@ -165,6 +170,69 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
           </span>
         </div>
       )}
+
+      {/* Document Types Breakdown Strip (แยกประเภทเอกสารชัดเจน) */}
+      <div className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+            <Layers className="w-3.5 h-3.5 text-indigo-600" />
+            <span>จำแนกตามประเภทเอกสารวิชาการ:</span>
+          </div>
+          {selectedDocType && selectedDocType !== 'all' && onSelectDocType && (
+            <button
+              onClick={() => onSelectDocType('all')}
+              className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+            >
+              ล้างการกรองประเภท
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {(() => {
+            const categories = [
+              { key: 'summary_plan', label: 'แผนการจัดการเรียนรู้ฉบับย่อ', short: '📄 แผนฯ ฉบับย่อ' },
+              { key: 'full_plan', label: 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์', short: '📘 แผนฯ ฉบับสมบูรณ์' },
+              { key: 'classroom_research', label: 'ประเด็นการวิจัยในชั้นเรียน', short: '🔬 วิจัยในชั้นเรียน' },
+              { key: 'general_academic', label: 'เอกสารวิชาการอื่นๆ', short: '📑 เอกสารอื่นๆ' },
+            ];
+
+            return categories.map((cat) => {
+              const count = relevantPlans.filter((p) => {
+                const meta = classifyDocumentType(p.plan_type);
+                if (cat.key === 'general_academic') {
+                  return meta.key !== 'summary_plan' && meta.key !== 'full_plan' && meta.key !== 'classroom_research';
+                }
+                return meta.key === cat.key;
+              }).length;
+
+              const isSelected = selectedDocType === cat.key;
+
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => onSelectDocType && onSelectDocType(isSelected ? 'all' : cat.key)}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    isSelected
+                      ? 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50/60'
+                      : 'border-slate-200/90 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-[11px] font-bold text-slate-800 truncate" title={cat.label}>
+                    {cat.short}
+                  </span>
+                  <div className="mt-1 flex items-baseline justify-between">
+                    <span className="text-lg font-black text-slate-900 tabular-nums">
+                      {count}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">ฉบับ</span>
+                  </div>
+                </button>
+              );
+            });
+          })()}
+        </div>
+      </div>
 
       {/* Breakdown per Learning Area (Admin Only) or Privacy Note for Teachers */}
       {isAdmin ? (

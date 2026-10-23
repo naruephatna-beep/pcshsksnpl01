@@ -11,6 +11,7 @@ import {
   getPlanStatusInfo,
   checkSubmissionTimeliness,
   formatThaiDateTime,
+  classifyDocumentType,
 } from '../utils/deadlineUtils';
 import {
   FileText,
@@ -56,6 +57,7 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
   const timeliness = checkSubmissionTimeliness(plan.plan_type, plan.submitted_at, deadlineConfigs);
   const isLate = plan.is_late !== undefined ? plan.is_late : timeliness.isLate;
   const statusInfo = getPlanStatusInfo(plan.status, statusConfigs);
+  const docMeta = classifyDocumentType(plan.plan_type);
 
   return (
     <tr className="hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-b-0 text-xs">
@@ -101,8 +103,12 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
 
       {/* 3. Document Type & Term */}
       <td className="py-3 px-3 hidden md:table-cell">
-        <div className="font-medium text-slate-700">{plan.plan_type}</div>
-        <div className="text-[11px] text-slate-400">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${docMeta.badgeClass}`}>
+            <span>{docMeta.shortBadge}</span>
+          </span>
+        </div>
+        <div className="text-[11px] text-slate-500 font-medium mt-1">
           {plan.grade_level} · เทอม {plan.semester}/{plan.academic_year}
         </div>
       </td>

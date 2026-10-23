@@ -112,10 +112,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </span>
 
               <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                ระบบส่งแผนการสอน
+                ระบบส่งเอกสารวิชาการ
               </h2>
               <p className="text-xs text-slate-400 mt-1 max-w-[240px] leading-relaxed">
-                ระบบส่งและติดตามแผนการจัดการเรียนรู้ออนไลน์สำหรับครูและฝ่ายบริหาร
+                ระบบส่งและติดตามเอกสารวิชาการออนไลน์สำหรับครูและฝ่ายบริหาร
               </p>
             </div>
 
@@ -212,7 +212,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer"
                   >
                     <LogIn className="w-4 h-4" />
-                    <span>เข้าสู่ระบบส่งแผนการสอน</span>
+                    <span>เข้าสู่ระบบส่งเอกสารวิชาการ</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>

@@ -386,9 +386,18 @@ export function checkSubmissionTimeliness(
   configs?: PlanTypeDeadlineConfig[]
 ): SubmissionTimelinessResult {
   const deadlineConfigs = configs || getSavedDeadlineConfigs();
-  const targetConfig = deadlineConfigs.find(
-    (c) => c.name.trim().toLowerCase() === planType.trim().toLowerCase()
-  );
+  const normalize = (val?: string) => String(val || '').trim().toLowerCase();
+  const pType = normalize(planType);
+
+  const targetConfig = deadlineConfigs.find((c) => {
+    const cName = normalize(c.name);
+    const cId = normalize(c.id);
+    if (cName === pType || cId === pType) return true;
+    if (cId === 'type_summary' && pType.includes('ย่อ')) return true;
+    if (cId === 'type_full' && (pType.includes('สมบูรณ์') || pType.includes('active learning'))) return true;
+    if ((cId.includes('research') || cName.includes('วิจัย')) && pType.includes('วิจัย')) return true;
+    return false;
+  });
 
   const subDate =
     typeof submittedAtInput === 'string'
@@ -698,5 +707,133 @@ export function buildGmailComposeUrl(to: string, subject: string, body: string):
  */
 export function buildMailtoUrl(to: string, subject: string, body: string): string {
   return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+export type DocumentCategoryKey =
+  | 'summary_plan'
+  | 'full_plan'
+  | 'classroom_research'
+  | 'syllabus'
+  | 'post_teaching'
+  | 'general_academic';
+
+export interface DocumentTypeMeta {
+  key: DocumentCategoryKey;
+  label: string;
+  shortBadge: string;
+  badgeClass: string;
+  tagBg: string;
+  accentColor: string;
+}
+
+/**
+ * Classifies any planType or document title into clear, standardized document categories
+ */
+export function classifyDocumentType(planTypeOrName?: string): DocumentTypeMeta {
+  const t = String(planTypeOrName || '').toLowerCase().trim();
+
+  if (t.includes('วิจัย') || t.includes('research')) {
+    return {
+      key: 'classroom_research',
+      label: 'ประเด็นการวิจัยในชั้นเรียน',
+      shortBadge: '🔬 วิจัยในชั้นเรียน',
+      badgeClass: 'bg-purple-50 text-purple-800 border-purple-200',
+      tagBg: 'bg-purple-600 text-white',
+      accentColor: 'purple',
+    };
+  }
+
+  if (t.includes('สมบูรณ์') || t.includes('active learning') || t.includes('full')) {
+    return {
+      key: 'full_plan',
+      label: 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์',
+      shortBadge: '📘 แผนฯ ฉบับสมบูรณ์',
+      badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      tagBg: 'bg-emerald-600 text-white',
+      accentColor: 'emerald',
+    };
+  }
+
+  if (t.includes('ย่อ') || t.includes('summary')) {
+    return {
+      key: 'summary_plan',
+      label: 'แผนการจัดการเรียนรู้ฉบับย่อ',
+      shortBadge: '📄 แผนฯ ฉบับย่อ',
+      badgeClass: 'bg-sky-50 text-sky-800 border-sky-200',
+      tagBg: 'bg-sky-600 text-white',
+      accentColor: 'sky',
+    };
+  }
+
+  if (t.includes('กำหนดการ') || t.includes('โครงการสอน') || t.includes('syllabus')) {
+    return {
+      key: 'syllabus',
+      label: 'โครงการสอน / กำหนดการสอน',
+      shortBadge: '📅 โครงการสอน',
+      badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+      tagBg: 'bg-amber-600 text-white',
+      accentColor: 'amber',
+    };
+  }
+
+  if (t.includes('บันทึกหลังสอน') || t.includes('บันทึกหลังการสอน')) {
+    return {
+      key: 'post_teaching',
+      label: 'บันทึกหลังการสอน',
+      shortBadge: '📝 บันทึกหลังสอน',
+      badgeClass: 'bg-rose-50 text-rose-800 border-rose-200',
+      tagBg: 'bg-rose-600 text-white',
+      accentColor: 'rose',
+    };
+  }
+
+  return {
+    key: 'general_academic',
+    label: planTypeOrName || 'เอกสารวิชาการ',
+    shortBadge: '📑 เอกสารวิชาการ',
+    badgeClass: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+    tagBg: 'bg-indigo-600 text-white',
+    accentColor: 'indigo',
+  };
+}
+
+/**
+ * Checks whether a given plan matches an assignment configuration accurately
+ */
+export function isPlanMatchingAssignment(
+  plan: LessonPlan,
+  config: PlanTypeDeadlineConfig
+): boolean {
+  const normalize = (val?: string) => String(val || '').trim().toLowerCase();
+  const pType = normalize(plan.plan_type);
+  const cfgName = normalize(config.name);
+  const cfgId = normalize(config.id);
+
+  // Direct exact match
+  if (pType === cfgName || pType === cfgId) return true;
+
+  // Notes contains config ID or name
+  if (plan.notes && (plan.notes.includes(config.id) || plan.notes.includes(config.name))) {
+    return true;
+  }
+
+  // Semantic category match
+  if (cfgId === 'type_summary' && (pType.includes('ย่อ') || pType.includes('summary'))) {
+    return true;
+  }
+  if (
+    cfgId === 'type_full' &&
+    (pType.includes('สมบูรณ์') || pType.includes('active learning') || pType.includes('full'))
+  ) {
+    return true;
+  }
+  if (
+    (cfgId.includes('research') || cfgName.includes('วิจัย')) &&
+    (pType.includes('วิจัย') || normalize(plan.plan_title).includes('วิจัย'))
+  ) {
+    return true;
+  }
+
+  return false;
 }
 

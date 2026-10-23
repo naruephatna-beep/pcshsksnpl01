@@ -70,7 +70,7 @@ export const ForcePasswordModal: React.FC<ForcePasswordModalProps> = ({
           </div>
           <h2 className="text-xl font-bold">แจ้งเตือนเปลี่ยนรหัสผ่าน</h2>
           <p className="text-amber-100 text-sm mt-1">
-            เพื่อความปลอดภัยของข้อมูลในระบบส่งแผนการสอน
+            เพื่อความปลอดภัยของข้อมูลในระบบส่งเอกสารวิชาการ
           </p>
         </div>
 

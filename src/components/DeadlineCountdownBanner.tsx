@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Teacher, LessonPlan, PlanTypeDeadlineConfig } from '../types';
-import { constructDateTime, formatThaiDateTime } from '../utils/deadlineUtils';
+import { constructDateTime, formatThaiDateTime, isPlanMatchingAssignment } from '../utils/deadlineUtils';
 import {
   Clock,
   AlertTriangle,
@@ -69,9 +69,7 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
       const hours = Math.floor((absMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60));
 
-      const hasSubmitted = myPlans.some(
-        (p) => p.plan_type.trim().toLowerCase() === config.name.trim().toLowerCase()
-      );
+      const hasSubmitted = myPlans.some((p) => isPlanMatchingAssignment(p, config));
 
       return {
         config,

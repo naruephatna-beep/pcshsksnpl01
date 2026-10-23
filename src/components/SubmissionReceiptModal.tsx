@@ -242,7 +242,7 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
         {/* Modal Bottom Footer Actions */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 print:hidden text-xs">
           <span className="text-slate-500 hidden sm:inline">
-            ระบบส่งแผนการสอน • ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+            ระบบส่งเอกสารวิชาการ • ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
           </span>
           <div className="flex items-center gap-2 ml-auto">
             <button
