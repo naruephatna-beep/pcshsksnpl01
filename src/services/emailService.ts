@@ -1,67 +1,12 @@
-import { Teacher } from '../types';
 import { buildGmailComposeUrl, buildMailtoUrl } from '../utils/deadlineUtils';
 
-export interface EmailNotificationLog {
-  id: string;
-  teacher_id: string;
-  teacher_name: string;
-  recipient_email: string;
-  subject: string;
-  task_names: string[];
-  sent_at: string;
-  status: 'sent' | 'delivered';
-  channel: 'email_direct';
-  notes?: string;
-}
-
-const STORAGE_KEY_EMAIL_LOGS = 'lp_email_notification_logs';
-
-/**
- * Get all stored email logs from local browser storage (never touches SQL/Cloudflare database)
- */
-export function getSavedEmailLogs(): EmailNotificationLog[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_EMAIL_LOGS);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    }
-  } catch (e) {
-    console.warn('Could not read email logs from localStorage:', e);
+// Clear legacy email logs from browser storage so no history remains
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    localStorage.removeItem('lp_email_notification_logs');
   }
-  return [];
-}
-
-/**
- * Save an email log entry locally in browser ONLY (does NOT write to database to save DB quota)
- */
-export function recordEmailLog(log: EmailNotificationLog): void {
-  try {
-    const existing = getSavedEmailLogs();
-    const updated = [log, ...existing].slice(0, 500); // keep up to 500 logs locally
-    localStorage.setItem(STORAGE_KEY_EMAIL_LOGS, JSON.stringify(updated));
-    // Zero database writes - saves database storage completely per user request
-  } catch (e) {
-    console.warn('Could not persist email log locally:', e);
-  }
-}
-
-/**
- * Check if a teacher was recently reminded and return the latest reminder info
- */
-export function getTeacherLatestReminder(teacherId: string): {
-  count: number;
-  latest?: EmailNotificationLog;
-} {
-  const logs = getSavedEmailLogs();
-  const normalizedId = String(teacherId || '').trim().toLowerCase();
-  const teacherLogs = logs.filter(
-    (l) => String(l.teacher_id || '').trim().toLowerCase() === normalizedId
-  );
-  return {
-    count: teacherLogs.length,
-    latest: teacherLogs[0],
-  };
+} catch {
+  // ignore
 }
 
 /**
@@ -117,8 +62,7 @@ export function buildReminderPlainMessage({
 
 /**
  * Open Gmail compose in a new tab with everything prefilled and ready to send
- * Works 100% on ANY live website (Cloudflare Pages, Vercel, Netlify, Custom Domain)
- * without requiring any API keys, without domain authorization errors, and without secrets!
+ * Works 100% on ANY browser / device without requiring any server storage, API keys, or database logs!
  */
 export function openGmailComposeTab({
   to,
@@ -132,39 +76,7 @@ export function openGmailComposeTab({
   const url = buildGmailComposeUrl(to, subject, body);
   const win = window.open(url, '_blank', 'noopener,noreferrer');
   if (!win) {
-    // If popup blocked, navigate fallback
+    // If popup blocked, navigate to mailto
     window.location.href = buildMailtoUrl(to, subject, body);
   }
-}
-
-/**
- * Mark a teacher as reminded (stored in local browser only, zero DB writes)
- */
-export function markTeacherRemindedLocally({
-  teacherId,
-  teacherName,
-  recipientEmail,
-  subject,
-  taskNames,
-}: {
-  teacherId: string;
-  teacherName: string;
-  recipientEmail: string;
-  subject: string;
-  taskNames: string[];
-}): EmailNotificationLog {
-  const newLog: EmailNotificationLog = {
-    id: `remind_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    teacher_id: teacherId,
-    teacher_name: teacherName,
-    recipient_email: recipientEmail,
-    subject,
-    task_names: taskNames,
-    sent_at: new Date().toISOString(),
-    status: 'delivered',
-    channel: 'email_direct',
-    notes: 'เปิดส่งผ่าน Gmail Web',
-  };
-  recordEmailLog(newLog);
-  return newLog;
 }

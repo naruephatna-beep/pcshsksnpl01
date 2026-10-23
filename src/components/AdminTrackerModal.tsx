@@ -11,11 +11,7 @@ import {
   buildMailtoUrl,
 } from '../utils/deadlineUtils';
 import {
-  getTeacherLatestReminder,
-  getSavedEmailLogs,
-  EmailNotificationLog,
   openGmailComposeTab,
-  markTeacherRemindedLocally,
   buildReminderPlainMessage,
 } from '../services/emailService';
 import {
@@ -110,8 +106,6 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     successCount: number;
   } | null>(null);
 
-  // Log update trigger to refresh badges
-  const [logsRefreshCounter, setLogsRefreshCounter] = useState<number>(0);
 
   // Modal states
   const [reminderModalData, setReminderModalData] = useState<TeacherReminderData | null>(null);
@@ -218,9 +212,6 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
       const hasUnsubmitted = totalTasksCount > 0 && submittedTasksCount < totalTasksCount;
       const hasLateSubmission = taskResults.some((r) => r.submittedPlan?.is_late);
 
-      // Latest reminder status
-      const reminderInfo = getTeacherLatestReminder(teacher.Teacher_ID);
-
       return {
         teacher,
         taskResults,
@@ -230,10 +221,9 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
         isAllCompleted,
         hasUnsubmitted,
         hasLateSubmission,
-        reminderInfo,
       };
     });
-  }, [teachingStaff, activeAssignments, plans, logsRefreshCounter]);
+  }, [teachingStaff, activeAssignments, plans]);
 
   // 5. Statistics across all teachers
   const stats = useMemo(() => {
@@ -361,16 +351,6 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
       body,
     });
 
-    // Save reminder in local browser storage ONLY (zero database writes)
-    markTeacherRemindedLocally({
-      teacherId: teacher.Teacher_ID,
-      teacherName: teacher.Name,
-      recipientEmail: teacher.Email,
-      subject,
-      taskNames: missingTasks.map((t) => t.config.name),
-    });
-
-    setLogsRefreshCounter((prev) => prev + 1);
     setEmailSuccessReceipt({
       recipient: teacher.Email,
       teacherName: teacher.Name,
@@ -407,18 +387,6 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
       body,
     });
 
-    // Mark teachers locally (zero database writes)
-    list.forEach(({ teacher, missingTasks }) => {
-      markTeacherRemindedLocally({
-        teacherId: teacher.Teacher_ID,
-        teacherName: teacher.Name,
-        recipientEmail: teacher.Email,
-        subject,
-        taskNames: missingTasks.map((t) => t.config.name),
-      });
-    });
-
-    setLogsRefreshCounter((prev) => prev + 1);
     setShowBulkReminderModal(false);
     showToast(`⚡ เปิด Gmail พร้อมส่งถึงครูที่ค้างส่งทั้ง ${emails.length} ท่านเรียบร้อยแล้ว!`);
   };
@@ -782,7 +750,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
-                    {filteredRows.map(({ teacher, taskResults, missingTasks, submittedTasksCount, totalTasksCount, isAllCompleted, hasUnsubmitted, reminderInfo }) => {
+                    {filteredRows.map(({ teacher, taskResults, missingTasks, submittedTasksCount, totalTasksCount, isAllCompleted, hasUnsubmitted }) => {
                       const photoUrl = formatGoogleDriveImageUrl(teacher.photo);
                       const percent = totalTasksCount > 0 ? Math.round((submittedTasksCount / totalTasksCount) * 100) : 0;
 
@@ -819,12 +787,6 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                                     {teacher.Learning_Area}
                                   </span>
                                 </div>
-                                {reminderInfo.count > 0 && (
-                                  <div className="mt-1 flex items-center gap-1 text-[9px] text-emerald-700 font-bold">
-                                    <Check className="w-2.5 h-2.5 text-emerald-600" />
-                                    <span>ส่งเมลเตือนแล้ว ({reminderInfo.count} ครั้ง)</span>
-                                  </div>
-                                )}
                               </div>
                             </div>
                           </td>
@@ -999,7 +961,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           ) : (
             /* Cards View: Handy for Mobile & Quick Inspection */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredRows.map(({ teacher, taskResults, missingTasks, submittedTasksCount, totalTasksCount, isAllCompleted, hasUnsubmitted, reminderInfo }) => {
+              {filteredRows.map(({ teacher, taskResults, missingTasks, submittedTasksCount, totalTasksCount, isAllCompleted, hasUnsubmitted }) => {
                 const photoUrl = formatGoogleDriveImageUrl(teacher.photo);
 
                 return (
@@ -1032,11 +994,6 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                             <span className="bg-slate-100 px-1 rounded text-slate-700 font-bold">{teacher.Teacher_ID}</span>
                             <span className="truncate max-w-[140px]">{teacher.Learning_Area}</span>
                           </div>
-                          {reminderInfo.count > 0 && (
-                            <div className="text-[9px] text-emerald-700 font-bold mt-0.5">
-                              ✓ ส่งเมลเตือนแล้ว ({reminderInfo.count} ครั้ง)
-                            </div>
-                          )}
                         </div>
                       </div>
 
@@ -1281,39 +1238,28 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                   </div>
                 </div>
 
-                {/* Real Email Sender Status Badge */}
-                <div
-                  className={`p-3 rounded-2xl border text-xs flex flex-wrap items-center justify-between gap-2.5 ${
-                    googleUser
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-                      : 'bg-amber-50 border-amber-300 text-amber-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Mail className={`w-4 h-4 shrink-0 ${googleUser ? 'text-emerald-600' : 'text-amber-600'}`} />
-                    <span className="truncate">
-                      {googleUser ? (
-                        <>
-                          <strong>ผู้ส่งจริง:</strong> {googleUser.email} (ส่งตรงเข้า Inbox <strong>{reminderModalData.teacher.Email}</strong>)
-                        </>
-                      ) : (
-                        <>
-                          <strong>ยังไม่ได้เชื่อมต่อ Google:</strong> เชื่อมต่อ Google Workspace เพื่อให้อีเมลส่งจริงเข้า Inbox ของคุณครูอัตโนมัติ
-                        </>
-                      )}
-                    </span>
+                {/* Email Delivery Box */}
+                <div className="p-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/70 text-indigo-950 text-xs flex items-center justify-between gap-2.5 flex-wrap">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <Mail className="w-4 h-4 text-amber-300" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-indigo-950 flex items-center gap-1.5 flex-wrap">
+                        <span>ส่งตรงถึง:</span>
+                        <span className="font-mono bg-white px-2 py-0.5 rounded-lg border border-indigo-200 text-indigo-900 select-all font-semibold">
+                          {reminderModalData.teacher.Email}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-indigo-700 mt-0.5">
+                        ระบบเปิดส่งข้อความแจ้งเตือนทาง Gmail ทันที (ไม่บันทึกประวัติการแจ้งเตือน)
+                      </div>
+                    </div>
                   </div>
 
-                  {!googleUser && (
-                    <button
-                      type="button"
-                      onClick={handleConnectGoogle}
-                      disabled={isGoogleLoggingIn}
-                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-[11px] shrink-0 cursor-pointer shadow-2xs"
-                    >
-                      {isGoogleLoggingIn ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อ Google'}
-                    </button>
-                  )}
+                  <span className="px-2.5 py-1 bg-white border border-indigo-200 rounded-lg text-[10px] font-bold text-indigo-800 shadow-2xs">
+                    ⚡ 1-Click Send
+                  </span>
                 </div>
 
                 {/* Message preview toggle */}
@@ -1461,7 +1407,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
 
                 {/* List of Teachers with their Missing Tasks */}
                 <div className="space-y-2.5 max-h-72 overflow-y-auto">
-                  {stats.allUncompletedTeachersData.map(({ teacher, missingTasks, reminderInfo }) => (
+                  {stats.allUncompletedTeachersData.map(({ teacher, missingTasks }) => (
                     <div
                       key={teacher.Teacher_ID}
                       className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 text-xs"
@@ -1474,11 +1420,6 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                         <div className="text-[11px] text-rose-700 font-bold mt-1">
                           ค้างส่ง {missingTasks.length} งาน: {missingTasks.map((m) => m.config.name).join(', ')}
                         </div>
-                        {reminderInfo.count > 0 && (
-                          <div className="text-[10px] text-emerald-700 font-bold mt-0.5">
-                            ✓ ส่งเมลเตือนแล้ว ({reminderInfo.count} ครั้ง)
-                          </div>
-                        )}
                       </div>
 
                       <button
