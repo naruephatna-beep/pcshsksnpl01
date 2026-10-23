@@ -60,7 +60,7 @@ import {
   Loader2,
   Zap,
 } from 'lucide-react';
-import { broadcastNewAssignmentDirectEmail } from '../services/emailService';
+import { openGmailComposeTab } from '../services/emailService';
 
 interface DeadlineManagerModalProps {
   isOpen: boolean;
@@ -2210,73 +2210,30 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   <span>คัดลอกข้อความ</span>
                 </button>
 
-                {/* Fallback Direct Gmail Web link */}
-                {(() => {
-                  const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
-                  const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
-                  const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งแผนการสอนออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
-                  const gmailUrl = buildGmailComposeUrl(
-                    teacherEmails.join(','),
-                    subject,
-                    body
-                  );
-                  return (
-                    <a
-                      href={gmailUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-xs"
-                      title="เปิดส่งใน Gmail ทันที (เขียนเมลให้เรียบร้อยแล้ว)"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
-                      <span>เปิดส่งใน Gmail Web</span>
-                    </a>
-                  );
-                })()}
-
-                {/* Direct 1-Click Send Button */}
+                {/* 1-Click Gmail Broadcast Button */}
                 <button
                   type="button"
-                  disabled={isBroadcastingEmail}
-                  onClick={async () => {
+                  onClick={() => {
                     if (!broadcastConfig) return;
-                    setIsBroadcastingEmail(true);
-                    setBroadcastSuccessMsg(null);
-                    try {
-                      const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
-                      const res = await broadcastNewAssignmentDirectEmail({
-                        assignmentName: broadcastConfig.name,
-                        semester: broadcastConfig.semester,
-                        academicYear: broadcastConfig.academic_year,
-                        deadlineFormatted,
-                        description: broadcastConfig.description,
-                        sampleUrl: broadcastConfig.sample_url,
-                        teacherEmails,
-                      });
-                      setBroadcastSuccessMsg(res.message);
-                      setTimeout(() => {
-                        setBroadcastSuccessMsg(null);
-                        setBroadcastConfig(null);
-                      }, 2500);
-                    } catch (err: any) {
-                      alert(`เกิดข้อผิดพลาด: ${err?.message || 'โปรดลองใหม่อีกครั้ง'}`);
-                    } finally {
-                      setIsBroadcastingEmail(false);
-                    }
+                    const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
+                    const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
+                    const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งแผนการสอนออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+
+                    openGmailComposeTab({
+                      to: teacherEmails.join(','),
+                      subject,
+                      body,
+                    });
+                    setBroadcastSuccessMsg(`⚡ เปิด Gmail พร้อมส่งแจ้งเตือนถึงคุณครูทั้ง ${teacherEmails.length} ท่านแล้ว!`);
+                    setTimeout(() => {
+                      setBroadcastSuccessMsg(null);
+                      setBroadcastConfig(null);
+                    }, 2500);
                   }}
-                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50 text-xs"
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer text-xs"
                 >
-                  {isBroadcastingEmail ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>กำลังส่งอีเมลถึงครู {teacherEmails.length} ท่าน...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 text-slate-950" />
-                      <span>⚡ ส่งอีเมลจริงผ่าน Gmail ถึงครูทุกคน ({teacherEmails.length} ท่าน)</span>
-                    </>
-                  )}
+                  <Zap className="w-4 h-4 text-slate-950" />
+                  <span>⚡ เปิดส่งใน Gmail ถึงครูทุกคน ({teacherEmails.length} ท่าน)</span>
                 </button>
               </div>
             </div>
