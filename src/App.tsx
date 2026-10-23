@@ -1642,8 +1642,6 @@ export default function App() {
       <AdminTrackerModal
         teachers={teachers}
         plans={plans}
-        deadlineConfigs={deadlineConfigs}
-        statusConfigs={statusConfigs}
         isOpen={isAdminTrackerModalOpen}
         onClose={() => setIsAdminTrackerModalOpen(false)}
         onEditTeacher={(t) => {
@@ -1667,7 +1665,6 @@ export default function App() {
         onUpdatePlanStatus={handleQuickChangePlanStatus}
         isSupabaseConnected={isSupabaseConnected}
         currentTeacher={currentTeacher}
-        teachers={teachers}
       />
 
       {/* Dynamic Assignment Submit Modal (when task has custom fields & dropdowns) */}
@@ -1816,7 +1813,7 @@ export default function App() {
             <button
               onClick={() => setIsAdminTrackerModalOpen(true)}
               className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-[#0B1329] text-amber-400 shadow-lg shadow-slate-950/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
-              title="ติดตามงานรายบุคคล"
+              title="ติดตามส่งแผนรายบุคคล"
             >
               <ClipboardList className="w-6 h-6 text-amber-400" />
             </button>

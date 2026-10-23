@@ -116,10 +116,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={onOpenAdminTrackerModal}
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
-                      title="ติดตามดูว่าใครยังไม่ส่งชิ้นงานไหนแยกตามภาระงานที่มอบหมาย"
+                      title="ติดตามดูว่าใครส่งแผนแล้วบ้างแยกตามกลุ่มสาระ"
                     >
                       <ClipboardList className="w-3.5 h-3.5 text-slate-600" />
-                      <span>ติดตามงานรายบุคคล</span>
+                      <span>ติดตามส่งแผน</span>
                     </button>
 
                     <button
