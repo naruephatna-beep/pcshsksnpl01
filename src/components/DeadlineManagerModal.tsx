@@ -2233,8 +2233,9 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer text-xs"
                 >
                   <Zap className="w-4 h-4 text-slate-950" />
-                  <span>⚡ เปิดส่งใน Gmail ถึงครูทุกคน ({teacherEmails.length} ท่าน)</span>
+                  <span>⚡ เปิดส่งใน Gmail (academics@pcshsksn.ac.th) ถึงครูทุกคน ({teacherEmails.length} ท่าน)</span>
                 </button>
+
               </div>
             </div>
           </div>

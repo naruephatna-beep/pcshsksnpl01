@@ -688,19 +688,30 @@ export function calculateTaskTimeStatus(
   };
 }
 
+export const DEFAULT_ACADEMIC_SENDER = 'academics@pcshsksn.ac.th';
+
 /**
- * Creates Google Webmail composer URL (for Google Workspace users @pcshsksn.ac.th)
+ * Creates Google Webmail composer URL specifically targeting the school's academic account
+ * (e.g. academics@pcshsksn.ac.th)
  */
-export function buildGmailComposeUrl(to: string, subject: string, body: string): string {
+export function buildGmailComposeUrl(
+  to: string,
+  subject: string,
+  body: string,
+  authUser: string = DEFAULT_ACADEMIC_SENDER
+): string {
   const params = new URLSearchParams({
     view: 'cm',
     fs: '1',
     to,
     su: subject,
     body,
+    authuser: authUser,
   });
-  return `https://mail.google.com/mail/?${params.toString()}`;
+  // Targeting /mail/u/{authUser}/ ensures Gmail switches to or loads the exact academic account
+  return `https://mail.google.com/mail/u/${encodeURIComponent(authUser)}/?${params.toString()}`;
 }
+
 
 /**
  * Creates mailto link

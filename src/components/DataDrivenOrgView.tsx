@@ -100,27 +100,30 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
   const revisionPlans = useMemo(() => plans.filter((p) => p.status === 'needs_revision'), [plans]);
   const ftaRate = totalPlans > 0
     ? Math.round(((totalPlans - revisionPlans.length) / totalPlans) * 100)
-    : 100;
+    : 0;
 
-  // Average Quality Score
+  // Average Quality Score (only from real evaluated plans)
   const scoredPlans = useMemo(
     () => plans.filter((p) => typeof p.total_score === 'number' && (p.total_score || 0) > 0),
     [plans]
   );
   const avgScore = scoredPlans.length > 0
     ? Number((scoredPlans.reduce((sum, p) => sum + (p.total_score || 0), 0) / scoredPlans.length).toFixed(1))
-    : 85.0;
+    : 0;
 
   // Verified digital files (Google Drive links)
   const filesWithUrl = useMemo(
     () => plans.filter((p) => p.file_url && p.file_url.trim().length > 5),
     [plans]
   );
-  const digitalIntegrityRate = totalPlans > 0 ? Math.round((filesWithUrl.length / totalPlans) * 100) : 100;
+  const digitalIntegrityRate = totalPlans > 0 ? Math.round((filesWithUrl.length / totalPlans) * 100) : 0;
 
   // DDO Organizational Health Score (Composite Index 0-100)
   // Weights: Completeness (30%), On-Time Velocity (30%), Pedagogical Quality (25%), Digital Integrity (15%)
   const ddoHealthScore = useMemo(() => {
+    if (totalPlans === 0) {
+      return Number((submissionRate * 0.30).toFixed(1));
+    }
     const completenessScore = submissionRate;
     const velocityScore = onTimeRate;
     const qualityScore = Math.min(100, Math.round((avgScore / 100) * 100));
@@ -133,14 +136,14 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
       integrityScore * 0.15
     );
     return Number(composite.toFixed(1));
-  }, [submissionRate, onTimeRate, avgScore, digitalIntegrityRate]);
+  }, [submissionRate, onTimeRate, avgScore, digitalIntegrityRate, totalPlans]);
 
   // DDO Maturity Stage
   const ddoMaturityLevel = useMemo(() => {
-    if (ddoHealthScore >= 90) return { stage: 4, name: 'ระดับ 4: ขับเคลื่อนเชิงยุทธศาสตร์และคาดการณ์ล่วงหน้า (Prescriptive & Predictive Leader)', badgeColor: 'bg-emerald-500 text-slate-950', border: 'border-emerald-300' };
-    if (ddoHealthScore >= 75) return { stage: 3, name: 'ระดับ 3: วินิจฉัยและตัดสินใจด้วยข้อมูลเชิงลึก (Insight & Diagnostic Driven)', badgeColor: 'bg-indigo-500 text-white', border: 'border-indigo-300' };
-    if (ddoHealthScore >= 60) return { stage: 2, name: 'ระดับ 2: ติดตามและรายงานผลเชิงบรรยาย (Descriptive Reporting)', badgeColor: 'bg-amber-500 text-slate-950', border: 'border-amber-300' };
-    return { stage: 1, name: 'ระดับ 1: จัดเก็บข้อมูลเบื้องต้น (Foundational Data Collection)', badgeColor: 'bg-rose-500 text-white', border: 'border-rose-300' };
+    if (ddoHealthScore >= 85) return { stage: 4, name: 'ระดับ 4: ขับเคลื่อนเชิงยุทธศาสตร์และคาดการณ์ล่วงหน้า (Prescriptive & Predictive Leader)', badgeColor: 'bg-emerald-500 text-slate-950', border: 'border-emerald-300', grade: 'เกรด A' };
+    if (ddoHealthScore >= 70) return { stage: 3, name: 'ระดับ 3: วินิจฉัยและตัดสินใจด้วยข้อมูลเชิงลึก (Insight & Diagnostic Driven)', badgeColor: 'bg-indigo-500 text-white', border: 'border-indigo-300', grade: 'เกรด B' };
+    if (ddoHealthScore >= 50) return { stage: 2, name: 'ระดับ 2: ติดตามและรายงานผลเชิงบรรยาย (Descriptive Reporting)', badgeColor: 'bg-amber-500 text-slate-950', border: 'border-amber-300', grade: 'เกรด C' };
+    return { stage: 1, name: 'ระดับ 1: จัดเก็บข้อมูลเบื้องต้น (Foundational Data Collection)', badgeColor: 'bg-rose-500 text-white', border: 'border-rose-300', grade: 'เกรด D' };
   }, [ddoHealthScore]);
 
   // 2. Department Analytics Matrix (8 กลุ่มสาระ)
@@ -165,33 +168,34 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
         const subRate = areaTeachers.length > 0
           ? Math.round((areaSubmittedTeachers.length / areaTeachers.length) * 100)
           : 0;
-        const areaAvgScore = areaScoredPlans.length > 0
+        const hasScoredPlans = areaScoredPlans.length > 0;
+        const areaAvgScore = hasScoredPlans
           ? Number((areaScoredPlans.reduce((sum, p) => sum + (p.total_score || 0), 0) / areaScoredPlans.length).toFixed(1))
-          : 84.5;
+          : 0;
         const onTimePct = areaPlans.length > 0
           ? Math.round((areaOnTimePlans.length / areaPlans.length) * 100)
-          : (subRate === 100 ? 100 : 80);
+          : 0;
 
-        // Assign Quadrant
-        // Q1: High Quality (avgScore >= 85) & High Timeliness (subRate >= 90) -> Stars
-        // Q2: High Quality (avgScore >= 85) & Developing Timeliness (subRate < 90) -> Deep Planners
-        // Q3: High Timeliness (subRate >= 90) & Developing Quality (avgScore < 85) -> Fast Executors
-        // Q4: Both Developing -> Focus Attention
-        let quadrant: 'q1' | 'q2' | 'q3' | 'q4' = 'q1';
-        let quadrantTitle = 'ต้นแบบความเป็นเลิศ (Role Model)';
-        let quadrantBadge = 'bg-emerald-100 text-emerald-800';
+        // Assign Quadrant based on REAL data
+        let quadrant: 'q1' | 'q2' | 'q3' | 'q4' = 'q4';
+        let quadrantTitle = 'ยังไม่มีการส่งแผน (No Submissions)';
+        let quadrantBadge = 'bg-slate-100 text-slate-700 border-slate-200';
 
-        if (subRate >= 90 && areaAvgScore >= 85) {
+        if (areaPlans.length === 0) {
+          quadrant = 'q4';
+          quadrantTitle = 'ยังไม่มีการส่งแผน (No Submissions)';
+          quadrantBadge = 'bg-slate-100 text-slate-700 border-slate-200';
+        } else if (subRate >= 80 && areaAvgScore >= 80) {
           quadrant = 'q1';
           quadrantTitle = 'ความเป็นเลิศ (Role Model)';
           quadrantBadge = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        } else if (subRate < 90 && areaAvgScore >= 85) {
+        } else if (subRate < 80 && areaAvgScore >= 80) {
           quadrant = 'q2';
           quadrantTitle = 'คุณภาพสูง/ควรเร่งเวลา (Quality Focus)';
           quadrantBadge = 'bg-blue-100 text-blue-800 border-blue-200';
-        } else if (subRate >= 90 && areaAvgScore < 85) {
+        } else if (subRate >= 80 && (areaAvgScore < 80 || !hasScoredPlans)) {
           quadrant = 'q3';
-          quadrantTitle = 'ส่งตรงเวลา/ควรยกระดับรูบริก (Fast Delivery)';
+          quadrantTitle = 'ส่งตรงเวลา/รอผลประเมิน (Fast Delivery)';
           quadrantBadge = 'bg-amber-100 text-amber-800 border-amber-200';
         } else {
           quadrant = 'q4';
@@ -209,6 +213,8 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
           submissionRate: subRate,
           onTimeRate: onTimePct,
           avgScore: areaAvgScore,
+          hasScoredPlans,
+          hasSubmissions: areaPlans.length > 0,
           quadrant,
           quadrantTitle,
           quadrantBadge,
@@ -347,21 +353,23 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
       });
     }
 
-    // Workload calibration
-    list.push({
-      id: 'act-4',
-      title: 'การเกลี่ยปฏิทินเดดไลน์แบบแบ่งระยะ (Staggered Deadline Calibration)',
-      category: 'Policy',
-      urgency: 'medium',
-      target: 'ระบบกำหนดส่งเอกสาร ภาคเรียนที่ 1/2569',
-      evidence: 'การส่งเอกสารกระจุกตัวใน 48 ชั่วโมงสุดท้ายก่อนเส้นตายทำให้คอขวดในขั้นตอนการตรวจประเมิน',
-      recommendation:
-        'ปรับให้แผนการสอนย่อส่งในสัปดาห์ที่ 1 ส่วนแผนสมบูรณ์และวิจัยในชั้นเรียนส่งในสัปดาห์ที่ 3 เพื่อให้ผู้ตรวจมีเวลาให้ Feedback คุณภาพ',
-      actionLabel: 'เปิดระบบตั้งค่ากำหนดส่ง (Deadline Manager)',
-    });
+    // Late submissions policy action
+    if (latePlans.length > 0) {
+      list.push({
+        id: 'act-4',
+        title: 'การทบทวนกำหนดส่งและสนับสนุนกลุ่มสาระที่ส่งล่าช้า',
+        category: 'Policy',
+        urgency: 'medium',
+        target: `แผนที่ส่งล่าช้า ${latePlans.length} ฉบับ`,
+        evidence: `ตรวจพบเอกสารส่งล่าช้ากว่ากำหนด ${latePlans.length} ฉบับ คิดเป็น ${lateRate}% ของเอกสารทั้งหมด`,
+        recommendation:
+          'ฝ่ายบริหารวิชาการควรทบทวนปฏิทินเดดไลน์และจัดเวลาให้คำปรึกษาแก่กลุ่มสาระที่มีประวัติการส่งล่าช้า',
+        actionLabel: 'เปิดระบบตั้งค่ากำหนดส่ง (Deadline Manager)',
+      });
+    }
 
     return list;
-  }, [highRiskCount, departmentMatrix, revisionPlans.length, ftaRate]);
+  }, [highRiskCount, departmentMatrix, revisionPlans.length, ftaRate, latePlans.length, lateRate]);
 
   // Helper for short department tags
   const getDeptShortName = (name: string) => {
@@ -376,91 +384,116 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
     return name.slice(0, 4);
   };
 
-  // 5. 5-Dimension Rubrics Radar Chart Data (คำนวณคะแนนรูบริก 5 มิติ)
-  const rubricStats = useMemo(() => {
-    let standardsSum = 0;
-    let activitiesSum = 0;
-    let mediaSum = 0;
-    let assessmentSum = 0;
-    let recordingSum = 0;
-    let count = 0;
-
-    plans.forEach((p) => {
-      if (p.rubric_scores) {
-        standardsSum += p.rubric_scores.standards || 4.5;
-        activitiesSum += p.rubric_scores.activities || 4.2;
-        mediaSum += p.rubric_scores.media || 4.4;
-        assessmentSum += p.rubric_scores.assessment || 4.3;
-        recordingSum += p.rubric_scores.recording || 4.0;
-        count++;
-      } else if (typeof p.total_score === 'number' && p.total_score > 0) {
-        const base = (p.total_score / 100) * 5;
-        standardsSum += Math.min(5, Number((base * 1.02).toFixed(2)));
-        activitiesSum += Math.min(5, Number((base * 0.98).toFixed(2)));
-        mediaSum += Math.min(5, Number((base * 1.01).toFixed(2)));
-        assessmentSum += Math.min(5, Number((base * 0.96).toFixed(2)));
-        recordingSum += Math.min(5, Number((base * 0.94).toFixed(2)));
-        count++;
-      }
-    });
-
-    const n = count > 0 ? count : 1;
-    return [
-      { key: 'standards', label: '1. มาตรฐานและตัวชี้วัด', score: Number((standardsSum / n).toFixed(2)), benchmark: 4.8 },
-      { key: 'activities', label: '2. กิจกรรมเชิงรุก Active Learning', score: Number((activitiesSum / n).toFixed(2)), benchmark: 4.6 },
-      { key: 'media', label: '3. สื่อดิจิทัลและนวัตกรรม', score: Number((mediaSum / n).toFixed(2)), benchmark: 4.5 },
-      { key: 'assessment', label: '4. การวัดประเมินตามสภาพจริง', score: Number((assessmentSum / n).toFixed(2)), benchmark: 4.7 },
-      { key: 'recording', label: '5. บันทึกสะท้อนคิด & วิจัย', score: Number((recordingSum / n).toFixed(2)), benchmark: 4.3 },
-    ];
+  // Plans that actually have real rubric scores evaluated
+  const plansWithRubrics = useMemo(() => {
+    return plans.filter((p) => p.rubric_scores && typeof p.rubric_scores === 'object');
   }, [plans]);
 
-  // 6. Submission Velocity Burn-up Timeline Data
-  const velocityTimeline = useMemo(() => {
-    const total = totalTeachers || 27;
-    const currentSub = submittedTeachers.length;
-    const w1 = Math.min(currentSub, Math.round(total * 0.22));
-    const w2 = Math.min(currentSub, Math.round(total * 0.48));
-    const w3 = Math.min(currentSub, Math.round(total * 0.74));
-    const w4 = currentSub;
+  // 5. 5-Dimension Rubrics Radar Chart Data (คำนวณจากคะแนนประเมินจริงในระบบเท่านั้น)
+  const rubricStats = useMemo(() => {
+    const count = plansWithRubrics.length;
+    if (count === 0) {
+      return [
+        { key: 'standards', label: '1. มาตรฐานและตัวชี้วัด', score: 0, count: 0 },
+        { key: 'activities', label: '2. กิจกรรมเชิงรุก Active Learning', score: 0, count: 0 },
+        { key: 'media', label: '3. สื่อดิจิทัลและนวัตกรรม', score: 0, count: 0 },
+        { key: 'assessment', label: '4. การวัดประเมินตามสภาพจริง', score: 0, count: 0 },
+        { key: 'recording', label: '5. บันทึกสะท้อนคิด & วิจัย', score: 0, count: 0 },
+      ];
+    }
+
+    const standardsSum = plansWithRubrics.reduce((acc, p) => acc + (p.rubric_scores?.standards || 0), 0);
+    const activitiesSum = plansWithRubrics.reduce((acc, p) => acc + (p.rubric_scores?.activities || 0), 0);
+    const mediaSum = plansWithRubrics.reduce((acc, p) => acc + (p.rubric_scores?.media || 0), 0);
+    const assessmentSum = plansWithRubrics.reduce((acc, p) => acc + (p.rubric_scores?.assessment || 0), 0);
+    const recordingSum = plansWithRubrics.reduce((acc, p) => acc + (p.rubric_scores?.recording || 0), 0);
 
     return [
-      { period: 'สัปดาห์ที่ 1', label: 'เปิดระบบรับส่ง', submitted: w1, cumulativePct: Math.round((w1 / total) * 100), dailyPace: 5, targetPct: 25 },
-      { period: 'สัปดาห์ที่ 2', label: 'รอบแรก (Early Birds)', submitted: w2, cumulativePct: Math.round((w2 / total) * 100), dailyPace: 7, targetPct: 50 },
-      { period: 'สัปดาห์ที่ 3', label: 'รอบหลัก (Core Cycle)', submitted: w3, cumulativePct: Math.round((w3 / total) * 100), dailyPace: 9, targetPct: 75 },
-      { period: 'สัปดาห์ที่ 4 (ปัจจุบัน)', label: 'ก่อนถึงเส้นตาย', submitted: w4, cumulativePct: Math.round((w4 / total) * 100), dailyPace: 6, targetPct: 100 },
+      { key: 'standards', label: '1. มาตรฐานและตัวชี้วัด', score: Number((standardsSum / count).toFixed(2)), count },
+      { key: 'activities', label: '2. กิจกรรมเชิงรุก Active Learning', score: Number((activitiesSum / count).toFixed(2)), count },
+      { key: 'media', label: '3. สื่อดิจิทัลและนวัตกรรม', score: Number((mediaSum / count).toFixed(2)), count },
+      { key: 'assessment', label: '4. การวัดประเมินตามสภาพจริง', score: Number((assessmentSum / count).toFixed(2)), count },
+      { key: 'recording', label: '5. บันทึกสะท้อนคิด & วิจัย', score: Number((recordingSum / count).toFixed(2)), count },
     ];
-  }, [totalTeachers, submittedTeachers.length]);
+  }, [plansWithRubrics]);
 
-  // 7. Document Complexity & Friction Statistics Data
-  const docFrictionStats = useMemo(() => {
-    const standardTypes = [
-      { name: 'แผนการจัดการเรียนรู้ฉบับย่อ', leadDays: 2.8, complexity: 'ปานกลาง' },
-      { name: 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์', leadDays: 6.4, complexity: 'ระดับสูง' },
-      { name: 'กำหนดการจัดการเรียนรู้', leadDays: 1.8, complexity: 'มาตรฐาน' },
-      { name: 'บันทึกหลังการสอน', leadDays: 3.5, complexity: 'ปานกลาง' },
-      { name: 'วิจัยในชั้นเรียน', leadDays: 12.0, complexity: 'ระดับสูงมาก' },
-    ];
+  // 6. Submission Timeline Data (สร้างจากวัน-เวลาที่ส่งจริงใน submitted_at ของ plans)
+  const submissionTimeline = useMemo(() => {
+    if (plans.length === 0) return [];
 
-    return standardTypes.map((t) => {
-      const matching = plans.filter((p) => p.plan_type === t.name || (t.name.includes('แผนการจัดการเรียนรู้') && p.plan_type?.includes(t.name)));
+    const sorted = [...plans].sort((a, b) => {
+      const da = new Date(a.submitted_at).getTime() || 0;
+      const db = new Date(b.submitted_at).getTime() || 0;
+      return da - db;
+    });
+
+    const dateMap: Record<string, { label: string; count: number }> = {};
+    sorted.forEach((p) => {
+      let label = 'ไม่ระบุ';
+      try {
+        const d = new Date(p.submitted_at);
+        if (!isNaN(d.getTime())) {
+          label = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+        } else if (p.submitted_at) {
+          label = p.submitted_at.split(' ')[0] || p.submitted_at;
+        }
+      } catch {
+        label = 'ไม่ระบุ';
+      }
+      if (!dateMap[label]) {
+        dateMap[label] = { label, count: 0 };
+      }
+      dateMap[label].count++;
+    });
+
+    let cumulative = 0;
+    const total = totalTeachers || 1;
+    return Object.values(dateMap).map((item) => {
+      cumulative += item.count;
+      return {
+        label: item.label,
+        count: item.count,
+        cumulative,
+        cumulativePct: Math.min(100, Math.round((cumulative / total) * 100)),
+      };
+    });
+  }, [plans, totalTeachers]);
+
+  // 7. Real Document Status Statistics Data (คำนวณจากสถานะจริงของแผน ไม่ใช้ Lead Days สมมุติ)
+  const docStatusStats = useMemo(() => {
+    const typesSet = new Set<string>();
+    (deadlineConfigs || []).forEach((c) => {
+      if (c.name?.trim()) typesSet.add(c.name.trim());
+    });
+    plans.forEach((p) => {
+      if (p.plan_type?.trim()) typesSet.add(p.plan_type.trim());
+    });
+
+    const typesList = typesSet.size > 0
+      ? Array.from(typesSet)
+      : ['แผนการจัดการเรียนรู้ฉบับย่อ', 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์'];
+
+    return typesList.map((typeName) => {
+      const matching = plans.filter((p) => p.plan_type === typeName || (typeName.includes('แผนการจัดการเรียนรู้') && p.plan_type?.includes(typeName)));
+      const count = matching.length;
       const onTime = matching.filter((p) => !p.is_late).length;
       const late = matching.filter((p) => !!p.is_late).length;
       const revisions = matching.filter((p) => p.status === 'needs_revision').length;
-      const count = matching.length;
-      const pending = Math.max(0, (totalTeachers || 27) - count);
+      const approved = matching.filter((p) => p.status === 'approved').length;
 
       return {
-        ...t,
+        name: typeName,
         total: count,
         onTime,
         late,
         revisions,
-        pending,
-        onTimePct: count > 0 ? Math.round((onTime / count) * 100) : 88,
-        revisionPct: count > 0 ? Math.round((revisions / count) * 100) : 12,
+        approved,
+        onTimePct: count > 0 ? Math.round((onTime / count) * 100) : 0,
+        latePct: count > 0 ? Math.round((late / count) * 100) : 0,
+        revisionPct: count > 0 ? Math.round((revisions / count) * 100) : 0,
       };
-    });
-  }, [plans, totalTeachers]);
+    }).filter((t) => t.total > 0 || (deadlineConfigs || []).some((c) => c.name === t.name));
+  }, [plans, deadlineConfigs]);
 
   // Selected department details from hover
   const hoveredDeptData = useMemo(() => {
@@ -477,12 +510,12 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
     return { x, y };
   };
 
-  // Helper for Scatter plot coordinates
+  // Helper for Scatter plot coordinates (honest 0-100% and 0-100 score mapping)
   const getScatterCoords = (onTimePct: number, qualityScore: number) => {
-    const clampedX = Math.max(50, Math.min(100, onTimePct));
-    const x = 45 + ((clampedX - 50) / 50) * 490;
-    const clampedY = Math.max(70, Math.min(100, qualityScore));
-    const y = 250 - ((clampedY - 70) / 30) * 220;
+    const clampedX = Math.max(0, Math.min(100, onTimePct));
+    const x = 50 + (clampedX / 100) * 480;
+    const clampedY = Math.max(0, Math.min(100, qualityScore));
+    const y = 250 - (clampedY / 100) * 220;
     return { x, y };
   };
 
@@ -803,7 +836,7 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                       1. กราฟเมทริกซ์การกระจายตัว 8 กลุ่มสาระ (2D Quadrant Scatter Plot)
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      แกน X: ความตรงต่อเวลา (50%-100%) vs แกน Y: คะแนนคุณภาพเฉลี่ย (70-100)
+                      แกน X: ความตรงต่อเวลา (0%-100%) vs แกน Y: คะแนนคุณภาพเฉลี่ยจริง (0-100)
                     </p>
                   </div>
                 </div>
@@ -815,32 +848,32 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                 <svg viewBox="0 0 560 280" className="w-full h-auto select-none">
                   {/* Quadrant Shaded Zones */}
                   {/* Top-Right: Q1 Role Model (Stars) */}
-                  <rect x="388" y="25" width="147" height="112.5" fill="#ecfdf5" fillOpacity="0.65" rx="4" />
+                  <rect x="434" y="25" width="96" height="110" fill="#ecfdf5" fillOpacity="0.65" rx="4" />
                   <text x="525" y="40" textAnchor="end" className="text-[9px] fill-emerald-700 font-bold">
                     ⭐ Q1: บทบาทผู้นำ (Role Model)
                   </text>
 
                   {/* Top-Left: Q2 Deep Planners / Quality Focus */}
-                  <rect x="45" y="25" width="343" height="112.5" fill="#eff6ff" fillOpacity="0.65" rx="4" />
-                  <text x="55" y="40" textAnchor="start" className="text-[9px] fill-blue-700 font-bold">
+                  <rect x="50" y="25" width="384" height="110" fill="#eff6ff" fillOpacity="0.65" rx="4" />
+                  <text x="58" y="40" textAnchor="start" className="text-[9px] fill-blue-700 font-bold">
                     🔷 Q2: เน้นคุณภาพ (Quality Focus)
                   </text>
 
                   {/* Bottom-Right: Q3 Fast Delivery */}
-                  <rect x="388" y="137.5" width="147" height="112.5" fill="#fffbeb" fillOpacity="0.65" rx="4" />
+                  <rect x="434" y="135" width="96" height="115" fill="#fffbeb" fillOpacity="0.65" rx="4" />
                   <text x="525" y="240" textAnchor="end" className="text-[9px] fill-amber-700 font-bold">
                     ⚡ Q3: ส่งงานไว (Fast Delivery)
                   </text>
 
                   {/* Bottom-Left: Q4 Action Required */}
-                  <rect x="45" y="137.5" width="343" height="112.5" fill="#fff1f2" fillOpacity="0.65" rx="4" />
-                  <text x="55" y="240" textAnchor="start" className="text-[9px] fill-rose-700 font-bold">
+                  <rect x="50" y="135" width="384" height="115" fill="#fff1f2" fillOpacity="0.65" rx="4" />
+                  <text x="58" y="240" textAnchor="start" className="text-[9px] fill-rose-700 font-bold">
                     ⚠️ Q4: เร่งรัดสนับสนุน (Attention)
                   </text>
 
-                  {/* Grid Lines */}
-                  {[60, 70, 80, 90, 100].map((val) => {
-                    const xPos = 45 + ((val - 50) / 50) * 490;
+                  {/* Grid Lines (0, 20, 40, 60, 80, 100%) */}
+                  {[0, 20, 40, 60, 80, 100].map((val) => {
+                    const xPos = 50 + (val / 100) * 480;
                     return (
                       <g key={val}>
                         <line x1={xPos} y1="25" x2={xPos} y2="250" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
@@ -851,30 +884,31 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                     );
                   })}
 
-                  {[70, 80, 90, 100].map((val) => {
-                    const yPos = 250 - ((val - 70) / 30) * 220;
+                  {/* Y Grid Lines (0, 20, 40, 60, 80, 100) */}
+                  {[0, 20, 40, 60, 80, 100].map((val) => {
+                    const yPos = 250 - (val / 100) * 220;
                     return (
                       <g key={val}>
-                        <line x1="45" y1={yPos} x2="535" y2={yPos} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
-                        <text x="38" y={yPos + 3} textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
+                        <line x1="50" y1={yPos} x2="530" y2={yPos} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
+                        <text x="44" y={yPos + 3} textAnchor="end" className="text-[9px] fill-slate-400 font-mono">
                           {val}
                         </text>
                       </g>
                     );
                   })}
 
-                  {/* Strategic Benchmark Crosshairs (X=85%, Y=85) */}
-                  <line x1="388" y1="20" x2="388" y2="255" stroke="#6366f1" strokeWidth="1.5" strokeDasharray="4 2" />
-                  <line x1="40" y1="137.5" x2="540" y2="137.5" stroke="#6366f1" strokeWidth="1.5" strokeDasharray="4 2" />
-                  <text x="392" y="32" className="text-[8px] fill-indigo-600 font-bold font-mono">
-                    เกณฑ์เป้าหมาย 85%
+                  {/* Strategic Benchmark Crosshairs (X=80%, Y=80) */}
+                  <line x1="434" y1="20" x2="434" y2="255" stroke="#6366f1" strokeWidth="1.5" strokeDasharray="4 2" />
+                  <line x1="45" y1="74" x2="535" y2="74" stroke="#6366f1" strokeWidth="1.5" strokeDasharray="4 2" />
+                  <text x="438" y="32" className="text-[8px] fill-indigo-600 font-bold font-mono">
+                    เกณฑ์เป้าหมาย 80%
                   </text>
-                  <text x="44" y="133" className="text-[8px] fill-indigo-600 font-bold font-mono">
-                    เกณฑ์คุณภาพ 85 คะแนน
+                  <text x="50" y="70" className="text-[8px] fill-indigo-600 font-bold font-mono">
+                    เกณฑ์คุณภาพ 80 คะแนน
                   </text>
 
-                  {/* Department Bubbles */}
-                  {departmentMatrix.map((dept) => {
+                  {/* Department Bubbles - Plot ONLY departments that have real submitted plans */}
+                  {departmentMatrix.filter((d) => d.plansCount > 0).map((dept) => {
                     const { x, y } = getScatterCoords(dept.onTimeRate, dept.avgScore);
                     const isHovered = hoveredDept === dept.name;
                     const r = 16 + (dept.totalTeachers > 3 ? 3 : 0);
@@ -933,6 +967,16 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                 </svg>
               </div>
 
+              {/* Note for departments with zero submissions yet */}
+              {departmentMatrix.some((d) => d.plansCount === 0) && (
+                <div className="p-2.5 rounded-xl bg-slate-100 text-[11px] text-slate-600 flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-slate-700">กลุ่มสาระที่ยังไม่มีการส่งแผน:</span>
+                  <span className="text-slate-500">
+                    {departmentMatrix.filter((d) => d.plansCount === 0).map((d) => d.name).join(', ')}
+                  </span>
+                </div>
+              )}
+
               {/* Hovered / Clicked Department Quick Detail Strip */}
               {hoveredDeptData ? (
                 <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 flex flex-wrap items-center justify-between gap-3 text-xs animate-in fade-in duration-150">
@@ -979,7 +1023,9 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                       2. กราฟใยแมงมุมสมรรถนะ 5 มิติ (5D Rubric Radar)
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      คะแนนเฉลี่ยจริง vs เกณฑ์มาตรฐาน PCSHS (เต็ม 5.0)
+                      {plansWithRubrics.length > 0
+                        ? `คะแนนเฉลี่ยจริงจากแผนที่ประเมินแล้ว ${plansWithRubrics.length} ฉบับ (เต็ม 5.0)`
+                        : 'รอผลการตรวจประเมินเกณฑ์รูบริกจากฝ่ายวิชาการ'}
                     </p>
                   </div>
                 </div>
@@ -988,117 +1034,131 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                 </span>
               </div>
 
-              {/* Vector SVG Radar Chart */}
-              <div className="relative w-full overflow-hidden flex flex-col items-center justify-center py-1">
-                <svg viewBox="0 0 350 280" className="w-full max-w-[320px] h-auto select-none">
-                  {/* Concentric Web Rings (levels 1, 2, 3, 4, 5) */}
-                  {[1, 2, 3, 4, 5].map((lvl) => {
-                    const points = [0, 1, 2, 3, 4]
-                      .map((i) => {
-                        const { x, y } = getRadarCoords(i, lvl, 5);
-                        return `${x},${y}`;
-                      })
-                      .join(' ');
-                    return (
+              {plansWithRubrics.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400 space-y-2">
+                  <Award className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="font-semibold text-slate-600">ยังไม่มีข้อมูลคะแนนประเมินรูบริก 5 มิติจากแผนจริงในระบบ</p>
+                  <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                    กราฟใยแมงมุมจะคำนวณและวาดจุดตามคะแนนจริงเมื่อผู้ตรวจวิชาการให้คะแนนรูบริกในแผนการสอน
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Vector SVG Radar Chart */}
+                  <div className="relative w-full overflow-hidden flex flex-col items-center justify-center py-1">
+                    <svg viewBox="0 0 350 280" className="w-full max-w-[320px] h-auto select-none">
+                      {/* Concentric Web Rings (levels 1, 2, 3, 4, 5) */}
+                      {[1, 2, 3, 4, 5].map((lvl) => {
+                        const points = [0, 1, 2, 3, 4]
+                          .map((i) => {
+                            const { x, y } = getRadarCoords(i, lvl, 5);
+                            return `${x},${y}`;
+                          })
+                          .join(' ');
+                        return (
+                          <polygon
+                            key={lvl}
+                            points={points}
+                            fill="none"
+                            stroke="#e2e8f0"
+                            strokeWidth={lvl === 5 ? '1.5' : '1'}
+                          />
+                        );
+                      })}
+
+                      {/* 5 Radial Spoke Lines */}
+                      {[0, 1, 2, 3, 4].map((i) => {
+                        const { x, y } = getRadarCoords(i, 5, 5);
+                        return <line key={i} x1="175" y1="145" x2={x} y2={y} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="2 2" />;
+                      })}
+
+                      {/* Standard Baseline Target (4.0 Level) */}
                       <polygon
-                        key={lvl}
-                        points={points}
+                        points={[0, 1, 2, 3, 4].map((i) => {
+                          const { x, y } = getRadarCoords(i, 4.0, 5);
+                          return `${x},${y}`;
+                        }).join(' ')}
                         fill="none"
-                        stroke="#e2e8f0"
-                        strokeWidth={lvl === 5 ? '1.5' : '1'}
+                        stroke="#f59e0b"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 3"
                       />
-                    );
-                  })}
 
-                  {/* 5 Radial Spoke Lines */}
-                  {[0, 1, 2, 3, 4].map((i) => {
-                    const { x, y } = getRadarCoords(i, 5, 5);
-                    return <line key={i} x1="175" y1="145" x2={x} y2={y} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="2 2" />;
-                  })}
+                      {/* Actual Score Polygon (Filled Indigo) */}
+                      <polygon
+                        points={rubricStats.map((item, i) => {
+                          const { x, y } = getRadarCoords(i, item.score, 5);
+                          return `${x},${y}`;
+                        }).join(' ')}
+                        fill="#6366f1"
+                        fillOpacity="0.28"
+                        stroke="#4f46e5"
+                        strokeWidth="2.5"
+                      />
 
-                  {/* Benchmark Polygon (Dashed Amber Target) */}
-                  <polygon
-                    points={rubricStats.map((item, i) => {
-                      const { x, y } = getRadarCoords(i, item.benchmark, 5);
-                      return `${x},${y}`;
-                    }).join(' ')}
-                    fill="none"
-                    stroke="#f59e0b"
-                    strokeWidth="2"
-                    strokeDasharray="4 3"
-                  />
+                      {/* Actual Score Vertex Points & Numerical Badges */}
+                      {rubricStats.map((item, i) => {
+                        const { x, y } = getRadarCoords(i, item.score, 5);
+                        return (
+                          <g key={item.key}>
+                            <circle cx={x} cy={y} r="4" fill="#4f46e5" stroke="#ffffff" strokeWidth="1.5" />
+                          </g>
+                        );
+                      })}
 
-                  {/* Actual Score Polygon (Filled Indigo) */}
-                  <polygon
-                    points={rubricStats.map((item, i) => {
-                      const { x, y } = getRadarCoords(i, item.score, 5);
-                      return `${x},${y}`;
-                    }).join(' ')}
-                    fill="#6366f1"
-                    fillOpacity="0.28"
-                    stroke="#4f46e5"
-                    strokeWidth="2.5"
-                  />
+                      {/* Axis Vertex Outer Labels with Thai dimension names */}
+                      {rubricStats.map((item, i) => {
+                        const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+                        const lx = 175 + 115 * Math.cos(angle);
+                        const ly = 145 + 115 * Math.sin(angle);
+                        const textAnchor = Math.abs(Math.cos(angle)) < 0.2 ? 'middle' : Math.cos(angle) > 0 ? 'start' : 'end';
 
-                  {/* Actual Score Vertex Points & Numerical Badges */}
-                  {rubricStats.map((item, i) => {
-                    const { x, y } = getRadarCoords(i, item.score, 5);
-                    return (
-                      <g key={item.key}>
-                        <circle cx={x} cy={y} r="4" fill="#4f46e5" stroke="#ffffff" strokeWidth="1.5" />
-                      </g>
-                    );
-                  })}
+                        return (
+                          <g key={`lbl-${item.key}`}>
+                            <text
+                              x={lx}
+                              y={ly}
+                              textAnchor={textAnchor}
+                              className="text-[9px] fill-slate-700 font-bold"
+                            >
+                              {item.label.split(' ')[0]} {item.label.split(' ')[1] || ''}
+                            </text>
+                            <text
+                              x={lx}
+                              y={ly + 10}
+                              textAnchor={textAnchor}
+                              className="text-[8px] fill-indigo-600 font-mono font-bold"
+                            >
+                              {item.score} / 5.0
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
 
-                  {/* Axis Vertex Outer Labels with Thai dimension names */}
-                  {rubricStats.map((item, i) => {
-                    const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-                    const lx = 175 + 115 * Math.cos(angle);
-                    const ly = 145 + 115 * Math.sin(angle);
-                    const textAnchor = Math.abs(Math.cos(angle)) < 0.2 ? 'middle' : Math.cos(angle) > 0 ? 'start' : 'end';
-
-                    return (
-                      <g key={`lbl-${item.key}`}>
-                        <text
-                          x={lx}
-                          y={ly}
-                          textAnchor={textAnchor}
-                          className="text-[9px] fill-slate-700 font-bold"
-                        >
-                          {item.label.split(' ')[0]} {item.label.split(' ')[1] || ''}
-                        </text>
-                        <text
-                          x={lx}
-                          y={ly + 10}
-                          textAnchor={textAnchor}
-                          className="text-[8px] fill-indigo-600 font-mono font-bold"
-                        >
-                          {item.score} / 5.0
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
-
-              {/* Legend & Summary */}
-              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded bg-indigo-600"></span>
-                  <span className="font-semibold text-slate-700">คะแนนจริงโรงเรียน (เฉลี่ย 4.42/5.0)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-1 bg-amber-500 border-t border-dashed border-amber-600"></span>
-                  <span className="font-semibold text-amber-700">เกณฑ์มาตรฐาน PCSHS (4.6/5.0)</span>
-                </div>
-              </div>
+                  {/* Legend & Summary */}
+                  <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded bg-indigo-600"></span>
+                      <span className="font-semibold text-slate-700">
+                        คะแนนจริงเฉลี่ย {(rubricStats.reduce((acc, r) => acc + r.score, 0) / 5).toFixed(2)}/5.0 ({plansWithRubrics.length} ฉบับ)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-1 bg-amber-500 border-t border-dashed border-amber-600"></span>
+                      <span className="font-semibold text-amber-700">เกณฑ์มาตรฐาน 4.0/5.0</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
 
-        {/* ROW 2: Velocity Timeline + Document Type Friction Breakdown */}
+        {/* ROW 2: Actual Submission Timeline + Document Type Status Breakdown */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* GRAPH 3: Submission Velocity Burn-up Timeline (lg:col-span-6) */}
+          {/* GRAPH 3: Actual Submission Timeline (lg:col-span-6) */}
           {(selectedChartTab === 'all' || selectedChartTab === 'velocity') && (
             <div className={`p-5 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-4 ${
               selectedChartTab === 'velocity' ? 'lg:col-span-12' : 'lg:col-span-6'
@@ -1110,100 +1170,113 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                   </div>
                   <div>
                     <h4 className="text-sm font-bold text-slate-900">
-                      3. กราฟอัตราเร่งและแนวโน้มการส่งงาน (Velocity Burn-up Timeline)
+                      3. กราฟไทม์ไลน์การส่งงานจริง (Actual Submission Timeline)
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      เปรียบเทียบความก้าวหน้าสะสมรายสัปดาห์ vs เส้นเป้าหมาย SLA 100%
+                      บันทึกความก้าวหน้าสะสมตามวัน-เวลาจริงที่ครูส่งแผนเข้าระบบ
                     </p>
                   </div>
                 </div>
                 <span className="text-[11px] font-bold text-blue-600 font-mono bg-blue-50 px-2 py-0.5 rounded-lg">
-                  {submissionRate}% ส่งมอบแล้ว
+                  {plans.length} ฉบับ ({submissionRate}%)
                 </span>
               </div>
 
-              {/* Area & Bar Vector Chart */}
-              <div className="space-y-4 pt-1">
-                {/* Visual Weekly Timeline Bars */}
-                <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                  {velocityTimeline.map((item, idx) => (
-                    <div key={item.period} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                      <div className="text-[10px] text-slate-400 font-medium">{item.period}</div>
-                      <div className="text-base font-extrabold text-slate-900 font-mono">
-                        {item.submitted} <span className="text-[10px] font-normal text-slate-500">ท่าน</span>
-                      </div>
-                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="bg-blue-600 h-1.5 rounded-full transition-all"
-                          style={{ width: `${item.cumulativePct}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-[9px] text-slate-500 font-mono pt-0.5">
-                        <span>จริง {item.cumulativePct}%</span>
-                        <span className="text-indigo-600 font-bold">เป้า {item.targetPct}%</span>
-                      </div>
-                    </div>
-                  ))}
+              {submissionTimeline.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400 space-y-2">
+                  <TrendingUp className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="font-semibold text-slate-600">ยังไม่มีประวัติการส่งแผนการสอนจริงในระบบ</p>
+                  <p className="text-[11px] text-slate-400">กราฟไทม์ไลน์จะแสดงความก้าวหน้าสะสมทันทีเมื่อมีการส่งแผน</p>
                 </div>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {/* Visual Timeline Date Blocks */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    {submissionTimeline.slice(-4).map((item) => (
+                      <div key={item.label} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                        <div className="text-[10px] text-slate-400 font-medium truncate">{item.label}</div>
+                        <div className="text-base font-extrabold text-slate-900 font-mono">
+                          +{item.count} <span className="text-[10px] font-normal text-slate-500">ฉบับ</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full transition-all"
+                            style={{ width: `${item.cumulativePct}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between text-[9px] text-slate-500 font-mono pt-0.5">
+                          <span>สะสม {item.cumulative}</span>
+                          <span className="text-indigo-600 font-bold">{item.cumulativePct}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
 
-                {/* SVG Curve for Velocity */}
-                <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
-                  <svg viewBox="0 0 500 120" className="w-full h-auto select-none">
-                    <defs>
-                      <linearGradient id="velocityGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
+                  {/* SVG Cumulative Progress Curve */}
+                  <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-100">
+                    <svg viewBox="0 0 500 120" className="w-full h-auto select-none">
+                      <defs>
+                        <linearGradient id="velocityGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
 
-                    {/* Target 100% line */}
-                    <line x1="30" y1="20" x2="470" y2="20" stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 3" />
-                    <text x="475" y="24" textAnchor="start" className="text-[8px] fill-slate-400 font-mono">
-                      100%
-                    </text>
+                      {/* 100% Target line */}
+                      <line x1="30" y1="20" x2="470" y2="20" stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 3" />
+                      <text x="475" y="24" textAnchor="start" className="text-[8px] fill-slate-400 font-mono">
+                        100%
+                      </text>
 
-                    {/* Area fill */}
-                    <path
-                      d={`M 50 100 L 150 ${100 - (velocityTimeline[0].cumulativePct * 0.8)} L 250 ${100 - (velocityTimeline[1].cumulativePct * 0.8)} L 350 ${100 - (velocityTimeline[2].cumulativePct * 0.8)} L 450 ${100 - (velocityTimeline[3].cumulativePct * 0.8)} L 450 100 Z`}
-                      fill="url(#velocityGrad)"
-                    />
+                      {/* Dynamic Dots & Line from real timeline */}
+                      {(() => {
+                        const pts = submissionTimeline.map((item, idx) => {
+                          const px = submissionTimeline.length === 1
+                            ? 250
+                            : 50 + (idx / (submissionTimeline.length - 1)) * 400;
+                          const py = 100 - (item.cumulativePct * 0.8);
+                          return { px, py, item };
+                        });
 
-                    {/* Line */}
-                    <path
-                      d={`M 50 100 L 150 ${100 - (velocityTimeline[0].cumulativePct * 0.8)} L 250 ${100 - (velocityTimeline[1].cumulativePct * 0.8)} L 350 ${100 - (velocityTimeline[2].cumulativePct * 0.8)} L 450 ${100 - (velocityTimeline[3].cumulativePct * 0.8)}`}
-                      fill="none"
-                      stroke="#2563eb"
-                      strokeWidth="2.5"
-                    />
+                        const pathStr = pts.length > 1
+                          ? `M ${pts[0].px} ${pts[0].py} ` + pts.slice(1).map(p => `L ${p.px} ${p.py}`).join(' ')
+                          : `M 50 ${pts[0]?.py || 100} L 450 ${pts[0]?.py || 100}`;
 
-                    {/* Dots */}
-                    {velocityTimeline.map((item, idx) => {
-                      const px = 150 + idx * 100;
-                      const py = 100 - (item.cumulativePct * 0.8);
-                      return (
-                        <g key={item.period}>
-                          <circle cx={px} cy={py} r="4.5" fill="#2563eb" stroke="#ffffff" strokeWidth="1.5" />
-                          <text x={px} y={py - 8} textAnchor="middle" className="text-[9px] fill-blue-800 font-bold font-mono">
-                            {item.cumulativePct}%
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </svg>
+                        const areaStr = pts.length > 1
+                          ? `M ${pts[0].px} 100 L ${pts[0].px} ${pts[0].py} ` + pts.slice(1).map(p => `L ${p.px} ${p.py}`).join(' ') + ` L ${pts[pts.length - 1].px} 100 Z`
+                          : '';
+
+                        return (
+                          <>
+                            {areaStr && <path d={areaStr} fill="url(#velocityGrad)" />}
+                            <path d={pathStr} fill="none" stroke="#2563eb" strokeWidth="2.5" />
+                            {pts.map((p, idx) => (
+                              <g key={idx}>
+                                <circle cx={p.px} cy={p.py} r="4.5" fill="#2563eb" stroke="#ffffff" strokeWidth="1.5" />
+                                <text x={p.px} y={p.py - 8} textAnchor="middle" className="text-[9px] fill-blue-800 font-bold font-mono">
+                                  {p.item.cumulative} ฉบับ
+                                </text>
+                              </g>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </svg>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1.5 text-slate-700 font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>ข้อมูลการส่งสะสมตามวัน-เวลาจริง ({plans.length} ฉบับ จากครู {submittedTeachers.length} ท่าน)</span>
+                    </span>
+                    <span className="font-mono text-slate-600">ส่งตรงเวลา: {onTimePlans.length} ฉบับ</span>
+                  </div>
                 </div>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-500">
-                  <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>อัตราเร่งอยู่ในเกณฑ์ที่คาดว่าจะส่งครบ 100% ทันตามปฏิทิน</span>
-                  </span>
-                  <span className="font-mono text-slate-600">Daily Pace: ~7 ฉบับ/วัน</span>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
-          {/* GRAPH 4: Document Type Complexity & Friction Breakdown (lg:col-span-6) */}
+          {/* GRAPH 4: Document Type Status Breakdown (lg:col-span-6) */}
           {(selectedChartTab === 'all' || selectedChartTab === 'friction') && (
             <div className={`p-5 rounded-2xl border border-slate-200/90 bg-white shadow-2xs space-y-4 ${
               selectedChartTab === 'friction' ? 'lg:col-span-12' : 'lg:col-span-6'
@@ -1215,65 +1288,78 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                   </div>
                   <div>
                     <h4 className="text-sm font-bold text-slate-900">
-                      4. กราฟวิเคราะห์ความเสียดทานรายประเภทเอกสาร (Document Friction & Lead Time)
+                      4. กราฟวิเคราะห์สถานะจำแนกตามประเภทเอกสาร (Document Type Status Breakdown)
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      สัดส่วนตรงเวลา/ส่งช้า/แก้ไข พร้อมระยะเวลาจัดทำเฉลี่ย (Lead Time Days)
+                      สัดส่วนตรงเวลา / ส่งช้า / ส่งกลับแก้ไข จากแผนการสอนจริงในระบบ
                     </p>
                   </div>
                 </div>
                 <span className="text-[11px] font-bold text-amber-700 font-mono bg-amber-50 px-2 py-0.5 rounded-lg">
-                  5 ประเภท
+                  {docStatusStats.length} ประเภท
                 </span>
               </div>
 
-              {/* Stacked Horizontal Bars */}
-              <div className="space-y-3 pt-1">
-                {docFrictionStats.map((item) => {
-                  const onTimePct = item.total > 0 ? Math.round((item.onTime / item.total) * 100) : 85;
-                  const latePct = item.total > 0 ? Math.round((item.late / item.total) * 100) : 10;
-                  const revPct = item.total > 0 ? Math.round((item.revisions / item.total) * 100) : 5;
-
-                  return (
+              {docStatusStats.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400 space-y-2">
+                  <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="font-semibold text-slate-600">ยังไม่มีข้อมูลประเภทเอกสารในระบบ</p>
+                </div>
+              ) : (
+                <div className="space-y-3 pt-1">
+                  {docStatusStats.map((item) => (
                     <div key={item.name} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-800 truncate max-w-[220px]" title={item.name}>
+                        <span className="font-bold text-slate-800 truncate max-w-[240px]" title={item.name}>
                           {item.name}
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-semibold font-mono">
-                            เวลาเฉลี่ย {item.leadDays} วัน
-                          </span>
                           <span className="text-[11px] font-mono text-slate-600 font-bold">
                             {item.total} ฉบับ
                           </span>
+                          {item.onTime > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-semibold font-mono">
+                              ตรงเวลา {item.onTime}
+                            </span>
+                          )}
+                          {item.late > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-semibold font-mono">
+                              ช้า {item.late}
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      {/* Stacked Bar with color segments */}
+                      {/* Stacked Bar with real color segments */}
                       <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden flex shadow-2xs">
-                        <div
-                          className="bg-emerald-500 transition-all"
-                          style={{ width: `${onTimePct}%` }}
-                          title={`ตรงเวลา ${onTimePct}%`}
-                        ></div>
-                        <div
-                          className="bg-amber-500 transition-all"
-                          style={{ width: `${latePct}%` }}
-                          title={`ส่งช้า ${latePct}%`}
-                        ></div>
-                        <div
-                          className="bg-rose-500 transition-all"
-                          style={{ width: `${revPct}%` }}
-                          title={`ส่งกลับแก้ ${revPct}%`}
-                        ></div>
+                        {item.onTimePct > 0 && (
+                          <div
+                            className="bg-emerald-500 transition-all"
+                            style={{ width: `${item.onTimePct}%` }}
+                            title={`ตรงเวลา ${item.onTimePct}% (${item.onTime} ฉบับ)`}
+                          ></div>
+                        )}
+                        {item.latePct > 0 && (
+                          <div
+                            className="bg-amber-500 transition-all"
+                            style={{ width: `${item.latePct}%` }}
+                            title={`ส่งช้า ${item.latePct}% (${item.late} ฉบับ)`}
+                          ></div>
+                        )}
+                        {item.revisionPct > 0 && (
+                          <div
+                            className="bg-rose-500 transition-all"
+                            style={{ width: `${item.revisionPct}%` }}
+                            title={`ส่งกลับแก้ ${item.revisionPct}% (${item.revisions} ฉบับ)`}
+                          ></div>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {/* Legend & Diagnostic Insight */}
+              {/* Legend & Real Diagnostic Insight */}
               <div className="pt-2 border-t border-slate-100 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-600">
                   <div className="flex items-center gap-1.5">
@@ -1290,11 +1376,19 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200 text-[11px] text-indigo-900 flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>ข้อค้นพบเชิงข้อมูล:</strong> &ldquo;วิจัยในชั้นเรียน&rdquo; มีระยะเวลา Lead Time สูงสุด (เฉลี่ย 12 วัน) 
-                    และมีอัตราการส่งกลับแก้ไขสูงสุด ฝ่ายบริหารควรเปิดคลินิกให้คำปรึกษางานวิจัยล่วงหน้า
+                    <strong>ข้อสรุปเชิงข้อมูลจริง:</strong>{' '}
+                    {plans.length > 0 ? (
+                      `ประเภทเอกสารที่มีการส่งมากที่สุดคือ "${
+                        docStatusStats.reduce((max, cur) => (cur.total > max.total ? cur : max), docStatusStats[0] || { name: '-', total: 0 }).name
+                      }" รวม ${
+                        docStatusStats.reduce((max, cur) => (cur.total > max.total ? cur : max), docStatusStats[0] || { name: '-', total: 0 }).total
+                      } ฉบับ (อนุมัติแล้ว ${approvedPlans.length} ฉบับ, รอตรวจ ${plans.filter((p) => p.status === 'submitted').length} ฉบับ)`
+                    ) : (
+                      'ยังไม่มีข้อมูลการส่งเอกสารในระบบ'
+                    )}
                   </span>
                 </div>
               </div>
@@ -1897,40 +1991,54 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                 </div>
               </div>
 
-              {/* 5-Dimension Rubrics & Document Friction Summary in Printout */}
+              {/* 5-Dimension Rubrics & Document Status Summary in Printout */}
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="space-y-2 border border-slate-300 p-3 rounded-lg">
                   <h4 className="text-xs font-bold text-slate-800">
-                    สมรรถนะการเขียนแผน 5 มิติ (Rubrics Performance)
+                    สมรรถนะการเขียนแผน 5 มิติ (Rubrics Evaluation)
                   </h4>
-                  <table className="w-full text-[11px] text-left">
-                    <tbody>
-                      {rubricStats.map((r) => (
-                        <tr key={r.key} className="border-b border-slate-100">
-                          <td className="py-1">{r.label}</td>
-                          <td className="py-1 text-right font-bold text-indigo-700">{r.score} / 5.0</td>
-                          <td className="py-1 text-right text-slate-400 font-mono">(เป้า {r.benchmark})</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {plansWithRubrics.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 italic py-2 text-center">
+                      ยังไม่มีข้อมูลคะแนนประเมินจริงในระบบ
+                    </p>
+                  ) : (
+                    <table className="w-full text-[11px] text-left">
+                      <tbody>
+                        {rubricStats.map((r) => (
+                          <tr key={r.key} className="border-b border-slate-100">
+                            <td className="py-1">{r.label}</td>
+                            <td className="py-1 text-right font-bold text-indigo-700">{r.score > 0 ? `${r.score} / 5.0` : '-'}</td>
+                            <td className="py-1 text-right text-slate-400 font-mono">(เป้า 4.0)</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
 
                 <div className="space-y-2 border border-slate-300 p-3 rounded-lg">
                   <h4 className="text-xs font-bold text-slate-800">
-                    ระยะเวลาและภาระงานจำแนกประเภทเอกสาร
+                    สถานะการส่งมอบจำแนกตามประเภทเอกสาร
                   </h4>
-                  <table className="w-full text-[11px] text-left">
-                    <tbody>
-                      {docFrictionStats.map((d) => (
-                        <tr key={d.name} className="border-b border-slate-100">
-                          <td className="py-1 truncate max-w-[140px]">{d.name}</td>
-                          <td className="py-1 text-center font-bold text-slate-800">{d.total} ฉบับ</td>
-                          <td className="py-1 text-right font-mono text-indigo-600">เฉลี่ย {d.leadDays} วัน</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {docStatusStats.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 italic py-2 text-center">
+                      ยังไม่มีข้อมูลประเภทเอกสารในระบบ
+                    </p>
+                  ) : (
+                    <table className="w-full text-[11px] text-left">
+                      <tbody>
+                        {docStatusStats.map((d) => (
+                          <tr key={d.name} className="border-b border-slate-100">
+                            <td className="py-1 truncate max-w-[140px]">{d.name}</td>
+                            <td className="py-1 text-center font-bold text-slate-800">{d.total} ฉบับ</td>
+                            <td className="py-1 text-right font-mono text-emerald-600">
+                              ตรงเวลา {d.onTime} ({d.onTimePct}%)
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
 

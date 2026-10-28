@@ -188,16 +188,16 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
   const onTimeRate = totalPlansCount > 0
     ? Math.round((onTimePlans.length / totalPlansCount) * 100)
-    : 100;
+    : 0;
   const lateRate = totalPlansCount > 0
     ? Math.round((latePlans.length / totalPlansCount) * 100)
     : 0;
 
-  // Average Score across school
+  // Average Score across school (from real evaluated plans only)
   const plansWithScore = activePlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
   const avgScore = plansWithScore.length > 0
     ? (plansWithScore.reduce((acc, p) => acc + (p.total_score || 0), 0) / plansWithScore.length).toFixed(1)
-    : '91.8';
+    : '-';
 
   // Area statistics breakdown
   const areaStats = useMemo(() => {
@@ -210,6 +210,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       );
       const areaOnTimePlans = areaPlans.filter((p) => !p.is_late);
       const areaLatePlans = areaPlans.filter((p) => p.is_late);
+
+      // Teachers who submitted on time (all submitted plans are on time)
+      const onTimeTeachers = areaTeachers.filter((t) => {
+        const tPlans = areaPlans.filter((p) => p.teacher_id === t.Teacher_ID);
+        return tPlans.length > 0 && !tPlans.some((p) => p.is_late);
+      });
+      // Teachers who submitted late
+      const lateTeachers = areaTeachers.filter((t) => {
+        const tPlans = areaPlans.filter((p) => p.teacher_id === t.Teacher_ID);
+        return tPlans.some((p) => p.is_late);
+      });
+
       const rate = areaTeachers.length > 0
         ? Math.round((submittedAreaTeachers.length / areaTeachers.length) * 100)
         : 0;
@@ -217,13 +229,15 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       const scored = areaPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
       const areaAvgScore = scored.length > 0
         ? (scored.reduce((acc, p) => acc + (p.total_score || 0), 0) / scored.length).toFixed(1)
-        : '90.0';
+        : '-';
 
       return {
         name: area,
         totalTeachers: areaTeachers.length,
         submittedTeachers: submittedAreaTeachers.length,
         pendingTeachers: areaTeachers.length - submittedAreaTeachers.length,
+        onTimeTeachersCount: onTimeTeachers.length,
+        lateTeachersCount: lateTeachers.length,
         totalPlans: areaPlans.length,
         onTimePlans: areaOnTimePlans.length,
         latePlans: areaLatePlans.length,
@@ -240,18 +254,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     const veryGood = plansWithScore.filter((p) => (p.total_score || 0) >= 80 && (p.total_score || 0) < 90).length;
     const good = plansWithScore.filter((p) => (p.total_score || 0) >= 70 && (p.total_score || 0) < 80).length;
     const needsImprovement = plansWithScore.filter((p) => (p.total_score || 0) < 70).length;
-    const totalScored = plansWithScore.length || 1;
+    const totalScored = plansWithScore.length;
 
     return {
       excellent,
       veryGood,
       good,
       needsImprovement,
-      totalScored: plansWithScore.length,
-      excellentPct: Math.round((excellent / totalScored) * 100),
-      veryGoodPct: Math.round((veryGood / totalScored) * 100),
-      goodPct: Math.round((good / totalScored) * 100),
-      needsImprovementPct: Math.round((needsImprovement / totalScored) * 100),
+      totalScored,
+      excellentPct: totalScored > 0 ? Math.round((excellent / totalScored) * 100) : 0,
+      veryGoodPct: totalScored > 0 ? Math.round((veryGood / totalScored) * 100) : 0,
+      goodPct: totalScored > 0 ? Math.round((good / totalScored) * 100) : 0,
+      needsImprovementPct: totalScored > 0 ? Math.round((needsImprovement / totalScored) * 100) : 0,
     };
   }, [plansWithScore]);
 
@@ -475,16 +489,47 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold text-slate-900">{avgScore}</span>
-            <span className="text-xs text-slate-500 font-medium">/ 100 คะแนน</span>
+            {avgScore !== '-' && <span className="text-xs text-slate-500 font-medium">/ 100 คะแนน</span>}
           </div>
           <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-600 font-semibold">
-            <span>★★★★★</span>
-            <span className="text-[11px] text-slate-600 font-medium bg-amber-100/70 px-2 py-0.5 rounded-full">
-              ระดับคุณภาพดีเยี่ยม
-            </span>
+            {avgScore === '-' ? (
+              <span className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full">
+                ยังไม่มีข้อมูลคะแนนประเมินจริง
+              </span>
+            ) : Number(avgScore) >= 90 ? (
+              <>
+                <span>★★★★★</span>
+                <span className="text-[11px] text-emerald-700 font-medium bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                  ระดับคุณภาพดีเยี่ยม (90+)
+                </span>
+              </>
+            ) : Number(avgScore) >= 80 ? (
+              <>
+                <span>★★★★☆</span>
+                <span className="text-[11px] text-blue-700 font-medium bg-blue-100/70 px-2 py-0.5 rounded-full">
+                  ระดับคุณภาพดีมาก (80-89)
+                </span>
+              </>
+            ) : Number(avgScore) >= 70 ? (
+              <>
+                <span>★★★☆☆</span>
+                <span className="text-[11px] text-amber-700 font-medium bg-amber-100/70 px-2 py-0.5 rounded-full">
+                  ระดับคุณภาพดี (70-79)
+                </span>
+              </>
+            ) : (
+              <>
+                <span>★★☆☆☆</span>
+                <span className="text-[11px] text-rose-700 font-medium bg-rose-100/70 px-2 py-0.5 rounded-full">
+                  ควรปรับปรุง (&lt;70)
+                </span>
+              </>
+            )}
           </div>
           <div className="mt-2 text-[11px] text-slate-400 truncate">
-            ประเมินตามเกณฑ์มาตรฐาน 5 มิติ
+            {plansWithScore.length > 0
+              ? `คำนวณจากแผนที่ประเมินแล้ว ${plansWithScore.length} ฉบับ`
+              : 'รอฝ่ายวิชาการบันทึกผลการตรวจ'}
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500"></div>
         </div>
@@ -638,11 +683,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           <div className="space-y-4 pt-1">
             {areaStats.map((stat) => {
               const onTimeWidth = stat.totalTeachers > 0
-                ? Math.round(((stat.submittedTeachers - stat.latePlans) / stat.totalTeachers) * 100)
+                ? Math.round((stat.onTimeTeachersCount / stat.totalTeachers) * 100)
                 : 0;
-              const safeOnTimeWidth = Math.max(0, Math.min(stat.submissionRate, onTimeWidth > 0 ? onTimeWidth : stat.submissionRate));
-              const lateWidth = stat.submissionRate - safeOnTimeWidth;
-              const pendingWidth = 100 - stat.submissionRate;
+              const lateWidth = stat.totalTeachers > 0
+                ? Math.round((stat.lateTeachersCount / stat.totalTeachers) * 100)
+                : 0;
+              const pendingWidth = Math.max(0, 100 - onTimeWidth - lateWidth);
 
               return (
                 <div key={stat.name} className="space-y-1.5">
@@ -663,20 +709,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
                   {/* Stacked Bar with tooltips */}
                   <div className="w-full bg-slate-100 rounded-lg h-5 overflow-hidden flex shadow-2xs">
-                    {safeOnTimeWidth > 0 && (
+                    {onTimeWidth > 0 && (
                       <div
                         className="bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center text-[10px] font-bold text-white px-1"
-                        style={{ width: `${safeOnTimeWidth}%` }}
-                        title={`ตรงเวลา ${safeOnTimeWidth}%`}
+                        style={{ width: `${onTimeWidth}%` }}
+                        title={`ตรงเวลา ${onTimeWidth}% (${stat.onTimeTeachersCount} ท่าน)`}
                       >
-                        {safeOnTimeWidth >= 15 ? `${safeOnTimeWidth}%` : ''}
+                        {onTimeWidth >= 15 ? `${onTimeWidth}%` : ''}
                       </div>
                     )}
                     {lateWidth > 0 && (
                       <div
                         className="bg-amber-500 hover:bg-amber-600 transition-all flex items-center justify-center text-[10px] font-bold text-white px-1"
                         style={{ width: `${lateWidth}%` }}
-                        title={`ส่งช้า ${lateWidth}%`}
+                        title={`ส่งช้า ${lateWidth}% (${stat.lateTeachersCount} ท่าน)`}
                       >
                         {lateWidth >= 12 ? `ช้า` : ''}
                       </div>
@@ -685,7 +731,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       <div
                         className="bg-slate-200/90 transition-all flex items-center justify-center text-[10px] font-medium text-slate-500 px-1"
                         style={{ width: `${pendingWidth}%` }}
-                        title={`ยังไม่ส่ง ${pendingWidth}%`}
+                        title={`ยังไม่ส่ง ${pendingWidth}% (${stat.pendingTeachers} ท่าน)`}
                       >
                         {pendingWidth >= 15 ? `${pendingWidth}%` : ''}
                       </div>
@@ -725,7 +771,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   สัดส่วนความตรงต่อเวลา
                 </h3>
                 <p className="text-xs text-slate-500">
-                  วิเคราะห์แผนทั้งหมด {totalPlansCount} ฉบับ
+                  วิเคราะห์จากแผนจริงในระบบ {totalPlansCount} ฉบับ
                 </p>
               </div>
             </div>
@@ -744,17 +790,19 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 fill="transparent"
               />
               {/* On-Time Arc (Emerald) */}
-              <circle
-                cx="50"
-                cy="50"
-                r="38"
-                className="text-emerald-500 stroke-current transition-all duration-700"
-                strokeWidth="12"
-                strokeDasharray={`${(onTimeRate * 238.76) / 100} 238.76`}
-                strokeDashoffset="0"
-                strokeLinecap="round"
-                fill="transparent"
-              />
+              {onTimeRate > 0 && (
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="38"
+                  className="text-emerald-500 stroke-current transition-all duration-700"
+                  strokeWidth="12"
+                  strokeDasharray={`${(onTimeRate * 238.76) / 100} 238.76`}
+                  strokeDashoffset="0"
+                  strokeLinecap="round"
+                  fill="transparent"
+                />
+              )}
               {/* Late Arc (Amber) */}
               {lateRate > 0 && (
                 <circle
@@ -773,11 +821,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
             {/* Inner Center Badge */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-              <span className="text-3xl font-extrabold text-slate-900">{onTimeRate}%</span>
-              <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
-                ส่งตรงเวลา
-              </span>
-              <span className="text-[10px] text-slate-400">เป้าหมาย 100%</span>
+              {totalPlansCount === 0 ? (
+                <>
+                  <span className="text-xl font-bold text-slate-400">0 ฉบับ</span>
+                  <span className="text-[10px] text-slate-400">ยังไม่มีแผนในระบบ</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-3xl font-extrabold text-slate-900">{onTimeRate}%</span>
+                  <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
+                    ส่งตรงเวลา
+                  </span>
+                  <span className="text-[10px] text-slate-400">จากทั้งหมด {totalPlansCount} ฉบับ</span>
+                </>
+              )}
             </div>
           </div>
 
@@ -828,75 +885,83 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </h3>
             </div>
             <span className="text-xs text-slate-500">
-              เฉลี่ย {avgScore} / 100
+              {avgScore !== '-' ? `เฉลี่ย ${avgScore} / 100` : 'รอผลการตรวจ'}
             </span>
           </div>
 
-          <div className="space-y-3 pt-1">
-            {/* Tier 1: ดีเยี่ยม (90-100) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">ระดับดีเยี่ยม (90 - 100 คะแนน)</span>
-                <span className="font-mono font-bold text-emerald-600">
-                  {scoreDistribution.excellent} ฉบับ ({scoreDistribution.excellentPct}%)
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
-                <div
-                  className="bg-emerald-500 h-3 rounded-lg transition-all"
-                  style={{ width: `${scoreDistribution.excellentPct}%` }}
-                ></div>
-              </div>
+          {scoreDistribution.totalScored === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400 space-y-1">
+              <Award className="w-8 h-8 text-slate-300 mx-auto" />
+              <p className="font-semibold text-slate-600">ยังไม่มีข้อมูลการประเมินคะแนนจริงในระบบ</p>
+              <p className="text-[11px] text-slate-400">กราฟจะแสดงสัดส่วนคะแนนเมื่อผู้ตรวจวิชาการให้คะแนนแผน</p>
             </div>
+          ) : (
+            <div className="space-y-3 pt-1">
+              {/* Tier 1: ดีเยี่ยม (90-100) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">ระดับดีเยี่ยม (90 - 100 คะแนน)</span>
+                  <span className="font-mono font-bold text-emerald-600">
+                    {scoreDistribution.excellent} ฉบับ ({scoreDistribution.excellentPct}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
+                  <div
+                    className="bg-emerald-500 h-3 rounded-lg transition-all"
+                    style={{ width: `${scoreDistribution.excellentPct}%` }}
+                  ></div>
+                </div>
+              </div>
 
-            {/* Tier 2: ดีมาก (80-89) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">ระดับดีมาก (80 - 89 คะแนน)</span>
-                <span className="font-mono font-bold text-blue-600">
-                  {scoreDistribution.veryGood} ฉบับ ({scoreDistribution.veryGoodPct}%)
-                </span>
+              {/* Tier 2: ดีมาก (80-89) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">ระดับดีมาก (80 - 89 คะแนน)</span>
+                  <span className="font-mono font-bold text-blue-600">
+                    {scoreDistribution.veryGood} ฉบับ ({scoreDistribution.veryGoodPct}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-3 rounded-lg transition-all"
+                    style={{ width: `${scoreDistribution.veryGoodPct}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
-                <div
-                  className="bg-blue-500 h-3 rounded-lg transition-all"
-                  style={{ width: `${scoreDistribution.veryGoodPct}%` }}
-                ></div>
-              </div>
-            </div>
 
-            {/* Tier 3: ดี (70-79) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">ระดับดี (70 - 79 คะแนน)</span>
-                <span className="font-mono font-bold text-amber-600">
-                  {scoreDistribution.good} ฉบับ ({scoreDistribution.goodPct}%)
-                </span>
+              {/* Tier 3: ดี (70-79) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">ระดับดี (70 - 79 คะแนน)</span>
+                  <span className="font-mono font-bold text-amber-600">
+                    {scoreDistribution.good} ฉบับ ({scoreDistribution.goodPct}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
+                  <div
+                    className="bg-amber-500 h-3 rounded-lg transition-all"
+                    style={{ width: `${scoreDistribution.goodPct}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
-                <div
-                  className="bg-amber-500 h-3 rounded-lg transition-all"
-                  style={{ width: `${scoreDistribution.goodPct}%` }}
-                ></div>
-              </div>
-            </div>
 
-            {/* Tier 4: ต้องปรับปรุง (<70) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-700">ระดับพอใช้ / ต้องปรับปรุง (&lt; 70)</span>
-                <span className="font-mono font-bold text-rose-600">
-                  {scoreDistribution.needsImprovement} ฉบับ ({scoreDistribution.needsImprovementPct}%)
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
-                <div
-                  className="bg-rose-500 h-3 rounded-lg transition-all"
-                  style={{ width: `${scoreDistribution.needsImprovementPct}%` }}
-                ></div>
+              {/* Tier 4: ต้องปรับปรุง (<70) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">ระดับพอใช้ / ต้องปรับปรุง (&lt; 70)</span>
+                  <span className="font-mono font-bold text-rose-600">
+                    {scoreDistribution.needsImprovement} ฉบับ ({scoreDistribution.needsImprovementPct}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
+                  <div
+                    className="bg-rose-500 h-3 rounded-lg transition-all"
+                    style={{ width: `${scoreDistribution.needsImprovementPct}%` }}
+                  ></div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* GRAPH 4: Breakdown by Document Type */}
@@ -914,35 +979,52 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
 
           <div className="space-y-3 pt-1">
-            {docTypes.filter((d) => d !== 'ทั้งหมด').map((type) => {
-              const count = plans.filter((p) => p.plan_type === type).length;
-              const typeLate = plans.filter((p) => p.plan_type === type && p.is_late).length;
-              const pct = plans.length > 0 ? Math.round((count / plans.length) * 100) : 0;
+            {(() => {
+              const typesToRender = docTypes.filter((d) => {
+                if (d === 'ทั้งหมด') return false;
+                const hasPlans = plans.some((p) => p.plan_type === d);
+                const hasConfig = (deadlineConfigs || []).some((c) => c.name === d);
+                return hasPlans || hasConfig;
+              });
 
-              return (
-                <div key={type} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-700 truncate max-w-[200px]">{type}</span>
-                    <div className="flex items-center gap-2">
-                      {typeLate > 0 && (
-                        <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-semibold">
-                          ช้า {typeLate}
+              if (typesToRender.length === 0) {
+                return (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    ยังไม่มีข้อมูลประเภทเอกสารที่บันทึกในระบบ
+                  </div>
+                );
+              }
+
+              return typesToRender.map((type) => {
+                const count = plans.filter((p) => p.plan_type === type).length;
+                const typeLate = plans.filter((p) => p.plan_type === type && p.is_late).length;
+                const pct = plans.length > 0 ? Math.round((count / plans.length) * 100) : 0;
+
+                return (
+                  <div key={type} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-700 truncate max-w-[200px]">{type}</span>
+                      <div className="flex items-center gap-2">
+                        {typeLate > 0 && (
+                          <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-semibold">
+                            ช้า {typeLate}
+                          </span>
+                        )}
+                        <span className="font-mono font-bold text-indigo-600">
+                          {count} ฉบับ ({pct}%)
                         </span>
-                      )}
-                      <span className="font-mono font-bold text-indigo-600">
-                        {count} ฉบับ ({pct}%)
-                      </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-lg h-2.5 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-indigo-500 to-blue-500 h-2.5 rounded-lg transition-all"
+                        style={{ width: `${pct}%` }}
+                      ></div>
                     </div>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-lg h-2.5 overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-indigo-500 to-blue-500 h-2.5 rounded-lg transition-all"
-                      style={{ width: `${pct}%` }}
-                    ></div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
@@ -1296,8 +1378,19 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <span>ความตรงต่อเวลาและการส่งมอบ</span>
             </div>
             <p className="text-slate-600 leading-relaxed">
-              อัตราการส่งงานตรงเวลาอยู่ที่ {onTimeRate}% โดยมีกลุ่มสาระวิทยาศาสตร์และคณิตศาสตร์ทำผลงานได้สมบูรณ์ 100% 
-              ส่วนการส่งล่าช้าคิดเป็น {lateRate}% ซึ่งส่วนใหญ่ส่งช้าไม่เกิน 1-3 วันทำการ
+              {totalPlansCount === 0 ? (
+                'ยังไม่มีข้อมูลการส่งแผนการสอนในระบบ'
+              ) : (
+                <>
+                  อัตราการส่งงานตรงเวลาอยู่ที่ {onTimeRate}% ({onTimePlans.length} จาก {totalPlansCount} ฉบับ)
+                  {areaStats.some((a) => a.isCompleted) ? (
+                    ` โดยมีกลุ่มสาระ ${areaStats.filter((a) => a.isCompleted).map((a) => a.name).join(', ')} ส่งครบ 100%`
+                  ) : (
+                    ' อยู่ระหว่างการติดตามการส่งให้ครบทุกกลุ่มสาระ'
+                  )}
+                  {latePlans.length > 0 && ` และพบการส่งล่าช้า ${latePlans.length} ฉบับ (${lateRate}%)`}
+                </>
+              )}
             </p>
           </div>
 
@@ -1307,8 +1400,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <span>คุณภาพการจัดการเรียนรู้</span>
             </div>
             <p className="text-slate-600 leading-relaxed">
-              คะแนนคุณภาพเฉลี่ยของแผนทั้งโรงเรียนอยู่ที่ {avgScore}/100 
-              อยู่ในเกณฑ์ดีเยี่ยม แผนการสอนมีการนำนวัตกรรมและกิจกรรมเชิงรุก (Active Learning) มาใช้ตรงตามเป้าหมายของโรงเรียนวิทยาศาสตร์
+              {plansWithScore.length === 0 ? (
+                'ยังไม่มีข้อมูลคะแนนประเมินคุณภาพจริงในระบบ (รอฝ่ายวิชาการตรวจบันทึกคะแนน)'
+              ) : (
+                <>
+                  คะแนนคุณภาพเฉลี่ยของแผนที่ตรวจประเมินแล้วอยู่ที่ {avgScore}/100 
+                  (ตรวจแล้ว {plansWithScore.length} จาก {totalPlansCount} ฉบับ) 
+                  {Number(avgScore) >= 90
+                    ? ' อยู่ในเกณฑ์ดีเยี่ยม'
+                    : Number(avgScore) >= 80
+                    ? ' อยู่ในเกณฑ์ดีมาก'
+                    : Number(avgScore) >= 70
+                    ? ' อยู่ในเกณฑ์ดี'
+                    : ' อยู่ในเกณฑ์ควรได้รับการพัฒนา'}
+                </>
+              )}
             </p>
           </div>
 
@@ -1318,8 +1424,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <span>มาตรการเร่งรัดติดตาม</span>
             </div>
             <p className="text-slate-600 leading-relaxed">
-              มีครูผู้สอนค้างส่งจำนวน {pendingTeachers.length} ท่าน 
-              ฝ่ายบริหารสามารถกดปุ่มแจ้งเตือนทางระบบ หรือมอบหมายให้หัวหน้ากลุ่มสาระติดตามเก็บตกให้เสร็จสิ้นภายในสัปดาห์นี้
+              {pendingTeachers.length === 0 ? (
+                'บุคลากรครูทุกคนส่งแผนการสอนเข้าระบบครบถ้วน 100% แล้ว'
+              ) : (
+                `ตรวจพบบุคลากรค้างส่งจำนวน ${pendingTeachers.length} ท่าน ฝ่ายบริหารสามารถกดส่งสัญญาณแจ้งเตือนผ่านระบบหรือประสานหัวหน้ากลุ่มสาระติดตามโดยตรง`
+              )}
             </p>
           </div>
         </div>

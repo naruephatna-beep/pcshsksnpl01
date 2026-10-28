@@ -14,6 +14,9 @@ import {
 import {
   openGmailComposeTab,
   buildReminderPlainMessage,
+  sendEmailViaApi,
+  ACADEMIC_SENDER_EMAIL,
+  ACADEMIC_SENDER_NAME,
 } from '../services/emailService';
 import {
   X,
@@ -119,11 +122,57 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     allMatching: LessonPlan[];
   } | null>(null);
 
+  // Background sending & App Password state
+  const [isSendingBackground, setIsSendingBackground] = useState<boolean>(false);
+  const [backgroundSendError, setBackgroundSendError] = useState<string | null>(null);
+  const [showAppPassConfig, setShowAppPassConfig] = useState<boolean>(false);
+  const [sendingTeacherId, setSendingTeacherId] = useState<string | null>(null);
+  const [appPassword, setAppPassword] = useState<string>(() => {
+    try {
+      return localStorage.getItem('academic_smtp_app_pass') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [quickSendMode, setQuickSendMode] = useState<'gmail' | 'smtp'>(() => {
+    try {
+      const saved = localStorage.getItem('academic_quick_send_mode');
+      if (saved === 'gmail' || saved === 'smtp') return saved;
+      return localStorage.getItem('academic_smtp_app_pass') ? 'smtp' : 'gmail';
+    } catch {
+      return 'gmail';
+    }
+  });
+
+  const handleToggleSendMode = (mode: 'gmail' | 'smtp') => {
+    setQuickSendMode(mode);
+    try {
+      localStorage.setItem('academic_quick_send_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSaveAppPassword = (val: string) => {
+    const clean = val.trim().replace(/\s+/g, '');
+    setAppPassword(clean);
+    try {
+      if (clean) {
+        localStorage.setItem('academic_smtp_app_pass', clean);
+      } else {
+        localStorage.removeItem('academic_smtp_app_pass');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
 
   // 1. Filter out admin accounts to get the 27 teaching staff
   const teachingStaff = useMemo(() => {
@@ -331,7 +380,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     });
   };
 
-  // DIRECT 1-CLICK SEND: Opens Gmail compose immediately with zero database storage
+  // DIRECT 1-CLICK SEND: Opens Gmail compose immediately with sender forced to academics@pcshsksn.ac.th
   const handleSendDirectEmailNow = () => {
     if (!reminderModalData) return;
     const { teacher, missingTasks } = reminderModalData;
@@ -339,11 +388,12 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${teacher.Name} มีภาระงานค้างส่ง ${missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
     const body = buildReminderText(teacher, missingTasks);
 
-    // Open Gmail compose directly
+    // Open Gmail compose explicitly selecting academics@pcshsksn.ac.th
     openGmailComposeTab({
       to: teacher.Email,
       subject,
       body,
+      authUser: ACADEMIC_SENDER_EMAIL,
     });
 
     setEmailSuccessReceipt({
@@ -353,7 +403,52 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
       taskCount: missingTasks.length,
       method: 'gmail_web',
     });
-    showToast(`⚡ เปิด Gmail พร้อมส่งข้อความเตือนถึง ${teacher.Name} (${teacher.Email}) แล้ว!`);
+    showToast(`⚡ เปิด Gmail (${ACADEMIC_SENDER_EMAIL}) พร้อมส่งถึง ${teacher.Name} แล้ว!`);
+  };
+
+  // BACKGROUND DIRECT SEND: Sends email automatically in the background via SMTP API
+  const handleSendBackgroundEmailNow = async () => {
+    if (!reminderModalData) return;
+    const { teacher, missingTasks } = reminderModalData;
+
+    setIsSendingBackground(true);
+    setBackgroundSendError(null);
+
+    const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${teacher.Name} มีภาระงานค้างส่ง ${missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+    const body = buildReminderText(teacher, missingTasks);
+
+    try {
+      const result = await sendEmailViaApi({
+        to: teacher.Email,
+        subject,
+        body,
+        appPassword: appPassword.trim() || undefined,
+      });
+
+      if (result.success) {
+        setEmailSuccessReceipt({
+          recipient: teacher.Email,
+          teacherName: teacher.Name,
+          timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          taskCount: missingTasks.length,
+          method: 'gmail_web',
+        });
+        showToast(`⚡ ส่งอีเมลแจ้งเตือนถึงคุณครู ${teacher.Name} สำเร็จแล้ว!`);
+      } else {
+        if (result.requiresAppPassword) {
+          setBackgroundSendError(
+            `Google ปฏิเสธการส่งเบื้องหลังด้วยรหัสผ่านปกติ บัญชี ${ACADEMIC_SENDER_EMAIL} จำเป็นต้องใช้ "รหัสผ่านสำหรับแอป 16 หลัก" (App Password) หรือกดส่งผ่านปุ่ม "⚡ เปิดส่งใน Gmail" ด้านล่างได้ทันทีโดยไม่ต้องตั้งค่า`
+          );
+        } else {
+          setBackgroundSendError(result.error || 'ไม่สามารถส่งอีเมลเบื้องหลังได้ แนะนำให้กดส่งผ่าน Gmail โดยตรง');
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setBackgroundSendError(msg);
+    } finally {
+      setIsSendingBackground(false);
+    }
   };
 
   // BULK 1-CLICK SEND: Opens Gmail to all uncompleted teachers in 1 click
@@ -366,7 +461,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     const body = [
       `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`,
       ``,
-      `ฝ่ายบริหารวิชาการขอแจ้งเตือนคุณครูที่มีภาระงานค้างส่งในระบบส่งแผนการจัดการเรียนรู้ออนไลน์`,
+      `ฝ่ายบริหารวิชาการ (${ACADEMIC_SENDER_EMAIL}) ขอแจ้งเตือนคุณครูที่มีภาระงานค้างส่งในระบบส่งเอกสารวิชาการออนไลน์`,
       `ขอความกรุณาคุณครูทุกท่านเข้าสู่ระบบเพื่อดำเนินการส่งเอกสารตามกำหนดเวลา:`,
       ``,
       `🔗 ลิงก์ระบบ: ${window.location.origin}`,
@@ -380,11 +475,140 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
       to: emails.join(','),
       subject,
       body,
+      authUser: ACADEMIC_SENDER_EMAIL,
     });
 
     setShowBulkReminderModal(false);
-    showToast(`⚡ เปิด Gmail พร้อมส่งถึงครูที่ค้างส่งทั้ง ${emails.length} ท่านเรียบร้อยแล้ว!`);
+    showToast(`⚡ เปิด Gmail (${ACADEMIC_SENDER_EMAIL}) พร้อมส่งถึงครูที่ค้างส่งทั้ง ${emails.length} ท่านเรียบร้อยแล้ว!`);
   };
+
+  // BULK BACKGROUND SEND: Sends emails automatically in sequence
+  const handleSendBulkBackgroundEmails = async () => {
+    const list = stats.allUncompletedTeachersData;
+    if (list.length === 0) return;
+
+    setBulkSendingProgress({
+      inProgress: true,
+      current: 0,
+      total: list.length,
+      currentName: list[0]?.teacher.Name || '',
+      successCount: 0,
+    });
+
+    let successCount = 0;
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i];
+      setBulkSendingProgress({
+        inProgress: true,
+        current: i + 1,
+        total: list.length,
+        currentName: item.teacher.Name,
+        successCount,
+      });
+
+      const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${item.teacher.Name} มีภาระงานค้างส่ง ${item.missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+      const body = buildReminderText(item.teacher, item.missingTasks);
+
+      const res = await sendEmailViaApi({
+        to: item.teacher.Email,
+        subject,
+        body,
+        appPassword: appPassword.trim() || undefined,
+      });
+
+      if (res.success) {
+        successCount++;
+      } else if (res.requiresAppPassword) {
+        // Stop and alert user
+        alert(
+          `การส่งอัตโนมัติเบื้องหลังหยุดทำงาน: บัญชี ${ACADEMIC_SENDER_EMAIL} จำเป็นต้องใช้ "รหัสผ่านสำหรับแอป (App Password 16 หลัก)" จาก Google Account Security\n\nระบบจะเปิดส่งผ่าน Gmail ให้แทนในคลิกเดียว!`
+        );
+        setBulkSendingProgress(null);
+        handleSendBulkDirectEmails();
+        return;
+      }
+    }
+
+    setBulkSendingProgress(null);
+    setShowBulkReminderModal(false);
+    showToast(`⚡ ส่งอีเมลแจ้งเตือนอัตโนมัติสำเร็จ ${successCount} จาก ${list.length} ท่าน!`);
+  };
+
+  // 1-CLICK INSTANT SENDER:
+  // Mode 1 (Gmail): Instantly opens Gmail compose window pre-filled for academics@pcshsksn.ac.th in 1 click (NO passwords, NO errors!)
+  // Mode 2 (Background): Sends silently in the background if 16-character App Password is set. If SMTP fails, auto falls back to Gmail so user is never blocked!
+  const handleQuickClickSend = async (
+    teacher: Teacher,
+    missingTasks: TeacherMissingTask[],
+    primaryConfig?: PlanTypeDeadlineConfig
+  ) => {
+    if (missingTasks.length === 0) return;
+
+    const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${teacher.Name} มีภาระงานค้างส่ง ${missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+    const body = buildReminderText(teacher, missingTasks);
+
+    // If in Gmail 1-Click mode OR no App Password is set:
+    if (quickSendMode === 'gmail' || !appPassword.trim()) {
+      openGmailComposeTab({
+        to: teacher.Email,
+        subject,
+        body,
+        authUser: ACADEMIC_SENDER_EMAIL,
+      });
+      showToast(`⚡ เปิด Gmail บัญชี ${ACADEMIC_SENDER_EMAIL} ส่งถึงคุณครู ${teacher.Name} แล้ว!`);
+      return;
+    }
+
+    // Background silent send mode:
+    setSendingTeacherId(teacher.Teacher_ID);
+    try {
+      const res = await sendEmailViaApi({
+        to: teacher.Email,
+        subject,
+        body,
+        appPassword: appPassword.trim(),
+      });
+
+      if (res.success) {
+        showToast(`⚡ ส่งอีเมลแจ้งเตือนถึงคุณครู ${teacher.Name} (${teacher.Email}) จาก ${ACADEMIC_SENDER_EMAIL} เรียบร้อยแล้ว!`);
+      } else {
+        // If SMTP rejects (e.g. human password Pcs@12345 instead of 16-char app pass), auto open Gmail fallback!
+        showToast(`⚠️ ส่งเบื้องหลังไม่สำเร็จ (ต้องการรหัสแอป 16 หลัก) -> สลับเปิดหน้าต่าง Gmail ให้ทันที!`);
+        openGmailComposeTab({
+          to: teacher.Email,
+          subject,
+          body,
+          authUser: ACADEMIC_SENDER_EMAIL,
+        });
+        setBackgroundSendError(res.error || 'Google ไม่อนุญาตให้ใช้รหัสปกติ (Pcs@12345) ส่งตรงผ่าน SMTP ระบบต้องใช้ "รหัสผ่านสำหรับแอป 16 หลัก" หรือส่งผ่านหน้าต่าง Gmail');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`⚠️ สลับเปิด Gmail บัญชี ${ACADEMIC_SENDER_EMAIL} ให้ทันที...`);
+      openGmailComposeTab({
+        to: teacher.Email,
+        subject,
+        body,
+        authUser: ACADEMIC_SENDER_EMAIL,
+      });
+      setBackgroundSendError(msg);
+    } finally {
+      setSendingTeacherId(null);
+    }
+  };
+
+  // QUICK BULK SEND: Sends to all uncompleted teachers
+  const handleQuickBulkSend = () => {
+    if (quickSendMode === 'smtp' && appPassword.trim()) {
+      if (confirm(`ต้องการกดส่งอีเมลแจ้งเตือนถึงครูทุกคนที่ค้างส่งงาน (${stats.uncompletedCount} ท่าน) จากบัญชี ${ACADEMIC_SENDER_EMAIL} ทันทีหรือไม่?`)) {
+        handleSendBulkBackgroundEmails();
+      }
+    } else {
+      setShowBulkReminderModal(true);
+    }
+  };
+
+
 
   if (!isOpen) return null;
 
@@ -405,15 +629,52 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                 <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
                   ช่องเขียว = ส่งแล้ว • ช่องแดง = ยังไม่ส่ง
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-amber-300" />
-                  <span>กดส่งเมลได้ทันที</span>
-                </span>
+                <div className="flex items-center gap-1 bg-indigo-950/80 p-0.5 rounded-full border border-indigo-500/40 text-[9px] sm:text-[10px]">
+                  <span className="px-2 py-0.5 font-bold text-indigo-200 flex items-center gap-1">
+                    <Mail className="w-3 h-3 text-amber-300" />
+                    <span>ผู้ส่ง: {ACADEMIC_SENDER_EMAIL}</span>
+                  </span>
+                  <div className="flex items-center bg-black/40 rounded-full p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSendMode('gmail')}
+                      className={`px-2 py-0.5 rounded-full font-black transition-all cursor-pointer ${
+                        quickSendMode === 'gmail'
+                          ? 'bg-amber-400 text-slate-950 shadow-xs'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                      title="โหมด 1-Click Gmail: คลิกปุ่มเดียวเปิดหน้าต่าง Gmail พร้อมส่งทันที (ไม่ต้องตั้งรหัสผ่าน)"
+                    >
+                      ⚡ 1-Click Gmail (แนะนำ)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!appPassword.trim()) {
+                          if (teachingStaff.length > 0) {
+                            openTeacherReminderModal(teachingStaff[0], []);
+                            setShowAppPassConfig(true);
+                          }
+                        } else {
+                          handleToggleSendMode('smtp');
+                        }
+                      }}
+                      className={`px-2 py-0.5 rounded-full font-bold transition-all cursor-pointer ${
+                        quickSendMode === 'smtp'
+                          ? 'bg-emerald-400 text-slate-950 font-black shadow-xs'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                      title="โหมดส่งเบื้องหลังอัตโนมัติ: ต้องใช้รหัสผ่านสำหรับแอป 16 หลักจาก Google Security"
+                    >
+                      🚀 ส่งเบื้องหลัง {appPassword ? '(พร้อม)' : '(ตั้งรหัสแอป)'}
+                    </button>
+                  </div>
+                </div>
               </div>
               <h2 className="text-base sm:text-xl font-black tracking-tight truncate flex items-center gap-2">
                 <span>ติดตามงานรายบุคคล</span>
                 <span className="hidden sm:inline-block text-xs font-normal text-slate-300">
-                  (ระบบติดตามภาระงาน & กดส่งอีเมลแจ้งเตือนทันที)
+                  (ส่งแจ้งเตือนด้วยอีเมล {ACADEMIC_SENDER_EMAIL} ใน 1 คลิก)
                 </span>
               </h2>
             </div>
@@ -447,14 +708,15 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
             {/* Bulk Reminder Button */}
             {stats.uncompletedCount > 0 && (
               <button
-                onClick={() => setShowBulkReminderModal(true)}
+                onClick={handleQuickBulkSend}
                 className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
-                title="ส่งแจ้งเตือนครูทุกคนที่ยังค้างส่งงาน"
+                title="คลิกเดียวส่งแจ้งเตือนครูทุกคนที่ยังค้างส่งงาน"
               >
                 <Zap className="w-3.5 h-3.5 text-amber-300" />
                 <span>ส่งเมลเตือนทุกคน ({stats.uncompletedCount})</span>
               </button>
             )}
+
 
             {onOpenDeadlineManager && (
               <button
@@ -853,9 +1115,9 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                                 className="p-1.5 text-center align-middle"
                               >
                                 <div
-                                  onClick={() => openTeacherReminderModal(teacher, missingTasks, config)}
+                                  onClick={() => handleQuickClickSend(teacher, missingTasks, config)}
                                   className="h-full min-h-[64px] bg-rose-50 hover:bg-rose-100 border-2 border-rose-300 rounded-xl p-2 flex flex-col items-center justify-center gap-1 text-rose-950 transition-all cursor-pointer shadow-2xs hover:scale-[1.01] active:scale-95 group/cell"
-                                  title={`คลิกเพื่อส่งแจ้งเตือน: งาน "${config.name}" ยังไม่ส่ง (${timeStatus.statusText})`}
+                                  title={`คลิกส่งอีเมลแจ้งเตือนงาน "${config.name}" จาก ${ACADEMIC_SENDER_EMAIL} (${timeStatus.statusText})`}
                                 >
                                   <div className="flex items-center gap-1 font-black text-[11px] text-rose-700">
                                     <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
@@ -878,8 +1140,17 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                                   </div>
 
                                   <div className="text-[9px] text-rose-600 font-black group-hover/cell:underline flex items-center gap-0.5">
-                                    <Zap className="w-2.5 h-2.5 text-amber-500" />
-                                    <span>คลิกส่งเมลทันที</span>
+                                    {sendingTeacherId === teacher.Teacher_ID ? (
+                                      <>
+                                        <Loader2 className="w-2.5 h-2.5 animate-spin text-rose-600" />
+                                        <span>กำลังส่ง...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Zap className="w-2.5 h-2.5 text-amber-500" />
+                                        <span>คลิกส่งเมลทันที</span>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </td>
@@ -918,14 +1189,25 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                               {/* Dedicated 1-Click Notification Button for Teacher with Missing Work */}
                               {hasUnsubmitted && (
                                 <button
-                                  onClick={() => openTeacherReminderModal(teacher, missingTasks)}
-                                  className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 transition-all"
-                                  title={`คลิกเพื่อส่งแจ้งเตือนทางอีเมล / LINE ให้คุณครู ${teacher.Name} (ค้าง ${missingTasks.length} งาน)`}
+                                  onClick={() => handleQuickClickSend(teacher, missingTasks)}
+                                  disabled={sendingTeacherId === teacher.Teacher_ID}
+                                  className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 transition-all disabled:opacity-50"
+                                  title={`คลิกเดียวส่งแจ้งเตือนทางอีเมล ${ACADEMIC_SENDER_EMAIL} ให้คุณครู ${teacher.Name} (ค้าง ${missingTasks.length} งาน)`}
                                 >
-                                  <Zap className="w-3.5 h-3.5 text-slate-950" />
-                                  <span>ส่งเมลเตือน ({missingTasks.length})</span>
+                                  {sendingTeacherId === teacher.Teacher_ID ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                                      <span>กำลังส่ง...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Zap className="w-3.5 h-3.5 text-slate-950" />
+                                      <span>ส่งเมลเตือน ({missingTasks.length})</span>
+                                    </>
+                                  )}
                                 </button>
                               )}
+
 
                               {submittedTasksCount > 0 && (
                                 <button
@@ -1045,7 +1327,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                           return (
                             <div
                               key={config.id}
-                              onClick={() => openTeacherReminderModal(teacher, missingTasks, config)}
+                              onClick={() => handleQuickClickSend(teacher, missingTasks, config)}
                               className="flex items-center justify-between p-2 rounded-xl bg-rose-50 border border-rose-300 text-rose-950 text-xs cursor-pointer hover:bg-rose-100 transition-colors"
                             >
                               <div className="min-w-0 pr-2">
@@ -1055,8 +1337,17 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                                 </div>
                               </div>
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shrink-0">
-                                <Zap className="w-3 h-3" />
-                                <span>ส่งเมลเตือน</span>
+                                {sendingTeacherId === teacher.Teacher_ID ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin text-white" />
+                                    <span>กำลังส่ง...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Zap className="w-3 h-3 text-amber-300" />
+                                    <span>ส่งเมลเตือน</span>
+                                  </>
+                                )}
                               </span>
                             </div>
                           );
@@ -1068,15 +1359,26 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                       {hasUnsubmitted ? (
                         <button
-                          onClick={() => openTeacherReminderModal(teacher, missingTasks)}
-                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          onClick={() => handleQuickClickSend(teacher, missingTasks)}
+                          disabled={sendingTeacherId === teacher.Teacher_ID}
+                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
                         >
-                          <Zap className="w-3.5 h-3.5 text-slate-950" />
-                          <span>กดส่งเมลเตือน ({missingTasks.length} งาน)</span>
+                          {sendingTeacherId === teacher.Teacher_ID ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                              <span>กำลังส่ง...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="w-3.5 h-3.5 text-slate-950" />
+                              <span>กดส่งเมลเตือน ({missingTasks.length} งาน)</span>
+                            </>
+                          )}
                         </button>
                       ) : (
                         <span className="text-[11px] text-emerald-700 font-bold">✓ ส่งครบทุกงานแล้ว</span>
                       )}
+
 
                       <div className="flex items-center gap-1.5">
                         {submittedTasksCount > 0 && (
@@ -1233,28 +1535,111 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                   </div>
                 </div>
 
-                {/* Email Delivery Box */}
-                <div className="p-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/70 text-indigo-950 text-xs flex items-center justify-between gap-2.5 flex-wrap">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                      <Mail className="w-4 h-4 text-amber-300" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-bold text-indigo-950 flex items-center gap-1.5 flex-wrap">
-                        <span>ส่งตรงถึง:</span>
-                        <span className="font-mono bg-white px-2 py-0.5 rounded-lg border border-indigo-200 text-indigo-900 select-all font-semibold">
-                          {reminderModalData.teacher.Email}
-                        </span>
+                {/* Email Delivery Box & Sender Profile */}
+                <div className="p-3.5 rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50/80 to-blue-50/70 text-indigo-950 text-xs space-y-2.5">
+                  <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                        <Mail className="w-4 h-4 text-amber-300" />
                       </div>
-                      <div className="text-[11px] text-indigo-700 mt-0.5">
-                        ระบบเปิดส่งข้อความแจ้งเตือนทาง Gmail ทันที (ไม่บันทึกประวัติการแจ้งเตือน)
+                      <div className="min-w-0">
+                        <div className="font-bold text-indigo-950 flex items-center gap-1.5 flex-wrap">
+                          <span>📧 ผู้ส่ง:</span>
+                          <span className="font-mono bg-white px-2 py-0.5 rounded-lg border border-indigo-200 text-indigo-900 font-bold">
+                            {ACADEMIC_SENDER_EMAIL}
+                          </span>
+                          <span className="text-[10px] text-slate-500">({ACADEMIC_SENDER_NAME})</span>
+                        </div>
+                        <div className="text-[11px] text-indigo-700 mt-0.5 flex items-center gap-1">
+                          <span className="text-emerald-700 font-bold">✓ ไม่มีการบันทึกประวัติการส่งลงดาต้าเบส</span>
+                          <span>(ไม่เปลืองพื้นที่/โควต้า)</span>
+                        </div>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAppPassConfig(!showAppPassConfig)}
+                      className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-indigo-300 rounded-lg text-[10px] font-bold text-indigo-800 shadow-2xs cursor-pointer transition-colors"
+                    >
+                      {showAppPassConfig ? '✕ ปิดตั้งค่ารหัสแอป' : '⚙️ รหัสแอปสำหรับส่งเบื้องหลัง'}
+                    </button>
                   </div>
 
-                  <span className="px-2.5 py-1 bg-white border border-indigo-200 rounded-lg text-[10px] font-bold text-indigo-800 shadow-2xs">
-                    ⚡ 1-Click Send
-                  </span>
+                  {/* App Password Setting Expander */}
+                  {showAppPassConfig && (
+                    <div className="p-3 bg-white rounded-xl border border-indigo-200 space-y-2 animate-in fade-in text-xs">
+                      <div className="font-bold text-slate-800 flex items-center justify-between">
+                        <span>🔑 รหัสผ่านสำหรับแอป (Google App Password 16 หลัก)</span>
+                        <a
+                          href="https://myaccount.google.com/apppasswords"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-600 hover:underline text-[10px] font-semibold"
+                        >
+                          สร้างรหัสแอป Google ↗
+                        </a>
+                      </div>
+                      <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] space-y-1">
+                        <div className="font-bold flex items-center gap-1 text-amber-950">
+                          <span>💡 ทำไมรหัสผ่านปกติ (เช่น Pcs@12345) จึงใช้ส่งเบื้องหลังไม่ได้?</span>
+                        </div>
+                        <p className="leading-relaxed">
+                          Google ยกเลิกการใช้รหัสผ่านเว็บปกติกับโปรแกรมส่งเมลภายนอก (SMTP) ทั่วโลก หากต้องการให้ระบบ <strong>&quot;กดส่งเบื้องหลังเงียบๆ 1 คลิก&quot;</strong> Google บังคับให้สร้าง <strong>รหัสผ่านสำหรับแอป (App Password 16 หลัก)</strong> ที่ <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="font-bold underline text-indigo-700">myaccount.google.com/apppasswords</a> (สร้างครั้งเดียว 1 นาที)
+                        </p>
+                        <p className="text-emerald-800 font-bold">
+                          👉 หรือหากไม่ต้องการสร้างรหัส: เลือกโหมด &quot;⚡ 1-Click Gmail&quot; ด้านบน แล้วคลิกปุ่มส่งเมลเตือนได้ทันทีใน 1 คลิก!
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={appPassword}
+                          onChange={(e) => handleSaveAppPassword(e.target.value)}
+                          placeholder="วางรหัสแอป 16 หลัก เช่น abcd efgh ijkl mnop"
+                          className="flex-1 px-3 py-2 border border-indigo-300 rounded-xl text-xs font-mono bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!appPassword.trim()) {
+                              alert('กรุณากรอกรหัสผ่านสำหรับแอป 16 ตัวอักษรก่อนกดส่ง');
+                              return;
+                            }
+                            await handleSendBackgroundEmailNow();
+                          }}
+                          disabled={!appPassword.trim() || isSendingBackground}
+                          className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-black text-xs cursor-pointer shrink-0 shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          {isSendingBackground ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                          ) : (
+                            <Zap className="w-3.5 h-3.5 text-amber-300" />
+                          )}
+                          <span>บันทึก & ส่งทันที</span>
+                        </button>
+                      </div>
+
+                    </div>
+                  )}
+
+                  {/* Error banner if background send failed */}
+                  {backgroundSendError && (
+                    <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-rose-900 text-xs space-y-1.5 animate-in fade-in">
+                      <div className="flex items-start gap-1.5 font-bold">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <span>การส่งเบื้องหลังอัตโนมัติ:</span>
+                      </div>
+                      <p className="text-[11px] text-rose-800 leading-relaxed pl-5">
+                        {backgroundSendError}
+                      </p>
+                      <div className="pl-5 pt-1">
+                        <span className="text-[11px] font-bold text-rose-900">
+                          👉 วิธีที่ง่ายที่สุด: ให้คลิกปุ่ม &quot;⚡ เปิดส่งใน Gmail&quot; สีทองด้านล่างได้ทันที โดยไม่ต้องตั้งค่ารหัสใดๆ เพิ่มเติม
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Message preview toggle */}
@@ -1266,6 +1651,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                     <p className="text-amber-300 font-bold">
                       หัวข้อ: [แจ้งเตือนภาระงานค้างส่ง] คุณครู{reminderModalData.teacher.Name} มีงานค้างส่ง {reminderModalData.missingTasks.length} รายการ
                     </p>
+                    <p className="text-slate-400">จาก: {ACADEMIC_SENDER_NAME} &lt;{ACADEMIC_SENDER_EMAIL}&gt;</p>
                     <p>เรียน คุณครู {reminderModalData.teacher.Name}</p>
                     <p>ฝ่ายบริหารวิชาการขอแจ้งเตือนภาระงานที่ยังไม่ได้ส่งในระบบ จำนวน {reminderModalData.missingTasks.length} รายการ:</p>
                     {reminderModalData.missingTasks.map((t, idx) => (
@@ -1281,7 +1667,10 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setReminderModalData(null)}
+                  onClick={() => {
+                    setReminderModalData(null);
+                    setBackgroundSendError(null);
+                  }}
                   className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-bold cursor-pointer"
                 >
                   ปิดหน้าต่าง
@@ -1318,17 +1707,35 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                     );
                   })()}
 
-                  {/* PRIMARY 1-CLICK GMAIL COMPOSE BUTTON */}
+                  {/* BACKGROUND SEND BUTTON */}
+                  <button
+                    type="button"
+                    onClick={handleSendBackgroundEmailNow}
+                    disabled={isSendingBackground}
+                    className="px-3.5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-900 transition-all cursor-pointer text-xs disabled:opacity-50"
+                    title="ทดลองส่งเบื้องหลังอัตโนมัติผ่าน SMTP API"
+                  >
+                    {isSendingBackground ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-700" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5 text-indigo-600" />
+                    )}
+                    <span>{isSendingBackground ? 'กำลังส่ง...' : '🚀 ส่งเบื้องหลังทันที'}</span>
+                  </button>
+
+                  {/* PRIMARY 1-CLICK GMAIL COMPOSE BUTTON (Targeting academics@pcshsksn.ac.th) */}
                   <button
                     type="button"
                     onClick={handleSendDirectEmailNow}
                     className="px-5 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer text-xs bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950"
+                    title="เปิดส่งใน Gmail จากบัญชี academics@pcshsksn.ac.th โดยตรง 100% แน่นอน"
                   >
                     <Zap className="w-4 h-4 text-slate-950" />
-                    <span>⚡ เปิดส่งใน Gmail ทันที</span>
+                    <span>⚡ เปิดส่งใน Gmail ({ACADEMIC_SENDER_EMAIL})</span>
                   </button>
                 </div>
               </div>
+
             </div>
           </div>
         )}
@@ -1431,25 +1838,40 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => setShowBulkReminderModal(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-bold cursor-pointer"
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-bold cursor-pointer text-xs"
                 >
                   ปิดหน้าต่าง
                 </button>
 
-                {/* DIRECT 1-CLICK BULK SEND BUTTON */}
-                <button
-                  type="button"
-                  onClick={handleSendBulkDirectEmails}
-                  className="px-5 py-2.5 bg-gradient-to-r from-rose-600 via-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white rounded-xl font-black flex items-center gap-2 shadow-md cursor-pointer active:scale-95 text-xs"
-                >
-                  <Zap className="w-4 h-4 text-amber-300" />
-                  <span>⚡ เปิดส่งใน Gmail ถึงทุกคนที่ค้างส่ง ({stats.uncompletedCount} ท่าน)</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSendBulkBackgroundEmails}
+                    disabled={!!bulkSendingProgress?.inProgress}
+                    className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-900 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-xs disabled:opacity-50"
+                    title="ส่งเบื้องหลังอัตโนมัติทีละท่าน (ต้องการ App Password)"
+                  >
+                    <Send className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>🚀 ส่งอัตโนมัติเบื้องหลังทุกคน</span>
+                  </button>
+
+                  {/* DIRECT 1-CLICK BULK SEND BUTTON */}
+                  <button
+                    type="button"
+                    onClick={handleSendBulkDirectEmails}
+                    className="px-5 py-2.5 bg-gradient-to-r from-rose-600 via-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white rounded-xl font-black flex items-center gap-2 shadow-md cursor-pointer active:scale-95 text-xs"
+                    title="เปิดส่งใน Gmail จากบัญชี academics@pcshsksn.ac.th ถึงครูที่ค้างส่งทุกคน"
+                  >
+                    <Zap className="w-4 h-4 text-amber-300" />
+                    <span>⚡ เปิดส่งใน Gmail ({ACADEMIC_SENDER_EMAIL}) ถึงทุกคน ({stats.uncompletedCount} ท่าน)</span>
+                  </button>
+                </div>
               </div>
+
             </div>
           </div>
         )}
