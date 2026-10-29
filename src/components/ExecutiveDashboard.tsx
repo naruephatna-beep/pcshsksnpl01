@@ -34,6 +34,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
+import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
 
 interface ExecutiveDashboardProps {
   teachers: Teacher[];
@@ -93,6 +94,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const [reminderSentMap, setReminderSentMap] = useState<Record<string, boolean>>({});
   const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
   const [individualViewMode, setIndividualViewMode] = useState<'table' | 'cards'>('table');
+  const [isIndividualPrintModalOpen, setIsIndividualPrintModalOpen] = useState(false);
 
   // Teaching staff (excluding admins)
   const teachingStaff = useMemo(() => {
@@ -1260,33 +1262,45 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </div>
             </div>
 
-            {/* View Mode Switcher */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/80 shrink-0 self-start sm:self-auto">
+            {/* View Mode Switcher & Print Summary Button */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
+              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => setIndividualViewMode('table')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    individualViewMode === 'table'
+                      ? 'bg-white text-indigo-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="มุมมองตารางสรุปความชัดเจนสูง"
+                >
+                  <TableIcon className="w-3.5 h-3.5" />
+                  <span>มุมมองตาราง</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIndividualViewMode('cards')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    individualViewMode === 'cards'
+                      ? 'bg-white text-indigo-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="มุมมองการ์ดรายคน"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>มุมมองการ์ด</span>
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={() => setIndividualViewMode('table')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  individualViewMode === 'table'
-                    ? 'bg-white text-indigo-700 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="มุมมองตารางสรุปความชัดเจนสูง"
+                onClick={() => setIsIndividualPrintModalOpen(true)}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer border border-amber-300"
+                title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล (พร้อมตราโรงเรียนตรงกลางด้านบนและรายการงานที่ส่ง/ยังไม่ส่ง)"
               >
-                <TableIcon className="w-3.5 h-3.5" />
-                <span>มุมมองตาราง</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIndividualViewMode('cards')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  individualViewMode === 'cards'
-                    ? 'bg-white text-indigo-700 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="มุมมองการ์ดรายคน"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>มุมมองการ์ด</span>
+                <Printer className="w-3.5 h-3.5 text-slate-950" />
+                <span>พิมพ์สรุปรายบุคคล</span>
               </button>
             </div>
           </div>
@@ -2006,6 +2020,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL: Printable Individual Tracker Summary with School Logo */}
+      <IndividualTrackerPrintModal
+        isOpen={isIndividualPrintModalOpen}
+        onClose={() => setIsIndividualPrintModalOpen(false)}
+        teachers={teachers}
+        plans={plans}
+        deadlineConfigs={deadlineConfigs}
+        currentTeacher={currentTeacher}
+        initialArea={selectedArea}
+        initialStatus={selectedStatus}
+      />
     </div>
   );
 };

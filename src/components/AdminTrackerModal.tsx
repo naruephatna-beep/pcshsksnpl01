@@ -49,6 +49,7 @@ import {
   Table as TableIcon,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
+import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
 
 interface AdminTrackerModalProps {
   teachers: Teacher[];
@@ -93,6 +94,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'matrix' | 'ranking'>('table');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isPrintSummaryModalOpen, setIsPrintSummaryModalOpen] = useState(false);
 
   // Direct email sending states
   const [isSendingEmail, setIsSendingEmail] = useState<boolean>(false);
@@ -777,12 +779,12 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
             )}
 
             <button
-              onClick={() => window.print()}
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-medium transition-colors cursor-pointer active:scale-95"
-              title="พิมพ์ตารางติดตามงาน (Print Matrix)"
+              onClick={() => setIsPrintSummaryModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 rounded-xl text-xs font-black transition-all shadow-xs cursor-pointer active:scale-95 border border-amber-300"
+              title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล (พร้อมตราโรงเรียนและรายการงานที่ส่ง/ยังไม่ส่ง)"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>พิมพ์</span>
+              <Printer className="w-3.5 h-3.5 text-slate-950" />
+              <span>พิมพ์สรุปรายบุคคล</span>
             </button>
 
             <button
@@ -2470,6 +2472,17 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
             ปิดหน้าต่าง
           </button>
         </div>
+
+        {/* MODAL: Printable Individual Tracker Summary with School Logo */}
+        <IndividualTrackerPrintModal
+          isOpen={isPrintSummaryModalOpen}
+          onClose={() => setIsPrintSummaryModalOpen(false)}
+          teachers={teachers}
+          plans={plans}
+          deadlineConfigs={deadlineConfigs}
+          initialArea={filterArea}
+          initialStatus={filterStatus}
+        />
       </div>
     </div>
   );

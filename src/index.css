@@ -90,3 +90,19 @@ body {
     background-position: -200% 0;
   }
 }
+
+/* Official A4 Document Printing Rules */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm 15mm 10mm;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .page-break-avoid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
