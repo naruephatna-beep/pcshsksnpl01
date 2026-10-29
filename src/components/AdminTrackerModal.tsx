@@ -45,7 +45,10 @@ import {
   Users,
   Loader2,
   Zap,
+  Trophy,
+  Table as TableIcon,
 } from 'lucide-react';
+import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 
 interface AdminTrackerModalProps {
   teachers: Teacher[];
@@ -87,7 +90,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   const [filterStatus, setFilterStatus] = useState<'all' | 'uncompleted' | 'completed' | 'late'>('all');
   const [filterTask, setFilterTask] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'matrix' | 'cards'>('matrix');
+  const [viewMode, setViewMode] = useState<'table' | 'cards' | 'matrix' | 'ranking'>('table');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -171,6 +174,30 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const copyToClipboard = async (text: string, key?: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      if (key) {
+        setCopiedKey(key);
+        setTimeout(() => setCopiedKey(null), 2500);
+      }
+      showToast('📋 คัดลอกข้อความแจ้งเตือนเรียบร้อยแล้ว');
+    } catch {
+      showToast('⚠️ ไม่สามารถคัดลอกข้อความได้');
+    }
   };
 
 
@@ -682,26 +709,46 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* View Mode Toggle */}
-            <div className="hidden sm:flex bg-white/10 p-0.5 rounded-xl border border-white/15 text-xs font-semibold">
+            <div className="flex bg-white/10 p-0.5 rounded-xl border border-white/15 text-xs font-semibold overflow-x-auto touch-scroll">
               <button
-                onClick={() => setViewMode('matrix')}
-                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === 'matrix' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
+                onClick={() => setViewMode('table')}
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  viewMode === 'table' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
                 }`}
-                title="มุมมองตารางเมทริกซ์ 2 มิติ"
+                title="มุมมองตารางรายการรายคน (อ่านและสแกนง่ายที่สุด)"
               >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>ตารางเมทริกซ์</span>
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>📋 ตารางรายคน</span>
               </button>
               <button
                 onClick={() => setViewMode('cards')}
-                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   viewMode === 'cards' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
                 }`}
                 title="มุมมองการ์ดรายบุคคล"
               >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>📇 การ์ดรายคน</span>
+              </button>
+              <button
+                onClick={() => setViewMode('matrix')}
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  viewMode === 'matrix' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
+                }`}
+                title="มุมมองตารางเมทริกซ์ 2 มิติ"
+              >
                 <List className="w-3.5 h-3.5" />
-                <span>การ์ดรายบุคคล</span>
+                <span>📊 เมทริกซ์ 2 มิติ</span>
+              </button>
+              <button
+                onClick={() => setViewMode('ranking')}
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  viewMode === 'ranking' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-amber-300 hover:text-white hover:bg-white/10'
+                }`}
+                title="จัดอันดับกลุ่มสาระที่ส่งครบและตรงเวลาก่อน"
+              >
+                <Trophy className="w-3.5 h-3.5" />
+                <span>🏆 จัดอันดับกลุ่มสาระ</span>
               </button>
             </div>
 
@@ -938,13 +985,268 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           </div>
         </div>
 
-        {/* Content: Main Assignment Matrix Grid */}
+        {/* Content: Main Assignment Matrix Grid / Cards / Department Ranking */}
         <div className="p-3 sm:p-5 flex-1 overflow-y-auto touch-scroll">
-          {filteredRows.length === 0 ? (
+          {viewMode === 'ranking' ? (
+            <DepartmentRankingLeaderboard
+              teachers={teachers}
+              plans={plans}
+              deadlineConfigs={deadlineConfigs}
+              statusConfigs={statusConfigs}
+              embedded={true}
+            />
+          ) : filteredRows.length === 0 ? (
             <div className="py-16 text-center text-slate-400 space-y-2">
               <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
               <p className="text-base font-bold text-slate-700">ไม่พบรายชื่อคุณครูตามเงื่อนไขที่เลือก</p>
               <p className="text-xs text-slate-400">ลองเปลี่ยนตัวกรองกลุ่มสาระหรือล้างคำค้นหา</p>
+            </div>
+          ) : viewMode === 'table' ? (
+            /* 1. TABLE LIST VIEW (มุมมองตารางรายการรายคน - มองง่าย จัดหน้าเป็นระเบียบ และสแกนเร็วที่สุด) */
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs bg-white">
+              <div className="overflow-x-auto min-w-full">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-[#0B1329] text-slate-200 font-bold sticky top-0 z-20">
+                    <tr>
+                      <th className="py-3 px-3.5 w-12 text-center border-b border-slate-700 text-slate-400">#</th>
+                      <th className="py-3 px-4 min-w-[220px] border-b border-slate-700 bg-[#0B1329] sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.1)]">
+                        <div className="text-white font-extrabold text-xs sm:text-sm">ครูผู้สอน</div>
+                        <div className="text-[10px] text-amber-300 font-normal">รหัสประจำตัว / อีเมล</div>
+                      </th>
+                      <th className="py-3 px-3.5 min-w-[150px] border-b border-slate-700">กลุ่มสาระการเรียนรู้</th>
+                      <th className="py-3 px-3.5 min-w-[130px] text-center border-b border-slate-700">
+                        <div>ความก้าวหน้า</div>
+                        <div className="text-[10px] text-slate-400 font-normal">ชิ้นงานที่ส่งแล้ว</div>
+                      </th>
+                      <th className="py-3 px-4 min-w-[320px] border-b border-slate-700">
+                        <div>สถานะภาระงานที่มอบหมาย</div>
+                        <div className="text-[10px] text-slate-400 font-normal">คลิกเพื่อดูเอกสารหรือส่งแจ้งเตือน</div>
+                      </th>
+                      <th className="py-3 px-3.5 text-center min-w-[130px] border-b border-slate-700">สถานะรวม</th>
+                      <th className="py-3 px-4 text-right min-w-[150px] border-b border-slate-700">การดำเนินการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredRows.map(({ teacher, taskResults, missingTasks, submittedTasksCount, totalTasksCount, isAllCompleted, hasUnsubmitted, hasLateSubmission }, idx) => {
+                      const photoUrl = formatGoogleDriveImageUrl(teacher.photo);
+                      const percent = totalTasksCount > 0 ? Math.round((submittedTasksCount / totalTasksCount) * 100) : 0;
+
+                      return (
+                        <tr key={`table-row-${teacher.Teacher_ID}`} className="hover:bg-slate-50/80 transition-colors group">
+                          {/* Row Number */}
+                          <td className="py-3 px-3.5 text-center font-mono text-slate-400 font-semibold">
+                            {idx + 1}
+                          </td>
+
+                          {/* Teacher Profile */}
+                          <td className="py-3 px-4 bg-white group-hover:bg-slate-50/80 sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.04)] border-r border-slate-100">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                {photoUrl ? (
+                                  <img
+                                    src={photoUrl}
+                                    alt={teacher.Name}
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = 'none';
+                                    }}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-xs font-bold text-indigo-700">
+                                    {getInitials(teacher.Name)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-900 text-xs sm:text-sm truncate" title={teacher.Name}>
+                                  {teacher.Name}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
+                                  <span className="bg-slate-100 px-1 rounded text-slate-700 font-bold border border-slate-200">
+                                    {teacher.Teacher_ID}
+                                  </span>
+                                  {teacher.Email && (
+                                    <span className="text-slate-400 truncate max-w-[120px]" title={teacher.Email}>
+                                      {teacher.Email}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Learning Area */}
+                          <td className="py-3 px-3.5">
+                            <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-medium text-xs truncate max-w-[160px]" title={teacher.Learning_Area}>
+                              {teacher.Learning_Area}
+                            </span>
+                          </td>
+
+                          {/* Progress */}
+                          <td className="py-3 px-3.5 text-center">
+                            <div className="inline-flex flex-col items-center gap-1 min-w-[90px]">
+                              <div className="flex items-baseline gap-1 text-xs">
+                                <span className={`font-black font-mono ${isAllCompleted ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                  {submittedTasksCount}/{totalTasksCount}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium">งาน</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                                  percent === 100
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : percent > 0
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {percent}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    percent === 100
+                                      ? 'bg-emerald-500'
+                                      : percent > 0
+                                      ? 'bg-amber-500'
+                                      : 'bg-rose-500'
+                                  }`}
+                                  style={{ width: `${percent}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Task Chips (Clean horizontal pills) */}
+                          <td className="py-3 px-4">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {taskResults.map((result) => {
+                                const { config, isSubmitted, submittedPlan, matchingPlans, timeStatus } = result;
+
+                                if (isSubmitted && submittedPlan) {
+                                  const isLate = !!submittedPlan.is_late;
+                                  return (
+                                    <button
+                                      key={config.id}
+                                      onClick={() =>
+                                        setSelectedSubmittedPlan({
+                                          teacher,
+                                          config,
+                                          plan: submittedPlan,
+                                          allMatching: matchingPlans,
+                                        })
+                                      }
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
+                                        isLate
+                                          ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-300'
+                                      }`}
+                                      title={`คลิกดูรายละเอียด ${config.name}`}
+                                    >
+                                      {isLate ? (
+                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                      ) : (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      )}
+                                      <span className="font-bold truncate max-w-[130px]">{config.name}</span>
+                                      <span className="text-[10px] text-slate-500 font-mono">
+                                        ({submittedPlan.submitted_at?.split('T')[0] || 'ส่งแล้ว'})
+                                      </span>
+                                    </button>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    key={config.id}
+                                    onClick={() => handleQuickClickSend(teacher, missingTasks, config)}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border bg-rose-50 hover:bg-rose-100 text-rose-900 border-rose-200"
+                                    title={`คลิกส่งแจ้งเตือน ${config.name}`}
+                                  >
+                                    <Clock className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                    <span className="font-bold truncate max-w-[130px]">{config.name}</span>
+                                    <span className="text-[10px] text-rose-700 font-semibold font-mono">
+                                      {timeStatus.isOverdue ? `(เลย ${timeStatus.days} ว.)` : `(เหลือ ${timeStatus.days} ว.)`}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </td>
+
+                          {/* Overall Status Badge */}
+                          <td className="py-3 px-3.5 text-center">
+                            {isAllCompleted ? (
+                              hasLateSubmission ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  <span>ครบ (มีช้า)</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>ตรงเวลา 100%</span>
+                                </span>
+                              )
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-900 border border-rose-200">
+                                <Clock className="w-3 h-3 text-rose-600" />
+                                <span>ค้าง {totalTasksCount - submittedTasksCount} งาน</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {hasUnsubmitted ? (
+                                <button
+                                  onClick={() => handleQuickClickSend(teacher, missingTasks)}
+                                  disabled={sendingTeacherId === teacher.Teacher_ID}
+                                  className="px-2.5 py-1 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95 disabled:opacity-50"
+                                  title="ส่งอีเมลแจ้งเตือนภาระงานค้างส่งใน 1 คลิก"
+                                >
+                                  {sendingTeacherId === teacher.Teacher_ID ? (
+                                    <Loader2 className="w-3 h-3 animate-spin text-white" />
+                                  ) : (
+                                    <Zap className="w-3 h-3 text-amber-300" />
+                                  )}
+                                  <span>เตือน</span>
+                                </button>
+                              ) : (
+                                <span className="text-[11px] font-semibold text-emerald-700 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200">
+                                  เรียบร้อย
+                                </span>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  const text = buildReminderText(teacher, missingTasks);
+                                  copyToClipboard(text, `copy-${teacher.Teacher_ID}`);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                title="คัดลอกข้อความแจ้งเตือนสำหรับส่ง LINE"
+                              >
+                                {copiedKey === `copy-${teacher.Teacher_ID}` ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+
+                              <button
+                                onClick={() => onEditTeacher(teacher)}
+                                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                title="แก้ไขข้อมูลครู"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : viewMode === 'matrix' ? (
             /* Matrix Grid View (Desktop & Tablet with smooth horizontal scroll) */
@@ -1236,163 +1538,226 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               </div>
             </div>
           ) : (
-            /* Cards View: Handy for Mobile & Quick Inspection */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            /* Cards View: Clean, Modern & Scannable Grid */
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
               {filteredRows.map(({ teacher, taskResults, missingTasks, submittedTasksCount, totalTasksCount, isAllCompleted, hasUnsubmitted }) => {
                 const photoUrl = formatGoogleDriveImageUrl(teacher.photo);
+                const percent = totalTasksCount > 0 ? Math.round((submittedTasksCount / totalTasksCount) * 100) : 0;
+                const hasLateSubmission = taskResults.some((r) => r.isSubmitted && r.submittedPlan?.is_late);
 
                 return (
                   <div
                     key={`card-${teacher.Teacher_ID}`}
-                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 hover:border-slate-300 transition-all"
+                    className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden"
                   >
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-2.5">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                          {photoUrl ? (
-                            <img
-                              src={photoUrl}
-                              alt={teacher.Name}
-                              onError={(e) => {
-                                (e.target as HTMLElement).style.display = 'none';
-                              }}
-                              className="w-full h-full object-cover"
-                            />
+                    {/* Card Top / Header */}
+                    <div className="p-4 pb-3 space-y-3">
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                            {photoUrl ? (
+                              <img
+                                src={photoUrl}
+                                alt={teacher.Name}
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-xs font-bold text-indigo-700">
+                                {getInitials(teacher.Name)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 text-sm truncate flex items-center gap-1.5">
+                              <span>{teacher.Name}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap mt-0.5">
+                              <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-bold text-[10px]">{teacher.Teacher_ID}</span>
+                              <span className="truncate max-w-[130px] text-slate-600 font-sans">{teacher.Learning_Area}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Top-Right Overall Status */}
+                        <div className="shrink-0">
+                          {isAllCompleted ? (
+                            hasLateSubmission ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300">
+                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                <span>ครบมีช้า</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>ตรงเวลา 100%</span>
+                              </span>
+                            )
                           ) : (
-                            <span className="text-xs font-bold text-indigo-700">
-                              {getInitials(teacher.Name)}
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-300">
+                              <Clock className="w-3 h-3 text-rose-600" />
+                              <span>ค้าง {missingTasks.length} งาน</span>
                             </span>
                           )}
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-bold text-slate-900 text-sm truncate">{teacher.Name}</div>
-                          <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 flex-wrap">
-                            <span className="bg-slate-100 px-1 rounded text-slate-700 font-bold">{teacher.Teacher_ID}</span>
-                            <span className="truncate max-w-[140px]">{teacher.Learning_Area}</span>
-                          </div>
+                      </div>
+
+                      {/* Mini Progress Bar */}
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] mb-1 font-medium text-slate-600">
+                          <span className="text-slate-500">ความคืบหน้า</span>
+                          <span className="font-mono font-bold text-slate-800">
+                            {submittedTasksCount}/{totalTasksCount} งาน ({percent}%)
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              percent === 100 ? 'bg-emerald-500' : percent >= 50 ? 'bg-indigo-500' : 'bg-rose-500'
+                            }`}
+                            style={{ width: `${percent}%` }}
+                          />
                         </div>
                       </div>
 
-                      <div className="shrink-0 text-right">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black ${
-                            isAllCompleted
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : 'bg-rose-100 text-rose-800 border border-rose-300'
-                          }`}
-                        >
-                          {isAllCompleted ? '✓ ส่งครบแล้ว' : `ค้าง ${totalTasksCount - submittedTasksCount} งาน`}
-                        </span>
-                      </div>
-                    </div>
+                      {/* Task Checklist Items */}
+                      <div className="space-y-1.5 pt-1">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          รายการเอกสาร ({taskResults.length} รายการ):
+                        </div>
+                        <div className="space-y-1">
+                          {taskResults.map((result) => {
+                            const { config, isSubmitted, submittedPlan, matchingPlans, timeStatus } = result;
 
-                    {/* Task Mini Grid inside card */}
-                    <div className="space-y-1.5 pt-1">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        สถานะชิ้นงานที่มอบหมาย:
-                      </div>
-                      <div className="space-y-1">
-                        {taskResults.map((result) => {
-                          const { config, isSubmitted, submittedPlan, matchingPlans, timeStatus } = result;
+                            if (isSubmitted && submittedPlan) {
+                              const isLate = submittedPlan.is_late;
+                              return (
+                                <div
+                                  key={config.id}
+                                  onClick={() =>
+                                    setSelectedSubmittedPlan({
+                                      teacher,
+                                      config,
+                                      plan: submittedPlan,
+                                      allMatching: matchingPlans,
+                                    })
+                                  }
+                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer transition-colors ${
+                                    isLate
+                                      ? 'bg-amber-50/70 border-amber-200/80 hover:bg-amber-100/70 text-amber-950'
+                                      : 'bg-emerald-50/60 border-emerald-200/80 hover:bg-emerald-100/60 text-emerald-950'
+                                  }`}
+                                  title="คลิกดูเอกสารที่ส่ง"
+                                >
+                                  <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                    <Check className={`w-3.5 h-3.5 shrink-0 ${isLate ? 'text-amber-600' : 'text-emerald-600'}`} />
+                                    <span className="truncate font-semibold text-[11px]">{config.name}</span>
+                                  </div>
+                                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono shrink-0 ${
+                                    isLate ? 'bg-amber-100 text-amber-800 font-bold' : 'bg-emerald-100 text-emerald-800 font-medium'
+                                  }`}>
+                                    {isLate ? 'ส่งช้า' : 'ตรงเวลา'}
+                                  </span>
+                                </div>
+                              );
+                            }
 
-                          if (isSubmitted && submittedPlan) {
+                            // Unsubmitted
+                            const isOverdue = timeStatus.isOverdue;
                             return (
                               <div
                                 key={config.id}
-                                onClick={() =>
-                                  setSelectedSubmittedPlan({
-                                    teacher,
-                                    config,
-                                    plan: submittedPlan,
-                                    allMatching: matchingPlans,
-                                  })
-                                }
-                                className="flex items-center justify-between p-2 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs cursor-pointer hover:bg-emerald-100 transition-colors"
+                                onClick={() => handleQuickClickSend(teacher, missingTasks, config)}
+                                className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer transition-colors ${
+                                  isOverdue
+                                    ? 'bg-rose-50/70 border-rose-200 hover:bg-rose-100/70 text-rose-950'
+                                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-800'
+                                }`}
+                                title="คลิกส่งเตือนงานนี้"
                               >
-                                <div className="min-w-0 pr-2">
-                                  <div className="font-bold truncate text-xs">{config.name}</div>
-                                  <div className="text-[10px] text-emerald-700">
-                                    ส่งเมื่อ {submittedPlan.submitted_at?.split('T')[0]}
-                                  </div>
+                                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                  {isOverdue ? (
+                                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                  ) : (
+                                    <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  )}
+                                  <span className="truncate font-semibold text-[11px]">{config.name}</span>
                                 </div>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shrink-0">
-                                  <Check className="w-3 h-3" />
-                                  <span>ส่งแล้ว</span>
+                                <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold shrink-0 ${
+                                  isOverdue ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-700'
+                                }`}>
+                                  {isOverdue ? `เลย ${timeStatus.days} วัน` : `เหลือ ${timeStatus.days} วัน`}
                                 </span>
                               </div>
                             );
-                          }
-
-                          return (
-                            <div
-                              key={config.id}
-                              onClick={() => handleQuickClickSend(teacher, missingTasks, config)}
-                              className="flex items-center justify-between p-2 rounded-xl bg-rose-50 border border-rose-300 text-rose-950 text-xs cursor-pointer hover:bg-rose-100 transition-colors"
-                            >
-                              <div className="min-w-0 pr-2">
-                                <div className="font-bold truncate text-xs">{config.name}</div>
-                                <div className="text-[10px] text-rose-700 font-bold">
-                                  {timeStatus.isOverdue ? `⚠️ เลยกำหนดแล้ว ${timeStatus.days} วัน` : `⏳ เหลือเวลาอีก ${timeStatus.days} วัน`}
-                                </div>
-                              </div>
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shrink-0">
-                                {sendingTeacherId === teacher.Teacher_ID ? (
-                                  <>
-                                    <Loader2 className="w-3 h-3 animate-spin text-white" />
-                                    <span>กำลังส่ง...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Zap className="w-3 h-3 text-amber-300" />
-                                    <span>ส่งเมลเตือน</span>
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                          );
-                        })}
+                          })}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Footer Actions */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                      {hasUnsubmitted ? (
-                        <button
-                          onClick={() => handleQuickClickSend(teacher, missingTasks)}
-                          disabled={sendingTeacherId === teacher.Teacher_ID}
-                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
-                        >
-                          {sendingTeacherId === teacher.Teacher_ID ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
-                              <span>กำลังส่ง...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="w-3.5 h-3.5 text-slate-950" />
-                              <span>กดส่งเมลเตือน ({missingTasks.length} งาน)</span>
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-emerald-700 font-bold">✓ ส่งครบทุกงานแล้ว</span>
-                      )}
+                    {/* Card Footer Actions */}
+                    <div className="p-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {hasUnsubmitted ? (
+                          <button
+                            onClick={() => handleQuickClickSend(teacher, missingTasks)}
+                            disabled={sendingTeacherId === teacher.Teacher_ID}
+                            className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+                            title="ส่งอีเมลแจ้งเตือนทุกงานที่ค้าง"
+                          >
+                            {sendingTeacherId === teacher.Teacher_ID ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                                <span className="text-[11px]">กำลังส่ง...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Zap className="w-3.5 h-3.5 text-slate-950" />
+                                <span className="text-[11px]">เตือน {missingTasks.length} งาน</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>เรียบร้อยครบ</span>
+                          </span>
+                        )}
 
+                        {hasUnsubmitted && (
+                          <button
+                            onClick={() => {
+                              const text = buildReminderText(teacher, missingTasks);
+                              copyToClipboard(text, `card-${teacher.Teacher_ID}`);
+                            }}
+                            className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-xs cursor-pointer"
+                            title="คัดลอกข้อความเตือนสำหรับส่งทาง LINE"
+                          >
+                            {copiedKey === `card-${teacher.Teacher_ID}` ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 shrink-0">
                         {submittedTasksCount > 0 && (
                           <button
                             onClick={() => setSelectedTeacherForPlans(teacher)}
-                            className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-bold"
-                            title="ดูแผนที่ส่งแล้ว"
+                            className="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold flex items-center gap-1"
+                            title="ดูเอกสารที่ส่งแล้วทั้งหมดของครูท่านนี้"
                           >
                             <Eye className="w-3.5 h-3.5" />
+                            <span>ดูแผน</span>
                           </button>
                         )}
                         <button
                           onClick={() => onEditTeacher(teacher)}
-                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg cursor-pointer"
+                          className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg cursor-pointer"
                           title="แก้ไขข้อมูลครู"
                         >
                           <Edit className="w-3.5 h-3.5" />

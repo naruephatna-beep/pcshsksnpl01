@@ -24,6 +24,7 @@ import {
   BrainCircuit,
   Database,
   Cloud,
+  Trophy,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 
@@ -32,8 +33,8 @@ interface SidebarProps {
   isAdmin: boolean;
   mainView: 'executive' | 'plans';
   setMainView: (view: 'executive' | 'plans') => void;
-  executiveMode?: 'standard' | 'ddo';
-  setExecutiveMode?: (mode: 'standard' | 'ddo') => void;
+  executiveMode?: 'standard' | 'ranking' | 'ddo';
+  setExecutiveMode?: (mode: 'standard' | 'ranking' | 'ddo') => void;
   viewTab: string;
   setViewTab: (tab: any) => void;
   pendingAssignmentsCount?: number;
@@ -321,6 +322,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-500 text-slate-950">
                   Stats
+                </span>
+              </button>
+
+              {/* จัดอันดับกลุ่มสาระ (Leaderboard) */}
+              <button
+                onClick={() =>
+                  handleNavClick(() => {
+                    setMainView('executive');
+                    if (setExecutiveMode) setExecutiveMode('ranking');
+                  })
+                }
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
+                  mainView === 'executive' && executiveMode === 'ranking'
+                    ? 'bg-amber-500/20 text-amber-300 font-bold border-l-3 border-amber-400 shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="truncate font-medium">จัดอันดับกลุ่มสาระ</span>
+                </div>
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950">
+                  Rank #1
                 </span>
               </button>
 

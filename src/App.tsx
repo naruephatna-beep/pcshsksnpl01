@@ -92,6 +92,7 @@ import {
   RefreshCw,
   BrainCircuit,
   Cloud,
+  Trophy,
 } from 'lucide-react';
 
 export default function App() {
@@ -104,7 +105,7 @@ export default function App() {
   // Filters & Views
   const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision'>('all');
   const [mainView, setMainView] = useState<'plans' | 'executive'>('plans');
-  const [executiveMode, setExecutiveMode] = useState<'standard' | 'ddo'>('standard');
+  const [executiveMode, setExecutiveMode] = useState<'standard' | 'ranking' | 'ddo'>('standard');
   const [planDisplayMode, setPlanDisplayMode] = useState<'board' | 'table'>('board');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1280,6 +1281,17 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0 flex-wrap w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setExecutiveMode('ranking');
+                  setMainView('executive');
+                }}
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                title="จัดอันดับกลุ่มสาระที่ส่งเอกสารครบและตรงเวลาทุกคนก่อน"
+              >
+                <Trophy className="w-3.5 h-3.5 text-slate-950" />
+                <span>🏆 จัดอันดับกลุ่มสาระ</span>
+              </button>
               <button
                 onClick={() => setIsDeadlineModalOpen(true)}
                 className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"

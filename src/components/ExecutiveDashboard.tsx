@@ -29,15 +29,19 @@ import {
   X,
   FileCheck2,
   BrainCircuit,
+  Trophy,
+  Table as TableIcon,
+  LayoutGrid,
 } from 'lucide-react';
+import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 
 interface ExecutiveDashboardProps {
   teachers: Teacher[];
   plans: LessonPlan[];
   currentTeacher: Teacher;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
-  executiveMode?: 'standard' | 'ddo';
-  onExecutiveModeChange?: (mode: 'standard' | 'ddo') => void;
+  executiveMode?: 'standard' | 'ranking' | 'ddo';
+  onExecutiveModeChange?: (mode: 'standard' | 'ranking' | 'ddo') => void;
   onOpenPlan?: (plan: LessonPlan) => void;
   onOpenDeadlineManager?: () => void;
   onOpenDirectoryModal?: () => void;
@@ -54,8 +58,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   onOpenDeadlineManager,
   onOpenDirectoryModal,
 }) => {
-  // Mode switcher: standard overview vs DDO
-  const [currentMode, setCurrentMode] = useState<'standard' | 'ddo'>(executiveMode);
+  // Mode switcher: standard overview vs ranking vs DDO
+  const [currentMode, setCurrentMode] = useState<'standard' | 'ranking' | 'ddo'>(executiveMode);
 
   useEffect(() => {
     if (executiveMode) {
@@ -64,7 +68,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   }, [executiveMode]);
 
   useEffect(() => {
-    const handleSwitch = (e: CustomEvent<{ mode: 'standard' | 'ddo' }>) => {
+    const handleSwitch = (e: CustomEvent<{ mode: 'standard' | 'ranking' | 'ddo' }>) => {
       if (e.detail?.mode) {
         setCurrentMode(e.detail.mode);
         if (onExecutiveModeChange) onExecutiveModeChange(e.detail.mode);
@@ -74,7 +78,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     return () => window.removeEventListener('switch-executive-mode', handleSwitch as EventListener);
   }, [onExecutiveModeChange]);
 
-  const handleModeChange = (newMode: 'standard' | 'ddo') => {
+  const handleModeChange = (newMode: 'standard' | 'ranking' | 'ddo') => {
     setCurrentMode(newMode);
     if (onExecutiveModeChange) {
       onExecutiveModeChange(newMode);
@@ -88,6 +92,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [reminderSentMap, setReminderSentMap] = useState<Record<string, boolean>>({});
   const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
+  const [individualViewMode, setIndividualViewMode] = useState<'table' | 'cards'>('table');
 
   // Teaching staff (excluding admins)
   const teachingStaff = useMemo(() => {
@@ -299,6 +304,31 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     });
   }, [teachingStaff, activePlans, selectedArea, selectedStatus, searchTeacher]);
 
+  // Counts for individual tracking status tabs
+  const individualCounts = useMemo(() => {
+    let pending = 0;
+    let ontime = 0;
+    let late = 0;
+
+    teachingStaff.forEach((t) => {
+      if (selectedArea !== 'ทั้งหมด' && t.Learning_Area !== selectedArea) return;
+      const tPlans = activePlans.filter((p) => p.teacher_id === t.Teacher_ID);
+      if (tPlans.length === 0) {
+        pending++;
+      } else if (tPlans.some((p) => p.is_late)) {
+        late++;
+      } else {
+        ontime++;
+      }
+    });
+
+    const total = selectedArea === 'ทั้งหมด'
+      ? teachingStaff.length
+      : teachingStaff.filter((t) => t.Learning_Area === selectedArea).length;
+
+    return { total, pending, ontime, late };
+  }, [teachingStaff, activePlans, selectedArea]);
+
   const handleSendReminder = (teacherId: string, teacherName: string) => {
     setReminderSentMap((prev) => ({ ...prev, [teacherId]: true }));
   };
@@ -359,7 +389,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         <div className="absolute bottom-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
       </div>
 
-      {/* Executive View Mode Switcher: Standard Operational vs Data-Driven Organization */}
+      {/* Executive View Mode Switcher: Standard Operational vs Ranking Leaderboard vs Data-Driven Organization */}
       <div className="bg-white rounded-2xl p-2 sm:p-2.5 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
           <button
@@ -371,7 +401,22 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             }`}
           >
             <BarChart3 className="w-4 h-4 text-indigo-600" />
-            <span>📊 ภาพรวมการดำเนินงาน (Operations Overview)</span>
+            <span>📊 ภาพรวมการดำเนินงาน</span>
+          </button>
+
+          <button
+            onClick={() => handleModeChange('ranking')}
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              currentMode === 'ranking'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow-xs font-black'
+                : 'text-amber-800 hover:text-amber-950 hover:bg-amber-100/60'
+            }`}
+          >
+            <Trophy className="w-4 h-4 text-amber-900" />
+            <span>🏆 ทำเนียบจัดอันดับกลุ่มสาระ</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${currentMode === 'ranking' ? 'bg-slate-950 text-amber-300' : 'bg-amber-200 text-amber-900'}`}>
+              เร็ว & ตรงเวลา
+            </span>
           </button>
 
           <button
@@ -395,6 +440,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           <span className="font-bold text-indigo-600">
             {currentMode === 'ddo'
               ? 'การวินิจฉัยจุดติดขัด · เรดาร์ความเสี่ยง · ข้อเสนอแนะเชิงยุทธศาสตร์'
+              : currentMode === 'ranking'
+              ? 'จัดอันดับกลุ่มสาระที่ส่งครบ 100% ตรงเวลาทุกคนก่อน · ทำเนียบเหรียญทอง'
               : 'สถิติการส่งงาน · ราย 8 กลุ่มสาระ · รายการครูรายบุคคล'}
           </span>
         </div>
@@ -408,6 +455,13 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           deadlineConfigs={deadlineConfigs}
           onOpenPlan={onOpenPlan}
           onOpenDirectoryModal={onOpenDirectoryModal}
+        />
+      ) : currentMode === 'ranking' ? (
+        <DepartmentRankingLeaderboard
+          teachers={teachers}
+          plans={plans}
+          deadlineConfigs={deadlineConfigs}
+          onOpenPlan={onOpenPlan}
         />
       ) : (
         <>
@@ -568,6 +622,35 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500"></div>
         </div>
+      </div>
+
+      {/* Quick Leaderboard Announcement Banner */}
+      <div className="bg-gradient-to-r from-amber-500/15 via-yellow-500/15 to-amber-500/15 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-300 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs border border-white">
+            <Trophy className="w-6 h-6 text-slate-950" />
+          </div>
+          <div>
+            <h4 className="text-sm sm:text-base font-extrabold text-slate-950 flex items-center gap-2 flex-wrap">
+              <span>ทำเนียบจัดอันดับกลุ่มสาระยอดเยี่ยม (Punctuality & Completion Leaderboard)</span>
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black">
+                ดูผลจัดอันดับ
+              </span>
+            </h4>
+            <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">
+              เช็คว่ากลุ่มสาระไหนส่งเอกสารครบ 100% และตรงเวลาทุกคนก่อนเป็นกลุ่มแรก พร้อมสถิติเวลาที่สำเร็จจริง และแท่นรับรางวัลเกียรติยศ 3 อันดับแรก
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => handleModeChange('ranking')}
+          className="px-4 py-2.5 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-700 hover:to-yellow-600 text-slate-950 text-xs font-black rounded-xl flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0 self-start sm:self-auto"
+        >
+          <Trophy className="w-4 h-4 text-slate-950" />
+          <span>เปิดดูอันดับกลุ่มสาระ</span>
+          <ChevronRight className="w-4 h-4 text-slate-950" />
+        </button>
       </div>
 
       {/* Filter Controls Bar */}
@@ -1157,34 +1240,399 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
       {/* SECTION 4: INDIVIDUAL TEACHER TRACKING (การส่งงานรายคน) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-              <Users className="w-5 h-5" />
+        {/* Section 4 Header */}
+        <div className="p-5 border-b border-slate-100 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <span>การติดตามการส่งงานรายบุคคล</span>
+                  <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-mono">
+                    {filteredTeachers.length} / {individualCounts.total} ท่าน
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  ตรวจสอบสถานะส่งงาน ความตรงต่อเวลา ตรวจสอบเอกสาร และส่งข้อความแจ้งเตือนครูที่มีงานค้าง
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                การติดตามการส่งงานรายบุคคล (รายชื่อครู {filteredTeachers.length} ท่าน)
-              </h3>
-              <p className="text-xs text-slate-500">
-                ตรวจสอบวันเวลาที่ส่ง ความตรงต่อเวลา ลิงก์ดูเอกสาร และส่งข้อความแจ้งเตือนครูที่มีงานค้าง
-              </p>
+
+            {/* View Mode Switcher */}
+            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/80 shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setIndividualViewMode('table')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  individualViewMode === 'table'
+                    ? 'bg-white text-indigo-700 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="มุมมองตารางสรุปความชัดเจนสูง"
+              >
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>มุมมองตาราง</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIndividualViewMode('cards')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  individualViewMode === 'cards'
+                    ? 'bg-white text-indigo-700 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="มุมมองการ์ดรายคน"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>มุมมองการ์ด</span>
+              </button>
             </div>
           </div>
-          <div className="text-xs text-slate-500">
-            แสดง {filteredTeachers.length} จาก {teachingStaff.length} ท่าน
+
+          {/* Controls: Quick Status Filter Tabs + In-Section Search Bar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+            {/* Quick Status Tabs */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSelectedStatus('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  selectedStatus === 'all'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
+                }`}
+              >
+                ทั้งหมด ({individualCounts.total})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedStatus('pending')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedStatus === 'pending'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>ยังไม่ส่งงาน ({individualCounts.pending})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedStatus('ontime')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedStatus === 'ontime'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>ส่งตรงเวลา ({individualCounts.ontime})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedStatus('late')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedStatus === 'late'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>มีส่งช้า ({individualCounts.late})</span>
+              </button>
+            </div>
+
+            {/* In-Section Quick Search */}
+            <div className="relative w-full md:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="ค้นหาชื่อ, รหัสครู..."
+                value={searchTeacher}
+                onChange={(e) => setSearchTeacher(e.target.value)}
+                className="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+              {searchTeacher && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTeacher('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="divide-y divide-slate-100">
-          {filteredTeachers.length === 0 ? (
-            <div className="p-12 text-center text-slate-400">
-              <Info className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-              <p className="text-sm font-semibold">ไม่พบบุคลากรครูที่ตรงกับเงื่อนไขการค้นหา</p>
-              <p className="text-xs mt-1">ลองเปลี่ยนตัวกรองกลุ่มสาระ หรือคำค้นหา</p>
-            </div>
-          ) : (
-            filteredTeachers.map((teacher) => {
+        {filteredTeachers.length === 0 ? (
+          <div className="p-12 text-center text-slate-400">
+            <Info className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+            <p className="text-sm font-semibold text-slate-600">ไม่พบบุคลากรครูที่ตรงกับเงื่อนไขการค้นหา</p>
+            <p className="text-xs mt-1 text-slate-400">ลองเปลี่ยนตัวกรองสถานะ หรือเคลียร์คำค้นหา</p>
+            {(selectedStatus !== 'all' || searchTeacher) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStatus('all');
+                  setSearchTeacher('');
+                }}
+                className="mt-3 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl"
+              >
+                ล้างตัวกรองทั้งหมด
+              </button>
+            )}
+          </div>
+        ) : individualViewMode === 'table' ? (
+          /* TABLE VIEW: Clean, High-Scanability Rows */
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/90 text-slate-500 font-semibold border-b border-slate-200/80 uppercase tracking-wider text-[11px]">
+                  <th className="py-3 px-4 min-w-[200px]">ครูผู้สอน</th>
+                  <th className="py-3 px-4 min-w-[150px]">กลุ่มสาระ</th>
+                  <th className="py-3 px-4 min-w-[130px] text-center">สถานะการส่ง</th>
+                  <th className="py-3 px-4 min-w-[260px]">เอกสารที่ส่ง ({docTypes.length > 1 ? selectedDocType : 'ทั้งหมด'})</th>
+                  <th className="py-3 px-3 min-w-[90px] text-center">คะแนนเฉลี่ย</th>
+                  <th className="py-3 px-4 min-w-[120px] text-right">การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {filteredTeachers.map((teacher) => {
+                  const teacherPlans = activePlans.filter((p) => p.teacher_id === teacher.Teacher_ID);
+                  const hasSubmitted = teacherPlans.length > 0;
+                  const hasLate = teacherPlans.some((p) => p.is_late);
+                  const photoUrl = formatGoogleDriveImageUrl(teacher.photo);
+                  const isReminderSent = !!reminderSentMap[teacher.Teacher_ID];
+                  const isExpanded = expandedTeacherId === teacher.Teacher_ID;
+
+                  // Average score for this teacher
+                  const scoredPlans = teacherPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
+                  const teacherAvgScore = scoredPlans.length > 0
+                    ? (scoredPlans.reduce((acc, p) => acc + (p.total_score || 0), 0) / scoredPlans.length).toFixed(1)
+                    : '-';
+
+                  return (
+                    <React.Fragment key={teacher.Teacher_ID}>
+                      <tr className={`hover:bg-indigo-50/30 transition-colors ${isExpanded ? 'bg-indigo-50/20' : ''}`}>
+                        {/* 1. Teacher Profile */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                              {photoUrl ? (
+                                <img
+                                  src={photoUrl}
+                                  alt={teacher.Name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-[11px] font-bold text-indigo-700">
+                                  {getInitials(teacher.Name)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900 text-xs truncate">{teacher.Name}</div>
+                              <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
+                                <span className="bg-slate-100 px-1 py-0.2 rounded font-bold text-slate-700">{teacher.Teacher_ID}</span>
+                                {teacher.position && (
+                                  <span className="truncate max-w-[100px] text-slate-400 font-sans">• {teacher.position}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 2. Department */}
+                        <td className="py-3 px-4">
+                          <span className="inline-block px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-700 max-w-[150px] truncate" title={teacher.Learning_Area}>
+                            {teacher.Learning_Area}
+                          </span>
+                        </td>
+
+                        {/* 3. Status Badge */}
+                        <td className="py-3 px-4 text-center">
+                          {hasSubmitted ? (
+                            hasLate ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300">
+                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                <span>มีส่งล่าช้า</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>ส่งตรงเวลา</span>
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-300">
+                              <Clock className="w-3 h-3 text-rose-600" />
+                              <span>ยังไม่ส่ง</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 4. Submitted Plans Chips */}
+                        <td className="py-3 px-4">
+                          {hasSubmitted ? (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {teacherPlans.slice(0, 3).map((plan) => (
+                                <div
+                                  key={plan.id}
+                                  onClick={() => onOpenPlan && onOpenPlan(plan)}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border cursor-pointer transition-colors max-w-[180px] ${
+                                    plan.is_late
+                                      ? 'bg-amber-50/70 text-amber-900 border-amber-200 hover:bg-amber-100/70'
+                                      : 'bg-emerald-50/60 text-emerald-900 border-emerald-200 hover:bg-emerald-100/60'
+                                  }`}
+                                  title={`${plan.subject_code} ${plan.subject_name || plan.plan_title} (${plan.is_late ? 'ส่งช้า' : 'ตรงเวลา'})`}
+                                >
+                                  <span className="font-mono font-bold text-[10px]">{plan.subject_code || 'แผน'}</span>
+                                  <span className="truncate">{plan.subject_name || plan.plan_title}</span>
+                                  {plan.file_url && (
+                                    <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                                  )}
+                                </div>
+                              ))}
+                              {teacherPlans.length > 3 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
+                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1.5 py-0.5 rounded bg-indigo-50"
+                                >
+                                  +{teacherPlans.length - 3} เพิ่มเติม
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">- ยังไม่มีเอกสารในระบบ -</span>
+                          )}
+                        </td>
+
+                        {/* 5. Average Score */}
+                        <td className="py-3 px-3 text-center">
+                          {hasSubmitted && teacherAvgScore !== '-' ? (
+                            <span className={`inline-block px-2 py-0.5 rounded-md font-mono font-bold text-[11px] ${
+                              Number(teacherAvgScore) >= 80
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : Number(teacherAvgScore) >= 70
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {teacherAvgScore}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-mono">-</span>
+                          )}
+                        </td>
+
+                        {/* 6. Actions */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {hasSubmitted ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
+                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
+                              >
+                                <span>{isExpanded ? 'ซ่อน' : 'ดูฉบับ'}</span>
+                                <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleSendReminder(teacher.Teacher_ID, teacher.Name)}
+                                disabled={isReminderSent}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                                  isReminderSent
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs active:scale-95'
+                                }`}
+                                title="ส่งอีเมลแจ้งเตือนให้ส่งงาน"
+                              >
+                                <BellRing className="w-3 h-3 text-slate-950" />
+                                <span>{isReminderSent ? 'เตือนแล้ว ✓' : 'เตือน'}</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expanded Plan List Drawer inside Table */}
+                      {isExpanded && hasSubmitted && (
+                        <tr className="bg-slate-50/70 border-b border-slate-200">
+                          <td colSpan={6} className="p-4 pl-14">
+                            <div className="space-y-2">
+                              <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>รายการเอกสารทั้งหมดของ {teacher.Name} ({teacherPlans.length} ฉบับ)</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {teacherPlans.map((plan) => (
+                                  <div
+                                    key={plan.id}
+                                    className="p-2.5 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 transition-colors flex items-start justify-between gap-2 shadow-2xs"
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-slate-800 truncate">
+                                          {plan.subject_code} {plan.subject_name}
+                                        </span>
+                                        {plan.is_late ? (
+                                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1 py-0.2 rounded shrink-0">
+                                            ส่งช้า
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded shrink-0">
+                                            ตรงเวลา
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                        {plan.plan_title}
+                                      </p>
+                                      <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
+                                        <span>ส่ง: {new Date(plan.submitted_at).toLocaleDateString('th-TH')}</span>
+                                        {typeof plan.total_score === 'number' && (
+                                          <span className="font-bold text-indigo-600">
+                                            • คะแนน: {plan.total_score}/100
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {plan.file_url && (
+                                      <a
+                                        href={plan.file_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0 transition-colors"
+                                        title="เปิดดูไฟล์เอกสาร"
+                                      >
+                                        <ExternalLink className="w-3.5 h-3.5" />
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* CARDS VIEW: Sleek Modular Cards */
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {filteredTeachers.map((teacher) => {
               const teacherPlans = activePlans.filter((p) => p.teacher_id === teacher.Teacher_ID);
               const hasSubmitted = teacherPlans.length > 0;
               const hasLate = teacherPlans.some((p) => p.is_late);
@@ -1199,167 +1647,143 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 : '-';
 
               return (
-                <div key={teacher.Teacher_ID} className="p-4 sm:p-5 hover:bg-slate-50/60 transition-colors">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    {/* Teacher Profile Left */}
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                        {photoUrl ? (
-                          <img
-                            src={photoUrl}
-                            alt={teacher.Name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none';
-                            }}
-                          />
+                <div
+                  key={teacher.Teacher_ID}
+                  className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-sm hover:border-slate-300 transition-all p-4 flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    {/* Top Info */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                          {photoUrl ? (
+                            <img
+                              src={photoUrl}
+                              alt={teacher.Name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span className="text-xs font-bold text-indigo-700">
+                              {getInitials(teacher.Name)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-slate-800 truncate">{teacher.Name}</h4>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-0.5">
+                            <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-bold">{teacher.Teacher_ID}</span>
+                            <span className="text-slate-600 truncate max-w-[120px] font-sans">{teacher.Learning_Area}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status */}
+                      <div className="shrink-0">
+                        {hasSubmitted ? (
+                          hasLate ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300">
+                              <AlertTriangle className="w-3 h-3 text-amber-600" />
+                              <span>ส่งช้า</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>ตรงเวลา</span>
+                            </span>
+                          )
                         ) : (
-                          <span className="text-xs font-bold text-indigo-700">
-                            {getInitials(teacher.Name)}
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-300">
+                            <Clock className="w-3 h-3 text-rose-600" />
+                            <span>ยังไม่ส่ง</span>
                           </span>
                         )}
                       </div>
+                    </div>
 
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-800 truncate">
-                            {teacher.Name}
-                          </h4>
-                          <span className="text-[11px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
-                            {teacher.Teacher_ID}
-                          </span>
+                    {/* Plans Chips */}
+                    {hasSubmitted ? (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span>เอกสารที่ส่ง:</span>
+                          <span className="font-bold text-slate-700 font-mono">{teacherPlans.length} ฉบับ</span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-0.5">
-                          <span className="text-indigo-600 font-medium">
-                            {teacher.Learning_Area}
-                          </span>
-                          <span>•</span>
-                          <span className="truncate">{teacher.position || 'ครูผู้สอน'}</span>
+                        <div className="space-y-1 max-h-36 overflow-y-auto">
+                          {teacherPlans.map((plan) => (
+                            <div
+                              key={plan.id}
+                              className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-xs"
+                            >
+                              <div className="min-w-0 pr-1.5">
+                                <div className="font-semibold text-slate-800 text-[11px] truncate">
+                                  {plan.subject_code} {plan.subject_name || plan.plan_title}
+                                </div>
+                                <div className="text-[10px] text-slate-400">
+                                  {plan.is_late ? 'ส่งล่าช้า' : 'ตรงเวลา'} • {new Date(plan.submitted_at).toLocaleDateString('th-TH')}
+                                </div>
+                              </div>
+                              {plan.file_url && (
+                                <a
+                                  href={plan.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-
-                    {/* Status & Actions Right */}
-                    <div className="flex flex-wrap items-center gap-3 shrink-0 sm:justify-end">
-                      {/* Submission status tag */}
-                      {hasSubmitted ? (
-                        hasLate ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                            <span>ส่งล่าช้า ({teacherPlans.length} ฉบับ)</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>ส่งตรงเวลา ({teacherPlans.length} ฉบับ)</span>
-                          </span>
-                        )
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                          <Clock className="w-3.5 h-3.5 text-rose-600" />
-                          <span>ยังไม่ส่งงาน</span>
-                        </span>
-                      )}
-
-                      {/* Average score */}
-                      {hasSubmitted && (
-                        <div className="px-3 py-1 bg-slate-100 rounded-xl text-xs font-mono font-bold text-slate-700">
-                          คะแนน: {teacherAvgScore}
-                        </div>
-                      )}
-
-                      {/* Expand / View Details Button */}
-                      {hasSubmitted && (
-                        <button
-                          onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
-                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1"
-                        >
-                          <span>{isExpanded ? 'ซ่อนเอกสาร' : 'ดูเอกสาร'}</span>
-                          <ChevronRight
-                            className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                          />
-                        </button>
-                      )}
-
-                      {/* Reminder Button if pending */}
-                      {!hasSubmitted && (
-                        <button
-                          onClick={() => handleSendReminder(teacher.Teacher_ID, teacher.Name)}
-                          disabled={isReminderSent}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                            isReminderSent
-                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                              : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xs active:scale-95'
-                          }`}
-                        >
-                          <BellRing className="w-3.5 h-3.5" />
-                          <span>{isReminderSent ? 'ส่งการแจ้งเตือนแล้ว ✓' : 'ส่งแจ้งเตือน'}</span>
-                        </button>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="py-4 text-center text-xs text-rose-600 bg-rose-50/50 rounded-xl border border-rose-100 font-medium">
+                        ยังไม่มีการส่งเอกสารในระบบ
+                      </div>
+                    )}
                   </div>
 
-                  {/* Expanded Plans List for this Teacher */}
-                  {isExpanded && hasSubmitted && (
-                    <div className="mt-4 pt-4 border-t border-slate-100 pl-2 sm:pl-14 space-y-2.5 animate-in fade-in duration-200">
-                      <div className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
-                        รายการแผนการสอนที่ส่งแล้ว ({teacherPlans.length} ฉบับ)
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {teacherPlans.map((plan) => (
-                          <div
-                            key={plan.id}
-                            className="p-3 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 transition-colors flex items-start justify-between gap-2"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-slate-800 truncate">
-                                  {plan.subject_code} {plan.subject_name}
-                                </span>
-                                {plan.is_late ? (
-                                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded shrink-0">
-                                    ส่งช้า
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded shrink-0">
-                                    ตรงเวลา
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                {plan.plan_title}
-                              </p>
-                              <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
-                                <span>ส่งเมื่อ: {new Date(plan.submitted_at).toLocaleDateString('th-TH')}</span>
-                                {typeof plan.total_score === 'number' && (
-                                  <span className="font-bold text-indigo-600">
-                                    • คะแนน: {plan.total_score}/100
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                  {/* Card Bottom Actions */}
+                  <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    {hasSubmitted && teacherAvgScore !== '-' ? (
+                      <span className="font-mono text-xs text-slate-600 font-bold">
+                        คะแนน: <span className="text-indigo-600">{teacherAvgScore}</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-[11px]">-</span>
+                    )}
 
-                            {plan.file_url && (
-                              <a
-                                href={plan.file_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0 transition-colors"
-                                title="เปิดดูไฟล์เอกสาร"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    {!hasSubmitted ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSendReminder(teacher.Teacher_ID, teacher.Name)}
+                        disabled={isReminderSent}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                          isReminderSent
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs active:scale-95'
+                        }`}
+                      >
+                        <BellRing className="w-3.5 h-3.5 text-slate-950" />
+                        <span>{isReminderSent ? 'เตือนแล้ว ✓' : 'ส่งเตือน'}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
+                        className="text-indigo-600 hover:text-indigo-800 text-xs font-bold"
+                      >
+                        {isExpanded ? 'ย่อรายละเอียด' : 'ดูรายละเอียด'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
       {/* SECTION 5: EXECUTIVE STRATEGIC INSIGHTS (ข้อเสนอแนะเชิงบริหาร) */}
