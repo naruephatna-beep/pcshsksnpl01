@@ -51,6 +51,7 @@ export const IndividualTrackerPrintModal: React.FC<IndividualTrackerPrintModalPr
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'uncompleted' | 'completed' | 'late'>(normalizeStatus(initialStatus));
   const [printLayout, setPrintLayout] = useState<'table' | 'cards'>('table');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showSignatures, setShowSignatures] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -283,6 +284,17 @@ export const IndividualTrackerPrintModal: React.FC<IndividualTrackerPrintModalPr
               <option value="completed">เฉพาะผู้ที่ส่งครบแล้ว</option>
               <option value="late">เฉพาะผู้ที่มีงานส่งล่าช้า</option>
             </select>
+
+            {/* Signature Toggle */}
+            <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium cursor-pointer hover:bg-slate-50 select-none">
+              <input
+                type="checkbox"
+                checked={showSignatures}
+                onChange={(e) => setShowSignatures(e.target.checked)}
+                className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+              <span className="text-[11px] whitespace-nowrap">ช่องลงนาม</span>
+            </label>
           </div>
 
           <div className="relative w-48 sm:w-60">
@@ -300,16 +312,15 @@ export const IndividualTrackerPrintModal: React.FC<IndividualTrackerPrintModalPr
         {/* PRINTABLE REPORT CONTAINER */}
         <div className="p-6 sm:p-10 md:p-12 space-y-6 text-slate-900 bg-white print:p-2 print:space-y-4">
           
-          {/* 1. SCHOOL EMBLEM AT THE VERY TOP CENTER (ตราโรงเรียนตรงกลางด้านบนสุด) */}
+          {/* 1. SCHOOL EMBLEM AT THE VERY TOP CENTER (ตราโรงเรียนตรงกลางด้านบนสุด ตามภาพที่ 1) */}
           <div className="text-center space-y-2 border-b-2 border-slate-900 pb-5">
             <div className="flex justify-center mb-1">
               <img
-                src="/logo.svg"
+                src="/assets/aistudio/PCSHS_Kalasin.__th__6ef5abd0.png"
                 alt="ตราสัญลักษณ์โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
                 className="h-20 sm:h-24 mx-auto object-contain drop-shadow-xs"
                 onError={(e) => {
-                  // Fallback if SVG fails to load
-                  (e.target as HTMLImageElement).src = '/logo.png';
+                  (e.target as HTMLImageElement).src = '/logo.svg';
                 }}
               />
             </div>
@@ -642,43 +653,60 @@ export const IndividualTrackerPrintModal: React.FC<IndividualTrackerPrintModalPr
             </div>
           )}
 
-          {/* 4. OFFICIAL SIGNATURES BLOCK AT BOTTOM */}
-          <div className="pt-8 mt-6 border-t border-slate-300 page-break-avoid">
-            <div className="grid grid-cols-3 gap-6 text-center text-xs">
-              {/* Signature 1: Report Creator */}
-              <div className="space-y-12">
-                <p className="text-slate-600">ลงชื่อ............................................................</p>
-                <div>
-                  <p className="font-bold text-slate-900">
-                    ({currentTeacher ? currentTeacher.Name : '............................................................'})
-                  </p>
-                  <p className="text-slate-500 text-[11px] mt-0.5">ผู้จัดทำรายงาน / เจ้าหน้าที่วิชาการ</p>
+          {/* 4. OFFICIAL SIGNATURES BLOCK AT BOTTOM (ซ่อนตามคำขอ "ไม่ต้องมีลายเซ็น" แต่เปิดได้ตามต้องการ) */}
+          {showSignatures ? (
+            <div className="pt-8 mt-6 border-t border-slate-300 page-break-avoid">
+              <div className="grid grid-cols-3 gap-6 text-center text-xs">
+                {/* Signature 1: Report Creator */}
+                <div className="space-y-12">
+                  <p className="text-slate-600">ลงชื่อ............................................................</p>
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      ({currentTeacher ? currentTeacher.Name : '............................................................'})
+                    </p>
+                    <p className="text-slate-500 text-[11px] mt-0.5">ผู้จัดทำรายงาน / เจ้าหน้าที่วิชาการ</p>
+                  </div>
+                </div>
+
+                {/* Signature 2: Academic Head */}
+                <div className="space-y-12">
+                  <p className="text-slate-600">ลงชื่อ............................................................</p>
+                  <div>
+                    <p className="font-bold text-slate-900">(นายณฤภัทร นะคะจัด)</p>
+                    <p className="text-slate-500 text-[11px] mt-0.5">หัวหน้ากลุ่มบริหารวิชาการ</p>
+                  </div>
+                </div>
+
+                {/* Signature 3: School Director */}
+                <div className="space-y-12">
+                  <p className="text-slate-600">ลงชื่อ............................................................</p>
+                  <div>
+                    <p className="font-bold text-slate-900">(ผู้อำนวยการสถานศึกษา)</p>
+                    <p className="text-slate-500 text-[11px] mt-0.5">ผู้อำนวยการโรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Signature 2: Academic Head */}
-              <div className="space-y-12">
-                <p className="text-slate-600">ลงชื่อ............................................................</p>
-                <div>
-                  <p className="font-bold text-slate-900">(นายณฤภัทร นะคะจัด)</p>
-                  <p className="text-slate-500 text-[11px] mt-0.5">หัวหน้ากลุ่มบริหารวิชาการ</p>
-                </div>
-              </div>
-
-              {/* Signature 3: School Director */}
-              <div className="space-y-12">
-                <p className="text-slate-600">ลงชื่อ............................................................</p>
-                <div>
-                  <p className="font-bold text-slate-900">(ผู้อำนวยการสถานศึกษา)</p>
-                  <p className="text-slate-500 text-[11px] mt-0.5">ผู้อำนวยการโรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
-                </div>
+              <div className="mt-8 text-center text-[10px] text-slate-400">
+                เอกสารรายงานสรุปผลการส่งเอกสารวิชาการรายบุคคล • โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
               </div>
             </div>
-
-            <div className="mt-8 text-center text-[10px] text-slate-400">
-              เอกสารรายงานสรุปผลการส่งเอกสารวิชาการรายบุคคล • โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+          ) : (
+            <div className="pt-4 mt-6 border-t border-slate-200 text-center text-[11px] text-slate-500 flex flex-wrap items-center justify-between gap-2 page-break-avoid">
+              <div className="flex items-center gap-2">
+                <img
+                  src="/assets/aistudio/PCSHS_Kalasin.__th__6ef5abd0.png"
+                  alt="จภ. กาฬสินธุ์"
+                  className="w-5 h-5 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/logo.svg';
+                  }}
+                />
+                <span className="font-medium text-slate-700">โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</span>
+              </div>
+              <span className="text-slate-400">ระบบติดตามและรายงานผลการส่งเอกสารวิชาการรายบุคคล ภาคเรียนที่ 1/2569</span>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -32,9 +32,20 @@ import {
   Trophy,
   Table as TableIcon,
   LayoutGrid,
+  ChevronDown,
+  CheckSquare,
+  Square,
+  Check,
+  Eye,
+  Copy,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
+import { InfographicPromptModal } from './InfographicPromptModal';
+import {
+  InfographicPromptPayload,
+  generateEnglishInfographicPrompt,
+} from '../utils/aiInfographicPrompt';
 
 interface ExecutiveDashboardProps {
   teachers: Teacher[];
@@ -47,6 +58,103 @@ interface ExecutiveDashboardProps {
   onOpenDeadlineManager?: () => void;
   onOpenDirectoryModal?: () => void;
 }
+
+export interface DocTypeColorConfig {
+  bg: string;
+  barGradient: string;
+  lightBg: string;
+  border: string;
+  text: string;
+  dot: string;
+}
+
+export const DOC_TYPE_COLORS: DocTypeColorConfig[] = [
+  {
+    bg: 'bg-blue-600',
+    barGradient: 'from-blue-600 to-indigo-600',
+    lightBg: 'bg-blue-50',
+    border: 'border-blue-200',
+    text: 'text-blue-700',
+    dot: 'bg-blue-600',
+  },
+  {
+    bg: 'bg-purple-600',
+    barGradient: 'from-purple-600 to-violet-600',
+    lightBg: 'bg-purple-50',
+    border: 'border-purple-200',
+    text: 'text-purple-700',
+    dot: 'bg-purple-600',
+  },
+  {
+    bg: 'bg-emerald-600',
+    barGradient: 'from-emerald-600 to-teal-600',
+    lightBg: 'bg-emerald-50',
+    border: 'border-emerald-200',
+    text: 'text-emerald-700',
+    dot: 'bg-emerald-600',
+  },
+  {
+    bg: 'bg-amber-500',
+    barGradient: 'from-amber-500 to-orange-500',
+    lightBg: 'bg-amber-50',
+    border: 'border-amber-200',
+    text: 'text-amber-700',
+    dot: 'bg-amber-500',
+  },
+  {
+    bg: 'bg-rose-500',
+    barGradient: 'from-rose-500 to-pink-600',
+    lightBg: 'bg-rose-50',
+    border: 'border-rose-200',
+    text: 'text-rose-700',
+    dot: 'bg-rose-500',
+  },
+  {
+    bg: 'bg-cyan-600',
+    barGradient: 'from-cyan-600 to-sky-600',
+    lightBg: 'bg-cyan-50',
+    border: 'border-cyan-200',
+    text: 'text-cyan-700',
+    dot: 'bg-cyan-600',
+  },
+  {
+    bg: 'bg-fuchsia-600',
+    barGradient: 'from-fuchsia-600 to-pink-600',
+    lightBg: 'bg-fuchsia-50',
+    border: 'border-fuchsia-200',
+    text: 'text-fuchsia-700',
+    dot: 'bg-fuchsia-600',
+  },
+  {
+    bg: 'bg-indigo-600',
+    barGradient: 'from-indigo-600 to-blue-700',
+    lightBg: 'bg-indigo-50',
+    border: 'border-indigo-200',
+    text: 'text-indigo-700',
+    dot: 'bg-indigo-600',
+  },
+  {
+    bg: 'bg-teal-600',
+    barGradient: 'from-teal-600 to-emerald-700',
+    lightBg: 'bg-teal-50',
+    border: 'border-teal-200',
+    text: 'text-teal-700',
+    dot: 'bg-teal-600',
+  },
+];
+
+export const getDocTypeColorConfig = (docType: string, allTypes: string[]): DocTypeColorConfig => {
+  const index = allTypes.indexOf(docType);
+  if (index >= 0) {
+    return DOC_TYPE_COLORS[index % DOC_TYPE_COLORS.length];
+  }
+  let hash = 0;
+  for (let i = 0; i < docType.length; i++) {
+    hash = (hash << 5) - hash + docType.charCodeAt(i);
+    hash |= 0;
+  }
+  return DOC_TYPE_COLORS[Math.abs(hash) % DOC_TYPE_COLORS.length];
+};
 
 export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   teachers,
@@ -85,16 +193,25 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       onExecutiveModeChange(newMode);
     }
   };
-  // Filters
-  const [selectedArea, setSelectedArea] = useState<string>('ทั้งหมด');
+  // Filters (Multi-select enabled for Document Types and Learning Areas)
+  const [selectedAreas, setSelectedAreas] = useState<string[]>(['ทั้งหมด']);
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'ontime' | 'late' | 'pending'>('all');
-  const [selectedDocType, setSelectedDocType] = useState<string>('ทั้งหมด');
+  const [selectedDocTypes, setSelectedDocTypes] = useState<string[]>(['ทั้งหมด']);
   const [searchTeacher, setSearchTeacher] = useState<string>('');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [reminderSentMap, setReminderSentMap] = useState<Record<string, boolean>>({});
   const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
   const [individualViewMode, setIndividualViewMode] = useState<'table' | 'cards'>('table');
   const [isIndividualPrintModalOpen, setIsIndividualPrintModalOpen] = useState(false);
+  const [isInfographicModalOpen, setIsInfographicModalOpen] = useState(false);
+  const [copyToastMessage, setCopyToastMessage] = useState<string | null>(null);
+
+  // Popover state for multi-select dropdowns
+  const [isDocTypeDropdownOpen, setIsDocTypeDropdownOpen] = useState<boolean>(false);
+  const [isAreaDropdownOpen, setIsAreaDropdownOpen] = useState<boolean>(false);
+
+  // Graph 1 View Mode: 'by_doctype' (คนละประเภทเอกสารคนละสีคนละแท่ง) vs 'by_timeliness' (สรุปสัดส่วนตรงเวลา/ล่าช้า)
+  const [graph1ViewMode, setGraph1ViewMode] = useState<'by_doctype' | 'by_timeliness'>('by_doctype');
 
   // Teaching staff (excluding admins)
   const teachingStaff = useMemo(() => {
@@ -152,46 +269,114 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     });
 
     return list;
-  }, [plans]);
+  }, [plans, deadlineConfigs]);
 
-  // Filtered plans based on docType filter
+  const isAllDocTypes = selectedDocTypes.length === 0 || selectedDocTypes.includes('ทั้งหมด');
+  const isAllAreas = selectedAreas.length === 0 || selectedAreas.includes('ทั้งหมด');
+
+  const allRealDocTypes = useMemo(() => docTypes.filter((d) => d !== 'ทั้งหมด'), [docTypes]);
+  const activeTypesForBars = useMemo(() => {
+    if (isAllDocTypes) return allRealDocTypes;
+    return allRealDocTypes.filter((dt) => selectedDocTypes.includes(dt));
+  }, [isAllDocTypes, allRealDocTypes, selectedDocTypes]);
+
+  // Multi-select handlers for Document Types
+  const toggleDocType = (dt: string) => {
+    if (dt === 'ทั้งหมด') {
+      setSelectedDocTypes(['ทั้งหมด']);
+      return;
+    }
+    const realTypes = docTypes.filter((d) => d !== 'ทั้งหมด');
+    let next: string[];
+    if (isAllDocTypes) {
+      next = [dt];
+    } else if (selectedDocTypes.includes(dt)) {
+      next = selectedDocTypes.filter((d) => d !== dt);
+      if (next.length === 0) next = ['ทั้งหมด'];
+    } else {
+      next = [...selectedDocTypes.filter((d) => d !== 'ทั้งหมด'), dt];
+      if (next.length === realTypes.length) next = ['ทั้งหมด'];
+    }
+    setSelectedDocTypes(next);
+  };
+
+  const selectAllDocTypes = () => setSelectedDocTypes(['ทั้งหมด']);
+  const clearDocTypes = () => setSelectedDocTypes(['ทั้งหมด']);
+
+  // Multi-select handlers for Learning Areas
+  const toggleArea = (area: string) => {
+    if (area === 'ทั้งหมด') {
+      setSelectedAreas(['ทั้งหมด']);
+      return;
+    }
+    const realAreas = areas.filter((a) => a !== 'ทั้งหมด');
+    let next: string[];
+    if (isAllAreas) {
+      next = [area];
+    } else if (selectedAreas.includes(area)) {
+      next = selectedAreas.filter((a) => a !== area);
+      if (next.length === 0) next = ['ทั้งหมด'];
+    } else {
+      next = [...selectedAreas.filter((a) => a !== 'ทั้งหมด'), area];
+      if (next.length === realAreas.length) next = ['ทั้งหมด'];
+    }
+    setSelectedAreas(next);
+  };
+
+  const selectAllAreas = () => setSelectedAreas(['ทั้งหมด']);
+  const clearAreas = () => setSelectedAreas(['ทั้งหมด']);
+
+  // Filtered plans based on multi-selected docTypes
   const activePlans = useMemo(() => {
-    if (selectedDocType === 'ทั้งหมด') return plans;
+    if (isAllDocTypes) return plans;
     return plans.filter((p) => {
-      if (p.plan_type === selectedDocType) return true;
-      // Also match if user selected general term like "แผนการจัดการเรียนรู้"
-      if (
-        selectedDocType === 'แผนการจัดการเรียนรู้' &&
-        (p.plan_type?.includes('แผนการจัดการเรียนรู้') || !p.plan_type)
-      ) {
-        return true;
-      }
-      return false;
+      const pType = (p.plan_type || '').trim();
+      return selectedDocTypes.some((selected) => {
+        if (selected === pType) return true;
+        if (
+          selected === 'แผนการจัดการเรียนรู้' &&
+          (pType.includes('แผนการจัดการเรียนรู้') || !pType)
+        ) {
+          return true;
+        }
+        return false;
+      });
     });
-  }, [plans, selectedDocType]);
+  }, [plans, selectedDocTypes, isAllDocTypes]);
 
-  // Overall Statistics
-  const totalTeachersCount = teachingStaff.length;
-  
+  // Scoped teaching staff according to multi-selected areas
+  const scopedTeachingStaff = useMemo(() => {
+    if (isAllAreas) return teachingStaff;
+    return teachingStaff.filter((t) => selectedAreas.includes(t.Learning_Area));
+  }, [teachingStaff, isAllAreas, selectedAreas]);
+
+  // Overall Statistics for scoped staff
+  const totalTeachersCount = scopedTeachingStaff.length;
+
   // Teachers who submitted at least 1 plan
   const submittedTeachers = useMemo(() => {
-    return teachingStaff.filter((t) => activePlans.some((p) => p.teacher_id === t.Teacher_ID));
-  }, [teachingStaff, activePlans]);
+    return scopedTeachingStaff.filter((t) => activePlans.some((p) => p.teacher_id === t.Teacher_ID));
+  }, [scopedTeachingStaff, activePlans]);
 
   // Teachers who have not submitted any plan
   const pendingTeachers = useMemo(() => {
-    return teachingStaff.filter((t) => !activePlans.some((p) => p.teacher_id === t.Teacher_ID));
-  }, [teachingStaff, activePlans]);
+    return scopedTeachingStaff.filter((t) => !activePlans.some((p) => p.teacher_id === t.Teacher_ID));
+  }, [scopedTeachingStaff, activePlans]);
 
   // Submission rate %
   const submissionRate = totalTeachersCount > 0
     ? Math.round((submittedTeachers.length / totalTeachersCount) * 100)
     : 0;
 
-  // On-time vs Late plans
-  const totalPlansCount = activePlans.length;
-  const onTimePlans = activePlans.filter((p) => !p.is_late);
-  const latePlans = activePlans.filter((p) => p.is_late);
+  // On-time vs Late plans within scoped areas & doc types
+  const scopedPlans = useMemo(() => {
+    if (isAllAreas) return activePlans;
+    return activePlans.filter((p) => selectedAreas.includes(p.learning_area || ''));
+  }, [activePlans, isAllAreas, selectedAreas]);
+
+  const totalPlansCount = scopedPlans.length;
+  const onTimePlans = scopedPlans.filter((p) => !p.is_late);
+  const latePlans = scopedPlans.filter((p) => p.is_late);
 
   const onTimeRate = totalPlansCount > 0
     ? Math.round((onTimePlans.length / totalPlansCount) * 100)
@@ -201,15 +386,17 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     : 0;
 
   // Average Score across school (from real evaluated plans only)
-  const plansWithScore = activePlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
+  const plansWithScore = scopedPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
   const avgScore = plansWithScore.length > 0
     ? (plansWithScore.reduce((acc, p) => acc + (p.total_score || 0), 0) / plansWithScore.length).toFixed(1)
     : '-';
 
-  // Area statistics breakdown
+  // Area statistics breakdown (dynamically filtered by multi-selected areas!)
   const areaStats = useMemo(() => {
     const list = areas.filter((a) => a !== 'ทั้งหมด');
-    return list.map((area) => {
+    const targetAreas = isAllAreas ? list : list.filter((a) => selectedAreas.includes(a));
+
+    return targetAreas.map((area) => {
       const areaTeachers = teachingStaff.filter((t) => t.Learning_Area === area);
       const areaPlans = activePlans.filter((p) => p.learning_area === area);
       const submittedAreaTeachers = areaTeachers.filter((t) =>
@@ -218,12 +405,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       const areaOnTimePlans = areaPlans.filter((p) => !p.is_late);
       const areaLatePlans = areaPlans.filter((p) => p.is_late);
 
-      // Teachers who submitted on time (all submitted plans are on time)
       const onTimeTeachers = areaTeachers.filter((t) => {
         const tPlans = areaPlans.filter((p) => p.teacher_id === t.Teacher_ID);
         return tPlans.length > 0 && !tPlans.some((p) => p.is_late);
       });
-      // Teachers who submitted late
       const lateTeachers = areaTeachers.filter((t) => {
         const tPlans = areaPlans.filter((p) => p.teacher_id === t.Teacher_ID);
         return tPlans.some((p) => p.is_late);
@@ -232,7 +417,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       const rate = areaTeachers.length > 0
         ? Math.round((submittedAreaTeachers.length / areaTeachers.length) * 100)
         : 0;
-      
+
       const scored = areaPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
       const areaAvgScore = scored.length > 0
         ? (scored.reduce((acc, p) => acc + (p.total_score || 0), 0) / scored.length).toFixed(1)
@@ -253,7 +438,46 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         isCompleted: rate === 100 && areaTeachers.length > 0,
       };
     }).sort((a, b) => b.submissionRate - a.submissionRate);
-  }, [areas, teachingStaff, activePlans]);
+  }, [areas, teachingStaff, activePlans, isAllAreas, selectedAreas]);
+
+  // Payload for AI Infographic Prompt Generator (grounded in real school data)
+  const promptPayload: InfographicPromptPayload = useMemo(() => ({
+    schoolNameTh: 'โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์',
+    schoolNameEn: 'Princess Chulabhorn Science High School Kalasin',
+    academicYear: 'ปีการศึกษา 2568',
+    selectedDocTypes,
+    areaStats,
+    totalTeachers: totalTeachersCount,
+    totalSubmittedTeachers: submittedTeachers.length,
+    overallSubmissionRate: submissionRate,
+    onTimeRate,
+    lateRate,
+    pendingTeachersCount: pendingTeachers.length,
+    aspectRatio: '4:5',
+    style: 'official_science',
+  }), [selectedDocTypes, areaStats, totalTeachersCount, submittedTeachers, submissionRate, onTimeRate, lateRate, pendingTeachers]);
+
+  // 1-Click Instant Copy Handler for AI Infographic Prompt
+  const handleInstantCopyPrompt = async () => {
+    try {
+      const text = generateEnglishInfographicPrompt(promptPayload);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopyToastMessage('คัดลอก Prompt สำหรับ AI เจนอินโฟกราฟิกเรียบร้อยแล้ว!');
+      setTimeout(() => setCopyToastMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to copy prompt:', err);
+      setIsInfographicModalOpen(true);
+    }
+  };
 
   // Score distribution tiers
   const scoreDistribution = useMemo(() => {
@@ -279,8 +503,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   // Filtered teachers list for Individual tracking
   const filteredTeachers = useMemo(() => {
     return teachingStaff.filter((teacher) => {
-      // Area filter
-      if (selectedArea !== 'ทั้งหมด' && teacher.Learning_Area !== selectedArea) {
+      // Area filter (multi-select)
+      if (!isAllAreas && !selectedAreas.includes(teacher.Learning_Area)) {
         return false;
       }
 
@@ -304,7 +528,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
       return true;
     });
-  }, [teachingStaff, activePlans, selectedArea, selectedStatus, searchTeacher]);
+  }, [teachingStaff, activePlans, isAllAreas, selectedAreas, selectedStatus, searchTeacher]);
 
   // Counts for individual tracking status tabs
   const individualCounts = useMemo(() => {
@@ -313,7 +537,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     let late = 0;
 
     teachingStaff.forEach((t) => {
-      if (selectedArea !== 'ทั้งหมด' && t.Learning_Area !== selectedArea) return;
+      if (!isAllAreas && !selectedAreas.includes(t.Learning_Area)) return;
       const tPlans = activePlans.filter((p) => p.teacher_id === t.Teacher_ID);
       if (tPlans.length === 0) {
         pending++;
@@ -324,12 +548,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       }
     });
 
-    const total = selectedArea === 'ทั้งหมด'
+    const total = isAllAreas
       ? teachingStaff.length
-      : teachingStaff.filter((t) => t.Learning_Area === selectedArea).length;
+      : teachingStaff.filter((t) => selectedAreas.includes(t.Learning_Area)).length;
 
     return { total, pending, ontime, late };
-  }, [teachingStaff, activePlans, selectedArea]);
+  }, [teachingStaff, activePlans, isAllAreas, selectedAreas]);
 
   const handleSendReminder = (teacherId: string, teacherName: string) => {
     setReminderSentMap((prev) => ({ ...prev, [teacherId]: true }));
@@ -655,193 +879,656 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </button>
       </div>
 
-      {/* Filter Controls Bar */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-            <Filter className="w-4 h-4 text-indigo-600" />
-            <span>ตัวกรองแดชบอร์ด:</span>
+      {/* Backdrop to close popovers on outside click */}
+      {(isDocTypeDropdownOpen || isAreaDropdownOpen) && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => {
+            setIsDocTypeDropdownOpen(false);
+            setIsAreaDropdownOpen(false);
+          }}
+        />
+      )}
+
+      {/* Filter Controls Bar with Multi-Select */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+              <Filter className="w-4 h-4 text-indigo-600" />
+              <span>ตัวกรองแดชบอร์ด:</span>
+            </div>
+
+            {/* Doc Type Multi-Select Dropdown Popover */}
+            <div className="relative" title="เลือกประเภทเอกสารที่ต้องการดู (สามารถเลือกได้หลายประเภทพร้อมกัน)">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDocTypeDropdownOpen(!isDocTypeDropdownOpen);
+                  setIsAreaDropdownOpen(false);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold border rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-2xs ${
+                  !isAllDocTypes
+                    ? 'border-indigo-400 bg-indigo-50 text-indigo-950 ring-2 ring-indigo-200'
+                    : 'border-indigo-200 bg-indigo-50/70 hover:bg-white text-indigo-950'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                <span>
+                  {isAllDocTypes
+                    ? 'ประเภทเอกสาร: ทั้งหมด'
+                    : selectedDocTypes.length === 1
+                    ? `ประเภท: ${selectedDocTypes[0]}`
+                    : `ประเภทเอกสาร (${selectedDocTypes.length} ประเภท)`}
+                </span>
+                {!isAllDocTypes && (
+                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center">
+                    {selectedDocTypes.length}
+                  </span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 text-indigo-500 transition-transform ${isDocTypeDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isDocTypeDropdownOpen && (
+                <div className="absolute left-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 z-30 p-2.5 animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100">
+                    <span className="text-xs font-bold text-slate-800">
+                      ประเภทเอกสาร ({isAllDocTypes ? 'ทุกประเภท' : `${selectedDocTypes.length} ที่เลือก`})
+                    </span>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={selectAllDocTypes}
+                        className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      >
+                        เลือกทั้งหมด
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={clearDocTypes}
+                        className="text-slate-500 hover:text-rose-600 font-medium hover:underline cursor-pointer"
+                      >
+                        รีเซ็ต
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto space-y-1 p-1 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleDocType('ทั้งหมด')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        isAllDocTypes ? 'bg-indigo-50 text-indigo-900' : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${isAllDocTypes ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                          {isAllDocTypes && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <span>ทั้งหมด (ทุกประเภทเอกสาร)</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400 font-normal">
+                        {plans.length} ฉบับ
+                      </span>
+                    </button>
+
+                    {docTypes.filter(dt => dt !== 'ทั้งหมด').map((dt) => {
+                      const isSelected = !isAllDocTypes && selectedDocTypes.includes(dt);
+                      const docCount = plans.filter((p) => {
+                        const pType = (p.plan_type || '').trim();
+                        if (pType === dt) return true;
+                        if (dt === 'แผนการจัดการเรียนรู้' && (pType.includes('แผนการจัดการเรียนรู้') || !pType)) return true;
+                        return false;
+                      }).length;
+
+                      return (
+                        <button
+                          key={dt}
+                          type="button"
+                          onClick={() => toggleDocType(dt)}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer text-left ${
+                            isSelected ? 'bg-indigo-50 text-indigo-950 font-bold' : 'text-slate-700 hover:bg-slate-50 font-medium'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <div className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <span className="truncate">{dt}</span>
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-400 shrink-0 font-normal">
+                            {docCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Learning Area Multi-Select Dropdown Popover */}
+            <div className="relative" title="เลือกกลุ่มสาระการเรียนรู้ที่ต้องการเปรียบเทียบ (สามารถเลือกได้หลายกลุ่มสาระ)">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAreaDropdownOpen(!isAreaDropdownOpen);
+                  setIsDocTypeDropdownOpen(false);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold border rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-2xs ${
+                  !isAllAreas
+                    ? 'border-indigo-400 bg-indigo-50 text-indigo-950 ring-2 ring-indigo-200'
+                    : 'border-slate-200 bg-slate-50 hover:bg-white text-slate-800'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-indigo-600" />
+                <span>
+                  {isAllAreas
+                    ? 'กลุ่มสาระ: ทั้งหมด (8 สาระ)'
+                    : selectedAreas.length === 1
+                    ? `กลุ่มสาระ: ${selectedAreas[0]}`
+                    : `กลุ่มสาระ (${selectedAreas.length} สาระ)`}
+                </span>
+                {!isAllAreas && (
+                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center">
+                    {selectedAreas.length}
+                  </span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isAreaDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isAreaDropdownOpen && (
+                <div className="absolute left-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl border border-slate-200/90 shadow-xl z-30 p-2.5 animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100">
+                    <span className="text-xs font-bold text-slate-800">
+                      กลุ่มสาระการเรียนรู้ ({isAllAreas ? 'ครบ 8 สาระ' : `${selectedAreas.length} ที่เลือก`})
+                    </span>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={selectAllAreas}
+                        className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
+                      >
+                        เลือกทั้งหมด
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={clearAreas}
+                        className="text-slate-500 hover:text-rose-600 font-medium hover:underline cursor-pointer"
+                      >
+                        รีเซ็ต
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto space-y-1 p-1 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleArea('ทั้งหมด')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                        isAllAreas ? 'bg-indigo-50 text-indigo-900' : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${isAllAreas ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                          {isAllAreas && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <span>ทั้งหมด (8 กลุ่มสาระ)</span>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400 font-normal">
+                        {teachingStaff.length} คน
+                      </span>
+                    </button>
+
+                    {areas.filter(a => a !== 'ทั้งหมด').map((area) => {
+                      const isSelected = !isAllAreas && selectedAreas.includes(area);
+                      const staffCount = teachingStaff.filter((t) => t.Learning_Area === area).length;
+
+                      return (
+                        <button
+                          key={area}
+                          type="button"
+                          onClick={() => toggleArea(area)}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer text-left ${
+                            isSelected ? 'bg-indigo-50 text-indigo-950 font-bold' : 'text-slate-700 hover:bg-slate-50 font-medium'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <div className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <span className="truncate">{area}</span>
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-400 shrink-0 font-normal">
+                            {staffCount} คน
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Status Tabs */}
+            <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs">
+              <button
+                onClick={() => setSelectedStatus('all')}
+                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
+                  selectedStatus === 'all' ? 'bg-white shadow-xs text-slate-900 font-bold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ทั้งหมด ({totalTeachersCount})
+              </button>
+              <button
+                onClick={() => setSelectedStatus('ontime')}
+                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
+                  selectedStatus === 'ontime' ? 'bg-white shadow-xs text-emerald-700 font-bold' : 'text-slate-600 hover:text-emerald-700'
+                }`}
+              >
+                ตรงเวลา
+              </button>
+              <button
+                onClick={() => setSelectedStatus('late')}
+                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
+                  selectedStatus === 'late' ? 'bg-white shadow-xs text-amber-700 font-bold' : 'text-slate-600 hover:text-amber-700'
+                }`}
+              >
+                ส่งล่าช้า
+              </button>
+              <button
+                onClick={() => setSelectedStatus('pending')}
+                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
+                  selectedStatus === 'pending' ? 'bg-white shadow-xs text-rose-700 font-bold' : 'text-slate-600 hover:text-rose-700'
+                }`}
+              >
+                ยังไม่ส่ง ({pendingTeachers.length})
+              </button>
+            </div>
           </div>
 
-          {/* Doc Type Dropdown */}
-          <div className="flex items-center gap-1.5" title="อิงตามประเภทเอกสารที่กำหนดไว้ในระบบกำหนดส่ง (Deadline Manager) และประเภทเอกสารที่ครูส่งเข้าระบบจริง">
-            <select
-              value={selectedDocType}
-              onChange={(e) => setSelectedDocType(e.target.value)}
-              className="px-3 py-1.5 text-xs font-semibold border border-indigo-200 rounded-xl bg-indigo-50/60 hover:bg-white text-indigo-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs transition-colors"
-            >
-              {docTypes.map((dt) => (
-                <option key={dt} value={dt}>
-                  {dt === 'ทั้งหมด' ? 'ประเภทเอกสาร: ทั้งหมด' : `ประเภท: ${dt}`}
-                </option>
+          {/* Search */}
+          <div className="relative min-w-[220px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchTeacher}
+              onChange={(e) => setSearchTeacher(e.target.value)}
+              placeholder="ค้นหาชื่อครู, รหัส หรือกลุ่มสาระ..."
+              className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white"
+            />
+          </div>
+        </div>
+
+        {/* Active Filter Chips Bar */}
+        {(!isAllDocTypes || !isAllAreas) && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+            <span className="font-bold text-slate-500 flex items-center gap-1 shrink-0">
+              <Filter className="w-3 h-3 text-indigo-600" />
+              <span>หัวข้อที่เลือกเปรียบเทียบ:</span>
+            </span>
+
+            {/* Doc Type Chips */}
+            {!isAllDocTypes &&
+              selectedDocTypes.map((dt) => {
+                const colorCfg = getDocTypeColorConfig(dt, allRealDocTypes);
+                return (
+                  <span
+                    key={`chip-dt-${dt}`}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 ${colorCfg.lightBg} border ${colorCfg.border} ${colorCfg.text} rounded-lg text-xs font-semibold shadow-2xs`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${colorCfg.dot}`} />
+                    <span>{dt}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleDocType(dt)}
+                      className="hover:text-rose-600 p-0.5 rounded-md hover:bg-white/80 transition-colors cursor-pointer"
+                      title={`ยกเลิกการกรอง ${dt}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+
+            {/* Area Chips */}
+            {!isAllAreas &&
+              selectedAreas.map((area) => (
+                <span
+                  key={`chip-area-${area}`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs font-semibold shadow-2xs"
+                >
+                  <Users className="w-3 h-3 text-blue-600" />
+                  <span>{area}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleArea(area)}
+                    className="hover:text-rose-600 p-0.5 rounded-md hover:bg-blue-100 transition-colors cursor-pointer"
+                    title={`ยกเลิกการกรอง ${area}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
               ))}
-            </select>
-          </div>
 
-          {/* Learning Area Dropdown */}
-          <select
-            value={selectedArea}
-            onChange={(e) => setSelectedArea(e.target.value)}
-            className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-xl bg-slate-50 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-          >
-            {areas.map((area) => (
-              <option key={area} value={area}>
-                {area === 'ทั้งหมด' ? 'กลุ่มสาระ: ทั้งหมด' : `กลุ่มสาระ: ${area}`}
-              </option>
-            ))}
-          </select>
-
-          {/* Status Dropdown */}
-          <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs">
+            {/* Reset All Filters Button */}
             <button
-              onClick={() => setSelectedStatus('all')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                selectedStatus === 'all' ? 'bg-white shadow-xs text-slate-900 font-bold' : 'text-slate-600 hover:text-slate-900'
-              }`}
+              type="button"
+              onClick={() => {
+                selectAllDocTypes();
+                selectAllAreas();
+              }}
+              className="text-xs text-rose-600 hover:text-rose-800 font-bold underline px-2 py-1 cursor-pointer transition-colors"
             >
-              ทั้งหมด ({totalTeachersCount})
-            </button>
-            <button
-              onClick={() => setSelectedStatus('ontime')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                selectedStatus === 'ontime' ? 'bg-white shadow-xs text-emerald-700 font-bold' : 'text-slate-600 hover:text-emerald-700'
-              }`}
-            >
-              ตรงเวลา
-            </button>
-            <button
-              onClick={() => setSelectedStatus('late')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                selectedStatus === 'late' ? 'bg-white shadow-xs text-amber-700 font-bold' : 'text-slate-600 hover:text-amber-700'
-              }`}
-            >
-              ส่งล่าช้า
-            </button>
-            <button
-              onClick={() => setSelectedStatus('pending')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                selectedStatus === 'pending' ? 'bg-white shadow-xs text-rose-700 font-bold' : 'text-slate-600 hover:text-rose-700'
-              }`}
-            >
-              ยังไม่ส่ง ({pendingTeachers.length})
+              ล้างตัวกรองทั้งหมด
             </button>
           </div>
-        </div>
-
-        {/* Search */}
-        <div className="relative min-w-[220px]">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchTeacher}
-            onChange={(e) => setSearchTeacher(e.target.value)}
-            placeholder="ค้นหาชื่อครู, รหัส หรือกลุ่มสาระ..."
-            className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white"
-          />
-        </div>
+        )}
       </div>
 
       {/* SECTION 2: CHARTS & VISUAL GRAPHS (ทำเป็นกราฟด้วย) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* GRAPH 1: Departmental Comparison Bar Chart (2 columns on large screens) */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 pb-4 gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
                 <BarChart3 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                  กราฟเปรียบเทียบอัตราการส่งงาน 8 กลุ่มสาระการเรียนรู้
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span>กราฟเปรียบเทียบอัตราการส่งงาน {isAllAreas ? '8 กลุ่มสาระการเรียนรู้' : `${areaStats.length} กลุ่มสาระที่เลือกเปรียบเทียบ`}</span>
                 </h3>
-                <p className="text-xs text-slate-500">
-                  แสดงสัดส่วนส่งตรงเวลา (สีเขียว), ส่งล่าช้า (สีส้ม) และยังไม่ส่ง (สีเทา)
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {graph1ViewMode === 'by_doctype' ? (
+                    <span>
+                      แสดงแท่งเปรียบเทียบแยกตามประเภทเอกสาร ({activeTypesForBars.length} ประเภท) — <span className="font-semibold text-indigo-700">คนละประเภทคนละสีคนละแท่ง</span>
+                    </span>
+                  ) : (
+                    <span>แสดงสัดส่วนส่งตรงเวลา (สีเขียว), ส่งล่าช้า (สีส้ม) และยังไม่ส่ง (สีเทา)</span>
+                  )}
+                  {!isAllDocTypes && (
+                    <span className="font-semibold text-indigo-700 ml-1">
+                      (กรองเฉพาะ {selectedDocTypes.length} ประเภทเอกสาร)
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg">
-              8 กลุ่มสาระ
-            </span>
+
+            {/* Controls: View Mode Toggle & Scope Badge */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Toggle: แยกประเภทเอกสาร (คนละสีคนละแท่ง) VS สรุปตรงเวลา/ล่าช้า */}
+              <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-bold border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => setGraph1ViewMode('by_doctype')}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                    graph1ViewMode === 'by_doctype'
+                      ? 'bg-white text-indigo-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="แสดงคนละประเภทเอกสารเป็นคนละสีคนละแท่ง"
+                >
+                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>แยกแท่งตามประเภทเอกสาร</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGraph1ViewMode('by_timeliness')}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                    graph1ViewMode === 'by_timeliness'
+                      ? 'bg-white text-indigo-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="สรุปภาพรวมสัดส่วนส่งตรงเวลาและล่าช้า"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 text-slate-500" />
+                  <span>ภาพรวมตรงเวลา/ล่าช้า</span>
+                </button>
+              </div>
+
+              {/* AI Infographic Prompt Copy Button (1-Click Instant Copy) */}
+              <button
+                type="button"
+                onClick={handleInstantCopyPrompt}
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-600 hover:to-yellow-500 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer border border-amber-300 shrink-0"
+                title="คลิกเดียวคัดลอก Prompt สถิติจริงอัตลักษณ์ รร.วิทยาศาสตร์จุฬาภรณ์ฯ เพื่อนำไปวางให้ AI เจนภาพอินโฟกราฟิกได้ทันที"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-slate-950 fill-slate-950 shrink-0" />
+                <span>สร้าง Prompt ทำอินโฟกราฟิก (AI)</span>
+              </button>
+
+              {/* Inspect & Customize Prompt Button */}
+              <button
+                type="button"
+                onClick={() => setIsInfographicModalOpen(true)}
+                className="p-1.5 bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200 rounded-xl transition-colors cursor-pointer shrink-0"
+                title="เปิดดูและปรับแต่ง Prompt ละเอียด (ภาษาไทย/อังกฤษ)"
+              >
+                <Eye className="w-4 h-4 text-slate-700" />
+              </button>
+
+              <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg">
+                {isAllAreas ? '8 กลุ่มสาระ' : `เปรียบเทียบ ${areaStats.length} สาระ`}
+              </span>
+              {!isAllAreas && (
+                <button
+                  type="button"
+                  onClick={selectAllAreas}
+                  className="text-[11px] text-slate-500 hover:text-indigo-600 font-semibold underline cursor-pointer"
+                >
+                  แสดงครบ 8 สาระ
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Bar Chart Container */}
-          <div className="space-y-4 pt-1">
-            {areaStats.map((stat) => {
-              const onTimeWidth = stat.totalTeachers > 0
-                ? Math.round((stat.onTimeTeachersCount / stat.totalTeachers) * 100)
-                : 0;
-              const lateWidth = stat.totalTeachers > 0
-                ? Math.round((stat.lateTeachersCount / stat.totalTeachers) * 100)
-                : 0;
-              const pendingWidth = Math.max(0, 100 - onTimeWidth - lateWidth);
+          {graph1ViewMode === 'by_doctype' ? (
+            /* VIEW 1: SEPARATE BARS & DISTINCT COLORS FOR EACH DOC TYPE (คนละประเภทเอกสารคนละสีคนละแท่ง) */
+            <div className="space-y-4 pt-1">
+              {areaStats.map((stat) => {
+                const deptTeachers = teachingStaff.filter((t) => t.Learning_Area === stat.name);
+                const totalStaffInDept = deptTeachers.length;
 
-              return (
-                <div key={stat.name} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-800 flex items-center gap-1.5 truncate max-w-[240px]">
-                      {stat.isCompleted && (
-                        <span className="text-amber-500 text-[11px]" title="ส่งครบ 100%">🏆</span>
-                      )}
-                      <span>{stat.name}</span>
-                    </span>
-                    <div className="flex items-center gap-3 text-[11px]">
-                      <span className="text-slate-500">ครู {stat.totalTeachers} คน</span>
-                      <span className="font-bold text-indigo-600 font-mono">
-                        {stat.submissionRate}% ({stat.submittedTeachers}/{stat.totalTeachers})
-                      </span>
+                return (
+                  <div
+                    key={stat.name}
+                    className="p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 bg-slate-50/50 hover:bg-slate-50 transition-all space-y-3 shadow-2xs"
+                  >
+                    {/* Department Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-slate-200/70 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        {stat.isCompleted && (
+                          <span className="text-amber-500 text-sm" title="ส่งครบทุกรายการ">🏆</span>
+                        )}
+                        <span className="text-slate-900 font-bold text-sm">{stat.name}</span>
+                        <span className="text-[11px] font-semibold text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full font-mono">
+                          ครู {totalStaffInDept} ท่าน
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-2">
+                        <span className="text-slate-500">ส่งแล้วอย่างน้อย 1 รายการ:</span>
+                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg">
+                          {stat.submittedTeachers}/{totalStaffInDept} ท่าน ({stat.submissionRate}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Distinct Bar for Each Document Type */}
+                    <div className="space-y-2.5 pt-0.5">
+                      {activeTypesForBars.map((dt) => {
+                        const colorCfg = getDocTypeColorConfig(dt, allRealDocTypes);
+
+                        const submittedCount = deptTeachers.filter((t) =>
+                          plans.some((p) => {
+                            if (p.teacher_id !== t.Teacher_ID) return false;
+                            const pType = (p.plan_type || '').trim();
+                            if (pType === dt) return true;
+                            if (dt === 'แผนการจัดการเรียนรู้' && (pType.includes('แผนการจัดการเรียนรู้') || !pType)) return true;
+                            return false;
+                          })
+                        ).length;
+
+                        const docPlans = plans.filter((p) => {
+                          const isDeptTeacher = deptTeachers.some((t) => t.Teacher_ID === p.teacher_id);
+                          if (!isDeptTeacher) return false;
+                          const pType = (p.plan_type || '').trim();
+                          if (pType === dt) return true;
+                          if (dt === 'แผนการจัดการเรียนรู้' && (pType.includes('แผนการจัดการเรียนรู้') || !pType)) return true;
+                          return false;
+                        });
+
+                        const lateCount = docPlans.filter((p) => p.is_late).length;
+                        const rate = totalStaffInDept > 0 ? Math.round((submittedCount / totalStaffInDept) * 100) : 0;
+
+                        return (
+                          <div key={`${stat.name}-${dt}`} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2 truncate max-w-[260px] sm:max-w-[340px]">
+                                <span className={`w-2.5 h-2.5 rounded-full ${colorCfg.dot} shrink-0 shadow-2xs`} />
+                                <span className="font-bold text-slate-800 truncate">{dt}</span>
+                              </div>
+                              <div className="flex items-center gap-2.5 shrink-0 text-[11px]">
+                                {lateCount > 0 && (
+                                  <span className="text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.2 rounded font-medium text-[10px]">
+                                    ส่งช้า {lateCount}
+                                  </span>
+                                )}
+                                <span className="text-slate-500 font-mono">
+                                  {submittedCount}/{totalStaffInDept} ท่าน
+                                </span>
+                                <span className={`font-mono font-black ${colorCfg.text} min-w-[36px] text-right`}>
+                                  {rate}%
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Distinct Colored Bar */}
+                            <div className="w-full bg-slate-200/90 rounded-lg h-3 overflow-hidden flex shadow-2xs">
+                              {rate > 0 && (
+                                <div
+                                  className={`bg-gradient-to-r ${colorCfg.barGradient} h-3 rounded-lg transition-all duration-500 flex items-center justify-end pr-1 text-[9px] font-bold text-white`}
+                                  style={{ width: `${rate}%` }}
+                                  title={`${stat.name} - ${dt}: ส่งแล้ว ${rate}% (${submittedCount}/${totalStaffInDept} ท่าน)`}
+                                >
+                                  {rate >= 20 ? `${rate}%` : ''}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
+                );
+              })}
 
-                  {/* Stacked Bar with tooltips */}
-                  <div className="w-full bg-slate-100 rounded-lg h-5 overflow-hidden flex shadow-2xs">
-                    {onTimeWidth > 0 && (
-                      <div
-                        className="bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center text-[10px] font-bold text-white px-1"
-                        style={{ width: `${onTimeWidth}%` }}
-                        title={`ตรงเวลา ${onTimeWidth}% (${stat.onTimeTeachersCount} ท่าน)`}
-                      >
-                        {onTimeWidth >= 15 ? `${onTimeWidth}%` : ''}
-                      </div>
-                    )}
-                    {lateWidth > 0 && (
-                      <div
-                        className="bg-amber-500 hover:bg-amber-600 transition-all flex items-center justify-center text-[10px] font-bold text-white px-1"
-                        style={{ width: `${lateWidth}%` }}
-                        title={`ส่งช้า ${lateWidth}% (${stat.lateTeachersCount} ท่าน)`}
-                      >
-                        {lateWidth >= 12 ? `ช้า` : ''}
-                      </div>
-                    )}
-                    {pendingWidth > 0 && (
-                      <div
-                        className="bg-slate-200/90 transition-all flex items-center justify-center text-[10px] font-medium text-slate-500 px-1"
-                        style={{ width: `${pendingWidth}%` }}
-                        title={`ยังไม่ส่ง ${pendingWidth}% (${stat.pendingTeachers} ท่าน)`}
-                      >
-                        {pendingWidth >= 15 ? `${pendingWidth}%` : ''}
-                      </div>
-                    )}
-                  </div>
+              {/* Color Legend for Document Types */}
+              <div className="pt-4 border-t border-slate-100 space-y-2">
+                <div className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>สัญลักษณ์สีแยกตามประเภทเอกสาร ({activeTypesForBars.length} ประเภท — คนละสีคนละแท่ง):</span>
                 </div>
-              );
-            })}
-          </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {activeTypesForBars.map((dt) => {
+                    const color = getDocTypeColorConfig(dt, allRealDocTypes);
+                    return (
+                      <div
+                        key={`legend-doctype-${dt}`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl ${color.lightBg} border ${color.border} shadow-2xs`}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${color.dot}`} />
+                        <span className={`font-bold ${color.text}`}>{dt}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* VIEW 2: STACKED TIMELINESS OVERVIEW (ตรงเวลา / ล่าช้า / ยังไม่ส่ง) */
+            <div className="space-y-4 pt-1">
+              {areaStats.map((stat) => {
+                const onTimeWidth = stat.totalTeachers > 0
+                  ? Math.round((stat.onTimeTeachersCount / stat.totalTeachers) * 100)
+                  : 0;
+                const lateWidth = stat.totalTeachers > 0
+                  ? Math.round((stat.lateTeachersCount / stat.totalTeachers) * 100)
+                  : 0;
+                const pendingWidth = Math.max(0, 100 - onTimeWidth - lateWidth);
 
-          {/* Legend */}
-          <div className="flex flex-wrap items-center justify-center gap-5 pt-3 border-t border-slate-100 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded bg-emerald-500"></span>
-              <span className="text-slate-600 font-medium">ส่งตรงเวลา (On-Time)</span>
+                return (
+                  <div key={stat.name} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5 truncate max-w-[240px]">
+                        {stat.isCompleted && (
+                          <span className="text-amber-500 text-[11px]" title="ส่งครบ 100%">🏆</span>
+                        )}
+                        <span>{stat.name}</span>
+                      </span>
+                      <div className="flex items-center gap-3 text-[11px]">
+                        <span className="text-slate-500">ครู {stat.totalTeachers} คน</span>
+                        <span className="font-bold text-indigo-600 font-mono">
+                          {stat.submissionRate}% ({stat.submittedTeachers}/{stat.totalTeachers})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Stacked Bar with tooltips */}
+                    <div className="w-full bg-slate-100 rounded-lg h-5 overflow-hidden flex shadow-2xs">
+                      {onTimeWidth > 0 && (
+                        <div
+                          className="bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center text-[10px] font-bold text-white px-1"
+                          style={{ width: `${onTimeWidth}%` }}
+                          title={`ตรงเวลา ${onTimeWidth}% (${stat.onTimeTeachersCount} ท่าน)`}
+                        >
+                          {onTimeWidth >= 15 ? `${onTimeWidth}%` : ''}
+                        </div>
+                      )}
+                      {lateWidth > 0 && (
+                        <div
+                          className="bg-amber-500 hover:bg-amber-600 transition-all flex items-center justify-center text-[10px] font-bold text-white px-1"
+                          style={{ width: `${lateWidth}%` }}
+                          title={`ส่งช้า ${lateWidth}% (${stat.lateTeachersCount} ท่าน)`}
+                        >
+                          {lateWidth >= 12 ? `ช้า` : ''}
+                        </div>
+                      )}
+                      {pendingWidth > 0 && (
+                        <div
+                          className="bg-slate-200/90 transition-all flex items-center justify-center text-[10px] font-medium text-slate-500 px-1"
+                          style={{ width: `${pendingWidth}%` }}
+                          title={`ยังไม่ส่ง ${pendingWidth}% (${stat.pendingTeachers} ท่าน)`}
+                        >
+                          {pendingWidth >= 15 ? `${pendingWidth}%` : ''}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Legend */}
+              <div className="flex flex-wrap items-center justify-center gap-5 pt-3 border-t border-slate-100 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded bg-emerald-500"></span>
+                  <span className="text-slate-600 font-medium">ส่งตรงเวลา (On-Time)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded bg-amber-500"></span>
+                  <span className="text-slate-600 font-medium">ส่งล่าช้า (Late Submission)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded bg-slate-200"></span>
+                  <span className="text-slate-600 font-medium">ยังไม่ส่ง (Pending)</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded bg-amber-500"></span>
-              <span className="text-slate-600 font-medium">ส่งล่าช้า (Late Submission)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded bg-slate-200"></span>
-              <span className="text-slate-600 font-medium">ยังไม่ส่ง (Pending)</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* GRAPH 2: Donut Chart - Punctuality & Timeliness Proportion */}
@@ -1084,25 +1771,29 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 const count = plans.filter((p) => p.plan_type === type).length;
                 const typeLate = plans.filter((p) => p.plan_type === type && p.is_late).length;
                 const pct = plans.length > 0 ? Math.round((count / plans.length) * 100) : 0;
+                const colorCfg = getDocTypeColorConfig(type, allRealDocTypes);
 
                 return (
                   <div key={type} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-700 truncate max-w-[200px]">{type}</span>
+                      <span className="font-bold text-slate-700 truncate max-w-[200px] flex items-center gap-1.5">
+                        <span className={`w-2.5 h-2.5 rounded-full ${colorCfg.dot} shrink-0`} />
+                        <span className="truncate">{type}</span>
+                      </span>
                       <div className="flex items-center gap-2">
                         {typeLate > 0 && (
                           <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-semibold">
                             ช้า {typeLate}
                           </span>
                         )}
-                        <span className="font-mono font-bold text-indigo-600">
+                        <span className={`font-mono font-bold ${colorCfg.text}`}>
                           {count} ฉบับ ({pct}%)
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-lg h-2.5 overflow-hidden">
+                    <div className="w-full bg-slate-100 rounded-lg h-2.5 overflow-hidden shadow-2xs">
                       <div
-                        className="bg-gradient-to-r from-indigo-500 to-blue-500 h-2.5 rounded-lg transition-all"
+                        className={`bg-gradient-to-r ${colorCfg.barGradient} h-2.5 rounded-lg transition-all duration-500`}
                         style={{ width: `${pct}%` }}
                       ></div>
                     </div>
@@ -1151,37 +1842,39 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {areaStats.map((stat, idx) => (
-                <tr
-                  key={stat.name}
-                  onClick={() => setSelectedArea(selectedArea === stat.name ? 'ทั้งหมด' : stat.name)}
-                  className={`hover:bg-indigo-50/50 transition-colors cursor-pointer ${
-                    selectedArea === stat.name ? 'bg-indigo-50/80 font-semibold' : ''
-                  }`}
-                >
-                  <td className="py-3 px-4 text-center font-mono">
-                    <span
-                      className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold ${
-                        idx === 0
-                          ? 'bg-amber-100 text-amber-800'
-                          : idx === 1
-                          ? 'bg-slate-200 text-slate-800'
-                          : idx === 2
-                          ? 'bg-orange-100 text-orange-800'
-                          : 'text-slate-500'
-                      }`}
-                    >
-                      {idx + 1}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-bold text-slate-800 flex items-center gap-2">
-                    <span>{stat.name}</span>
-                    {selectedArea === stat.name && (
-                      <span className="text-[10px] text-indigo-600 bg-indigo-100 px-1.5 py-0.2 rounded font-normal">
-                        เลือกอยู่
+              {areaStats.map((stat, idx) => {
+                const isSelected = !isAllAreas && selectedAreas.includes(stat.name);
+                return (
+                  <tr
+                    key={stat.name}
+                    onClick={() => toggleArea(stat.name)}
+                    className={`hover:bg-indigo-50/50 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-indigo-50/90 font-semibold ring-1 ring-indigo-200' : ''
+                    }`}
+                  >
+                    <td className="py-3 px-4 text-center font-mono">
+                      <span
+                        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold ${
+                          idx === 0
+                            ? 'bg-amber-100 text-amber-800'
+                            : idx === 1
+                            ? 'bg-slate-200 text-slate-800'
+                            : idx === 2
+                            ? 'bg-orange-100 text-orange-800'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        {idx + 1}
                       </span>
-                    )}
-                  </td>
+                    </td>
+                    <td className="py-3 px-4 font-bold text-slate-800 flex items-center gap-2">
+                      <span>{stat.name}</span>
+                      {isSelected && (
+                        <span className="text-[10px] text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded font-bold">
+                          เลือกเปรียบเทียบ
+                        </span>
+                      )}
+                    </td>
                   <td className="py-3 px-4 text-center font-mono text-slate-600">
                     {stat.totalTeachers} ท่าน
                   </td>
@@ -1234,7 +1927,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     )}
                   </td>
                 </tr>
-              ))}
+              );
+            })}
             </tbody>
           </table>
         </div>
@@ -1408,7 +2102,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   <th className="py-3 px-4 min-w-[200px]">ครูผู้สอน</th>
                   <th className="py-3 px-4 min-w-[150px]">กลุ่มสาระ</th>
                   <th className="py-3 px-4 min-w-[130px] text-center">สถานะการส่ง</th>
-                  <th className="py-3 px-4 min-w-[260px]">เอกสารที่ส่ง ({docTypes.length > 1 ? selectedDocType : 'ทั้งหมด'})</th>
+                  <th className="py-3 px-4 min-w-[260px]">
+                    เอกสารที่ส่ง ({isAllDocTypes ? 'ทุกประเภท' : selectedDocTypes.length === 1 ? selectedDocTypes[0] : `${selectedDocTypes.length} ประเภท`})
+                  </th>
                   <th className="py-3 px-3 min-w-[90px] text-center">คะแนนเฉลี่ย</th>
                   <th className="py-3 px-4 min-w-[120px] text-right">การจัดการ</th>
                 </tr>
@@ -2029,9 +2725,33 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         plans={plans}
         deadlineConfigs={deadlineConfigs}
         currentTeacher={currentTeacher}
-        initialArea={selectedArea}
+        initialArea={selectedAreas.length === 1 ? selectedAreas[0] : 'ทั้งหมด'}
         initialStatus={selectedStatus}
       />
+
+      {/* MODAL: AI Infographic Prompt Generator */}
+      <InfographicPromptModal
+        isOpen={isInfographicModalOpen}
+        onClose={() => setIsInfographicModalOpen(false)}
+        payload={promptPayload}
+      />
+
+      {/* FLOATING TOAST: Instant Copy Feedback */}
+      {copyToastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-bottom-2 text-xs font-bold">
+          <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Check className="w-3.5 h-3.5 stroke-[3]" />
+          </div>
+          <span>{copyToastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setIsInfographicModalOpen(true)}
+            className="ml-2 px-2 py-1 bg-white/10 hover:bg-white/20 text-indigo-300 hover:text-white rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+          >
+            ดูข้อความ
+          </button>
+        </div>
+      )}
     </div>
   );
 };
