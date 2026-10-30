@@ -38,6 +38,7 @@ import {
   Check,
   Eye,
   Copy,
+  MoreHorizontal,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
@@ -206,9 +207,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const [isInfographicModalOpen, setIsInfographicModalOpen] = useState(false);
   const [copyToastMessage, setCopyToastMessage] = useState<string | null>(null);
 
-  // Popover state for multi-select dropdowns
+  // Popover state for multi-select dropdowns & secondary actions
   const [isDocTypeDropdownOpen, setIsDocTypeDropdownOpen] = useState<boolean>(false);
   const [isAreaDropdownOpen, setIsAreaDropdownOpen] = useState<boolean>(false);
+  const [isSecondaryMenuOpen, setIsSecondaryMenuOpen] = useState<boolean>(false);
 
   // Graph 1 View Mode: 'by_doctype' (คนละประเภทเอกสารคนละสีคนละแท่ง) vs 'by_timeliness' (สรุปสัดส่วนตรงเวลา/ล่าช้า)
   const [graph1ViewMode, setGraph1ViewMode] = useState<'by_doctype' | 'by_timeliness'>('by_doctype');
@@ -560,114 +562,206 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
+    <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-300">
       {/* Executive Header Banner */}
-      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-6 sm:p-8 shadow-xl border border-indigo-900/50">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-4 sm:p-5 shadow-lg border border-indigo-900/50">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5 min-w-0">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>ศูนย์บัญชาการข้อมูลผู้บริหาร • Executive Analytics</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
               <span>แดชบอร์ดติดตามและประเมินผลฝ่ายบริหาร</span>
             </h2>
-            <p className="text-indigo-200 text-xs sm:text-sm max-w-2xl leading-relaxed">
-              ภาพรวมการส่งแผนการจัดการเรียนรู้ วิเคราะห์ความตรงต่อเวลา (ตรงเวลา vs ส่งช้า)
-              สรุปรายกลุ่มสาระและรายบุคคล พร้อมเกณฑ์คะแนนคุณภาพโรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+            <p className="text-indigo-200/90 text-xs max-w-xl leading-relaxed">
+              ภาพรวมการส่งเอกสารวิชาการ วิเคราะห์ความตรงต่อเวลา สรุปรายกลุ่มสาระและรายบุคคล
+              โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {/* Grouped Action Buttons with Uniform Heights & Secondary Dropdown */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start lg:self-center">
+            {/* Primary Action 1: Instant AI Infographic Prompt */}
             <button
-              onClick={() => setIsPrintModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95"
+              type="button"
+              onClick={handleInstantCopyPrompt}
+              className="h-8.5 px-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer border border-amber-300 shrink-0"
+              title="คลิกเดียวคัดลอก Prompt สถิติจริงเพื่อนำไปสร้างอินโฟกราฟิกด้วย AI ทันที"
             >
-              <Printer className="w-4 h-4 text-indigo-600" />
-              <span>พิมพ์รายงานผู้บริหาร</span>
+              <Sparkles className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+              <span>✨ คัดลอก Prompt AI</span>
             </button>
 
-            {onOpenDeadlineManager && (
-              <button
-                onClick={onOpenDeadlineManager}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95"
-              >
-                <Calendar className="w-4 h-4" />
-                <span>กำหนดส่ง & สถานะ</span>
-              </button>
-            )}
+            {/* Primary Action 2: Individual Printable Summary */}
+            <button
+              type="button"
+              onClick={() => setIsIndividualPrintModalOpen(true)}
+              className="h-8.5 px-3 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล"
+            >
+              <Printer className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span>พิมพ์สรุปรายบุคคล</span>
+            </button>
 
-            {onOpenDirectoryModal && (
+            {/* Secondary Actions Dropdown */}
+            <div className="relative">
               <button
-                onClick={onOpenDirectoryModal}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs sm:text-sm font-medium border border-white/20 backdrop-blur-sm transition-all"
+                type="button"
+                onClick={() => {
+                  setIsSecondaryMenuOpen(!isSecondaryMenuOpen);
+                  setIsDocTypeDropdownOpen(false);
+                  setIsAreaDropdownOpen(false);
+                }}
+                className={`h-8.5 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
+                  isSecondaryMenuOpen
+                    ? 'bg-white text-slate-900 border-white shadow-xs'
+                    : 'bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm'
+                }`}
+                title="ตัวเลือกและการจัดการเพิ่มเติม"
               >
-                <Users className="w-4 h-4 text-sky-300" />
-                <span>บุคลากร ({totalTeachersCount})</span>
+                <MoreHorizontal className="w-3.5 h-3.5" />
+                <span>ตัวเลือกเพิ่มเติม</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${isSecondaryMenuOpen ? 'rotate-180' : ''}`} />
               </button>
-            )}
+
+              {isSecondaryMenuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-30 p-1.5 text-slate-800 text-xs animate-in fade-in slide-in-from-top-1 divide-y divide-slate-100">
+                  <div className="space-y-0.5 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPrintModalOpen(true);
+                        setIsSecondaryMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-slate-900"
+                    >
+                      <Printer className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <div>
+                        <div className="font-bold text-xs text-slate-900">พิมพ์รายงานภาพรวมผู้บริหาร</div>
+                        <div className="text-[10px] text-slate-400">แบบฟอร์มทางการ A4 มีลายเซ็น</div>
+                      </div>
+                    </button>
+
+                    {onOpenDeadlineManager && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenDeadlineManager();
+                          setIsSecondaryMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-slate-900"
+                      >
+                        <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
+                        <div>
+                          <div className="font-bold text-xs text-slate-900">กำหนดส่ง & จัดการสถานะ</div>
+                          <div className="text-[10px] text-slate-400">ตั้งค่าเดดไลน์แต่ละประเภทเอกสาร</div>
+                        </div>
+                      </button>
+                    )}
+
+                    {onOpenDirectoryModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenDirectoryModal();
+                          setIsSecondaryMenuOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-slate-900"
+                      >
+                        <Users className="w-4 h-4 text-sky-600 shrink-0" />
+                        <div>
+                          <div className="font-bold text-xs text-slate-900">ทำเนียบบุคลากร ({totalTeachersCount} ท่าน)</div>
+                          <div className="text-[10px] text-slate-400">รายชื่อครูและกลุ่มสาระทั้งหมด</div>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsInfographicModalOpen(true);
+                        setIsSecondaryMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-50/70 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-amber-950"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                      <div>
+                        <div className="font-bold text-xs text-amber-950">ดู/ปรับแต่ง AI Infographic Prompt</div>
+                        <div className="text-[10px] text-amber-700/80">ตรวจทาน Prompt ภาษาไทย & อังกฤษ</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Decorative background glow */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute top-0 right-1/4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
       </div>
 
       {/* Executive View Mode Switcher: Standard Operational vs Ranking Leaderboard vs Data-Driven Organization */}
-      <div className="bg-white rounded-2xl p-2 sm:p-2.5 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+      <div className="bg-white rounded-xl p-1.5 sm:p-2 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-1 p-0.5 bg-slate-100 rounded-lg">
           <button
+            type="button"
             onClick={() => handleModeChange('standard')}
-            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               currentMode === 'standard'
-                ? 'bg-white text-slate-900 shadow-xs'
+                ? 'bg-white text-slate-900 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <BarChart3 className="w-4 h-4 text-indigo-600" />
-            <span>📊 ภาพรวมการดำเนินงาน</span>
+            <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
+            <span>ภาพรวมการดำเนินงาน</span>
           </button>
 
           <button
+            type="button"
             onClick={() => handleModeChange('ranking')}
-            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               currentMode === 'ranking'
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow-xs font-black'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow-2xs font-black'
                 : 'text-amber-800 hover:text-amber-950 hover:bg-amber-100/60'
             }`}
           >
-            <Trophy className="w-4 h-4 text-amber-900" />
-            <span>🏆 ทำเนียบจัดอันดับกลุ่มสาระ</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${currentMode === 'ranking' ? 'bg-slate-950 text-amber-300' : 'bg-amber-200 text-amber-900'}`}>
+            <Trophy className="w-3.5 h-3.5 text-amber-900" />
+            <span>ทำเนียบจัดอันดับกลุ่มสาระ</span>
+            <span className={`text-[9px] px-1.5 py-0.2 rounded font-black ${currentMode === 'ranking' ? 'bg-slate-950 text-amber-300' : 'bg-amber-200 text-amber-900'}`}>
               เร็ว & ตรงเวลา
             </span>
           </button>
 
           <button
+            type="button"
             onClick={() => handleModeChange('ddo')}
-            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               currentMode === 'ddo'
-                ? 'bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-950 text-white shadow-xs'
+                ? 'bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-950 text-white shadow-2xs'
                 : 'text-slate-600 hover:text-indigo-950'
             }`}
           >
-            <BrainCircuit className="w-4 h-4 text-indigo-400" />
-            <span>🧠 วิเคราะห์ Data-Driven Organization</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-black">
+            <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
+            <span>วิเคราะห์ Data-Driven</span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-black">
               DDO
             </span>
           </button>
         </div>
 
-        <div className="text-xs text-slate-500 px-2 flex items-center gap-1.5">
+        <div className="text-[11px] text-slate-500 px-2 flex items-center gap-1.5">
           <span className="font-semibold text-slate-700">มุมมอง:</span>
           <span className="font-bold text-indigo-600">
             {currentMode === 'ddo'
               ? 'การวินิจฉัยจุดติดขัด · เรดาร์ความเสี่ยง · ข้อเสนอแนะเชิงยุทธศาสตร์'
               : currentMode === 'ranking'
-              ? 'จัดอันดับกลุ่มสาระที่ส่งครบ 100% ตรงเวลาทุกคนก่อน · ทำเนียบเหรียญทอง'
+              ? 'จัดอันดับกลุ่มสาระส่งครบ 100% ตรงเวลาก่อน'
               : 'สถิติการส่งงาน · ราย 8 กลุ่มสาระ · รายการครูรายบุคคล'}
           </span>
         </div>
@@ -691,212 +785,203 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         />
       ) : (
         <>
-          {/* Top 4 KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        {/* KPI 1: Submission Rate */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-indigo-300 hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              อัตราการส่งแผนทั้งโรงเรียน
-            </span>
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-              <FileCheck2 className="w-5 h-5" />
+          {/* Top 4 KPI Cards: Compact, Prominent Stats, Micro Labels */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+            {/* KPI 1: Submission Rate */}
+            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-indigo-300 hover:shadow-xs transition-all">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                  อัตราการส่งทั้งโรงเรียน
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                  <FileCheck2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-slate-900">{submissionRate}%</span>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  ({submittedTeachers.length}/{totalTeachersCount} ท่าน)
+                </span>
+              </div>
+              {/* Progress bar */}
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div
+                  className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500"
+                  style={{ width: `${submissionRate}%` }}
+                ></div>
+              </div>
+              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[11px] text-slate-500">
+                <span>ส่งแล้ว {totalPlansCount} ฉบับ</span>
+                <span className="font-semibold text-rose-600 font-mono">
+                  {pendingTeachers.length > 0 ? `ค้าง ${pendingTeachers.length} ท่าน` : 'ครบ 100%'}
+                </span>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500"></div>
             </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900">{submissionRate}%</span>
-            <span className="text-xs text-slate-500 font-medium">
-              ({submittedTeachers.length}/{totalTeachersCount} ท่าน)
-            </span>
-          </div>
-          {/* Progress bar */}
-          <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden">
-            <div
-              className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${submissionRate}%` }}
-            ></div>
-          </div>
-          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
-            <span>ส่งแล้ว {totalPlansCount} ฉบับ</span>
-            <span className="font-semibold text-rose-600">
-              {pendingTeachers.length > 0 ? `ค้างส่ง ${pendingTeachers.length} ท่าน` : 'ครบ 100%'}
-            </span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500"></div>
-        </div>
 
-        {/* KPI 2: Punctuality Breakdown */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-emerald-300 hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              ความตรงต่อเวลา (ตรงเวลา/ช้า)
-            </span>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <Clock className="w-5 h-5" />
+            {/* KPI 2: Punctuality Breakdown */}
+            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-emerald-300 hover:shadow-xs transition-all">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                  ความตรงต่อเวลา
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-emerald-600">{onTimeRate}%</span>
+                <span className="text-[11px] text-slate-400 font-medium">({onTimePlans.length} ฉบับ)</span>
+              </div>
+              {/* Progress bar with ontime and late segments */}
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden flex">
+                <div
+                  className="bg-emerald-500 h-1.5 transition-all duration-500"
+                  style={{ width: `${onTimeRate}%` }}
+                ></div>
+                <div
+                  className="bg-amber-500 h-1.5 transition-all duration-500"
+                  style={{ width: `${lateRate}%` }}
+                ></div>
+              </div>
+              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[11px]">
+                <span className="text-emerald-700 font-semibold font-mono">✓ ตรงเวลา: {onTimePlans.length}</span>
+                <span className="text-amber-700 font-semibold font-mono">⚠️ ช้า: {latePlans.length}</span>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"></div>
             </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-emerald-600">{onTimeRate}%</span>
-            <span className="text-xs text-slate-500 font-medium">ตรงเวลา ({onTimePlans.length} ฉบับ)</span>
-          </div>
-          {/* Progress bar with ontime and late segments */}
-          <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden flex">
-            <div
-              className="bg-emerald-500 h-2 transition-all duration-500"
-              style={{ width: `${onTimeRate}%` }}
-            ></div>
-            <div
-              className="bg-amber-500 h-2 transition-all duration-500"
-              style={{ width: `${lateRate}%` }}
-            ></div>
-          </div>
-          <div className="mt-2.5 flex items-center justify-between text-[11px]">
-            <span className="text-emerald-700 font-semibold">✓ ตรงเวลา: {onTimePlans.length}</span>
-            <span className="text-amber-700 font-semibold">⚠️ ส่งช้า: {latePlans.length}</span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500"></div>
-        </div>
 
-        {/* KPI 3: Average Quality Score */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-amber-300 hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              คะแนนคุณภาพเฉลี่ย (โรงเรียน)
-            </span>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <Award className="w-5 h-5" />
+            {/* KPI 3: Average Quality Score */}
+            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-amber-300 hover:shadow-xs transition-all">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                  คะแนนคุณภาพเฉลี่ย
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+                  <Award className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-slate-900">{avgScore}</span>
+                {avgScore !== '-' && <span className="text-[11px] text-slate-400 font-medium">/ 100</span>}
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 font-semibold">
+                {avgScore === '-' ? (
+                  <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
+                    รอผลประเมินจริง
+                  </span>
+                ) : Number(avgScore) >= 90 ? (
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                    ดีเยี่ยม (90+) ★★★★★
+                  </span>
+                ) : Number(avgScore) >= 80 ? (
+                  <span className="text-[10px] text-blue-700 font-bold bg-blue-100/70 px-2 py-0.5 rounded-md">
+                    ดีมาก (80-89) ★★★★☆
+                  </span>
+                ) : Number(avgScore) >= 70 ? (
+                  <span className="text-[10px] text-amber-700 font-bold bg-amber-100/70 px-2 py-0.5 rounded-md">
+                    ดี (70-79) ★★★☆☆
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-rose-700 font-bold bg-rose-100/70 px-2 py-0.5 rounded-md">
+                    ปรับปรุง (&lt;70)
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[11px] text-slate-400 truncate">
+                <span>ประเมินแล้ว:</span>
+                <span className="font-mono font-bold text-slate-600">{plansWithScore.length} ฉบับ</span>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500"></div>
             </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900">{avgScore}</span>
-            {avgScore !== '-' && <span className="text-xs text-slate-500 font-medium">/ 100 คะแนน</span>}
-          </div>
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-600 font-semibold">
-            {avgScore === '-' ? (
-              <span className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full">
-                ยังไม่มีข้อมูลคะแนนประเมินจริง
-              </span>
-            ) : Number(avgScore) >= 90 ? (
-              <>
-                <span>★★★★★</span>
-                <span className="text-[11px] text-emerald-700 font-medium bg-emerald-100/70 px-2 py-0.5 rounded-full">
-                  ระดับคุณภาพดีเยี่ยม (90+)
-                </span>
-              </>
-            ) : Number(avgScore) >= 80 ? (
-              <>
-                <span>★★★★☆</span>
-                <span className="text-[11px] text-blue-700 font-medium bg-blue-100/70 px-2 py-0.5 rounded-full">
-                  ระดับคุณภาพดีมาก (80-89)
-                </span>
-              </>
-            ) : Number(avgScore) >= 70 ? (
-              <>
-                <span>★★★☆☆</span>
-                <span className="text-[11px] text-amber-700 font-medium bg-amber-100/70 px-2 py-0.5 rounded-full">
-                  ระดับคุณภาพดี (70-79)
-                </span>
-              </>
-            ) : (
-              <>
-                <span>★★☆☆☆</span>
-                <span className="text-[11px] text-rose-700 font-medium bg-rose-100/70 px-2 py-0.5 rounded-full">
-                  ควรปรับปรุง (&lt;70)
-                </span>
-              </>
-            )}
-          </div>
-          <div className="mt-2 text-[11px] text-slate-400 truncate">
-            {plansWithScore.length > 0
-              ? `คำนวณจากแผนที่ประเมินแล้ว ${plansWithScore.length} ฉบับ`
-              : 'รอฝ่ายวิชาการบันทึกผลการตรวจ'}
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500"></div>
-        </div>
 
-        {/* KPI 4: Department Completion */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-sky-300 hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              กลุ่มสาระที่ส่งครบ 100%
-            </span>
-            <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600">
-              <Layers className="w-5 h-5" />
+            {/* KPI 4: Department Completion */}
+            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-sky-300 hover:shadow-xs transition-all">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                  กลุ่มสาระส่งครบ 100%
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center text-sky-600 shrink-0">
+                  <Layers className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-sky-600">
+                  {areaStats.filter((a) => a.isCompleted).length}
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium">/ {areaStats.length} กลุ่มสาระ</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div
+                  className="bg-sky-500 h-1.5 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.round(
+                      (areaStats.filter((a) => a.isCompleted).length / (areaStats.length || 1)) * 100
+                    )}%`,
+                  }}
+                ></div>
+              </div>
+              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[11px] text-slate-500">
+                <span>กลุ่มสาระดีเด่น</span>
+                <span className="font-semibold text-indigo-600 font-mono">
+                  {areaStats.filter((a) => a.isCompleted).length} กลุ่มสำเร็จ
+                </span>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-500"></div>
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-sky-600">
-              {areaStats.filter((a) => a.isCompleted).length}
-            </span>
-            <span className="text-xs text-slate-500 font-medium">/ {areaStats.length} กลุ่มสาระ</span>
+
+          {/* Quick Leaderboard Announcement Banner: Compact strip */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200/90 rounded-xl p-2.5 sm:p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 shadow-2xs border border-amber-400/20">
+                <Trophy className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                    ทำเนียบจัดอันดับกลุ่มสาระยอดเยี่ยม (Leaderboard)
+                  </h4>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-amber-200 text-amber-950">
+                    ความเร็ว & ตรงเวลา
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                  เช็คกลุ่มสาระที่ส่งเอกสารครบ 100% ตรงเวลาทุกคนก่อนเป็นกลุ่มแรก พร้อมสถิติเวลาจริงและแท่นรางวัล
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleModeChange('ranking')}
+              className="h-8 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0 self-start sm:self-auto active:scale-95"
+            >
+              <Trophy className="w-3.5 h-3.5 text-slate-950" />
+              <span>เปิดดูอันดับ</span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-950" />
+            </button>
           </div>
-          <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden">
+
+          {/* Backdrop to close popovers on outside click */}
+          {(isDocTypeDropdownOpen || isAreaDropdownOpen || isSecondaryMenuOpen) && (
             <div
-              className="bg-sky-500 h-2 rounded-full transition-all duration-500"
-              style={{
-                width: `${Math.round(
-                  (areaStats.filter((a) => a.isCompleted).length / (areaStats.length || 1)) * 100
-                )}%`,
+              className="fixed inset-0 z-20"
+              onClick={() => {
+                setIsDocTypeDropdownOpen(false);
+                setIsAreaDropdownOpen(false);
+                setIsSecondaryMenuOpen(false);
               }}
-            ></div>
-          </div>
-          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
-            <span>กลุ่มสาระดีเด่น</span>
-            <span className="font-semibold text-indigo-600">
-              {areaStats.filter((a) => a.isCompleted).length} กลุ่มสำเร็จ
-            </span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500"></div>
-        </div>
-      </div>
+            />
+          )}
 
-      {/* Quick Leaderboard Announcement Banner */}
-      <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 shadow-xs border border-amber-400/20">
-            <Trophy className="w-5 h-5 text-amber-400" />
-          </div>
-          <div>
-            <h4 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 flex-wrap">
-              <span>ทำเนียบจัดอันดับกลุ่มสาระยอดเยี่ยม (Leaderboard)</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 font-semibold">
-                ความเร็ว & ตรงเวลา
-              </span>
-            </h4>
-            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-              เช็คว่ากลุ่มสาระไหนส่งเอกสารครบ 100% และตรงเวลาทุกคนก่อนเป็นกลุ่มแรก พร้อมสถิติเวลาที่สำเร็จจริง และแท่นรับรางวัลเกียรติยศ 3 อันดับแรก
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => handleModeChange('ranking')}
-          className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0 self-start sm:self-auto active:scale-95"
-        >
-          <Trophy className="w-4 h-4 text-slate-950" />
-          <span>เปิดดูอันดับกลุ่มสาระ</span>
-          <ChevronRight className="w-4 h-4 text-slate-950" />
-        </button>
-      </div>
-
-      {/* Backdrop to close popovers on outside click */}
-      {(isDocTypeDropdownOpen || isAreaDropdownOpen) && (
-        <div
-          className="fixed inset-0 z-20"
-          onClick={() => {
-            setIsDocTypeDropdownOpen(false);
-            setIsAreaDropdownOpen(false);
-          }}
-        />
-      )}
-
-      {/* Filter Controls Bar with Multi-Select */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-sm space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-              <Filter className="w-4 h-4 text-indigo-600" />
-              <span>ตัวกรองแดชบอร์ด:</span>
+      {/* Filter Controls Bar with Multi-Select: Compact Layout */}
+      <div className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs space-y-2.5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 shrink-0">
+              <Filter className="w-3.5 h-3.5 text-indigo-600" />
+              <span>ตัวกรอง:</span>
             </div>
 
             {/* Doc Type Multi-Select Dropdown Popover */}
@@ -906,31 +991,32 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 onClick={() => {
                   setIsDocTypeDropdownOpen(!isDocTypeDropdownOpen);
                   setIsAreaDropdownOpen(false);
+                  setIsSecondaryMenuOpen(false);
                 }}
-                className={`px-3 py-1.5 text-xs font-bold border rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-2xs ${
+                className={`h-8 px-2.5 text-xs font-bold border rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs ${
                   !isAllDocTypes
                     ? 'border-indigo-400 bg-indigo-50 text-indigo-950 ring-2 ring-indigo-200'
                     : 'border-indigo-200 bg-indigo-50/70 hover:bg-white text-indigo-950'
                 }`}
               >
-                <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                <span>
+                <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span className="truncate max-w-[130px] sm:max-w-none">
                   {isAllDocTypes
-                    ? 'ประเภทเอกสาร: ทั้งหมด'
+                    ? 'เอกสาร: ทั้งหมด'
                     : selectedDocTypes.length === 1
                     ? `ประเภท: ${selectedDocTypes[0]}`
-                    : `ประเภทเอกสาร (${selectedDocTypes.length} ประเภท)`}
+                    : `ประเภท (${selectedDocTypes.length})`}
                 </span>
                 {!isAllDocTypes && (
-                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center">
+                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
                     {selectedDocTypes.length}
                   </span>
                 )}
-                <ChevronDown className={`w-3.5 h-3.5 text-indigo-500 transition-transform ${isDocTypeDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3 h-3 text-indigo-500 transition-transform ${isDocTypeDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isDocTypeDropdownOpen && (
-                <div className="absolute left-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200/90 z-30 p-2.5 animate-in fade-in slide-in-from-top-1">
+                <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 bg-white rounded-xl shadow-xl border border-slate-200/90 z-30 p-2 animate-in fade-in slide-in-from-top-1">
                   <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100">
                     <span className="text-xs font-bold text-slate-800">
                       ประเภทเอกสาร ({isAllDocTypes ? 'ทุกประเภท' : `${selectedDocTypes.length} ที่เลือก`})
@@ -954,11 +1040,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="max-h-64 overflow-y-auto space-y-1 p-1 mt-1">
+                  <div className="max-h-60 overflow-y-auto space-y-0.5 p-1 mt-1">
                     <button
                       type="button"
                       onClick={() => toggleDocType('ทั้งหมด')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                         isAllDocTypes ? 'bg-indigo-50 text-indigo-900' : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
@@ -987,7 +1073,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                           key={dt}
                           type="button"
                           onClick={() => toggleDocType(dt)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer text-left ${
+                          className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
                             isSelected ? 'bg-indigo-50 text-indigo-950 font-bold' : 'text-slate-700 hover:bg-slate-50 font-medium'
                           }`}
                         >
@@ -1015,15 +1101,16 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 onClick={() => {
                   setIsAreaDropdownOpen(!isAreaDropdownOpen);
                   setIsDocTypeDropdownOpen(false);
+                  setIsSecondaryMenuOpen(false);
                 }}
-                className={`px-3 py-1.5 text-xs font-bold border rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-2xs ${
+                className={`h-8 px-2.5 text-xs font-bold border rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs ${
                   !isAllAreas
                     ? 'border-indigo-400 bg-indigo-50 text-indigo-950 ring-2 ring-indigo-200'
                     : 'border-slate-200 bg-slate-50 hover:bg-white text-slate-800'
                 }`}
               >
-                <Users className="w-3.5 h-3.5 text-indigo-600" />
-                <span>
+                <Users className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span className="truncate max-w-[130px] sm:max-w-none">
                   {isAllAreas
                     ? 'กลุ่มสาระ: ทั้งหมด (8 สาระ)'
                     : selectedAreas.length === 1
@@ -1031,15 +1118,15 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     : `กลุ่มสาระ (${selectedAreas.length} สาระ)`}
                 </span>
                 {!isAllAreas && (
-                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center">
+                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
                     {selectedAreas.length}
                   </span>
                 )}
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isAreaDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform ${isAreaDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isAreaDropdownOpen && (
-                <div className="absolute left-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl border border-slate-200/90 shadow-xl z-30 p-2.5 animate-in fade-in slide-in-from-top-1">
+                <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 bg-white rounded-xl border border-slate-200/90 shadow-xl z-30 p-2 animate-in fade-in slide-in-from-top-1">
                   <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100">
                     <span className="text-xs font-bold text-slate-800">
                       กลุ่มสาระการเรียนรู้ ({isAllAreas ? 'ครบ 8 สาระ' : `${selectedAreas.length} ที่เลือก`})
@@ -1063,11 +1150,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="max-h-64 overflow-y-auto space-y-1 p-1 mt-1">
+                  <div className="max-h-60 overflow-y-auto space-y-0.5 p-1 mt-1">
                     <button
                       type="button"
                       onClick={() => toggleArea('ทั้งหมด')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                         isAllAreas ? 'bg-indigo-50 text-indigo-900' : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
@@ -1091,7 +1178,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                           key={area}
                           type="button"
                           onClick={() => toggleArea(area)}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer text-left ${
+                          className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
                             isSelected ? 'bg-indigo-50 text-indigo-950 font-bold' : 'text-slate-700 hover:bg-slate-50 font-medium'
                           }`}
                         >
@@ -1113,35 +1200,39 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
 
             {/* Status Tabs */}
-            <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs">
+            <div className="h-8 inline-flex rounded-lg bg-slate-100 p-0.5 text-xs items-center">
               <button
+                type="button"
                 onClick={() => setSelectedStatus('all')}
-                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                  selectedStatus === 'all' ? 'bg-white shadow-xs text-slate-900 font-bold' : 'text-slate-600 hover:text-slate-900'
+                className={`h-7 px-2.5 rounded-md font-medium transition-colors cursor-pointer ${
+                  selectedStatus === 'all' ? 'bg-white shadow-2xs text-slate-900 font-bold' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 ทั้งหมด ({totalTeachersCount})
               </button>
               <button
+                type="button"
                 onClick={() => setSelectedStatus('ontime')}
-                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                  selectedStatus === 'ontime' ? 'bg-white shadow-xs text-emerald-700 font-bold' : 'text-slate-600 hover:text-emerald-700'
+                className={`h-7 px-2.5 rounded-md font-medium transition-colors cursor-pointer ${
+                  selectedStatus === 'ontime' ? 'bg-white shadow-2xs text-emerald-700 font-bold' : 'text-slate-600 hover:text-emerald-700'
                 }`}
               >
                 ตรงเวลา
               </button>
               <button
+                type="button"
                 onClick={() => setSelectedStatus('late')}
-                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                  selectedStatus === 'late' ? 'bg-white shadow-xs text-amber-700 font-bold' : 'text-slate-600 hover:text-amber-700'
+                className={`h-7 px-2.5 rounded-md font-medium transition-colors cursor-pointer ${
+                  selectedStatus === 'late' ? 'bg-white shadow-2xs text-amber-700 font-bold' : 'text-slate-600 hover:text-amber-700'
                 }`}
               >
                 ส่งล่าช้า
               </button>
               <button
+                type="button"
                 onClick={() => setSelectedStatus('pending')}
-                className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                  selectedStatus === 'pending' ? 'bg-white shadow-xs text-rose-700 font-bold' : 'text-slate-600 hover:text-rose-700'
+                className={`h-7 px-2.5 rounded-md font-medium transition-colors cursor-pointer ${
+                  selectedStatus === 'pending' ? 'bg-white shadow-2xs text-rose-700 font-bold' : 'text-slate-600 hover:text-rose-700'
                 }`}
               >
                 ยังไม่ส่ง ({pendingTeachers.length})
@@ -1150,24 +1241,24 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
 
           {/* Search */}
-          <div className="relative min-w-[220px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <div className="relative min-w-[200px] lg:w-56 shrink-0">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchTeacher}
               onChange={(e) => setSearchTeacher(e.target.value)}
-              placeholder="ค้นหาชื่อครู, รหัส หรือกลุ่มสาระ..."
-              className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white"
+              placeholder="ค้นหาชื่อครู, รหัส, สาระ..."
+              className="w-full h-8 pl-8 pr-2.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white"
             />
           </div>
         </div>
 
         {/* Active Filter Chips Bar */}
         {(!isAllDocTypes || !isAllAreas) && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-[11px]">
             <span className="font-bold text-slate-500 flex items-center gap-1 shrink-0">
               <Filter className="w-3 h-3 text-indigo-600" />
-              <span>หัวข้อที่เลือกเปรียบเทียบ:</span>
+              <span>หัวข้อที่เลือก:</span>
             </span>
 
             {/* Doc Type Chips */}
@@ -1177,17 +1268,17 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 return (
                   <span
                     key={`chip-dt-${dt}`}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 ${colorCfg.lightBg} border ${colorCfg.border} ${colorCfg.text} rounded-lg text-xs font-semibold shadow-2xs`}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 ${colorCfg.lightBg} border ${colorCfg.border} ${colorCfg.text} rounded-md text-[11px] font-semibold shadow-2xs`}
                   >
-                    <span className={`w-2 h-2 rounded-full ${colorCfg.dot}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${colorCfg.dot}`} />
                     <span>{dt}</span>
                     <button
                       type="button"
                       onClick={() => toggleDocType(dt)}
-                      className="hover:text-rose-600 p-0.5 rounded-md hover:bg-white/80 transition-colors cursor-pointer"
+                      className="hover:text-rose-600 p-0.5 rounded hover:bg-white/80 transition-colors cursor-pointer"
                       title={`ยกเลิกการกรอง ${dt}`}
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-2.5 h-2.5" />
                     </button>
                   </span>
                 );
@@ -1198,17 +1289,17 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               selectedAreas.map((area) => (
                 <span
                   key={`chip-area-${area}`}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs font-semibold shadow-2xs"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-md text-[11px] font-semibold shadow-2xs"
                 >
                   <Users className="w-3 h-3 text-blue-600" />
                   <span>{area}</span>
                   <button
                     type="button"
                     onClick={() => toggleArea(area)}
-                    className="hover:text-rose-600 p-0.5 rounded-md hover:bg-blue-100 transition-colors cursor-pointer"
+                    className="hover:text-rose-600 p-0.5 rounded hover:bg-blue-100 transition-colors cursor-pointer"
                     title={`ยกเลิกการกรอง ${area}`}
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-2.5 h-2.5" />
                   </button>
                 </span>
               ))}
@@ -1220,7 +1311,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 selectAllDocTypes();
                 selectAllAreas();
               }}
-              className="text-xs text-rose-600 hover:text-rose-800 font-bold underline px-2 py-1 cursor-pointer transition-colors"
+              className="text-[11px] text-rose-600 hover:text-rose-800 font-bold underline px-1.5 py-0.5 cursor-pointer transition-colors"
             >
               ล้างตัวกรองทั้งหมด
             </button>
@@ -1228,44 +1319,37 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         )}
       </div>
 
-      {/* SECTION 2: CHARTS & VISUAL GRAPHS (ทำเป็นกราฟด้วย) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* SECTION 2: CHARTS & VISUAL GRAPHS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 sm:gap-4">
         {/* GRAPH 1: Departmental Comparison Bar Chart (2 columns on large screens) */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-5">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 pb-4 gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                <BarChart3 className="w-5 h-5" />
+        <div className="lg:col-span-2 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 pb-2.5 gap-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                <BarChart3 className="w-4 h-4" />
               </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-                  <span>กราฟเปรียบเทียบอัตราการส่งงาน {isAllAreas ? '8 กลุ่มสาระการเรียนรู้' : `${areaStats.length} กลุ่มสาระที่เลือกเปรียบเทียบ`}</span>
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                  กราฟเปรียบเทียบอัตราการส่งงาน {isAllAreas ? '8 กลุ่มสาระ' : `${areaStats.length} กลุ่มสาระที่เลือก`}
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-[11px] text-slate-500 truncate mt-0.5">
                   {graph1ViewMode === 'by_doctype' ? (
-                    <span>
-                      แสดงแท่งเปรียบเทียบแยกตามประเภทเอกสาร ({activeTypesForBars.length} ประเภท) — <span className="font-semibold text-indigo-700">คนละประเภทคนละสีคนละแท่ง</span>
-                    </span>
+                    <span>แยกแท่งตามประเภทเอกสาร ({activeTypesForBars.length} ประเภท) — <span className="font-semibold text-indigo-700">คนละประเภทคนละสีคนละแท่ง</span></span>
                   ) : (
-                    <span>แสดงสัดส่วนส่งตรงเวลา (สีเขียว), ส่งล่าช้า (สีส้ม) และยังไม่ส่ง (สีเทา)</span>
-                  )}
-                  {!isAllDocTypes && (
-                    <span className="font-semibold text-indigo-700 ml-1">
-                      (กรองเฉพาะ {selectedDocTypes.length} ประเภทเอกสาร)
-                    </span>
+                    <span>แสดงสัดส่วนส่งตรงเวลา (เขียว), ส่งช้า (ส้ม), ยังไม่ส่ง (เทา)</span>
                   )}
                 </p>
               </div>
             </div>
 
-            {/* Controls: View Mode Toggle & Scope Badge */}
-            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-              {/* Toggle: แยกประเภทเอกสาร (คนละสีคนละแท่ง) VS สรุปตรงเวลา/ล่าช้า */}
-              <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-semibold border border-slate-200/80">
+            {/* Controls: View Mode Toggle & Actions Group */}
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start lg:self-center">
+              {/* Toggle: แยกประเภทเอกสาร VS สรุปตรงเวลา/ล่าช้า */}
+              <div className="h-8 inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold items-center">
                 <button
                   type="button"
                   onClick={() => setGraph1ViewMode('by_doctype')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`h-7 px-2.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
                     graph1ViewMode === 'by_doctype'
                       ? 'bg-white text-indigo-900 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -1273,12 +1357,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   title="แสดงคนละประเภทเอกสารเป็นคนละสีคนละแท่ง"
                 >
                   <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>แยกแท่งตามประเภทเอกสาร</span>
+                  <span>แยกประเภท</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setGraph1ViewMode('by_timeliness')}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`h-7 px-2.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
                     graph1ViewMode === 'by_timeliness'
                       ? 'bg-white text-indigo-900 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -1286,50 +1370,41 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   title="สรุปภาพรวมสัดส่วนส่งตรงเวลาและล่าช้า"
                 >
                   <TrendingUp className="w-3.5 h-3.5 text-slate-500" />
-                  <span>ภาพรวมตรงเวลา/ล่าช้า</span>
+                  <span>ตรงเวลา/ช้า</span>
                 </button>
               </div>
 
-              {/* AI Infographic Prompt Copy Button (1-Click Instant Copy) */}
+              {/* AI Infographic Prompt Copy Button */}
               <button
                 type="button"
                 onClick={handleInstantCopyPrompt}
-                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-2 shadow-xs active:scale-95 transition-all cursor-pointer border border-amber-400 shrink-0"
-                title="คลิกเดียวคัดลอก Prompt สถิติจริงอัตลักษณ์ รร.วิทยาศาสตร์จุฬาภรณ์ฯ เพื่อนำไปวางให้ AI เจนภาพอินโฟกราฟิกได้ทันที"
+                className="h-8 px-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer border border-amber-400 shrink-0"
+                title="คลิกเดียวคัดลอก Prompt สถิติจริงเพื่อนำไปสร้างอินโฟกราฟิกด้วย AI ทันที"
               >
                 <Sparkles className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-                <span>สร้าง Prompt ทำอินโฟกราฟิก (AI)</span>
+                <span>AI Prompt</span>
               </button>
 
               {/* Inspect & Customize Prompt Button */}
               <button
                 type="button"
                 onClick={() => setIsInfographicModalOpen(true)}
-                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition-colors cursor-pointer shrink-0"
+                className="h-8 w-8 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80 rounded-lg flex items-center justify-center transition-colors cursor-pointer shrink-0"
                 title="เปิดดูและปรับแต่ง Prompt ละเอียด (ภาษาไทย/อังกฤษ)"
               >
-                <Eye className="w-4 h-4 text-slate-700" />
+                <Eye className="w-3.5 h-3.5 text-slate-700" />
               </button>
 
-              <span className="text-xs font-medium px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl border border-slate-200/80">
-                {isAllAreas ? '8 กลุ่มสาระ' : `เปรียบเทียบ ${areaStats.length} สาระ`}
+              <span className="h-8 px-2 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-semibold flex items-center shrink-0">
+                {isAllAreas ? '8 กลุ่มสาระ' : `${areaStats.length} สาระ`}
               </span>
-              {!isAllAreas && (
-                <button
-                  type="button"
-                  onClick={selectAllAreas}
-                  className="text-xs text-slate-500 hover:text-indigo-600 font-semibold underline cursor-pointer"
-                >
-                  แสดงครบ 8 สาระ
-                </button>
-              )}
             </div>
           </div>
 
           {/* Bar Chart Container */}
           {graph1ViewMode === 'by_doctype' ? (
-            /* VIEW 1: SEPARATE BARS & DISTINCT COLORS FOR EACH DOC TYPE (คนละประเภทเอกสารคนละสีคนละแท่ง) */
-            <div className="space-y-4 pt-1">
+            /* VIEW 1: SEPARATE BARS & DISTINCT COLORS FOR EACH DOC TYPE */
+            <div className="space-y-2.5 pt-0.5">
               {areaStats.map((stat) => {
                 const deptTeachers = teachingStaff.filter((t) => t.Learning_Area === stat.name);
                 const totalStaffInDept = deptTeachers.length;
@@ -1337,29 +1412,29 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 return (
                   <div
                     key={stat.name}
-                    className="p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 bg-slate-50/50 hover:bg-slate-50 transition-all space-y-3 shadow-2xs"
+                    className="p-2.5 sm:p-3 rounded-xl border border-slate-200/90 bg-slate-50/50 hover:bg-slate-50 transition-all space-y-2 shadow-2xs"
                   >
                     {/* Department Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-slate-200/70 pb-2.5">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-slate-200/70 pb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
                         {stat.isCompleted && (
-                          <span className="text-amber-500 text-sm" title="ส่งครบทุกรายการ">🏆</span>
+                          <span className="text-amber-500 text-xs" title="ส่งครบทุกรายการ">🏆</span>
                         )}
-                        <span className="text-slate-900 font-bold text-sm">{stat.name}</span>
-                        <span className="text-[11px] font-semibold text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full font-mono">
+                        <span className="text-slate-900 font-bold text-xs truncate">{stat.name}</span>
+                        <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.2 rounded-md font-mono shrink-0">
                           ครู {totalStaffInDept} ท่าน
                         </span>
                       </div>
-                      <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-2">
-                        <span className="text-slate-500">ส่งแล้วอย่างน้อย 1 รายการ:</span>
-                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg">
+                      <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-1.5 shrink-0">
+                        <span className="text-slate-500">ส่งแล้ว:</span>
+                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded-md">
                           {stat.submittedTeachers}/{totalStaffInDept} ท่าน ({stat.submissionRate}%)
                         </span>
                       </div>
                     </div>
 
                     {/* Distinct Bar for Each Document Type */}
-                    <div className="space-y-2.5 pt-0.5">
+                    <div className="space-y-1.5 pt-0.5">
                       {activeTypesForBars.map((dt) => {
                         const colorCfg = getDocTypeColorConfig(dt, allRealDocTypes);
 
@@ -1386,37 +1461,35 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         const rate = totalStaffInDept > 0 ? Math.round((submittedCount / totalStaffInDept) * 100) : 0;
 
                         return (
-                          <div key={`${stat.name}-${dt}`} className="space-y-1">
+                          <div key={`${stat.name}-${dt}`} className="space-y-0.5">
                             <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2 truncate max-w-[260px] sm:max-w-[340px]">
-                                <span className={`w-2.5 h-2.5 rounded-full ${colorCfg.dot} shrink-0 shadow-2xs`} />
-                                <span className="font-bold text-slate-800 truncate">{dt}</span>
+                              <div className="flex items-center gap-1.5 truncate max-w-[240px] sm:max-w-[320px]">
+                                <span className={`w-2 h-2 rounded-full ${colorCfg.dot} shrink-0`} />
+                                <span className="font-semibold text-slate-800 text-[11px] truncate">{dt}</span>
                               </div>
-                              <div className="flex items-center gap-2.5 shrink-0 text-[11px]">
+                              <div className="flex items-center gap-2 shrink-0 text-[11px]">
                                 {lateCount > 0 && (
-                                  <span className="text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.2 rounded font-medium text-[10px]">
-                                    ส่งช้า {lateCount}
+                                  <span className="text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded font-medium text-[9px]">
+                                    ช้า {lateCount}
                                   </span>
                                 )}
-                                <span className="text-slate-500 font-mono">
-                                  {submittedCount}/{totalStaffInDept} ท่าน
+                                <span className="text-slate-400 font-mono text-[10px]">
+                                  {submittedCount}/{totalStaffInDept}
                                 </span>
-                                <span className={`font-mono font-black ${colorCfg.text} min-w-[36px] text-right`}>
+                                <span className={`font-mono font-bold ${colorCfg.text} min-w-[32px] text-right text-xs`}>
                                   {rate}%
                                 </span>
                               </div>
                             </div>
 
                             {/* Distinct Colored Bar */}
-                            <div className="w-full bg-slate-200/90 rounded-lg h-3 overflow-hidden flex shadow-2xs">
+                            <div className="w-full bg-slate-200/80 rounded-md h-2.5 overflow-hidden flex shadow-2xs">
                               {rate > 0 && (
                                 <div
-                                  className={`bg-gradient-to-r ${colorCfg.barGradient} h-3 rounded-lg transition-all duration-500 flex items-center justify-end pr-1 text-[9px] font-bold text-white`}
+                                  className={`bg-gradient-to-r ${colorCfg.barGradient} h-2.5 rounded-md transition-all duration-500`}
                                   style={{ width: `${rate}%` }}
-                                  title={`${stat.name} - ${dt}: ส่งแล้ว ${rate}% (${submittedCount}/${totalStaffInDept} ท่าน)`}
-                                >
-                                  {rate >= 20 ? `${rate}%` : ''}
-                                </div>
+                                  title={`${stat.name} - ${dt}: ${rate}% (${submittedCount}/${totalStaffInDept} ท่าน)`}
+                                ></div>
                               )}
                             </div>
                           </div>
@@ -1428,21 +1501,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               })}
 
               {/* Color Legend for Document Types */}
-              <div className="pt-4 border-t border-slate-100 space-y-2">
-                <div className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>สัญลักษณ์สีแยกตามประเภทเอกสาร ({activeTypesForBars.length} ประเภท — คนละสีคนละแท่ง):</span>
+              <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1 uppercase tracking-wider">
+                  <Layers className="w-3 h-3 text-indigo-600" />
+                  <span>สัญลักษณ์ประเภทเอกสาร ({activeTypesForBars.length} ประเภท):</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                   {activeTypesForBars.map((dt) => {
                     const color = getDocTypeColorConfig(dt, allRealDocTypes);
                     return (
                       <div
                         key={`legend-doctype-${dt}`}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl ${color.lightBg} border ${color.border} shadow-2xs`}
+                        className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${color.lightBg} border ${color.border} shadow-2xs`}
                       >
-                        <span className={`w-2.5 h-2.5 rounded-full ${color.dot}`} />
-                        <span className={`font-bold ${color.text}`}>{dt}</span>
+                        <span className={`w-2 h-2 rounded-full ${color.dot}`} />
+                        <span className={`font-semibold ${color.text}`}>{dt}</span>
                       </div>
                     );
                   })}
@@ -1450,8 +1523,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </div>
             </div>
           ) : (
-            /* VIEW 2: STACKED TIMELINESS OVERVIEW (ตรงเวลา / ล่าช้า / ยังไม่ส่ง) */
-            <div className="space-y-4 pt-1">
+            /* VIEW 2: STACKED TIMELINESS OVERVIEW */
+            <div className="space-y-2.5 pt-0.5">
               {areaStats.map((stat) => {
                 const onTimeWidth = stat.totalTeachers > 0
                   ? Math.round((stat.onTimeTeachersCount / stat.totalTeachers) * 100)
@@ -1462,7 +1535,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 const pendingWidth = Math.max(0, 100 - onTimeWidth - lateWidth);
 
                 return (
-                  <div key={stat.name} className="space-y-1.5">
+                  <div key={stat.name} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-800 flex items-center gap-1.5 truncate max-w-[240px]">
                         {stat.isCompleted && (
@@ -1470,8 +1543,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         )}
                         <span>{stat.name}</span>
                       </span>
-                      <div className="flex items-center gap-3 text-[11px]">
-                        <span className="text-slate-500">ครู {stat.totalTeachers} คน</span>
+                      <div className="flex items-center gap-2.5 text-[11px]">
+                        <span className="text-slate-400 font-mono text-[10px]">ครู {stat.totalTeachers} คน</span>
                         <span className="font-bold text-indigo-600 font-mono">
                           {stat.submissionRate}% ({stat.submittedTeachers}/{stat.totalTeachers})
                         </span>
@@ -1479,10 +1552,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     </div>
 
                     {/* Stacked Bar with tooltips */}
-                    <div className="w-full bg-slate-100 rounded-lg h-5 overflow-hidden flex shadow-2xs">
+                    <div className="w-full bg-slate-100 rounded-md h-4 overflow-hidden flex shadow-2xs">
                       {onTimeWidth > 0 && (
                         <div
-                          className="bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center text-[10px] font-bold text-white px-1"
+                          className="bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center text-[9px] font-bold text-white px-1"
                           style={{ width: `${onTimeWidth}%` }}
                           title={`ตรงเวลา ${onTimeWidth}% (${stat.onTimeTeachersCount} ท่าน)`}
                         >
@@ -1491,7 +1564,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       )}
                       {lateWidth > 0 && (
                         <div
-                          className="bg-amber-500 hover:bg-amber-600 transition-all flex items-center justify-center text-[10px] font-bold text-white px-1"
+                          className="bg-amber-500 hover:bg-amber-600 transition-all flex items-center justify-center text-[9px] font-bold text-white px-1"
                           style={{ width: `${lateWidth}%` }}
                           title={`ส่งช้า ${lateWidth}% (${stat.lateTeachersCount} ท่าน)`}
                         >
@@ -1500,7 +1573,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       )}
                       {pendingWidth > 0 && (
                         <div
-                          className="bg-slate-200/90 transition-all flex items-center justify-center text-[10px] font-medium text-slate-500 px-1"
+                          className="bg-slate-200/90 transition-all flex items-center justify-center text-[9px] font-medium text-slate-500 px-1"
                           style={{ width: `${pendingWidth}%` }}
                           title={`ยังไม่ส่ง ${pendingWidth}% (${stat.pendingTeachers} ท่าน)`}
                         >
@@ -1513,52 +1586,63 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               })}
 
               {/* Legend */}
-              <div className="flex flex-wrap items-center justify-center gap-5 pt-3 border-t border-slate-100 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded bg-emerald-500"></span>
-                  <span className="text-slate-600 font-medium">ส่งตรงเวลา (On-Time)</span>
+              <div className="flex flex-wrap items-center justify-center gap-4 pt-2.5 border-t border-slate-100 text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  <span className="text-slate-600 font-medium">ส่งตรงเวลา</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded bg-amber-500"></span>
-                  <span className="text-slate-600 font-medium">ส่งล่าช้า (Late Submission)</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                  <span className="text-slate-600 font-medium">ส่งล่าช้า</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded bg-slate-200"></span>
-                  <span className="text-slate-600 font-medium">ยังไม่ส่ง (Pending)</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                  <span className="text-slate-600 font-medium">ยังไม่ส่ง</span>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* GRAPH 2: Donut Chart - Punctuality & Timeliness Proportion */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm flex flex-col justify-between space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <PieChart className="w-5 h-5" />
+        {/* GRAPH 2: Donut Chart - Punctuality & Timeliness Proportion (Compact, Zero Dead Space) */}
+        <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs flex flex-col space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                <PieChart className="w-4 h-4" />
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
                   สัดส่วนความตรงต่อเวลา
                 </h3>
-                <p className="text-xs text-slate-500">
-                  วิเคราะห์จากแผนจริงในระบบ {totalPlansCount} ฉบับ
+                <p className="text-[11px] text-slate-400 truncate">
+                  วิเคราะห์จาก {totalPlansCount} ฉบับ ({totalTeachersCount} บุคลากร)
                 </p>
               </div>
             </div>
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                onTimeRate >= 80
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : onTimeRate >= 60
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-rose-100 text-rose-800'
+              }`}
+            >
+              {onTimeRate >= 80 ? 'เกณฑ์ดีเยี่ยม' : onTimeRate >= 60 ? 'เฝ้าระวัง' : 'ต้องเร่งรัด'}
+            </span>
           </div>
 
-          {/* Circular SVG Donut Chart */}
-          <div className="flex flex-col items-center justify-center py-2 relative">
-            <svg className="w-48 h-48 -rotate-90 transform" viewBox="0 0 100 100">
+          {/* Circular SVG Donut Chart (Compact proportions) */}
+          <div className="flex flex-col items-center justify-center py-0.5 relative">
+            <svg className="w-36 h-36 -rotate-90 transform" viewBox="0 0 100 100">
               {/* Background Circle */}
               <circle
                 cx="50"
                 cy="50"
                 r="38"
                 className="text-slate-100 stroke-current"
-                strokeWidth="12"
+                strokeWidth="11"
                 fill="transparent"
               />
               {/* On-Time Arc (Emerald) */}
@@ -1568,7 +1652,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   cy="50"
                   r="38"
                   className="text-emerald-500 stroke-current transition-all duration-700"
-                  strokeWidth="12"
+                  strokeWidth="11"
                   strokeDasharray={`${(onTimeRate * 238.76) / 100} 238.76`}
                   strokeDashoffset="0"
                   strokeLinecap="round"
@@ -1582,7 +1666,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   cy="50"
                   r="38"
                   className="text-amber-500 stroke-current transition-all duration-700"
-                  strokeWidth="12"
+                  strokeWidth="11"
                   strokeDasharray={`${(lateRate * 238.76) / 100} 238.76`}
                   strokeDashoffset={`-${(onTimeRate * 238.76) / 100}`}
                   strokeLinecap="round"
@@ -1591,143 +1675,203 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               )}
             </svg>
 
-            {/* Inner Center Badge */}
+            {/* Inner Center Badge: Prominent Stat Number */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
               {totalPlansCount === 0 ? (
                 <>
-                  <span className="text-xl font-bold text-slate-400">0 ฉบับ</span>
-                  <span className="text-[10px] text-slate-400">ยังไม่มีแผนในระบบ</span>
+                  <span className="text-base font-bold text-slate-400">0 ฉบับ</span>
+                  <span className="text-[10px] text-slate-400">ยังไม่มีเอกสาร</span>
                 </>
               ) : (
                 <>
-                  <span className="text-3xl font-extrabold text-slate-900">{onTimeRate}%</span>
-                  <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
+                  <span className="text-2xl sm:text-3xl font-mono font-black text-slate-900 tracking-tight leading-none">
+                    {onTimeRate}%
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">
                     ส่งตรงเวลา
                   </span>
-                  <span className="text-[10px] text-slate-400">จากทั้งหมด {totalPlansCount} ฉบับ</span>
+                  <span className="text-[10px] text-slate-400 font-mono mt-0.5">รวม {totalPlansCount} ฉบับ</span>
                 </>
               )}
             </div>
           </div>
 
-          {/* Donut Legend */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
-            <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-50/70 border border-emerald-100">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <span className="font-semibold text-emerald-900">ส่งตรงเวลา (On-Time)</span>
+          {/* Donut Legend (High scanability) */}
+          <div className="space-y-1.5 pt-1 border-t border-slate-100 text-xs">
+            <div className="flex items-center justify-between p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span className="font-semibold text-emerald-900 text-xs">ส่งตรงเวลา (On-Time)</span>
               </div>
-              <span className="font-mono font-bold text-emerald-700">
+              <span className="font-mono font-bold text-emerald-700 text-xs">
                 {onTimePlans.length} ฉบับ ({onTimeRate}%)
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-2 rounded-xl bg-amber-50/70 border border-amber-100">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                <span className="font-semibold text-amber-900">ส่งล่าช้า (Late Submission)</span>
+            <div className="flex items-center justify-between p-1.5 rounded-lg bg-amber-50/70 border border-amber-100">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                <span className="font-semibold text-amber-900 text-xs">ส่งล่าช้า (Late)</span>
               </div>
-              <span className="font-mono font-bold text-amber-700">
+              <span className="font-mono font-bold text-amber-700 text-xs">
                 {latePlans.length} ฉบับ ({lateRate}%)
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-2 rounded-xl bg-rose-50/70 border border-rose-100">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                <span className="font-semibold text-rose-900">ยังไม่ส่ง (Pending)</span>
+            <div className="flex items-center justify-between p-1.5 rounded-lg bg-rose-50/70 border border-rose-100">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+                <span className="font-semibold text-rose-900 text-xs">ยังไม่ส่ง (Pending)</span>
               </div>
-              <span className="font-mono font-bold text-rose-700">
-                {pendingTeachers.length} ท่าน
+              <span className="font-mono font-bold text-rose-700 text-xs">
+                {pendingTeachers.length} ท่าน ({Math.round(((pendingTeachers.length) / (totalTeachersCount || 1)) * 100)}%)
               </span>
             </div>
+          </div>
+
+          {/* Compact Department Insights (Eliminates dead space with actionable executive intelligence) */}
+          <div className="space-y-2 pt-1 border-t border-slate-100">
+            {/* Top Punctual Departments */}
+            {areaStats.filter((a) => a.submissionRate === 100).length > 0 && (
+              <div className="p-2 rounded-lg bg-emerald-50/50 border border-emerald-100/90 text-[11px] space-y-1">
+                <div className="flex items-center gap-1 text-emerald-900 font-bold">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span>กลุ่มสาระที่ส่งครบ 100%:</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {areaStats
+                    .filter((a) => a.submissionRate === 100)
+                    .map((a) => (
+                      <span
+                        key={`punctual-${a.name}`}
+                        className="px-1.5 py-0.2 bg-white text-emerald-800 border border-emerald-200 rounded text-[10px] font-semibold"
+                      >
+                        ✓ {a.name}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actionable Watchlist: Areas with pending submissions */}
+            {pendingTeachers.length > 0 && (
+              <div className="p-2 rounded-lg bg-rose-50/50 border border-rose-100/90 text-[11px] space-y-1">
+                <div className="flex items-center justify-between text-rose-900 font-bold">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-rose-600 shrink-0" />
+                    <span>กลุ่มที่ยังมีงานค้างส่ง ({pendingTeachers.length} ท่าน):</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStatus('pending')}
+                    className="text-[10px] text-rose-700 hover:text-rose-900 font-bold underline cursor-pointer"
+                  >
+                    ดูรายคน
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {areaStats
+                    .filter((a) => a.pendingTeachers > 0)
+                    .map((a) => (
+                      <span
+                        key={`pending-dept-${a.name}`}
+                        className="px-1.5 py-0.2 bg-white text-rose-800 border border-rose-200 rounded text-[10px] font-medium"
+                      >
+                        {a.name} (ค้าง {a.pendingTeachers})
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* GRAPH 3 & 4: Score Distribution & Document Types */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
         {/* GRAPH 3: Quality Score Distribution Histogram */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
             <div className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-amber-500" />
-              <h3 className="text-sm font-bold text-slate-800">
-                กราฟการกระจายคะแนนคุณภาพแผนการสอน
+              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+                <Award className="w-4 h-4" />
+              </div>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                การกระจายคะแนนคุณภาพแผน
               </h3>
             </div>
-            <span className="text-xs text-slate-500">
-              {avgScore !== '-' ? `เฉลี่ย ${avgScore} / 100` : 'รอผลการตรวจ'}
+            <span className="text-[11px] font-mono text-slate-500 font-semibold">
+              {avgScore !== '-' ? `เฉลี่ย ${avgScore} / 100` : 'รอผลตรวจ'}
             </span>
           </div>
 
           {scoreDistribution.totalScored === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400 space-y-1">
-              <Award className="w-8 h-8 text-slate-300 mx-auto" />
-              <p className="font-semibold text-slate-600">ยังไม่มีข้อมูลการประเมินคะแนนจริงในระบบ</p>
-              <p className="text-[11px] text-slate-400">กราฟจะแสดงสัดส่วนคะแนนเมื่อผู้ตรวจวิชาการให้คะแนนแผน</p>
+            <div className="py-6 text-center text-xs text-slate-400 space-y-1">
+              <Award className="w-7 h-7 text-slate-300 mx-auto" />
+              <p className="font-semibold text-slate-600 text-xs">ยังไม่มีข้อมูลการประเมินคะแนนจริง</p>
+              <p className="text-[10px] text-slate-400">ระบบจะแสดงผลเมื่อผู้ตรวจวิชาการบันทึกคะแนน</p>
             </div>
           ) : (
-            <div className="space-y-3 pt-1">
+            <div className="space-y-2 pt-0.5">
               {/* Tier 1: ดีเยี่ยม (90-100) */}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">ระดับดีเยี่ยม (90 - 100 คะแนน)</span>
-                  <span className="font-mono font-bold text-emerald-600">
+                  <span className="font-semibold text-slate-700 text-[11px]">ระดับดีเยี่ยม (90 - 100)</span>
+                  <span className="font-mono font-bold text-emerald-600 text-xs">
                     {scoreDistribution.excellent} ฉบับ ({scoreDistribution.excellentPct}%)
                   </span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
+                <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden">
                   <div
-                    className="bg-emerald-500 h-3 rounded-lg transition-all"
+                    className="bg-emerald-500 h-2 rounded-md transition-all"
                     style={{ width: `${scoreDistribution.excellentPct}%` }}
                   ></div>
                 </div>
               </div>
 
               {/* Tier 2: ดีมาก (80-89) */}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">ระดับดีมาก (80 - 89 คะแนน)</span>
-                  <span className="font-mono font-bold text-blue-600">
+                  <span className="font-semibold text-slate-700 text-[11px]">ระดับดีมาก (80 - 89)</span>
+                  <span className="font-mono font-bold text-blue-600 text-xs">
                     {scoreDistribution.veryGood} ฉบับ ({scoreDistribution.veryGoodPct}%)
                   </span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
+                <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden">
                   <div
-                    className="bg-blue-500 h-3 rounded-lg transition-all"
+                    className="bg-blue-500 h-2 rounded-md transition-all"
                     style={{ width: `${scoreDistribution.veryGoodPct}%` }}
                   ></div>
                 </div>
               </div>
 
               {/* Tier 3: ดี (70-79) */}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">ระดับดี (70 - 79 คะแนน)</span>
-                  <span className="font-mono font-bold text-amber-600">
+                  <span className="font-semibold text-slate-700 text-[11px]">ระดับดี (70 - 79)</span>
+                  <span className="font-mono font-bold text-amber-600 text-xs">
                     {scoreDistribution.good} ฉบับ ({scoreDistribution.goodPct}%)
                   </span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
+                <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden">
                   <div
-                    className="bg-amber-500 h-3 rounded-lg transition-all"
+                    className="bg-amber-500 h-2 rounded-md transition-all"
                     style={{ width: `${scoreDistribution.goodPct}%` }}
                   ></div>
                 </div>
               </div>
 
               {/* Tier 4: ต้องปรับปรุง (<70) */}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">ระดับพอใช้ / ต้องปรับปรุง (&lt; 70)</span>
-                  <span className="font-mono font-bold text-rose-600">
+                  <span className="font-semibold text-slate-700 text-[11px]">ระดับปรับปรุง (&lt; 70)</span>
+                  <span className="font-mono font-bold text-rose-600 text-xs">
                     {scoreDistribution.needsImprovement} ฉบับ ({scoreDistribution.needsImprovementPct}%)
                   </span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-lg h-3 overflow-hidden">
+                <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden">
                   <div
-                    className="bg-rose-500 h-3 rounded-lg transition-all"
+                    className="bg-rose-500 h-2 rounded-md transition-all"
                     style={{ width: `${scoreDistribution.needsImprovementPct}%` }}
                   ></div>
                 </div>
@@ -1737,20 +1881,22 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
 
         {/* GRAPH 4: Breakdown by Document Type */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
             <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              <h3 className="text-sm font-bold text-slate-800">
-                สถิติการส่งงานแยกตามประเภทเอกสาร
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                <FileText className="w-4 h-4" />
+              </div>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                สถิติแยกตามประเภทเอกสาร
               </h3>
             </div>
-            <span className="text-xs text-slate-500">
+            <span className="text-[11px] font-mono text-slate-500 font-semibold">
               ทั้งหมด {plans.length} ฉบับ
             </span>
           </div>
 
-          <div className="space-y-3 pt-1">
+          <div className="space-y-2 pt-0.5">
             {(() => {
               const typesToRender = docTypes.filter((d) => {
                 if (d === 'ทั้งหมด') return false;
@@ -1761,8 +1907,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
               if (typesToRender.length === 0) {
                 return (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    ยังไม่มีข้อมูลประเภทเอกสารที่บันทึกในระบบ
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    ยังไม่มีข้อมูลประเภทเอกสารในระบบ
                   </div>
                 );
               }
@@ -1774,26 +1920,26 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 const colorCfg = getDocTypeColorConfig(type, allRealDocTypes);
 
                 return (
-                  <div key={type} className="space-y-1">
+                  <div key={type} className="space-y-0.5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-700 truncate max-w-[200px] flex items-center gap-1.5">
-                        <span className={`w-2.5 h-2.5 rounded-full ${colorCfg.dot} shrink-0`} />
+                      <span className="font-semibold text-slate-800 truncate max-w-[190px] flex items-center gap-1.5 text-[11px]">
+                        <span className={`w-2 h-2 rounded-full ${colorCfg.dot} shrink-0`} />
                         <span className="truncate">{type}</span>
                       </span>
                       <div className="flex items-center gap-2">
                         {typeLate > 0 && (
-                          <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-semibold">
+                          <span className="text-[9px] text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded font-semibold">
                             ช้า {typeLate}
                           </span>
                         )}
-                        <span className={`font-mono font-bold ${colorCfg.text}`}>
+                        <span className={`font-mono font-bold ${colorCfg.text} text-xs`}>
                           {count} ฉบับ ({pct}%)
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-lg h-2.5 overflow-hidden shadow-2xs">
+                    <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden shadow-2xs">
                       <div
-                        className={`bg-gradient-to-r ${colorCfg.barGradient} h-2.5 rounded-lg transition-all duration-500`}
+                        className={`bg-gradient-to-r ${colorCfg.barGradient} h-2 rounded-md transition-all duration-500`}
                         style={{ width: `${pct}%` }}
                       ></div>
                     </div>
@@ -1806,39 +1952,39 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       </div>
 
       {/* SECTION 3: DEPARTMENTAL LEADERBOARD (ตารางสรุปรายกลุ่มสาระ) */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <TrendingUp className="w-5 h-5" />
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="p-3.5 sm:p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+              <TrendingUp className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
                 ตารางจัดอันดับและสถิติราย 8 กลุ่มสาระการเรียนรู้
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-[11px] text-slate-500">
                 เปรียบเทียบจำนวนครู สถิติส่งตรงเวลา/ล่าช้า และคะแนนประเมินคุณภาพ
               </p>
             </div>
           </div>
-          <span className="text-xs text-slate-500 font-medium">
+          <span className="text-[11px] text-slate-400 font-medium">
             เรียงตามร้อยละความสำเร็จ (% การส่งงาน)
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+            <thead className="bg-slate-50/90 text-slate-500 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
               <tr>
-                <th className="py-3.5 px-4 w-12 text-center">อันดับ</th>
-                <th className="py-3.5 px-4">กลุ่มสาระการเรียนรู้</th>
-                <th className="py-3.5 px-4 text-center">จำนวนครู</th>
-                <th className="py-3.5 px-4 text-center">ส่งแล้ว</th>
-                <th className="py-3.5 px-4 w-40">อัตราความสำเร็จ</th>
-                <th className="py-3.5 px-4 text-center">ตรงเวลา</th>
-                <th className="py-3.5 px-4 text-center">ส่งล่าช้า</th>
-                <th className="py-3.5 px-4 text-center">คะแนนเฉลี่ย</th>
-                <th className="py-3.5 px-4 text-center">สถานะ</th>
+                <th className="py-2.5 px-3 w-10 text-center">อันดับ</th>
+                <th className="py-2.5 px-3">กลุ่มสาระการเรียนรู้</th>
+                <th className="py-2.5 px-3 text-center">จำนวนครู</th>
+                <th className="py-2.5 px-3 text-center">ส่งแล้ว</th>
+                <th className="py-2.5 px-3 w-36">อัตราความสำเร็จ</th>
+                <th className="py-2.5 px-3 text-center">ตรงเวลา</th>
+                <th className="py-2.5 px-3 text-center">ส่งช้า</th>
+                <th className="py-2.5 px-3 text-center">คะแนนเฉลี่ย</th>
+                <th className="py-2.5 px-3 text-center">สถานะ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1848,168 +1994,168 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   <tr
                     key={stat.name}
                     onClick={() => toggleArea(stat.name)}
-                    className={`hover:bg-indigo-50/50 transition-colors cursor-pointer ${
-                      isSelected ? 'bg-indigo-50/90 font-semibold ring-1 ring-indigo-200' : ''
+                    className={`hover:bg-indigo-50/40 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-indigo-50/80 font-semibold ring-1 ring-indigo-200' : ''
                     }`}
                   >
-                    <td className="py-3 px-4 text-center font-mono">
+                    <td className="py-2 px-3 text-center font-mono">
                       <span
-                        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold ${
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
                           idx === 0
                             ? 'bg-amber-100 text-amber-800'
                             : idx === 1
                             ? 'bg-slate-200 text-slate-800'
                             : idx === 2
                             ? 'bg-orange-100 text-orange-800'
-                            : 'text-slate-500'
+                            : 'text-slate-400'
                         }`}
                       >
                         {idx + 1}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-bold text-slate-800 flex items-center gap-2">
+                    <td className="py-2 px-3 font-bold text-slate-800 flex items-center gap-1.5">
                       <span>{stat.name}</span>
                       {isSelected && (
-                        <span className="text-[10px] text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded font-bold">
-                          เลือกเปรียบเทียบ
+                        <span className="text-[9px] text-indigo-700 bg-indigo-100 px-1 py-0.2 rounded font-bold">
+                          เลือก
                         </span>
                       )}
                     </td>
-                  <td className="py-3 px-4 text-center font-mono text-slate-600">
-                    {stat.totalTeachers} ท่าน
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono font-bold text-indigo-700">
-                    {stat.submittedTeachers} ท่าน
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-2 rounded-full ${
-                            stat.submissionRate === 100
-                              ? 'bg-emerald-500'
-                              : stat.submissionRate >= 80
-                              ? 'bg-indigo-500'
-                              : 'bg-amber-500'
-                          }`}
-                          style={{ width: `${stat.submissionRate}%` }}
-                        ></div>
+                    <td className="py-2 px-3 text-center font-mono text-slate-600">
+                      {stat.totalTeachers} ท่าน
+                    </td>
+                    <td className="py-2 px-3 text-center font-mono font-bold text-indigo-700">
+                      {stat.submittedTeachers} ท่าน
+                    </td>
+                    <td className="py-2 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-1.5 rounded-full ${
+                              stat.submissionRate === 100
+                                ? 'bg-emerald-500'
+                                : stat.submissionRate >= 80
+                                ? 'bg-indigo-500'
+                                : 'bg-amber-500'
+                            }`}
+                            style={{ width: `${stat.submissionRate}%` }}
+                          ></div>
+                        </div>
+                        <span className="font-mono font-bold text-[11px] min-w-[28px] text-right">
+                          {stat.submissionRate}%
+                        </span>
                       </div>
-                      <span className="font-mono font-bold text-[11px] min-w-[32px] text-right">
-                        {stat.submissionRate}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono text-emerald-600 font-bold">
-                    {stat.onTimePlans}
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono text-amber-600 font-bold">
-                    {stat.latePlans > 0 ? stat.latePlans : '-'}
-                  </td>
-                  <td className="py-3 px-4 text-center font-mono font-bold text-slate-800">
-                    {stat.avgScore}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {stat.isCompleted ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        ครบ 100%
-                      </span>
-                    ) : stat.pendingTeachers > 0 ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
-                        <Clock className="w-3 h-3 text-amber-600" />
-                        ค้าง {stat.pendingTeachers} ท่าน
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] bg-slate-100 text-slate-700">
-                        เรียบร้อย
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+                    <td className="py-2 px-3 text-center font-mono text-emerald-600 font-bold">
+                      {stat.onTimePlans}
+                    </td>
+                    <td className="py-2 px-3 text-center font-mono text-amber-600 font-bold">
+                      {stat.latePlans > 0 ? stat.latePlans : '-'}
+                    </td>
+                    <td className="py-2 px-3 text-center font-mono font-bold text-slate-800">
+                      {stat.avgScore}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      {stat.isCompleted ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          ครบ 100%
+                        </span>
+                      ) : stat.pendingTeachers > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                          <Clock className="w-3 h-3 text-amber-600" />
+                          ค้าง {stat.pendingTeachers}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-700">
+                          เรียบร้อย
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
       {/* SECTION 4: INDIVIDUAL TEACHER TRACKING (การส่งงานรายคน) */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
         {/* Section 4 Header */}
-        <div className="p-5 border-b border-slate-100 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                <Users className="w-5 h-5" />
+        <div className="p-3.5 sm:p-4 border-b border-slate-100 space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                <Users className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
                   <span>การติดตามการส่งงานรายบุคคล</span>
-                  <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-mono">
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-md font-mono">
                     {filteredTeachers.length} / {individualCounts.total} ท่าน
                   </span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  ตรวจสอบสถานะส่งงาน ความตรงต่อเวลา ตรวจสอบเอกสาร และส่งข้อความแจ้งเตือนครูที่มีงานค้าง
+                <p className="text-[11px] text-slate-500">
+                  ตรวจสอบสถานะส่งงานรายบุคคล ความตรงต่อเวลา และส่งสัญญาณเตือนครูที่มีงานค้าง
                 </p>
               </div>
             </div>
 
             {/* View Mode Switcher & Print Summary Button */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
-              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/80">
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-auto">
+              <div className="h-8 inline-flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg border border-slate-200/80">
                 <button
                   type="button"
                   onClick={() => setIndividualViewMode('table')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`h-7 px-2.5 rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
                     individualViewMode === 'table'
                       ? 'bg-white text-indigo-700 shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title="มุมมองตารางสรุปความชัดเจนสูง"
+                  title="มุมมองตาราง"
                 >
-                  <TableIcon className="w-3.5 h-3.5" />
-                  <span>มุมมองตาราง</span>
+                  <TableIcon className="w-3 h-3" />
+                  <span>ตาราง</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIndividualViewMode('cards')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`h-7 px-2.5 rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
                     individualViewMode === 'cards'
                       ? 'bg-white text-indigo-700 shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title="มุมมองการ์ดรายคน"
+                  title="มุมมองการ์ด"
                 >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>มุมมองการ์ด</span>
+                  <LayoutGrid className="w-3 h-3" />
+                  <span>การ์ด</span>
                 </button>
               </div>
 
               <button
                 type="button"
                 onClick={() => setIsIndividualPrintModalOpen(true)}
-                className="px-3.5 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer border border-amber-300"
-                title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล (พร้อมตราโรงเรียนตรงกลางด้านบนและรายการงานที่ส่ง/ยังไม่ส่ง)"
+                className="h-8 px-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black rounded-lg text-xs flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer border border-amber-300 shrink-0"
+                title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล"
               >
-                <Printer className="w-3.5 h-3.5 text-slate-950" />
+                <Printer className="w-3.5 h-3.5 text-slate-950 shrink-0" />
                 <span>พิมพ์สรุปรายบุคคล</span>
               </button>
             </div>
           </div>
 
           {/* Controls: Quick Status Filter Tabs + In-Section Search Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pt-0.5">
             {/* Quick Status Tabs */}
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="h-8 inline-flex rounded-lg bg-slate-100 p-0.5 text-xs items-center">
               <button
                 type="button"
                 onClick={() => setSelectedStatus('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`h-7 px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                   selectedStatus === 'all'
                     ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
+                    : 'text-slate-700 hover:text-slate-900'
                 }`}
               >
                 ทั้งหมด ({individualCounts.total})
@@ -2017,58 +2163,58 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedStatus('pending')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`h-7 px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   selectedStatus === 'pending'
                     ? 'bg-rose-600 text-white shadow-2xs'
-                    : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80'
+                    : 'text-rose-700 hover:bg-rose-50'
                 }`}
               >
-                <Clock className="w-3.5 h-3.5" />
-                <span>ยังไม่ส่งงาน ({individualCounts.pending})</span>
+                <Clock className="w-3 h-3" />
+                <span>ยังไม่ส่ง ({individualCounts.pending})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedStatus('ontime')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`h-7 px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   selectedStatus === 'ontime'
                     ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80'
+                    : 'text-emerald-700 hover:bg-emerald-50'
                 }`}
               >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>ส่งตรงเวลา ({individualCounts.ontime})</span>
+                <CheckCircle2 className="w-3 h-3" />
+                <span>ตรงเวลา ({individualCounts.ontime})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedStatus('late')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`h-7 px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   selectedStatus === 'late'
                     ? 'bg-amber-600 text-white shadow-2xs'
-                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80'
+                    : 'text-amber-700 hover:bg-amber-50'
                 }`}
               >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>มีส่งช้า ({individualCounts.late})</span>
+                <AlertTriangle className="w-3 h-3" />
+                <span>ส่งช้า ({individualCounts.late})</span>
               </button>
             </div>
 
             {/* In-Section Quick Search */}
-            <div className="relative w-full md:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="relative w-full md:w-56">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="ค้นหาชื่อ, รหัสครู..."
                 value={searchTeacher}
                 onChange={(e) => setSearchTeacher(e.target.value)}
-                className="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full h-8 pl-8 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
               {searchTeacher && (
                 <button
                   type="button"
                   onClick={() => setSearchTeacher('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3 h-3" />
                 </button>
               )}
             </div>
@@ -2099,14 +2245,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/90 text-slate-500 font-semibold border-b border-slate-200/80 uppercase tracking-wider text-[11px]">
-                  <th className="py-3 px-4 min-w-[200px]">ครูผู้สอน</th>
-                  <th className="py-3 px-4 min-w-[150px]">กลุ่มสาระ</th>
-                  <th className="py-3 px-4 min-w-[130px] text-center">สถานะการส่ง</th>
-                  <th className="py-3 px-4 min-w-[260px]">
+                  <th className="py-2.5 px-3 min-w-[180px]">ครูผู้สอน</th>
+                  <th className="py-2.5 px-3 min-w-[130px]">กลุ่มสาระ</th>
+                  <th className="py-2.5 px-3 min-w-[110px] text-center">สถานะ</th>
+                  <th className="py-2.5 px-3 min-w-[240px]">
                     เอกสารที่ส่ง ({isAllDocTypes ? 'ทุกประเภท' : selectedDocTypes.length === 1 ? selectedDocTypes[0] : `${selectedDocTypes.length} ประเภท`})
                   </th>
-                  <th className="py-3 px-3 min-w-[90px] text-center">คะแนนเฉลี่ย</th>
-                  <th className="py-3 px-4 min-w-[120px] text-right">การจัดการ</th>
+                  <th className="py-2.5 px-2.5 min-w-[80px] text-center">คะแนน</th>
+                  <th className="py-2.5 px-3 min-w-[100px] text-right">การจัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -2128,9 +2274,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     <React.Fragment key={teacher.Teacher_ID}>
                       <tr className={`hover:bg-indigo-50/30 transition-colors ${isExpanded ? 'bg-indigo-50/20' : ''}`}>
                         {/* 1. Teacher Profile */}
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
                               {photoUrl ? (
                                 <img
                                   src={photoUrl}
@@ -2141,17 +2287,17 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                   }}
                                 />
                               ) : (
-                                <span className="text-[11px] font-bold text-indigo-700">
+                                <span className="text-[10px] font-bold text-indigo-700">
                                   {getInitials(teacher.Name)}
                                 </span>
                               )}
                             </div>
                             <div className="min-w-0">
                               <div className="font-bold text-slate-900 text-xs truncate">{teacher.Name}</div>
-                              <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
+                              <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.2">
                                 <span className="bg-slate-100 px-1 py-0.2 rounded font-bold text-slate-700">{teacher.Teacher_ID}</span>
                                 {teacher.position && (
-                                  <span className="truncate max-w-[100px] text-slate-400 font-sans">• {teacher.position}</span>
+                                  <span className="truncate max-w-[90px] text-slate-400 font-sans">• {teacher.position}</span>
                                 )}
                               </div>
                             </div>
@@ -2159,28 +2305,28 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         </td>
 
                         {/* 2. Department */}
-                        <td className="py-3 px-4">
-                          <span className="inline-block px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-700 max-w-[150px] truncate" title={teacher.Learning_Area}>
+                        <td className="py-2 px-3">
+                          <span className="inline-block px-1.5 py-0.2 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 max-w-[140px] truncate" title={teacher.Learning_Area}>
                             {teacher.Learning_Area}
                           </span>
                         </td>
 
                         {/* 3. Status Badge */}
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-2 px-3 text-center">
                           {hasSubmitted ? (
                             hasLate ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300">
                                 <AlertTriangle className="w-3 h-3 text-amber-600" />
-                                <span>มีส่งล่าช้า</span>
+                                <span>มีส่งช้า</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>ส่งตรงเวลา</span>
+                                <span>ตรงเวลา</span>
                               </span>
                             )
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-300">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-300">
                               <Clock className="w-3 h-3 text-rose-600" />
                               <span>ยังไม่ส่ง</span>
                             </span>
@@ -2188,21 +2334,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         </td>
 
                         {/* 4. Submitted Plans Chips */}
-                        <td className="py-3 px-4">
+                        <td className="py-2 px-3">
                           {hasSubmitted ? (
-                            <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1">
                               {teacherPlans.slice(0, 3).map((plan) => (
                                 <div
                                   key={plan.id}
                                   onClick={() => onOpenPlan && onOpenPlan(plan)}
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border cursor-pointer transition-colors max-w-[180px] ${
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium border cursor-pointer transition-colors max-w-[160px] ${
                                     plan.is_late
                                       ? 'bg-amber-50/70 text-amber-900 border-amber-200 hover:bg-amber-100/70'
                                       : 'bg-emerald-50/60 text-emerald-900 border-emerald-200 hover:bg-emerald-100/60'
                                   }`}
                                   title={`${plan.subject_code} ${plan.subject_name || plan.plan_title} (${plan.is_late ? 'ส่งช้า' : 'ตรงเวลา'})`}
                                 >
-                                  <span className="font-mono font-bold text-[10px]">{plan.subject_code || 'แผน'}</span>
+                                  <span className="font-mono font-bold text-[9px]">{plan.subject_code || 'แผน'}</span>
                                   <span className="truncate">{plan.subject_name || plan.plan_title}</span>
                                   {plan.file_url && (
                                     <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
@@ -2213,21 +2359,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
-                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1.5 py-0.5 rounded bg-indigo-50"
+                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1 py-0.2 rounded bg-indigo-50"
                                 >
-                                  +{teacherPlans.length - 3} เพิ่มเติม
+                                  +{teacherPlans.length - 3}
                                 </button>
                               )}
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic text-[11px]">- ยังไม่มีเอกสารในระบบ -</span>
+                            <span className="text-slate-400 italic text-[10px]">- ยังไม่มีเอกสารในระบบ -</span>
                           )}
                         </td>
 
                         {/* 5. Average Score */}
-                        <td className="py-3 px-3 text-center">
+                        <td className="py-2 px-2.5 text-center">
                           {hasSubmitted && teacherAvgScore !== '-' ? (
-                            <span className={`inline-block px-2 py-0.5 rounded-md font-mono font-bold text-[11px] ${
+                            <span className={`inline-block px-1.5 py-0.2 rounded font-mono font-bold text-[11px] ${
                               Number(teacherAvgScore) >= 80
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : Number(teacherAvgScore) >= 70
@@ -2237,18 +2383,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                               {teacherAvgScore}
                             </span>
                           ) : (
-                            <span className="text-slate-400 font-mono">-</span>
+                            <span className="text-slate-400 font-mono text-[11px]">-</span>
                           )}
                         </td>
 
                         {/* 6. Actions */}
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                        <td className="py-2 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
                             {hasSubmitted ? (
                               <button
                                 type="button"
                                 onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
-                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-0.5"
                               >
                                 <span>{isExpanded ? 'ซ่อน' : 'ดูฉบับ'}</span>
                                 <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
@@ -2258,7 +2404,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                 type="button"
                                 onClick={() => handleSendReminder(teacher.Teacher_ID, teacher.Name)}
                                 disabled={isReminderSent}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
+                                className={`px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 transition-all ${
                                   isReminderSent
                                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                                     : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs active:scale-95'
@@ -2266,7 +2412,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                 title="ส่งอีเมลแจ้งเตือนให้ส่งงาน"
                               >
                                 <BellRing className="w-3 h-3 text-slate-950" />
-                                <span>{isReminderSent ? 'เตือนแล้ว ✓' : 'เตือน'}</span>
+                                <span>{isReminderSent ? 'เตือนแล้ว' : 'เตือน'}</span>
                               </button>
                             )}
                           </div>
@@ -2497,21 +2643,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       </div>
 
       {/* SECTION 5: EXECUTIVE STRATEGIC INSIGHTS (ข้อเสนอแนะเชิงบริหาร) */}
-      <div className="bg-gradient-to-br from-indigo-50 via-blue-50 to-white rounded-2xl p-6 border border-indigo-100 shadow-sm space-y-4">
-        <div className="flex items-center gap-2.5 text-indigo-900">
-          <Sparkles className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-sm sm:text-base font-bold">
+      <div className="bg-gradient-to-br from-indigo-50/70 via-blue-50/40 to-white rounded-xl p-3.5 sm:p-4 border border-indigo-100 shadow-2xs space-y-2.5">
+        <div className="flex items-center gap-2 text-indigo-900">
+          <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+          <h3 className="text-xs sm:text-sm font-bold">
             ข้อสรุปและข้อเสนอแนะเชิงบริหาร (Executive Strategic Insights)
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="bg-white/90 p-4 rounded-xl border border-indigo-100/80 shadow-2xs space-y-1.5">
-            <div className="flex items-center gap-1.5 font-bold text-emerald-700">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>ความตรงต่อเวลาและการส่งมอบ</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 text-xs">
+          <div className="bg-white/90 p-3 rounded-lg border border-indigo-100/80 shadow-2xs space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-700 text-xs">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>ความตรงต่อเวลา</span>
             </div>
-            <p className="text-slate-600 leading-relaxed">
+            <p className="text-slate-600 leading-relaxed text-[11px]">
               {totalPlansCount === 0 ? (
                 'ยังไม่มีข้อมูลการส่งแผนการสอนในระบบ'
               ) : (
@@ -2528,12 +2674,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </p>
           </div>
 
-          <div className="bg-white/90 p-4 rounded-xl border border-indigo-100/80 shadow-2xs space-y-1.5">
-            <div className="flex items-center gap-1.5 font-bold text-indigo-700">
-              <Award className="w-4 h-4" />
+          <div className="bg-white/90 p-3 rounded-lg border border-indigo-100/80 shadow-2xs space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-indigo-700 text-xs">
+              <Award className="w-3.5 h-3.5" />
               <span>คุณภาพการจัดการเรียนรู้</span>
             </div>
-            <p className="text-slate-600 leading-relaxed">
+            <p className="text-slate-600 leading-relaxed text-[11px]">
               {plansWithScore.length === 0 ? (
                 'ยังไม่มีข้อมูลคะแนนประเมินคุณภาพจริงในระบบ (รอฝ่ายวิชาการตรวจบันทึกคะแนน)'
               ) : (
@@ -2552,12 +2698,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </p>
           </div>
 
-          <div className="bg-white/90 p-4 rounded-xl border border-indigo-100/80 shadow-2xs space-y-1.5">
-            <div className="flex items-center gap-1.5 font-bold text-amber-700">
-              <AlertTriangle className="w-4 h-4" />
+          <div className="bg-white/90 p-3 rounded-lg border border-indigo-100/80 shadow-2xs space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-amber-700 text-xs">
+              <AlertTriangle className="w-3.5 h-3.5" />
               <span>มาตรการเร่งรัดติดตาม</span>
             </div>
-            <p className="text-slate-600 leading-relaxed">
+            <p className="text-slate-600 leading-relaxed text-[11px]">
               {pendingTeachers.length === 0 ? (
                 'บุคลากรครูทุกคนส่งแผนการสอนเข้าระบบครบถ้วน 100% แล้ว'
               ) : (
