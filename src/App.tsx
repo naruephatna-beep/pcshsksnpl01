@@ -1025,55 +1025,55 @@ export default function App() {
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span className="font-semibold text-slate-700">จ.ภ. กาฬสินธุ์</span>
               <span className="text-slate-300">/</span>
-              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-semibold text-[11px] border border-amber-200/60">
+              <span className="text-amber-800 font-semibold text-xs">
                 ภาคเรียนที่ 2/2567
               </span>
               <span className="text-slate-300">/</span>
               <span className="font-bold text-slate-900">
                 {mainView === 'executive'
                   ? executiveMode === 'ddo'
-                    ? '🧠 วิเคราะห์ Data-Driven Org'
-                    : '📊 แดชบอร์ดภาพรวมผู้บริหาร'
-                  : '📑 รายการแผนการจัดการเรียนรู้'}
+                    ? 'วิเคราะห์ Data-Driven Org'
+                    : 'แดชบอร์ดภาพรวมผู้บริหาร'
+                  : 'รายการแผนการจัดการเรียนรู้'}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Live Sync Pill */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-mono text-slate-600">
+            {/* Live Sync Indicator */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-mono text-slate-600">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <span className="text-[11px] text-slate-500">ซิงค์:</span>
-              <span className="text-[11px] font-bold text-slate-700">{lastSyncTime}</span>
+              <span className="text-[11px] font-semibold text-slate-800">{lastSyncTime}</span>
               <button
                 onClick={() => syncWithDatabase(false)}
                 disabled={isSyncing}
                 title="คลิกเพื่อซิงค์ข้อมูลกับ Cloud ทันที"
-                className="text-slate-400 hover:text-indigo-600 ml-0.5 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-indigo-600 ml-1 p-0.5 transition-colors cursor-pointer"
               >
-                <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
               </button>
             </div>
 
-            {/* Teacher Profile Chip */}
+            {/* Teacher Profile Button */}
             <button
               onClick={() => {
                 setTeacherToEdit(currentTeacher);
                 setIsProfileModalOpen(true);
               }}
-              className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 transition-all cursor-pointer group"
+              className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 transition-all cursor-pointer group"
               title="แก้ไขข้อมูลส่วนตัว"
             >
-              <div className="w-6 h-6 rounded-lg bg-[#0B1329] text-amber-400 flex items-center justify-center font-bold text-[10px]">
+              <div className="w-6 h-6 rounded-lg bg-[#0B1329] text-amber-400 flex items-center justify-center font-bold text-xs">
                 {currentTeacher.Name.slice(0, 1)}
               </div>
-              <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-950 transition-colors">
+              <span className="text-xs font-semibold text-slate-800 group-hover:text-indigo-950 transition-colors">
                 {currentTeacher.Name}
               </span>
-              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-200">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
                 {isAdmin ? 'Admin' : currentTeacher.Learning_Area}
               </span>
             </button>
@@ -1140,25 +1140,27 @@ export default function App() {
             onScrollToAssignments={handleScrollToAssignments}
           />
 
-          {/* Welcome & Overview Header Card (Pure White with crisp borders & soft gradient glow) */}
-          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-200/90 shadow-2xs relative overflow-hidden">
+          {/* Welcome & Overview Header Card */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs relative overflow-hidden">
             <div className="absolute top-0 right-0 w-80 h-40 bg-gradient-to-bl from-amber-100/40 via-indigo-50/30 to-transparent pointer-events-none rounded-bl-full" />
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1.5">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200/80 shadow-2xs">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span>โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</span>
-                  <span className="text-amber-400">·</span>
+                <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                  <span className="font-semibold text-amber-900 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+                  </span>
+                  <span aria-hidden="true" className="text-slate-300">·</span>
                   <span className="text-slate-600 font-medium">กลุ่มสาระฯ {currentTeacher.Learning_Area}</span>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
                   <span>
                     {isTeacherExecutive(currentTeacher)
                       ? `ยินดีต้อนรับ ${currentTeacher.Name}`
                       : `ยินดีต้อนรับ ${currentTeacher?.Name || 'อาจารย์'}`}
                   </span>
                   {isAdmin && (
-                    <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-[#0B1329] text-amber-400 border border-amber-400/30">
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-[#0B1329] text-amber-400 border border-amber-400/30">
                       Super Admin
                     </span>
                   )}
@@ -1172,10 +1174,10 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0">
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                 <button
                   onClick={() => setIsDirectoryModalOpen(true)}
-                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
                   title="ดูรายชื่อครูและข้อมูลติดต่อ"
                 >
                   <Users className="w-4 h-4 text-slate-500" />
@@ -1187,7 +1189,7 @@ export default function App() {
                     setTeacherToEdit(currentTeacher);
                     setIsProfileModalOpen(true);
                   }}
-                  className="px-3.5 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
                   title="แก้ไขข้อมูลส่วนตัว"
                 >
                   <User className="w-4 h-4 text-amber-400" />
@@ -1199,20 +1201,20 @@ export default function App() {
 
         {/* View Switcher for Admins & Leadership */}
         {isAdmin && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-xs">
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-full sm:w-auto">
               <button
                 onClick={() => {
                   setMainView('executive');
                   setExecutiveMode('standard');
                 }}
-                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer ${
+                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'standard'
-                    ? 'bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <BarChart3 className="w-4 h-4 text-emerald-300" />
+                <BarChart3 className="w-4 h-4 text-indigo-600" />
                 <span className="truncate">ภาพรวมผู้บริหาร</span>
               </button>
 
@@ -1221,40 +1223,40 @@ export default function App() {
                   setMainView('executive');
                   setExecutiveMode('ddo');
                 }}
-                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer ${
+                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'ddo'
-                    ? 'bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-950 text-white shadow-md border border-indigo-400/40'
-                    : 'text-slate-600 hover:text-indigo-950 hover:bg-indigo-50/60'
+                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-indigo-950'
                 }`}
               >
-                <BrainCircuit className="w-4 h-4 text-indigo-400" />
+                <BrainCircuit className="w-4 h-4 text-indigo-600" />
                 <span className="truncate">Data-Driven Org</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-black">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold">
                   DDO
                 </span>
               </button>
 
               <button
                 onClick={() => setMainView('plans')}
-                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer ${
+                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   mainView === 'plans'
-                    ? 'bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <FileText className="w-4 h-4 text-indigo-400" />
+                <FileText className="w-4 h-4 text-slate-500" />
                 <span className="truncate">เอกสารทั้งหมด ({plans.length})</span>
               </button>
             </div>
 
-            <div className="text-xs text-slate-500 font-medium px-1 sm:px-2 flex items-center gap-1.5">
+            <div className="text-xs text-slate-500 font-medium px-2 flex items-center gap-1.5">
               <span>มุมมอง:</span>
-              <span className="font-bold text-indigo-600 truncate">
+              <span className="font-semibold text-slate-800 truncate">
                 {mainView === 'executive'
                   ? executiveMode === 'ddo'
-                    ? '🧠 องค์กรขับเคลื่อนด้วยข้อมูล (Data-Driven Organization)'
-                    : '📊 แดชบอร์ดภาพรวมและกราฟ'
-                  : '📑 รายการแผนและการตรวจประเมิน'}
+                    ? 'องค์กรขับเคลื่อนด้วยข้อมูล (Data-Driven Organization)'
+                    : 'แดชบอร์ดภาพรวมและกราฟ'
+                  : 'รายการแผนและการตรวจประเมิน'}
               </span>
             </div>
           </div>
@@ -1262,15 +1264,15 @@ export default function App() {
 
         {/* Special Admin Control Notification Bar (shown on plans view) */}
         {isAdmin && mainView === 'plans' && (
-          <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-amber-300/80 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
             <div className="flex items-start sm:items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 flex items-center justify-center shrink-0 font-bold shadow-sm mt-0.5 sm:mt-0">
-                <ShieldCheck className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 font-bold shadow-xs mt-0.5 sm:mt-0">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
               </div>
               <div>
                 <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
                   <span>โหมดผู้ดูแลระบบ (Admin: {currentTeacher?.Teacher_ID})</span>
-                  <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-semibold">
                     Super Admin
                   </span>
                 </h4>
@@ -1286,25 +1288,25 @@ export default function App() {
                   setExecutiveMode('ranking');
                   setMainView('executive');
                 }}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-95"
                 title="จัดอันดับกลุ่มสาระที่ส่งเอกสารครบและตรงเวลาทุกคนก่อน"
               >
-                <Trophy className="w-3.5 h-3.5 text-slate-950" />
-                <span>🏆 จัดอันดับกลุ่มสาระ</span>
+                <Trophy className="w-4 h-4 text-slate-950" />
+                <span>จัดอันดับกลุ่มสาระ</span>
               </button>
               <button
                 onClick={() => setIsDeadlineModalOpen(true)}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl flex items-center gap-2 transition-all shadow-2xs cursor-pointer active:scale-95"
                 title="กำหนดช่วงเวลาส่งของแต่ละประเภทเอกสาร และปรับแต่งสถานะทั้งหมด"
               >
-                <Calendar className="w-3.5 h-3.5 text-amber-200" />
+                <Calendar className="w-4 h-4 text-slate-500" />
                 <span>กำหนดส่ง & สถานะ</span>
               </button>
               <button
                 onClick={() => setIsAdminTrackerModalOpen(true)}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center px-4 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors shadow-xs cursor-pointer active:scale-95"
               >
-                <ClipboardList className="w-3.5 h-3.5 text-amber-400" />
+                <ClipboardList className="w-4 h-4 text-amber-400" />
                 <span>ตารางติดตามส่ง</span>
               </button>
             </div>
@@ -1357,9 +1359,9 @@ export default function App() {
               <div className="flex items-center overflow-x-auto touch-scroll max-w-full bg-slate-100 p-1 rounded-xl text-xs sm:text-sm font-medium gap-1 pb-1">
                 <button
                   onClick={() => setViewTab('all')}
-                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                     viewTab === 'all'
-                      ? 'bg-white text-indigo-900 shadow-sm font-bold'
+                      ? 'bg-white text-indigo-950 shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -1367,54 +1369,54 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setViewTab('pending_review')}
-                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     viewTab === 'pending_review'
-                      ? 'bg-white text-amber-900 shadow-sm font-bold'
+                      ? 'bg-white text-amber-950 shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <span>รอตรวจ</span>
                   <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                  <span>({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'submitted').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'submitted').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('approved')}
-                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     viewTab === 'approved'
-                      ? 'bg-white text-emerald-900 shadow-sm font-bold'
+                      ? 'bg-white text-emerald-950 shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <span>อนุมัติแล้ว</span>
-                  <span>({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'approved').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'approved').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('needs_revision')}
-                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     viewTab === 'needs_revision'
-                      ? 'bg-white text-rose-900 shadow-sm font-bold'
+                      ? 'bg-white text-rose-950 shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <span>ส่งกลับแก้ไข</span>
-                  <span>({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'needs_revision').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'needs_revision').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('late' as any)}
-                  className={`px-3 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     (viewTab as any) === 'late'
-                      ? 'bg-white text-orange-950 shadow-sm font-bold'
+                      ? 'bg-white text-orange-950 shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <span>ส่งช้า</span>
                   <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                  <span>({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.is_late).length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.is_late).length})</span>
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <div className="px-3.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-950 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs">
+                <div className="px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-950 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-2xs">
                   <Layers className="w-4 h-4 text-indigo-600" />
                   <span>เอกสารทั้งหมดในระบบ ({plans.length} รายการ)</span>
                 </div>
@@ -1423,10 +1425,10 @@ export default function App() {
 
             {/* Status Filter buttons (Admin Only - Dynamic from statusConfigs) */}
             {isAdmin && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 text-xs touch-scroll max-w-full">
-                <span className="text-slate-400 text-xs shrink-0 flex items-center gap-1">
-                  <ListFilter className="w-3.5 h-3.5" />
-                  สถานะ:
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs touch-scroll max-w-full">
+                <span className="text-slate-500 text-xs font-medium shrink-0 flex items-center gap-1 mr-0.5">
+                  <ListFilter className="w-3.5 h-3.5 text-slate-400" />
+                  <span>สถานะ:</span>
                 </span>
                 {(() => {
                   const seen = new Set<string>();
@@ -1447,9 +1449,9 @@ export default function App() {
                     <button
                       key={`status-filter-${s.id}`}
                       onClick={() => setStatusFilter(s.id)}
-                      className={`px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap cursor-pointer shrink-0 ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer shrink-0 ${
                         statusFilter === s.id
-                          ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                          ? 'bg-indigo-600 text-white shadow-xs font-bold'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                       }`}
                     >
@@ -1461,23 +1463,23 @@ export default function App() {
             )}
           </div>
 
-          {/* Document Type Category Filter (แยกประเภทเอกสารชัดเจน) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-1.5 border-t border-slate-100 text-xs">
-            <span className="text-slate-400 font-semibold text-[11px] shrink-0 mr-1 flex items-center gap-1">
-              <Layers className="w-3.5 h-3.5 text-indigo-500" />
-              ประเภทเอกสาร:
+          {/* Document Type Category Filter */}
+          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-2 border-t border-slate-100 text-xs">
+            <span className="text-slate-500 font-medium text-xs shrink-0 mr-1 flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5 text-slate-400" />
+              <span>ประเภทเอกสาร:</span>
             </span>
             <button
               onClick={() => setDocTypeFilter('all')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'all'
-                  ? 'bg-slate-900 text-white shadow-xs'
+                  ? 'bg-slate-900 text-white shadow-xs font-bold'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
               <span>ทุกประเภท</span>
               <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
                   docTypeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                 }`}
               >
@@ -1486,15 +1488,15 @@ export default function App() {
             </button>
             <button
               onClick={() => setDocTypeFilter('summary_plan')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'summary_plan'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-sky-600 text-white shadow-xs font-bold'
                   : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/80'
               }`}
             >
               <span>📄 แผนฯ ฉบับย่อ</span>
               <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
                   docTypeFilter === 'summary_plan' ? 'bg-white/20 text-white' : 'bg-sky-200/80 text-sky-900'
                 }`}
               >
@@ -1503,15 +1505,15 @@ export default function App() {
             </button>
             <button
               onClick={() => setDocTypeFilter('full_plan')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'full_plan'
-                  ? 'bg-emerald-600 text-white shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
                   : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80'
               }`}
             >
               <span>📘 แผนฯ ฉบับสมบูรณ์</span>
               <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
                   docTypeFilter === 'full_plan' ? 'bg-white/20 text-white' : 'bg-emerald-200/80 text-emerald-900'
                 }`}
               >
@@ -1520,15 +1522,15 @@ export default function App() {
             </button>
             <button
               onClick={() => setDocTypeFilter('classroom_research')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'classroom_research'
-                  ? 'bg-purple-600 text-white shadow-xs'
+                  ? 'bg-purple-600 text-white shadow-xs font-bold'
                   : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/80'
               }`}
             >
               <span>🔬 วิจัยในชั้นเรียน</span>
               <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
                   docTypeFilter === 'classroom_research' ? 'bg-white/20 text-white' : 'bg-purple-200/80 text-purple-900'
                 }`}
               >
@@ -1538,15 +1540,15 @@ export default function App() {
             {docCategoryCounts.general > 0 && (
               <button
                 onClick={() => setDocTypeFilter('general_academic')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                   docTypeFilter === 'general_academic'
-                    ? 'bg-indigo-600 text-white shadow-xs'
+                    ? 'bg-indigo-600 text-white shadow-xs font-bold'
                     : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80'
                 }`}
               >
                 <span>📑 เอกสารวิชาการอื่นๆ</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
                     docTypeFilter === 'general_academic' ? 'bg-white/20 text-white' : 'bg-indigo-200/80 text-indigo-900'
                   }`}
                 >
@@ -1557,15 +1559,15 @@ export default function App() {
           </div>
 
           {/* Search bar & Active filter indicators */}
-          <div className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 pt-2 border-t border-slate-100">
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 pt-2.5 border-t border-slate-100">
             <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 sm:top-3" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ค้นหารหัสวิชา (ว31101), ชื่อวิชา, ชื่อแผน, หรือชื่อครูผู้สอน..."
-                className="w-full pl-10 pr-4 py-2.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white"
+                className="w-full pl-10 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all placeholder:text-slate-400"
               />
             </div>
 
@@ -1596,7 +1598,7 @@ export default function App() {
                 <span>กลุ่มสาระ: {areaFilter}</span>
                 <button
                   onClick={() => setAreaFilter('')}
-                  className="hover:text-indigo-900 font-bold ml-1"
+                  className="hover:text-indigo-900 font-bold ml-1 cursor-pointer"
                 >
                   ✕
                 </button>
@@ -1608,7 +1610,7 @@ export default function App() {
         {/* Lesson Plans Grid & Table View */}
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-semibold text-slate-900 flex items-center gap-2">
               <FileCheck2 className="w-4 h-4 text-amber-500" />
               <span>รายการเอกสารวิชาการ / แผนการจัดการเรียนรู้</span>
               <span className="text-xs text-slate-500 font-normal">
@@ -1616,13 +1618,13 @@ export default function App() {
               </span>
             </h3>
 
-            {/* View Switcher: บอร์ดการ์ด vs ตารางแถวสรุป (สไตล์ Notion / Linear) */}
+            {/* View Switcher: บอร์ดการ์ด vs ตารางแถวสรุป */}
             <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/90 self-start sm:self-auto shrink-0 shadow-2xs">
               <button
                 onClick={() => setPlanDisplayMode('board')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                   planDisplayMode === 'board'
-                    ? 'bg-white text-slate-900 shadow-xs'
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
                 title="ดูแบบบอร์ดการ์ด"
@@ -1632,12 +1634,12 @@ export default function App() {
               </button>
               <button
                 onClick={() => setPlanDisplayMode('table')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                   planDisplayMode === 'table'
-                    ? 'bg-white text-slate-900 shadow-xs'
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
-                title="ดูแบบตารางแถวสรุป รวดเร็วทันใจ"
+                title="ดูแบบตารางแถวสรุป"
               >
                 <TableIcon className="w-3.5 h-3.5 text-amber-500" />
                 <span>ตารางแถวสรุป</span>

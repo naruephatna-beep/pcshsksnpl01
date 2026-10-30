@@ -215,10 +215,10 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
 
           {/* Quick Filter Segmented Control & Collapse Toggle */}
           <div className="flex items-center gap-2 justify-between sm:justify-end shrink-0">
-            <div className="flex items-center bg-slate-800/80 rounded-xl p-1 border border-slate-700/80 text-xs font-semibold overflow-x-auto">
+            <div className="flex items-center bg-slate-800/90 rounded-xl p-1 border border-slate-700/80 text-xs font-semibold overflow-x-auto">
               <button
                 onClick={() => setFilter('all')}
-                className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
+                className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                   filter === 'all'
                     ? 'bg-white text-slate-900 shadow-xs font-bold'
                     : 'text-slate-300 hover:text-white'
@@ -228,27 +228,27 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
               </button>
               <button
                 onClick={() => setFilter('pending')}
-                className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1 ${
+                className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                   filter === 'pending'
                     ? 'bg-amber-500 text-slate-950 shadow-xs font-bold'
                     : 'text-amber-300 hover:text-white'
                 }`}
               >
                 <span>ยังไม่ได้ส่ง</span>
-                <span className="px-1 py-0.2 rounded text-[10px] bg-slate-900/60 text-amber-200">
+                <span className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-900/60 text-amber-200">
                   {pendingCount}
                 </span>
               </button>
               <button
                 onClick={() => setFilter('submitted')}
-                className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex items-center gap-1 ${
+                className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                   filter === 'submitted'
                     ? 'bg-emerald-500 text-slate-950 shadow-xs font-bold'
                     : 'text-emerald-300 hover:text-white'
                 }`}
               >
                 <span>ส่งแล้ว</span>
-                <span className="px-1 py-0.2 rounded text-[10px] bg-slate-900/60 text-emerald-200">
+                <span className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-900/60 text-emerald-200">
                   {submittedCount}
                 </span>
               </button>
@@ -584,8 +584,8 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                     )}
                   </div>
 
-                  {/* Actions Bar (Mobile Touch targets >= 44px) */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-1">
+                  {/* Actions Bar (Mobile Touch targets >= 40px) */}
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 mt-1">
                     {isSubmitted ? (
                       <div className="flex items-center gap-2 w-full justify-between flex-wrap">
                         <div className="flex items-center gap-1.5">
@@ -594,7 +594,7 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                               href={submittedPlan.file_url}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer"
                               title="เปิดดูไฟล์ที่ส่ง"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
@@ -605,7 +605,7 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                           {onOpenReceipt && submittedPlan && (
                             <button
                               onClick={() => onOpenReceipt(submittedPlan)}
-                              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                               title="พิมพ์/ดูใบตอบรับ"
                             >
                               <Receipt className="w-3.5 h-3.5" />
@@ -616,17 +616,17 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
 
                         <button
                           onClick={() => onOpenSubmitForType(config.name)}
-                          className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-slate-800 hover:bg-slate-100 transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-colors cursor-pointer"
                           title="ส่งฉบับปรับปรุงหรือส่งเพิ่มเติม"
                         >
-                          <UploadCloud className="w-3.5 h-3.5" />
+                          <UploadCloud className="w-3.5 h-3.5 text-slate-500" />
                           <span>ส่งเพิ่ม/ปรับปรุง</span>
                         </button>
                       </div>
                     ) : (
                       <button
                         onClick={() => onOpenSubmitForType(config.name)}
-                        className="w-full py-2.5 sm:py-3 px-4 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 shadow-sm shadow-orange-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        className="w-full py-2.5 sm:py-3 px-4 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                       >
                         <UploadCloud className="w-4 h-4 text-slate-950" />
                         <span>ส่งเอกสารนี้ ({config.name})</span>

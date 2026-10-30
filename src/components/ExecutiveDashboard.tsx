@@ -851,19 +851,19 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       </div>
 
       {/* Quick Leaderboard Announcement Banner */}
-      <div className="bg-gradient-to-r from-amber-500/15 via-yellow-500/15 to-amber-500/15 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+      <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-300 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs border border-white">
-            <Trophy className="w-6 h-6 text-slate-950" />
+          <div className="w-11 h-11 rounded-2xl bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 shadow-xs border border-amber-400/20">
+            <Trophy className="w-5 h-5 text-amber-400" />
           </div>
           <div>
-            <h4 className="text-sm sm:text-base font-extrabold text-slate-950 flex items-center gap-2 flex-wrap">
-              <span>ทำเนียบจัดอันดับกลุ่มสาระยอดเยี่ยม (Punctuality & Completion Leaderboard)</span>
-              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black">
-                ดูผลจัดอันดับ
+            <h4 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+              <span>ทำเนียบจัดอันดับกลุ่มสาระยอดเยี่ยม (Leaderboard)</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 font-semibold">
+                ความเร็ว & ตรงเวลา
               </span>
             </h4>
-            <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">
+            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
               เช็คว่ากลุ่มสาระไหนส่งเอกสารครบ 100% และตรงเวลาทุกคนก่อนเป็นกลุ่มแรก พร้อมสถิติเวลาที่สำเร็จจริง และแท่นรับรางวัลเกียรติยศ 3 อันดับแรก
             </p>
           </div>
@@ -871,7 +871,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
         <button
           onClick={() => handleModeChange('ranking')}
-          className="px-4 py-2.5 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-700 hover:to-yellow-600 text-slate-950 text-xs font-black rounded-xl flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0 self-start sm:self-auto"
+          className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0 self-start sm:self-auto active:scale-95"
         >
           <Trophy className="w-4 h-4 text-slate-950" />
           <span>เปิดดูอันดับกลุ่มสาระ</span>
@@ -1259,15 +1259,15 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
 
             {/* Controls: View Mode Toggle & Scope Badge */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               {/* Toggle: แยกประเภทเอกสาร (คนละสีคนละแท่ง) VS สรุปตรงเวลา/ล่าช้า */}
-              <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-bold border border-slate-200/80">
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-semibold border border-slate-200/80">
                 <button
                   type="button"
                   onClick={() => setGraph1ViewMode('by_doctype')}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     graph1ViewMode === 'by_doctype'
-                      ? 'bg-white text-indigo-700 shadow-2xs'
+                      ? 'bg-white text-indigo-900 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                   title="แสดงคนละประเภทเอกสารเป็นคนละสีคนละแท่ง"
@@ -1278,9 +1278,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setGraph1ViewMode('by_timeliness')}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     graph1ViewMode === 'by_timeliness'
-                      ? 'bg-white text-indigo-700 shadow-2xs'
+                      ? 'bg-white text-indigo-900 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                   title="สรุปภาพรวมสัดส่วนส่งตรงเวลาและล่าช้า"
@@ -1294,10 +1294,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <button
                 type="button"
                 onClick={handleInstantCopyPrompt}
-                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-600 hover:to-yellow-500 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer border border-amber-300 shrink-0"
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-2 shadow-xs active:scale-95 transition-all cursor-pointer border border-amber-400 shrink-0"
                 title="คลิกเดียวคัดลอก Prompt สถิติจริงอัตลักษณ์ รร.วิทยาศาสตร์จุฬาภรณ์ฯ เพื่อนำไปวางให้ AI เจนภาพอินโฟกราฟิกได้ทันที"
               >
-                <Sparkles className="w-3.5 h-3.5 text-slate-950 fill-slate-950 shrink-0" />
+                <Sparkles className="w-3.5 h-3.5 text-slate-950 shrink-0" />
                 <span>สร้าง Prompt ทำอินโฟกราฟิก (AI)</span>
               </button>
 
@@ -1305,20 +1305,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsInfographicModalOpen(true)}
-                className="p-1.5 bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200 rounded-xl transition-colors cursor-pointer shrink-0"
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition-colors cursor-pointer shrink-0"
                 title="เปิดดูและปรับแต่ง Prompt ละเอียด (ภาษาไทย/อังกฤษ)"
               >
                 <Eye className="w-4 h-4 text-slate-700" />
               </button>
 
-              <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg">
+              <span className="text-xs font-medium px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl border border-slate-200/80">
                 {isAllAreas ? '8 กลุ่มสาระ' : `เปรียบเทียบ ${areaStats.length} สาระ`}
               </span>
               {!isAllAreas && (
                 <button
                   type="button"
                   onClick={selectAllAreas}
-                  className="text-[11px] text-slate-500 hover:text-indigo-600 font-semibold underline cursor-pointer"
+                  className="text-xs text-slate-500 hover:text-indigo-600 font-semibold underline cursor-pointer"
                 >
                   แสดงครบ 8 สาระ
                 </button>

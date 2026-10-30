@@ -154,8 +154,8 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
 
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-black uppercase tracking-wider bg-[#0B1329] text-amber-300 shrink-0">
-                ⚡ แถบนับถอยหลังส่งงาน
+              <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase tracking-wide bg-[#0B1329] text-amber-300 shrink-0 shadow-2xs">
+                แถบนับถอยหลังส่งงาน
               </span>
               <span className="text-xs font-bold text-slate-900 truncate">
                 {config.name}
@@ -164,11 +164,11 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
 
             <div className="mt-1 flex items-baseline gap-2 flex-wrap">
               {allCompleted ? (
-                <p className="text-sm sm:text-base font-extrabold text-slate-950">
+                <p className="text-sm sm:text-base font-bold text-slate-950">
                   🎉 ยอดเยี่ยม! ท่านส่งเอกสารตามกำหนดครบทุกรายการแล้ว
                 </p>
               ) : isOverdue ? (
-                <p className="text-sm sm:text-base font-extrabold text-slate-950 flex items-center gap-1.5">
+                <p className="text-sm sm:text-base font-bold text-slate-950 flex items-center gap-1.5">
                   <span>สิ้นสุดกำหนดเวลาแล้ว</span>
                   <span className="text-xs font-bold bg-rose-600 text-white px-2 py-0.5 rounded-md">
                     เลยกำหนดมา {days} วัน {hours} ชม.
@@ -176,29 +176,29 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
                 </p>
               ) : (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold text-slate-800">
+                  <span className="text-xs font-medium text-slate-800">
                     เหลือเวลาอีก:
                   </span>
                   <div className="flex items-center gap-1.5 font-mono">
-                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-sm border border-slate-700/60">
-                      <span className="text-amber-400 font-extrabold text-xs sm:text-sm">{days}</span>
+                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-2xs border border-slate-700/60">
+                      <span className="text-amber-400 font-bold text-xs sm:text-sm">{days}</span>
                       <span className="text-[10px] text-slate-300">วัน</span>
                     </div>
                     <span className="text-slate-700 font-bold">:</span>
-                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-sm border border-slate-700/60">
-                      <span className="text-amber-400 font-extrabold text-xs sm:text-sm">{hours}</span>
+                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-2xs border border-slate-700/60">
+                      <span className="text-amber-400 font-bold text-xs sm:text-sm">{hours}</span>
                       <span className="text-[10px] text-slate-300">ชม.</span>
                     </div>
                     <span className="text-slate-700 font-bold">:</span>
-                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-sm border border-slate-700/60">
-                      <span className="text-amber-400 font-extrabold text-xs sm:text-sm">{minutes}</span>
+                    <div className="flex items-center gap-1 bg-[#0B1329] text-white px-2 py-0.5 rounded-lg shadow-2xs border border-slate-700/60">
+                      <span className="text-amber-400 font-bold text-xs sm:text-sm">{minutes}</span>
                       <span className="text-[10px] text-slate-300">นาที</span>
                     </div>
                   </div>
                 </div>
               )}
 
-              <span className="text-[11px] sm:text-xs text-slate-900/80 font-medium hidden lg:inline">
+              <span className="text-xs text-slate-900/80 font-medium hidden lg:inline">
                 (กำหนดส่ง: {formatThaiDateTime(`${config.end_date} ${config.end_time || '23:59'}`)} น.)
               </span>
             </div>
@@ -210,7 +210,7 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
           {!allCompleted && !isAdmin && (
             <button
               onClick={handleScrollToPending}
-              className="flex-1 md:flex-initial px-4 py-2 bg-[#0B1329] hover:bg-slate-900 text-amber-300 hover:text-white rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer border border-slate-800"
+              className="flex-1 md:flex-initial px-4 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-amber-300 hover:text-white rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer border border-slate-800"
               title="เลื่อนลงไปยังรายการงานที่ยังไม่ได้ส่ง"
             >
               <ArrowDown className="w-4 h-4 text-amber-400" />
@@ -219,14 +219,14 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
           )}
 
           {isAdmin && (
-            <div className="px-3 py-1.5 bg-[#0B1329] text-amber-300 rounded-xl text-xs font-bold border border-amber-400/40 shadow-xs">
+            <div className="px-3.5 py-2 bg-[#0B1329] text-amber-300 rounded-xl text-xs font-semibold border border-amber-400/40 shadow-xs">
               ระบบเปิดรับส่งทั้งโรงเรียน
             </div>
           )}
 
           <button
             onClick={() => setIsDismissed(true)}
-            className="p-1.5 rounded-lg hover:bg-black/10 text-slate-800 transition-colors"
+            className="p-2 rounded-xl hover:bg-black/10 text-slate-800 transition-colors cursor-pointer"
             title="ซ่อนการแจ้งเตือนนี้"
             aria-label="ปิดแถบแจ้งเตือน"
           >

@@ -236,8 +236,8 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
 
       {/* Admin Quick Status Bar */}
       {isAdmin && onQuickChangeStatus && (
-        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
-          <span className="text-slate-500 text-[11px] font-bold flex items-center gap-1 shrink-0">
+        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+          <span className="text-slate-500 text-xs font-medium flex items-center gap-1.5 shrink-0">
             <ShieldCheck className="w-3.5 h-3.5 text-slate-700" />
             <span>ปรับสถานะ:</span>
           </span>
@@ -245,7 +245,7 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
             <select
               value={plan.status}
               onChange={(e) => onQuickChangeStatus(plan, e.target.value)}
-              className="px-2 py-1 rounded-md border border-slate-300 text-[11px] font-bold bg-white text-slate-800 shadow-2xs cursor-pointer focus:ring-1 focus:ring-amber-500"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium bg-white text-slate-800 shadow-2xs cursor-pointer focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
             >
               {(statusConfigs || []).map((sc) => (
                 <option key={sc.id} value={sc.id}>
@@ -257,10 +257,10 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
               <button
                 type="button"
                 onClick={() => onToggleLate(plan)}
-                className={`px-2 py-1 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
                   isLate
                     ? 'bg-amber-100 text-amber-900 border-amber-300'
-                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                 }`}
                 title="คลิกเพื่อสลับสถานะส่งช้า / ส่งตรงเวลา"
               >
@@ -271,17 +271,17 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
         </div>
       )}
 
-      {/* Action Footer (Mobile responsive wrap with comfortable touch targets) */}
-      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+      {/* Action Footer (Standardized button heights, padding, and visual hierarchy) */}
+      <div className="mt-3.5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           {/* File link */}
           <a
             href={plan.file_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5" />
+            <FileText className="w-3.5 h-3.5 text-slate-600" />
             <span>ดูไฟล์</span>
             <ExternalLink className="w-3 h-3 text-slate-400" />
           </a>
@@ -289,7 +289,7 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           {/* Receipt button */}
           <button
             onClick={() => onOpenReceipt(plan)}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-semibold transition-colors border border-transparent hover:border-slate-200 cursor-pointer"
             title="พิมพ์ใบตอบรับการส่งแผน"
           >
             <Printer className="w-3.5 h-3.5" />
@@ -297,12 +297,12 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           </button>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {/* Resubmit button */}
           {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan && (
             <button
               onClick={() => onResubmitPlan(plan)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>ส่งใหม่</span>
@@ -313,10 +313,10 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           {(isAdmin || isOwner) && onEditPlan && (
             <button
               onClick={() => onEditPlan(plan)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
               title="แก้ไขข้อมูลแผน"
             >
-              <Edit className="w-3.5 h-3.5 text-slate-600" />
+              <Edit className="w-3.5 h-3.5 text-slate-500" />
               <span>แก้ไข</span>
             </button>
           )}
@@ -325,7 +325,7 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           {canReview && (
             <button
               onClick={() => onOpenReview(plan)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0B1329] hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5 text-amber-400" />
               <span>{plan.status === 'submitted' ? 'ตรวจ' : 'ผลตรวจ'}</span>
@@ -336,7 +336,7 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           {(isAdmin || isOwner) && (
             <button
               onClick={() => onDeletePlan(plan.id)}
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
               title="ลบรายการ"
             >
               <Trash2 className="w-3.5 h-3.5" />

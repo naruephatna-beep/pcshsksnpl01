@@ -148,13 +148,13 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
 
       {/* 6. Actions */}
       <td className="py-3 px-3 text-right whitespace-nowrap">
-        <div className="inline-flex items-center gap-1 justify-end">
+        <div className="inline-flex items-center gap-1.5 justify-end">
           {/* File link */}
           <a
             href={plan.file_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors inline-flex items-center"
+            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg transition-colors inline-flex items-center cursor-pointer"
             title="เปิดดูไฟล์ PDF"
           >
             <FileText className="w-3.5 h-3.5" />
@@ -163,8 +163,8 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
           {/* Receipt */}
           <button
             onClick={() => onOpenReceipt(plan)}
-            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-            title="ใบตอบรับ"
+            className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            title="พิมพ์ใบตอบรับ"
           >
             <Printer className="w-3.5 h-3.5" />
           </button>
@@ -173,7 +173,7 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
           {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan && (
             <button
               onClick={() => onResubmitPlan(plan)}
-              className="px-2 py-1 bg-amber-500 text-slate-950 font-bold rounded-md hover:bg-amber-600 text-[10px] flex items-center gap-0.5 cursor-pointer"
+              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
               title="ส่งแผนใหม่อีกครั้ง"
             >
               <RotateCcw className="w-3 h-3" />
@@ -185,7 +185,7 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
           {(isAdmin || isOwner) && onEditPlan && (
             <button
               onClick={() => onEditPlan(plan)}
-              className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               title="แก้ไขข้อมูลแผน"
             >
               <Edit className="w-3.5 h-3.5" />
@@ -196,7 +196,7 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
           {canReview && (
             <button
               onClick={() => onOpenReview(plan)}
-              className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-[#0B1329] hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
             >
               <UserCheck className="w-3 h-3 text-amber-400" />
               <span>{plan.status === 'submitted' ? 'ตรวจ' : 'ผล'}</span>
@@ -207,7 +207,7 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
           {(isAdmin || isOwner) && (
             <button
               onClick={() => onDeletePlan(plan.id)}
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
               title="ลบ"
             >
               <Trash2 className="w-3.5 h-3.5" />

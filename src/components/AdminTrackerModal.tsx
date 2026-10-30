@@ -47,6 +47,11 @@ import {
   Zap,
   Trophy,
   Table as TableIcon,
+  ChevronDown,
+  ChevronUp,
+  MoreHorizontal,
+  SlidersHorizontal,
+  Settings,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
@@ -95,6 +100,8 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isPrintSummaryModalOpen, setIsPrintSummaryModalOpen] = useState(false);
+  const [isDashboardCollapsed, setIsDashboardCollapsed] = useState<boolean>(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
 
   // Direct email sending states
   const [isSendingEmail, setIsSendingEmail] = useState<boolean>(false);
@@ -644,40 +651,155 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
       <div className="w-full max-w-7xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-3 flex flex-col max-h-[96vh] animate-in fade-in zoom-in-95 duration-200">
-        {/* Header (สีกรมท่าลึก #0B1329 สไตล์โรงเรียน) */}
-        <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 p-4 sm:p-5 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
+        {/* Header (สีกรมท่าลึก #0B1329 อัตลักษณ์โรงเรียน พร้อมปุ่มขนาดเท่ากันและ Dropdown เมนู) */}
+        <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 p-3.5 sm:p-4 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 border-b border-slate-800">
+          {/* Brand & Sender Info (จัดเรียงสะอาด ไร้ข้อความซ้อนทับ) */}
           <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-amber-400/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-amber-400/30 shrink-0">
+            <div className="w-10 h-10 bg-amber-400/15 backdrop-blur-md rounded-xl flex items-center justify-center border border-amber-400/30 shrink-0">
               <ShieldCheck className="w-6 h-6 text-amber-400" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <span className="text-[10px] sm:text-xs uppercase font-extrabold text-amber-300 tracking-wider">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2 py-0.5 rounded-md text-[11px] uppercase font-bold text-amber-300 tracking-wider bg-amber-400/15 border border-amber-400/30">
                   Admin Matrix Hub
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  ช่องเขียว = ส่งแล้ว • ช่องแดง = ยังไม่ส่ง
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/10 text-slate-200 border border-white/10">
+                  <Mail className="w-3 h-3 text-amber-300 shrink-0" />
+                  <span className="truncate max-w-[200px]">ส่งจาก: {ACADEMIC_SENDER_EMAIL}</span>
                 </span>
-                <div className="flex items-center gap-1 bg-indigo-950/80 p-0.5 rounded-full border border-indigo-500/40 text-[9px] sm:text-[10px]">
-                  <span className="px-2 py-0.5 font-bold text-indigo-200 flex items-center gap-1">
-                    <Mail className="w-3 h-3 text-amber-300" />
-                    <span>ผู้ส่ง: {ACADEMIC_SENDER_EMAIL}</span>
-                  </span>
-                  <div className="flex items-center bg-black/40 rounded-full p-0.5">
+              </div>
+              <h2 className="text-base sm:text-lg font-bold tracking-tight text-white mt-1 truncate">
+                ติดตามการส่งงานรายบุคคล
+              </h2>
+            </div>
+          </div>
+
+          {/* Action Buttons Toolbar (ความสูง h-9 เท่ากันทุกปุ่ม แบ่งความสำคัญชัดเจน ซ่อนปุ่มรองใน Dropdown) */}
+          <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+            {/* View Mode Segmented Control */}
+            <div className="flex bg-white/10 p-1 rounded-xl border border-white/15 text-xs font-semibold">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`h-7 px-2.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  viewMode === 'table' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
+                }`}
+                title="ตารางรายคน"
+              >
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>ตาราง</span>
+              </button>
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`h-7 px-2.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  viewMode === 'cards' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
+                }`}
+                title="การ์ดรายคน"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>การ์ด</span>
+              </button>
+              <button
+                onClick={() => setViewMode('matrix')}
+                className={`h-7 px-2.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  viewMode === 'matrix' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
+                }`}
+                title="เมทริกซ์ 2 มิติ"
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>เมทริกซ์</span>
+              </button>
+            </div>
+
+            {/* Primary Action 1: ส่งเมลเตือนทุกคน (แสดงเมื่อมีคนค้างส่ง) */}
+            {stats.uncompletedCount > 0 && (
+              <button
+                onClick={handleQuickBulkSend}
+                className="h-9 px-3.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="คลิกเดียวส่งแจ้งเตือนครูทุกคนที่ยังค้างส่งงาน"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-300" />
+                <span>ส่งเมลเตือน ({stats.uncompletedCount})</span>
+              </button>
+            )}
+
+            {/* Primary Action 2: พิมพ์สรุปรายบุคคล */}
+            <button
+              onClick={() => setIsPrintSummaryModalOpen(true)}
+              className="h-9 px-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 border border-amber-300"
+              title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล (พร้อมตราโรงเรียน)"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>พิมพ์สรุปรายบุคคล</span>
+            </button>
+
+            {/* Secondary Actions Dropdown Menu (ลดความแออัดตามคำขอ) */}
+            <div className="relative">
+              <button
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                className="h-9 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors border border-white/10"
+                title="ตัวเลือกเพิ่มเติม"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">ตัวเลือก</span>
+                <ChevronDown className="w-3 h-3 text-slate-300" />
+              </button>
+
+              {isMoreMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMoreMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 text-xs animate-in fade-in slide-in-from-top-2">
+                    <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                      เครื่องมือเพิ่มเติม
+                    </div>
+
                     <button
-                      type="button"
-                      onClick={() => handleToggleSendMode('gmail')}
-                      className={`px-2 py-0.5 rounded-full font-black transition-all cursor-pointer ${
-                        quickSendMode === 'gmail'
-                          ? 'bg-amber-400 text-slate-950 shadow-xs'
-                          : 'text-slate-300 hover:text-white'
-                      }`}
-                      title="โหมด 1-Click Gmail: คลิกปุ่มเดียวเปิดหน้าต่าง Gmail พร้อมส่งทันที (ไม่ต้องตั้งรหัสผ่าน)"
+                      onClick={() => {
+                        setViewMode('ranking');
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
                     >
-                      ⚡ 1-Click Gmail (แนะนำ)
+                      <Trophy className="w-4 h-4 text-amber-400" />
+                      <span>🏆 จัดอันดับกลุ่มสาระ</span>
                     </button>
+
+                    {onOpenDeadlineManager && (
+                      <button
+                        onClick={() => {
+                          onOpenDeadlineManager();
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <Calendar className="w-4 h-4 text-amber-400" />
+                        <span>กำหนดส่ง & งานที่มอบหมาย</span>
+                      </button>
+                    )}
+
+                    <div className="px-3 py-1.5 mt-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-800">
+                      โหมดส่งอีเมล
+                    </div>
+
                     <button
-                      type="button"
+                      onClick={() => {
+                        handleToggleSendMode('gmail');
+                        setIsMoreMenuOpen(false);
+                        showToast('เปิดใช้งานโหมด 1-Click Gmail');
+                      }}
+                      className={`w-full px-3 py-2 text-left flex items-center justify-between cursor-pointer transition-colors ${
+                        quickSendMode === 'gmail'
+                          ? 'bg-amber-500/20 text-amber-300 font-bold'
+                          : 'text-slate-200 hover:bg-white/10'
+                      }`}
+                    >
+                      <span>⚡ 1-Click Gmail (แนะนำ)</span>
+                      {quickSendMode === 'gmail' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                    </button>
+
+                    <button
                       onClick={() => {
                         if (!appPassword.trim()) {
                           if (teachingStaff.length > 0) {
@@ -686,110 +808,47 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                           }
                         } else {
                           handleToggleSendMode('smtp');
+                          showToast('เปิดใช้งานโหมดส่งเบื้องหลังอัตโนมัติ');
                         }
+                        setIsMoreMenuOpen(false);
                       }}
-                      className={`px-2 py-0.5 rounded-full font-bold transition-all cursor-pointer ${
+                      className={`w-full px-3 py-2 text-left flex items-center justify-between cursor-pointer transition-colors ${
                         quickSendMode === 'smtp'
-                          ? 'bg-emerald-400 text-slate-950 font-black shadow-xs'
-                          : 'text-slate-300 hover:text-white'
+                          ? 'bg-emerald-500/20 text-emerald-300 font-bold'
+                          : 'text-slate-200 hover:bg-white/10'
                       }`}
-                      title="โหมดส่งเบื้องหลังอัตโนมัติ: ต้องใช้รหัสผ่านสำหรับแอป 16 หลักจาก Google Security"
                     >
-                      🚀 ส่งเบื้องหลัง {appPassword ? '(พร้อม)' : '(ตั้งรหัสแอป)'}
+                      <span>🚀 ส่งเบื้องหลัง (รหัสแอป 16 หลัก)</span>
+                      {quickSendMode === 'smtp' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                     </button>
                   </div>
-                </div>
-              </div>
-              <h2 className="text-base sm:text-xl font-black tracking-tight truncate flex items-center gap-2">
-                <span>ติดตามงานรายบุคคล</span>
-                <span className="hidden sm:inline-block text-xs font-normal text-slate-300">
-                  (ส่งแจ้งเตือนด้วยอีเมล {ACADEMIC_SENDER_EMAIL} ใน 1 คลิก)
-                </span>
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* View Mode Toggle */}
-            <div className="flex bg-white/10 p-0.5 rounded-xl border border-white/15 text-xs font-semibold overflow-x-auto touch-scroll">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                  viewMode === 'table' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
-                }`}
-                title="มุมมองตารางรายการรายคน (อ่านและสแกนง่ายที่สุด)"
-              >
-                <TableIcon className="w-3.5 h-3.5" />
-                <span>📋 ตารางรายคน</span>
-              </button>
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                  viewMode === 'cards' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
-                }`}
-                title="มุมมองการ์ดรายบุคคล"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>📇 การ์ดรายคน</span>
-              </button>
-              <button
-                onClick={() => setViewMode('matrix')}
-                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                  viewMode === 'matrix' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
-                }`}
-                title="มุมมองตารางเมทริกซ์ 2 มิติ"
-              >
-                <List className="w-3.5 h-3.5" />
-                <span>📊 เมทริกซ์ 2 มิติ</span>
-              </button>
-              <button
-                onClick={() => setViewMode('ranking')}
-                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                  viewMode === 'ranking' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-amber-300 hover:text-white hover:bg-white/10'
-                }`}
-                title="จัดอันดับกลุ่มสาระที่ส่งครบและตรงเวลาก่อน"
-              >
-                <Trophy className="w-3.5 h-3.5" />
-                <span>🏆 จัดอันดับกลุ่มสาระ</span>
-              </button>
+                </>
+              )}
             </div>
 
-            {/* Bulk Reminder Button */}
-            {stats.uncompletedCount > 0 && (
-              <button
-                onClick={handleQuickBulkSend}
-                className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
-                title="คลิกเดียวส่งแจ้งเตือนครูทุกคนที่ยังค้างส่งงาน"
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-300" />
-                <span>ส่งเมลเตือนทุกคน ({stats.uncompletedCount})</span>
-              </button>
-            )}
-
-
-            {onOpenDeadlineManager && (
-              <button
-                onClick={onOpenDeadlineManager}
-                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
-                title="กำหนดช่วงเวลาส่งงานของแต่ละประเภทและจัดการสถานะ"
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>กำหนดส่ง & งานที่มอบหมาย</span>
-              </button>
-            )}
-
+            {/* Collapse/Expand Dashboard Button */}
             <button
-              onClick={() => setIsPrintSummaryModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 rounded-xl text-xs font-black transition-all shadow-xs cursor-pointer active:scale-95 border border-amber-300"
-              title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล (พร้อมตราโรงเรียนและรายการงานที่ส่ง/ยังไม่ส่ง)"
+              onClick={() => setIsDashboardCollapsed(!isDashboardCollapsed)}
+              className="h-9 px-3 bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors border border-white/10"
+              title={isDashboardCollapsed ? 'ขยายสถิติแดชบอร์ดด้านบน' : 'ย่อสถิติเพื่อเพิ่มพื้นที่ตารางรายชื่อครู'}
             >
-              <Printer className="w-3.5 h-3.5 text-slate-950" />
-              <span>พิมพ์สรุปรายบุคคล</span>
+              {isDashboardCollapsed ? (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">ขยายสถิติ</span>
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">ย่อสถิติ</span>
+                </>
+              )}
             </button>
 
+            {/* Close Button */}
             <button
               onClick={onClose}
-              className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-xl transition-colors active:scale-95 cursor-pointer ml-1"
+              className="h-9 w-9 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition-colors active:scale-95 cursor-pointer flex items-center justify-center border border-white/10"
               aria-label="ปิดหน้าต่าง"
             >
               <X className="w-5 h-5" />
@@ -804,102 +863,159 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               <CheckCircle2 className="w-4 h-4 text-emerald-200" />
               <span>{toastMessage}</span>
             </div>
-            <button onClick={() => setToastMessage(null)} className="text-white/80 hover:text-white">
+            <button onClick={() => setToastMessage(null)} className="text-white/80 hover:text-white cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-
-        {/* Top KPI Cards (4 Cards) */}
-        <div className="bg-slate-50 p-3 sm:p-4 border-b border-slate-200 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 shrink-0">
-          <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
-            <span className="text-[11px] text-slate-500 font-bold block">ครูผู้สอนทั้งหมด</span>
-            <div className="mt-1 flex items-baseline gap-1.5">
-              <span className="text-xl font-black text-slate-900">{stats.totalTeachers}</span>
-              <span className="text-xs text-slate-500 font-semibold">ท่าน (8 กลุ่มสาระ)</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-emerald-300 shadow-2xs bg-gradient-to-br from-white to-emerald-50/40">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-emerald-800 font-bold block">🟢 ส่งครบทุกงานแล้ว</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            </div>
-            <div className="mt-1 flex items-baseline gap-1.5">
-              <span className="text-xl font-black text-emerald-700">{stats.completedAllCount}</span>
-              <span className="text-xs text-emerald-600 font-bold">
-                ({stats.totalTeachers > 0 ? Math.round((stats.completedAllCount / stats.totalTeachers) * 100) : 0}%)
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-rose-300 shadow-2xs bg-gradient-to-br from-white to-rose-50/40">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-rose-800 font-bold block">🔴 ค้างส่งงาน (มีช่องแดง)</span>
-              {stats.uncompletedCount > 0 && (
-                <button
-                  onClick={() => setShowBulkReminderModal(true)}
-                  className="text-[10px] text-rose-600 hover:text-rose-800 font-black underline cursor-pointer"
-                >
-                  ⚡ กดส่งเมลทันที
-                </button>
-              )}
-            </div>
-            <div className="mt-1 flex items-baseline gap-1.5">
-              <span className="text-xl font-black text-rose-700">{stats.uncompletedCount}</span>
-              <span className="text-xs text-rose-600 font-bold">ท่าน</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-indigo-200 shadow-2xs">
-            <span className="text-[11px] text-indigo-800 font-bold block">ภาระงานที่มอบหมาย</span>
-            <div className="mt-1 flex items-baseline gap-1.5">
-              <span className="text-xl font-black text-indigo-700">{activeAssignments.length}</span>
-              <span className="text-xs text-indigo-600 font-semibold">งานที่แอดมินเปิดรับ</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Task Columns Summary Quick Bar */}
-        <div className="bg-white px-3 sm:px-5 py-2 border-b border-slate-200 overflow-x-auto touch-scroll shrink-0">
-          <div className="flex items-center gap-3 min-w-max">
-            <span className="text-xs font-bold text-slate-500 shrink-0 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>ความก้าวหน้ารายงาน:</span>
-            </span>
-
-            {stats.taskStats.map((ts) => (
-              <div
-                key={ts.config.id}
-                className="flex items-center gap-2 px-3 py-1 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-xs transition-colors"
-              >
-                <div className="min-w-0">
-                  <div className="font-bold text-slate-800 truncate max-w-[180px]" title={ts.config.name}>
-                    {ts.config.name}
-                  </div>
-                  <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
-                    <span className="font-semibold text-emerald-700">ส่งแล้ว {ts.submittedCount}/{stats.totalTeachers}</span>
-                    <span>•</span>
-                    <span className={ts.unsubmittedCount > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}>
-                      ยังไม่ส่ง {ts.unsubmittedCount}
-                    </span>
-                  </div>
+        {/* COLLAPSIBLE DASHBOARD (Stats & Progress bar - เมื่อเลื่อนดูตารางสามารถกดย่อเพื่อขยายตารางได้เต็มจอ) */}
+        {!isDashboardCollapsed ? (
+          <div className="transition-all duration-300 shrink-0">
+            {/* Top KPI Cards (4 Cards Grid ในระบบ Grid ที่สมดุล ตัวเลขเด่นชัด ลดขนาดคำอธิบาย) */}
+            <div className="bg-slate-50/80 p-3.5 sm:p-4 border-b border-slate-200/90 grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Card 1: All Teachers */}
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors">
+                <span className="text-xs text-slate-500 font-semibold block">ครูผู้สอนทั้งหมด</span>
+                <div className="mt-1 flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
+                    {stats.totalTeachers}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">ท่าน</span>
                 </div>
-
-                <div className="w-12 bg-slate-200 rounded-full h-1.5 overflow-hidden shrink-0">
-                  <div
-                    className="h-full bg-emerald-500 rounded-full transition-all"
-                    style={{ width: `${ts.rate}%` }}
-                  ></div>
+                <div className="mt-1 text-[11px] text-slate-400 font-medium">
+                  ใน 8 กลุ่มสาระการเรียนรู้
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Filter & Search Toolbar */}
-        <div className="p-3 sm:p-4 pb-2 border-b border-slate-100 space-y-2 shrink-0 bg-slate-50/60">
+              {/* Card 2: Completed All */}
+              <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 shadow-2xs bg-gradient-to-br from-white to-emerald-50/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-emerald-800 font-semibold block">🟢 ส่งครบทุกงานแล้ว</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                </div>
+                <div className="mt-1 flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-700 tracking-tight">
+                    {stats.completedAllCount}
+                  </span>
+                  <span className="text-xs text-emerald-600 font-bold">
+                    ({stats.totalTeachers > 0 ? Math.round((stats.completedAllCount / stats.totalTeachers) * 100) : 0}%)
+                  </span>
+                </div>
+                <div className="mt-1 text-[11px] text-emerald-600 font-medium">
+                  ผ่านเกณฑ์ครบทุกรายการ
+                </div>
+              </div>
+
+              {/* Card 3: Uncompleted */}
+              <div className="bg-white p-3.5 rounded-2xl border border-rose-200 shadow-2xs bg-gradient-to-br from-white to-rose-50/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-rose-800 font-semibold block">🔴 ค้างส่งงาน</span>
+                  {stats.uncompletedCount > 0 && (
+                    <button
+                      onClick={() => setShowBulkReminderModal(true)}
+                      className="text-[11px] text-rose-600 hover:text-rose-800 font-bold underline cursor-pointer"
+                    >
+                      กดส่งเมลทันที
+                    </button>
+                  )}
+                </div>
+                <div className="mt-1 flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-rose-700 tracking-tight">
+                    {stats.uncompletedCount}
+                  </span>
+                  <span className="text-xs text-rose-600 font-medium">ท่าน</span>
+                </div>
+                <div className="mt-1 text-[11px] text-rose-500 font-medium">
+                  มีช่องสีแดงที่ยังไม่ส่ง
+                </div>
+              </div>
+
+              {/* Card 4: Assignments Count */}
+              <div className="bg-white p-3.5 rounded-2xl border border-indigo-200 shadow-2xs bg-gradient-to-br from-white to-indigo-50/30">
+                <span className="text-xs text-indigo-800 font-semibold block">ภาระงานที่มอบหมาย</span>
+                <div className="mt-1 flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-indigo-700 tracking-tight">
+                    {activeAssignments.length}
+                  </span>
+                  <span className="text-xs text-indigo-600 font-medium">รายการ</span>
+                </div>
+                <div className="mt-1 text-[11px] text-indigo-500 font-medium">
+                  งานที่แอดมินเปิดรับส่ง
+                </div>
+              </div>
+            </div>
+
+            {/* Task Columns Summary Quick Bar (Grid สม่ำเสมอ ไม่เบียดอึดอัด) */}
+            <div className="bg-white px-3.5 sm:px-4 py-2.5 border-b border-slate-200/90 overflow-x-auto touch-scroll">
+              <div className="flex items-center gap-3 min-w-max">
+                <span className="text-xs font-bold text-slate-500 shrink-0 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>ความก้าวหน้ารายงาน:</span>
+                </span>
+
+                {stats.taskStats.map((ts) => (
+                  <div
+                    key={ts.config.id}
+                    className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 text-xs transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-800 truncate max-w-[190px]" title={ts.config.name}>
+                        {ts.config.name}
+                      </div>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                        <span className="font-semibold text-emerald-700">ส่งแล้ว {ts.submittedCount}/{stats.totalTeachers}</span>
+                        <span>•</span>
+                        <span className={ts.unsubmittedCount > 0 ? 'text-rose-600 font-semibold' : 'text-slate-400'}>
+                          ยังไม่ส่ง {ts.unsubmittedCount}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="w-14 bg-slate-200 rounded-full h-1.5 overflow-hidden shrink-0">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all"
+                        style={{ width: `${ts.rate}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Slim Banner when Dashboard is Collapsed (คืนพื้นที่ให้ตารางรายชื่อครู) */
+          <div className="bg-slate-100/95 px-4 py-2 border-b border-slate-200 flex items-center justify-between text-xs text-slate-700 shrink-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-medium">
+                ครูทั้งหมด: <strong className="font-mono text-slate-900">{stats.totalTeachers}</strong> ท่าน
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-emerald-700 font-medium">
+                ส่งครบ: <strong className="font-mono">{stats.completedAllCount}</strong> ({stats.totalTeachers > 0 ? Math.round((stats.completedAllCount / stats.totalTeachers) * 100) : 0}%)
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-rose-700 font-medium">
+                ค้างส่ง: <strong className="font-mono">{stats.uncompletedCount}</strong> ท่าน
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-indigo-700 font-medium">
+                ภาระงาน: <strong className="font-mono">{activeAssignments.length}</strong> รายการ
+              </span>
+            </div>
+
+            <button
+              onClick={() => setIsDashboardCollapsed(false)}
+              className="text-amber-700 hover:text-amber-800 text-xs font-bold flex items-center gap-1 cursor-pointer hover:underline"
+            >
+              <span>ขยายสถิติ</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Filter & Search Toolbar (จัดแถบค้นหาและแท็บกลุ่มสาระเป็นเส้นตรงเดียวกันอย่างเป็นระเบียบ) */}
+        <div className="p-3 sm:p-4 pb-2.5 border-b border-slate-200 space-y-2.5 shrink-0 bg-slate-50/70">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-2.5">
             {/* Search Input */}
             <div className="relative flex-1 w-full">
@@ -909,7 +1025,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ค้นหาชื่อครู, รหัสครู, อีเมล, กลุ่มสาระ..."
-                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                className="w-full h-9 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
               />
             </div>
 
@@ -918,7 +1034,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               <select
                 value={filterTask}
                 onChange={(e) => setFilterTask(e.target.value)}
-                className="w-full sm:w-auto px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer"
+                className="w-full sm:w-auto h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer"
               >
                 <option value="all">ภาระงานทั้งหมด (ดูทุกช่อง)</option>
                 {activeAssignments.map((a) => (
@@ -929,11 +1045,11 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               </select>
             </div>
 
-            {/* Status Filter Tabs */}
-            <div className="flex bg-slate-200/80 p-1 rounded-xl text-xs font-bold shrink-0 overflow-x-auto max-w-full touch-scroll w-full lg:w-auto">
+            {/* Status Filter Tabs (ความสูง h-9 สม่ำเสมอ) */}
+            <div className="flex h-9 bg-slate-200/80 p-1 rounded-xl text-xs font-bold shrink-0 overflow-x-auto max-w-full touch-scroll w-full lg:w-auto">
               <button
                 onClick={() => setFilterStatus('all')}
-                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer ${
+                className={`px-3 rounded-lg transition-all shrink-0 cursor-pointer flex items-center justify-center ${
                   filterStatus === 'all' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -941,7 +1057,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               </button>
               <button
                 onClick={() => setFilterStatus('uncompleted')}
-                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                className={`px-3 rounded-lg transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 ${
                   filterStatus === 'uncompleted' ? 'bg-rose-600 text-white shadow-2xs' : 'text-rose-700 hover:bg-white/50'
                 }`}
               >
@@ -950,7 +1066,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               </button>
               <button
                 onClick={() => setFilterStatus('completed')}
-                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                className={`px-3 rounded-lg transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 ${
                   filterStatus === 'completed' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-emerald-700 hover:bg-white/50'
                 }`}
               >
@@ -959,7 +1075,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               </button>
               <button
                 onClick={() => setFilterStatus('late')}
-                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer ${
+                className={`px-3 rounded-lg transition-all shrink-0 cursor-pointer flex items-center justify-center ${
                   filterStatus === 'late' ? 'bg-amber-500 text-slate-950 shadow-2xs' : 'text-amber-800 hover:bg-white/50'
                 }`}
               >
@@ -968,14 +1084,14 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
             </div>
           </div>
 
-          {/* Learning Area Filter Badges */}
+          {/* Learning Area Filter Badges (แท็บกลุ่มสาระเป็นเส้นตรงเดียวกันอย่างเป็นระเบียบ) */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs touch-scroll">
-            <span className="text-[11px] font-bold text-slate-400 uppercase shrink-0 mr-1">กลุ่มสาระ:</span>
+            <span className="text-xs font-bold text-slate-400 uppercase shrink-0 mr-1 flex items-center">กลุ่มสาระ:</span>
             {areas.map((a) => (
               <button
                 key={a}
                 onClick={() => setFilterArea(a)}
-                className={`px-2.5 py-1 rounded-xl shrink-0 font-semibold transition-all cursor-pointer text-xs ${
+                className={`h-7 px-3 rounded-xl shrink-0 font-semibold transition-all cursor-pointer text-xs flex items-center whitespace-nowrap ${
                   filterArea === a
                     ? 'bg-[#0B1329] text-amber-400 font-bold shadow-xs'
                     : 'bg-white hover:bg-slate-200/70 text-slate-600 border border-slate-200'
@@ -1004,17 +1120,18 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               <p className="text-xs text-slate-400">ลองเปลี่ยนตัวกรองกลุ่มสาระหรือล้างคำค้นหา</p>
             </div>
           ) : viewMode === 'table' ? (
-            /* 1. TABLE LIST VIEW (มุมมองตารางรายการรายคน - มองง่าย จัดหน้าเป็นระเบียบ และสแกนเร็วที่สุด) */
-            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs bg-white">
-              <div className="overflow-x-auto min-w-full">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-[#0B1329] text-slate-200 font-bold sticky top-0 z-20">
-                    <tr>
-                      <th className="py-3 px-3.5 w-12 text-center border-b border-slate-700 text-slate-400">#</th>
-                      <th className="py-3 px-4 min-w-[220px] border-b border-slate-700 bg-[#0B1329] sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.1)]">
-                        <div className="text-white font-extrabold text-xs sm:text-sm">ครูผู้สอน</div>
-                        <div className="text-[10px] text-amber-300 font-normal">รหัสประจำตัว / อีเมล</div>
-                      </th>
+            /* 1. TABLE LIST VIEW (ตารางรายการรายคน - หัวตาราง Sticky ติดขอบบนเสมอ และขยายเต็มตาเมื่อย่อแดชบอร์ด) */
+            <div className={`border border-slate-200 rounded-2xl overflow-auto shadow-xs bg-white transition-all ${
+              isDashboardCollapsed ? 'max-h-[74vh]' : 'max-h-[55vh]'
+            }`}>
+              <table className="w-full text-left text-xs border-collapse min-w-full">
+                <thead className="bg-[#0B1329] text-slate-200 font-bold sticky top-0 z-20 shadow-md">
+                  <tr>
+                    <th className="py-3 px-3.5 w-12 text-center border-b border-slate-700 text-slate-400 bg-[#0B1329]">#</th>
+                    <th className="py-3 px-4 min-w-[220px] border-b border-slate-700 bg-[#0B1329] sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.15)]">
+                      <div className="text-white font-extrabold text-xs sm:text-sm">ครูผู้สอน</div>
+                      <div className="text-[10px] text-amber-300 font-normal">รหัสประจำตัว / อีเมล</div>
+                    </th>
                       <th className="py-3 px-3.5 min-w-[150px] border-b border-slate-700">กลุ่มสาระการเรียนรู้</th>
                       <th className="py-3 px-3.5 min-w-[130px] text-center border-b border-slate-700">
                         <div>ความก้าวหน้า</div>
@@ -1249,19 +1366,19 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                   </tbody>
                 </table>
               </div>
-            </div>
           ) : viewMode === 'matrix' ? (
-            /* Matrix Grid View (Desktop & Tablet with smooth horizontal scroll) */
-            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs bg-white">
-              <div className="overflow-x-auto min-w-full">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-[#0B1329] text-slate-200 font-bold sticky top-0 z-20">
-                    <tr>
-                      {/* Fixed Col 1: Teacher Info */}
-                      <th className="py-3 px-4 min-w-[230px] max-w-[270px] border-b border-slate-700 bg-[#0B1329] sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.1)]">
-                        <div className="text-white font-extrabold text-sm">ครูผู้สอน</div>
-                        <div className="text-[10px] text-amber-300 font-medium">รหัส / กลุ่มสาระการเรียนรู้</div>
-                      </th>
+            /* Matrix Grid View (Desktop & Tablet with smooth horizontal scroll & sticky header) */
+            <div className={`border border-slate-200 rounded-2xl overflow-auto shadow-xs bg-white transition-all ${
+              isDashboardCollapsed ? 'max-h-[74vh]' : 'max-h-[55vh]'
+            }`}>
+              <table className="w-full text-left text-xs border-collapse min-w-full">
+                <thead className="bg-[#0B1329] text-slate-200 font-bold sticky top-0 z-20 shadow-md">
+                  <tr>
+                    {/* Fixed Col 1: Teacher Info */}
+                    <th className="py-3 px-4 min-w-[230px] max-w-[270px] border-b border-slate-700 bg-[#0B1329] sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.15)]">
+                      <div className="text-white font-extrabold text-sm">ครูผู้สอน</div>
+                      <div className="text-[10px] text-amber-300 font-medium">รหัส / กลุ่มสาระการเรียนรู้</div>
+                    </th>
 
                       {/* Columns 2..N+1: Assigned Tasks */}
                       {activeAssignments.map((config) => {
@@ -1538,7 +1655,6 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                   </tbody>
                 </table>
               </div>
-            </div>
           ) : (
             /* Cards View: Clean, Modern & Scannable Grid */
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
