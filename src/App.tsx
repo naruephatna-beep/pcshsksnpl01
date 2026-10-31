@@ -1772,10 +1772,10 @@ export default function App() {
       )}
 
       {/* Review Plan Modal */}
-      {selectedPlanForReview && currentTeacher && (
+      {selectedPlanForReview && (
         <ReviewPlanModal
           plan={selectedPlanForReview}
-          reviewer={currentTeacher}
+          reviewer={currentTeacher || teachers.find(isTeacherAdmin) || teachers[0]}
           isOpen={!!selectedPlanForReview}
           onClose={() => setSelectedPlanForReview(null)}
           onSaveReview={handleSaveReview}
@@ -1829,6 +1829,7 @@ export default function App() {
         }}
         onEditPlan={(p) => setPlanToEdit(p)}
         onDeletePlan={(id) => handleDeletePlan(id)}
+        onOpenReview={(p) => setSelectedPlanForReview(p)}
         onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
       />
 
@@ -1842,6 +1843,7 @@ export default function App() {
         onSaveStatusConfigs={handleSaveStatusConfigs}
         plans={plans}
         onUpdatePlanStatus={handleQuickChangePlanStatus}
+        onOpenReview={(p) => setSelectedPlanForReview(p)}
         isSupabaseConnected={isSupabaseConnected}
         currentTeacher={currentTeacher}
         teachers={teachers}

@@ -39,6 +39,7 @@ import {
   Eye,
   Copy,
   MoreHorizontal,
+  UserCheck,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
@@ -2461,17 +2462,30 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                         )}
                                       </div>
                                     </div>
-                                    {plan.file_url && (
-                                      <a
-                                        href={plan.file_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0 transition-colors"
-                                        title="เปิดดูไฟล์เอกสาร"
-                                      >
-                                        <ExternalLink className="w-3.5 h-3.5" />
-                                      </a>
-                                    )}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {plan.file_url && (
+                                        <a
+                                          href={plan.file_url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0 transition-colors"
+                                          title="เปิดดูไฟล์เอกสาร"
+                                        >
+                                          <ExternalLink className="w-3.5 h-3.5" />
+                                        </a>
+                                      )}
+                                      {onOpenPlan && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onOpenPlan(plan)}
+                                          className="px-2 py-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all shadow-2xs active:scale-95 cursor-pointer"
+                                          title="ตรวจและประเมิน / อนุมัติเอกสารนี้"
+                                        >
+                                          <UserCheck className="w-3 h-3 text-amber-300" />
+                                          <span>{plan.status === 'submitted' ? 'ตรวจอนุมัติ' : 'ดูผลตรวจ'}</span>
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 ))}
                               </div>

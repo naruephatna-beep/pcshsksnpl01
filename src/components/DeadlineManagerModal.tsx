@@ -59,6 +59,7 @@ import {
   Send,
   Loader2,
   Zap,
+  UserCheck,
 } from 'lucide-react';
 import { openGmailComposeTab } from '../services/emailService';
 
@@ -71,6 +72,7 @@ interface DeadlineManagerModalProps {
   onSaveStatusConfigs: (configs: PlanStatusConfig[]) => void;
   plans: LessonPlan[];
   onUpdatePlanStatus?: (planId: string, newStatus: string, isLate?: boolean, adminNotes?: string) => Promise<void> | void;
+  onOpenReview?: (plan: LessonPlan) => void;
   isSupabaseConnected?: boolean;
   currentTeacher?: Teacher | null;
   teachers?: Teacher[];
@@ -96,6 +98,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   onSaveStatusConfigs,
   plans,
   onUpdatePlanStatus,
+  onOpenReview,
   isSupabaseConnected,
   currentTeacher,
   teachers = [],
@@ -1979,18 +1982,34 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                               </td>
 
                               <td className="py-3 px-4 whitespace-nowrap">
-                                <select
-                                  value={plan.status}
-                                  disabled={isUpdating}
-                                  onChange={(e) => handlePlanStatusChange(plan, e.target.value)}
-                                  className="px-2.5 py-1 border border-slate-300 rounded-lg text-xs font-bold bg-white text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-2xs"
-                                >
-                                  {statuses.map((st) => (
-                                    <option key={st.id} value={st.id}>
-                                      {st.label} ({st.id})
-                                    </option>
-                                  ))}
-                                </select>
+                                <div className="flex items-center gap-1.5">
+                                  <select
+                                    value={plan.status}
+                                    disabled={isUpdating}
+                                    onChange={(e) => handlePlanStatusChange(plan, e.target.value)}
+                                    className="px-2.5 py-1 border border-slate-300 rounded-lg text-xs font-bold bg-white text-slate-800 focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-2xs"
+                                  >
+                                    {statuses.map((st) => (
+                                      <option key={st.id} value={st.id}>
+                                        {st.label} ({st.id})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {onOpenReview && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        onClose();
+                                        onOpenReview(plan);
+                                      }}
+                                      className="px-2 py-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95"
+                                      title="เปิดหน้าต่างตรวจประเมิน/อนุมัติเต็มรูปแบบ"
+                                    >
+                                      <UserCheck className="w-3 h-3 text-amber-300" />
+                                      <span>ตรวจประเมิน</span>
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );

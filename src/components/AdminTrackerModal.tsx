@@ -52,6 +52,8 @@ import {
   MoreHorizontal,
   SlidersHorizontal,
   Settings,
+  UserCheck,
+  Award,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
@@ -66,6 +68,7 @@ interface AdminTrackerModalProps {
   onEditTeacher: (teacher: Teacher) => void;
   onEditPlan: (plan: LessonPlan) => void;
   onDeletePlan: (planId: string) => void;
+  onOpenReview?: (plan: LessonPlan) => void;
   onOpenDeadlineManager?: () => void;
 }
 
@@ -90,6 +93,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   onEditTeacher,
   onEditPlan,
   onDeletePlan,
+  onOpenReview,
   onOpenDeadlineManager,
 }) => {
   const [filterArea, setFilterArea] = useState<string>('ทั้งหมด');
@@ -2422,25 +2426,41 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-2">
+                <div className="flex flex-wrap items-center gap-2 pt-2">
                   {selectedSubmittedPlan.plan.file_url && (
                     <a
                       href={selectedSubmittedPlan.plan.file_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex-1 py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                      className="flex-1 min-w-[140px] py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
                     >
                       <ExternalLink className="w-4 h-4" />
                       <span>เปิดดูไฟล์เอกสาร</span>
                     </a>
                   )}
+                  {onOpenReview && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const p = selectedSubmittedPlan.plan;
+                        setSelectedSubmittedPlan(null);
+                        onOpenReview(p);
+                      }}
+                      className="flex-1 min-w-[160px] py-2.5 px-3.5 bg-gradient-to-r from-purple-700 via-indigo-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                      title="เปิดหน้าต่างตรวจและประเมิน/อนุมัติเอกสารนี้"
+                    >
+                      <UserCheck className="w-4 h-4 text-amber-300" />
+                      <span>ตรวจและประเมิน / อนุมัติ</span>
+                    </button>
+                  )}
                   <button
+                    type="button"
                     onClick={() => {
                       const p = selectedSubmittedPlan.plan;
                       setSelectedSubmittedPlan(null);
                       onEditPlan(p);
                     }}
-                    className="py-2.5 px-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="py-2.5 px-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Edit className="w-4 h-4" />
                     <span>แก้ไขข้อมูล</span>
@@ -2525,7 +2545,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                         {plan.file_url && (
                           <a
                             href={plan.file_url}
@@ -2537,7 +2557,22 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                             <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                         )}
+                        {onOpenReview && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedTeacherForPlans(null);
+                              onOpenReview(plan);
+                            }}
+                            className="px-3 py-1.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-xl font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                            title="ตรวจและประเมิน/อนุมัติเอกสารนี้"
+                          >
+                            <UserCheck className="w-3.5 h-3.5 text-amber-300" />
+                            <span>ตรวจอนุมัติ</span>
+                          </button>
+                        )}
                         <button
+                          type="button"
                           onClick={() => {
                             setSelectedTeacherForPlans(null);
                             onEditPlan(plan);
