@@ -60,6 +60,8 @@ import {
   Loader2,
   Zap,
   UserCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { openGmailComposeTab } from '../services/emailService';
 
@@ -87,6 +89,25 @@ const COLOR_OPTIONS: { id: StatusColor; name: string; bg: string }[] = [
   { id: 'sky', name: 'สีฟ้ากระจ่าง (Sky)', bg: 'bg-sky-500' },
   { id: 'purple', name: 'สีม่วง (Purple)', bg: 'bg-purple-500' },
   { id: 'slate', name: 'สีเทาสุภาพ (Slate)', bg: 'bg-slate-500' },
+];
+
+const DEFAULT_DYNAMIC_FIELDS: DynamicFormField[] = [
+  { id: 'fld_init_1', type: 'user_profile', label: 'ครูผู้สอน', required: true, profile_key: 'name', order: 1 },
+  { id: 'fld_init_2', type: 'text', label: 'ชื่อเรื่อง / รายวิชา', required: true, order: 2 },
+  { id: 'fld_init_3', type: 'select', label: 'รูปแบบ / ประเภท', required: true, options: ['ตัวเลือกที่ 1', 'ตัวเลือกที่ 2', 'ตัวเลือกที่ 3'], order: 3 },
+  {
+    id: 'fld_init_4',
+    type: 'file',
+    label: 'ลิงก์ไฟล์เอกสาร / PDF (Google Drive)',
+    required: true,
+    order: 4,
+    file_config: {
+      submission_mode: 'link_only',
+      require_link_only: true,
+      allowed_types: ['.pdf'],
+      max_size_mb: 25,
+    },
+  },
 ];
 
 export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
@@ -122,25 +143,32 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
 
   // Deadlines state
   const [deadlines, setDeadlines] = useState<PlanTypeDeadlineConfig[]>([...deadlineConfigs]);
-  const [editingDeadlineId, setEditingDeadlineId] = useState<string | null>(null);
-  const [newDeadline, setNewDeadline] = useState<Partial<PlanTypeDeadlineConfig>>({
-    name: '',
-    description: '',
-    academic_year: '2569',
-    semester: '1',
-    start_date: new Date().toISOString().split('T')[0],
-    start_time: '08:30',
-    end_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end_time: '16:30',
-    allow_late: true,
-    is_active: true,
-    evaluation_type: 'rubric_score',
-    notes: '',
-    fields: [],
-  });
-  const [isAddingDeadline, setIsAddingDeadline] = useState(false);
-  const [useCustomFormForNew, setUseCustomFormForNew] = useState(false);
-  const [editingFormDeadlineId, setEditingFormDeadlineId] = useState<string | null>(null);
+  
+  // Dedicated Task Add/Edit Modal state
+  interface TaskModalState {
+    isOpen: boolean;
+    isNew: boolean;
+    taskId?: string;
+    name: string;
+    description: string;
+    academic_year: string;
+    semester: string;
+    start_date: string;
+    start_time: string;
+    end_date: string;
+    end_time: string;
+    allow_late: boolean;
+    is_active: boolean;
+    evaluation_type: 'rubric_score' | 'approval_only';
+    sample_title: string;
+    sample_url: string;
+    useCustomForm: boolean;
+    fields: DynamicFormField[];
+    activeSubTab: 'general' | 'form';
+  }
+
+  const [taskModal, setTaskModal] = useState<TaskModalState | null>(null);
+  const [showHelperInfo, setShowHelperInfo] = useState<boolean>(false);
 
   // Statuses state
   const [statuses, setStatuses] = useState<PlanStatusConfig[]>([...statusConfigs]);
@@ -300,46 +328,47 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
     }
   };
 
-  // Add new deadline config
-  const handleAddNewDeadline = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newDeadline.name?.trim()) return;
+  // Helper to calculate days remaining or late
+  const getRemainingTimeBadge = (endDate: string, endTime: string) => {
+    try {
+      const target = constructDateTime(endDate, endTime).getTime();
+      const now = Date.now();
+      const diffMs = target - now;
+      if (diffMs < 0) {
+        const pastDays = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+        return {
+          isLate: true,
+          label: pastDays === 0 ? 'เลยกำหนดวันนี้' : `เลยกำหนดมา ${pastDays} วัน`,
+          badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+        };
+      }
+      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (days === 0) {
+        const hours = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60)));
+        return {
+          isLate: false,
+          label: `เหลืออีก ~${hours} ชม.`,
+          badgeClass: 'bg-amber-50 text-amber-800 border-amber-300 font-bold',
+        };
+      }
+      return {
+        isLate: false,
+        label: `เหลืออีก ${days} วัน`,
+        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      };
+    } catch {
+      return { isLate: false, label: 'เปิดรับตามกำหนด', badgeClass: 'bg-slate-100 text-slate-700' };
+    }
+  };
 
-    const id = `type_${Date.now()}`;
-    const item: PlanTypeDeadlineConfig = {
-      id,
-      name: newDeadline.name.trim(),
-      description: newDeadline.description?.trim() || '',
-      academic_year: newDeadline.academic_year || '2569',
-      semester: newDeadline.semester || '1',
-      start_date: newDeadline.start_date || new Date().toISOString().split('T')[0],
-      start_time: newDeadline.start_time || '08:30',
-      end_date: newDeadline.end_date || new Date().toISOString().split('T')[0],
-      end_time: newDeadline.end_time || '16:30',
-      allow_late: newDeadline.allow_late ?? true,
-      is_active: newDeadline.is_active ?? true,
-      evaluation_type: newDeadline.evaluation_type || 'rubric_score',
-      notes: newDeadline.notes?.trim() || '',
-      sample_url: newDeadline.sample_url?.trim() || undefined,
-      sample_title: newDeadline.sample_title?.trim() || undefined,
-      example_documents:
-        newDeadline.example_documents && newDeadline.example_documents.length > 0
-          ? newDeadline.example_documents.filter((d) => d.url?.trim())
-          : undefined,
-      fields:
-        useCustomFormForNew && newDeadline.fields && newDeadline.fields.length > 0
-          ? newDeadline.fields
-          : undefined,
-    };
-
-    const nextList = [...deadlines, item];
-    setIsAddingDeadline(false);
-    setUseCustomFormForNew(false);
-    setNewDeadline({
+  const handleOpenAddTaskModal = () => {
+    setTaskModal({
+      isOpen: true,
+      isNew: true,
       name: '',
       description: '',
       academic_year: '2569',
-      semester: '1',
+      semester: '2',
       start_date: new Date().toISOString().split('T')[0],
       start_time: '08:30',
       end_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -347,22 +376,135 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       allow_late: true,
       is_active: true,
       evaluation_type: 'rubric_score',
-      notes: '',
-      fields: [],
-      sample_url: '',
       sample_title: '',
-      example_documents: [],
+      sample_url: '',
+      useCustomForm: false,
+      fields: [],
+      activeSubTab: 'general',
     });
-    await handleSaveDeadlines(nextList);
-    // Auto-prompt admin to notify all teachers via email
-    setBroadcastConfig(item);
   };
 
-  const handleDeleteDeadline = async (id: string) => {
+  const handleOpenEditTaskModal = (dl: PlanTypeDeadlineConfig) => {
+    setTaskModal({
+      isOpen: true,
+      isNew: false,
+      taskId: dl.id,
+      name: dl.name,
+      description: dl.description || '',
+      academic_year: dl.academic_year || '2569',
+      semester: dl.semester || '1',
+      start_date: dl.start_date || new Date().toISOString().split('T')[0],
+      start_time: dl.start_time || '08:30',
+      end_date: dl.end_date || new Date().toISOString().split('T')[0],
+      end_time: dl.end_time || '16:30',
+      allow_late: dl.allow_late ?? true,
+      is_active: dl.is_active ?? true,
+      evaluation_type: dl.evaluation_type || 'rubric_score',
+      sample_title: dl.sample_title || '',
+      sample_url: dl.sample_url || '',
+      useCustomForm: Boolean(dl.fields && dl.fields.length > 0),
+      fields: dl.fields && dl.fields.length > 0 ? [...dl.fields] : [],
+      activeSubTab: 'general',
+    });
+  };
+
+  const handleOpenFormTaskModal = (dl: PlanTypeDeadlineConfig) => {
+    const existingFields =
+      dl.fields && dl.fields.length > 0
+        ? [...dl.fields]
+        : [...DEFAULT_DYNAMIC_FIELDS];
+
+    setTaskModal({
+      isOpen: true,
+      isNew: false,
+      taskId: dl.id,
+      name: dl.name,
+      description: dl.description || '',
+      academic_year: dl.academic_year || '2569',
+      semester: dl.semester || '1',
+      start_date: dl.start_date || new Date().toISOString().split('T')[0],
+      start_time: dl.start_time || '08:30',
+      end_date: dl.end_date || new Date().toISOString().split('T')[0],
+      end_time: dl.end_time || '16:30',
+      allow_late: dl.allow_late ?? true,
+      is_active: dl.is_active ?? true,
+      evaluation_type: dl.evaluation_type || 'rubric_score',
+      sample_title: dl.sample_title || '',
+      sample_url: dl.sample_url || '',
+      useCustomForm: true,
+      fields: existingFields,
+      activeSubTab: 'form',
+    });
+  };
+
+  const handleSaveTaskModal = async () => {
+    if (!taskModal || !taskModal.name.trim()) {
+      alert('กรุณากรอกชื่อภาระงาน / ประเภทเอกสาร');
+      return;
+    }
+
+    if (taskModal.isNew) {
+      const id = `type_${Date.now()}`;
+      const newItem: PlanTypeDeadlineConfig = {
+        id,
+        name: taskModal.name.trim(),
+        description: taskModal.description.trim(),
+        academic_year: taskModal.academic_year || '2569',
+        semester: taskModal.semester || '1',
+        start_date: taskModal.start_date || new Date().toISOString().split('T')[0],
+        start_time: taskModal.start_time || '08:30',
+        end_date: taskModal.end_date || new Date().toISOString().split('T')[0],
+        end_time: taskModal.end_time || '16:30',
+        allow_late: taskModal.allow_late,
+        is_active: taskModal.is_active,
+        evaluation_type: taskModal.evaluation_type,
+        sample_title: taskModal.sample_title.trim() || undefined,
+        sample_url: taskModal.sample_url.trim() || undefined,
+        fields: taskModal.useCustomForm && taskModal.fields.length > 0 ? taskModal.fields : undefined,
+      };
+
+      const nextList = [...deadlines, newItem];
+      setTaskModal(null);
+      await handleSaveDeadlines(nextList);
+      setBroadcastConfig(newItem);
+    } else {
+      const nextList = deadlines.map((dl) => {
+        if (dl.id === taskModal.taskId) {
+          return {
+            ...dl,
+            name: taskModal.name.trim(),
+            description: taskModal.description.trim(),
+            academic_year: taskModal.academic_year || '2569',
+            semester: taskModal.semester || '1',
+            start_date: taskModal.start_date,
+            start_time: taskModal.start_time,
+            end_date: taskModal.end_date,
+            end_time: taskModal.end_time,
+            allow_late: taskModal.allow_late,
+            is_active: taskModal.is_active,
+            evaluation_type: taskModal.evaluation_type,
+            sample_title: taskModal.sample_title.trim() || undefined,
+            sample_url: taskModal.sample_url.trim() || undefined,
+            fields: taskModal.useCustomForm && taskModal.fields.length > 0 ? taskModal.fields : undefined,
+          };
+        }
+        return dl;
+      });
+      setTaskModal(null);
+      await handleSaveDeadlines(nextList);
+    }
+  };
+
+  const handleDeleteDeadline = async (id: string, name?: string) => {
     if (deadlines.length <= 1) {
       alert('ต้องมีประเภทเอกสารและกำหนดส่งอย่างน้อย 1 ประเภทในระบบ');
       return;
     }
+    const confirmText = name
+      ? `คุณแน่ใจหรือไม่ว่าต้องการลบภาระงาน "${name}" ออกจากระบบ?`
+      : 'คุณแน่ใจหรือไม่ว่าต้องการลบภาระงานนี้ออกจากระบบ?';
+    if (!window.confirm(confirmText)) return;
+
     const filtered = deadlines.filter((d) => d.id !== id);
     await handleSaveDeadlines(filtered);
   };
@@ -705,11 +847,11 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
 
           {/* TAB 1: DEADLINES CONFIG */}
           {activeTab === 'deadlines' && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-5">
               {/* Instant SQL Auto-Sync Banner */}
               {syncCloudNotice && (
                 <div
-                  className={`p-3.5 rounded-2xl text-xs font-bold border flex items-center justify-between gap-3 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200 ${
+                  className={`p-3 rounded-2xl text-xs font-bold border flex items-center justify-between gap-3 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200 ${
                     syncCloudNotice.includes('สำเร็จ') || syncCloudNotice.includes('⚡')
                       ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
                       : 'bg-amber-50 text-amber-900 border-amber-300'
@@ -722,897 +864,336 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setSyncCloudNotice(null)}
-                    className="p-1 rounded-lg hover:bg-black/5 text-slate-500 hover:text-slate-800 text-xs font-bold"
+                    className="p-1 rounded-lg hover:bg-black/5 text-slate-500 hover:text-slate-800 text-xs font-bold cursor-pointer"
                   >
                     ✕
                   </button>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 text-xs flex items-start gap-2.5">
-                  <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <span className="font-bold text-amber-900">
-                      ระบบคำนวณการส่งช้าอัตโนมัติ:
-                    </span>
-                    <span className="text-amber-800 ml-1">
-                      เมื่อครูผู้สอนส่งแผนหลัง Deadline ระบบจะติดแท็ก &quot;ส่งช้า&quot; และแสดงระยะเวลาล่าช้าอัตโนมัติ
+              {/* Summary Stats & Quick Status Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+                  <div className="text-[11px] font-semibold text-slate-500">ภาระงานทั้งหมด</div>
+                  <div className="text-lg font-black text-slate-900 mt-0.5 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-amber-600" />
+                    <span>{deadlines.length} ภาระงาน</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+                  <div className="text-[11px] font-semibold text-slate-500">ตรวจรูบริก 100 คะแนน</div>
+                  <div className="text-lg font-black text-amber-700 mt-0.5 flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-amber-600" />
+                    <span>
+                      {deadlines.filter((d) => (d.evaluation_type || 'rubric_score') === 'rubric_score').length} งาน
                     </span>
                   </div>
                 </div>
 
-                <div className="bg-purple-50/70 border border-purple-200/80 rounded-2xl p-3.5 text-xs flex items-start gap-2.5">
-                  <Award className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
-                  <div>
-                    <span className="font-bold text-purple-900">
-                      โหมดตรวจประเมินของแต่ละชิ้นงาน:
+                <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+                  <div className="text-[11px] font-semibold text-slate-500">ตรวจแค่อนุมัติ/ส่งกลับ</div>
+                  <div className="text-lg font-black text-indigo-700 mt-0.5 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                    <span>
+                      {deadlines.filter((d) => d.evaluation_type === 'approval_only').length} งาน
                     </span>
-                    <span className="text-purple-800 ml-1">
-                      กำหนดได้ว่าชิ้นงานจะตรวจแบบ <strong>ให้คะแนนรูบริก (Rubric 100)</strong> หรือ <strong>ตรวจแค่อนุมัติ/ไม่อนุมัติ</strong> (คลิกป้ายโหมดตรวจที่การ์ดเพื่อสลับได้ทันที)
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+                  <div className="text-[11px] font-semibold text-slate-500">สถานะเปิดรับส่ง</div>
+                  <div className="text-lg font-black text-emerald-700 mt-0.5 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-emerald-600" />
+                    <span>
+                      เปิดรับอยู่ {deadlines.filter((d) => Date.now() <= constructDateTime(d.end_date, d.end_time).getTime()).length} งาน
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons Header */}
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-amber-600" />
-                  <span>รายการประเภทเอกสารและกำหนดส่งทั้งหมด ({deadlines.length} ประเภท)</span>
+              {/* Action Toolbar & Guide Toggle */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                    <span>รายการภาระงานและกำหนดส่ง</span>
+                    <span className="text-xs bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                      {deadlines.length}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowHelperInfo(!showHelperInfo)}
+                    className="text-[11px] text-slate-500 hover:text-amber-800 font-medium flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <Info className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{showHelperInfo ? 'ซ่อนคำแนะนำ' : 'คู่มือการส่งช้า & โหมดตรวจ'}</span>
+                    {showHelperInfo ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
                 </div>
+
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => handleSaveDeadlines(DEFAULT_DEADLINE_CONFIGS)}
-                    className="px-3 py-1.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('ต้องการคืนค่าภาระงานเริ่มต้นของระบบหรือไม่?')) {
+                        handleSaveDeadlines(DEFAULT_DEADLINE_CONFIGS);
+                      }
+                    }}
+                    className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     title="คืนค่าช่วงเวลาเริ่มต้นที่ระบบแนะนำ"
                   >
-                    <RotateCcw className="w-3 h-3" />
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                     <span>คืนค่าเริ่มต้น</span>
                   </button>
                   <button
-                    onClick={() => setIsAddingDeadline(!isAddingDeadline)}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl font-bold text-xs shadow-sm flex items-center gap-1 cursor-pointer"
+                    type="button"
+                    onClick={handleOpenAddTaskModal}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>เพิ่มประเภทเอกสารใหม่</span>
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                    <span>+ เพิ่มภาระงานใหม่</span>
                   </button>
                 </div>
               </div>
 
-              {/* Form to Add New Deadline */}
-              {isAddingDeadline && (
-                <form
-                  onSubmit={handleAddNewDeadline}
-                  className="bg-white p-5 rounded-2xl border-2 border-amber-300 shadow-md space-y-4 animate-in fade-in duration-150"
-                >
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-500" />
-                      <span>เพิ่มประเภทเอกสารและกำหนดเวลาส่งใหม่</span>
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingDeadline(false)}
-                      className="text-slate-400 hover:text-slate-600 text-xs font-bold"
-                    >
-                      ยกเลิก
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        ชื่อประเภทเอกสารแผนการสอน *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newDeadline.name || ''}
-                        onChange={(e) => setNewDeadline({ ...newDeadline, name: e.target.value })}
-                        placeholder="เช่น แผนการจัดการเรียนรู้บูรณาการท้องถิ่น หรือ แผนรายสัปดาห์"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-amber-500"
-                      />
-                    </div>
-
+              {/* Collapsible Info Cards */}
+              {showHelperInfo && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3.5 text-xs flex items-start gap-2.5">
+                    <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        ภาคเรียน / ปีการศึกษา
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={newDeadline.semester || '1'}
-                          onChange={(e) => setNewDeadline({ ...newDeadline, semester: e.target.value })}
-                          className="px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white flex-1"
-                        >
-                          <option value="1">ภาคเรียนที่ 1</option>
-                          <option value="2">ภาคเรียนที่ 2</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={newDeadline.academic_year || '2569'}
-                          onChange={(e) => setNewDeadline({ ...newDeadline, academic_year: e.target.value })}
-                          placeholder="ปีการศึกษา เช่น 2569"
-                          className="w-24 px-3 py-2 border border-slate-300 rounded-xl text-sm"
-                        />
-                      </div>
+                      <span className="font-bold text-amber-950">
+                        ระบบคำนวณการส่งช้าอัตโนมัติ:
+                      </span>
+                      <p className="text-amber-900/90 mt-0.5 leading-relaxed">
+                        เมื่อครูผู้สอนส่งแผนหลัง Deadline ระบบจะติดแท็ก &quot;ส่งช้า&quot; และคำนวณระยะเวลาล่าช้าให้ทันที
+                      </p>
                     </div>
+                  </div>
 
+                  <div className="bg-purple-50/80 border border-purple-200/90 rounded-2xl p-3.5 text-xs flex items-start gap-2.5">
+                    <Award className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        คำอธิบาย / รายละเอียดประเภทเอกสาร
-                      </label>
-                      <input
-                        type="text"
-                        value={newDeadline.description || ''}
-                        onChange={(e) => setNewDeadline({ ...newDeadline, description: e.target.value })}
-                        placeholder="คำชี้แจงสำหรับครูผู้สอน..."
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm"
-                      />
-                    </div>
-
-                    {/* Start Date & Time */}
-                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-blue-600" />
-                        <span>วันและเวลาเริ่มต้นเปิดรับส่ง:</span>
+                      <span className="font-bold text-purple-950">
+                        โหมดตรวจประเมินของแต่ละชิ้นงาน:
                       </span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[11px] text-slate-500 mb-0.5">วันที่เริ่ม</label>
-                          <input
-                            type="date"
-                            required
-                            value={newDeadline.start_date || ''}
-                            onChange={(e) => setNewDeadline({ ...newDeadline, start_date: e.target.value })}
-                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-500 mb-0.5">เวลาที่เริ่ม</label>
-                          <input
-                            type="time"
-                            required
-                            value={newDeadline.start_time || '08:30'}
-                            onChange={(e) => setNewDeadline({ ...newDeadline, start_time: e.target.value })}
-                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* End Date & Time (Deadline) */}
-                    <div className="bg-rose-50/60 p-3.5 rounded-xl border border-rose-200 space-y-2">
-                      <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                        <span>วันและเวลากำหนดส่ง (Deadline สิ้นสุด):</span>
-                      </span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[11px] text-rose-700 mb-0.5">วันที่กำหนดส่ง</label>
-                          <input
-                            type="date"
-                            required
-                            value={newDeadline.end_date || ''}
-                            onChange={(e) => setNewDeadline({ ...newDeadline, end_date: e.target.value })}
-                            className="w-full px-2.5 py-1.5 border border-rose-300 rounded-lg text-xs bg-white font-semibold text-rose-950"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] text-rose-700 mb-0.5">เวลากำหนดส่ง</label>
-                          <input
-                            type="time"
-                            required
-                            value={newDeadline.end_time || '16:30'}
-                            onChange={(e) => setNewDeadline({ ...newDeadline, end_time: e.target.value })}
-                            className="w-full px-2.5 py-1.5 border border-rose-300 rounded-lg text-xs bg-white font-semibold text-rose-950"
-                          />
-                        </div>
-                      </div>
+                      <p className="text-purple-900/90 mt-0.5 leading-relaxed">
+                        เลือกได้ว่าชิ้นงานจะตรวจแบบ <strong>ให้คะแนนรูบริก (Rubric 100)</strong> หรือ <strong>ตรวจแค่อนุมัติ/ส่งกลับแก้ไข</strong> (คลิกปุ่มสลับที่การ์ดเพื่อเปลี่ยนได้ทันที)
+                      </p>
                     </div>
                   </div>
-
-                  {/* Evaluation Mode Selection */}
-                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-                    <span className="text-xs font-bold text-slate-800 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Award className="w-3.5 h-3.5 text-purple-600" />
-                        <span>รูปแบบการตรวจประเมินของงานนี้</span>
-                        <span className="text-rose-500">*</span>
-                      </span>
-                      <span className="text-[10px] text-slate-500">เลือกรูปแบบที่ให้กรรมการตรวจ</span>
-                    </span>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                      <label
-                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
-                          (newDeadline.evaluation_type || 'rubric_score') === 'rubric_score'
-                            ? 'border-amber-500 bg-amber-50/80 text-amber-950 shadow-xs'
-                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="new_evaluation_type"
-                          value="rubric_score"
-                          checked={(newDeadline.evaluation_type || 'rubric_score') === 'rubric_score'}
-                          onChange={() => setNewDeadline({ ...newDeadline, evaluation_type: 'rubric_score' })}
-                          className="mt-0.5 text-amber-600 focus:ring-amber-500"
-                        />
-                        <div>
-                          <div className="text-xs font-bold flex items-center gap-1 text-slate-900">
-                            🏆 ตรวจแบบให้คะแนน (Rubric)
-                          </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                            มีเกณฑ์ประเมิน 5 ด้าน คำนวณเป็น 100% เหมาะสำหรับแผนฉบับสมบูรณ์
-                          </div>
-                        </div>
-                      </label>
-
-                      <label
-                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
-                          newDeadline.evaluation_type === 'approval_only'
-                            ? 'border-indigo-500 bg-indigo-50/80 text-indigo-950 shadow-xs'
-                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="new_evaluation_type"
-                          value="approval_only"
-                          checked={newDeadline.evaluation_type === 'approval_only'}
-                          onChange={() => setNewDeadline({ ...newDeadline, evaluation_type: 'approval_only' })}
-                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div>
-                          <div className="text-xs font-bold flex items-center gap-1 text-slate-900">
-                            ✅ ตรวจแค่อนุมัติ / ไม่อนุมัติ
-                          </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                            อนุมัติ หรือ ส่งกลับแก้ไข ไม่ต้องให้คะแนนรูบริก เหมาะสำหรับแผนย่อ หรือเอกสารส่งตามรอบ
-                          </div>
-                        </div>
-                      </label>
-                    </div>
-                  {/* Form Mode Selection: Standard vs Custom Dynamic Form */}
-                  <div className="bg-gradient-to-r from-indigo-50/70 to-purple-50/70 p-4 rounded-2xl border-2 border-indigo-200/90 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                        <List className="w-4 h-4 text-indigo-600" />
-                        <span>กำหนดข้อมูลที่ต้องการให้ครูกรอก (Custom Form & Dropdown)</span>
-                      </span>
-                      <span className="text-[11px] text-indigo-700 font-semibold">
-                        {useCustomFormForNew ? `เปิดใช้ฟอร์มกำหนดเอง (${newDeadline.fields?.length || 0} ช่องข้อมูล)` : 'ใช้แบบมาตรฐาน'}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      <label
-                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
-                          !useCustomFormForNew
-                            ? 'border-indigo-600 bg-white font-bold text-indigo-950 shadow-xs'
-                            : 'border-slate-200 bg-white/70 text-slate-700 hover:bg-white'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="new_form_mode"
-                          checked={!useCustomFormForNew}
-                          onChange={() => setUseCustomFormForNew(false)}
-                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div>
-                          <div className="text-xs font-bold text-slate-900">📄 แบบฟอร์มมาตรฐาน</div>
-                          <div className="text-[11px] text-slate-500 font-normal mt-0.5">
-                            กรอกรหัสวิชา, ชื่อวิชา, ระดับชั้น, และแนบไฟล์แผนการสอน PDF ทั่วไป
-                          </div>
-                        </div>
-                      </label>
-
-                      <label
-                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
-                          useCustomFormForNew
-                            ? 'border-indigo-600 bg-white font-bold text-indigo-950 shadow-xs'
-                            : 'border-slate-200 bg-white/70 text-slate-700 hover:bg-white'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="new_form_mode"
-                          checked={useCustomFormForNew}
-                          onChange={() => {
-                            setUseCustomFormForNew(true);
-                            if (!newDeadline.fields || newDeadline.fields.length === 0) {
-                              setNewDeadline({
-                                ...newDeadline,
-                                fields: [
-                                  { id: `fld_${Date.now()}_1`, type: 'user_profile', label: 'ครูผู้สอน', required: true, profile_key: 'name', order: 1 },
-                                  { id: `fld_${Date.now()}_2`, type: 'text', label: 'ชื่อเรื่อง / รายวิชา', required: true, order: 2 },
-                                  { id: `fld_${Date.now()}_3`, type: 'select', label: 'รูปแบบ / ประเภท', required: true, options: ['ตัวเลือกที่ 1', 'ตัวเลือกที่ 2', 'ตัวเลือกที่ 3'], order: 3 },
-                                  {
-                                    id: `fld_${Date.now()}_4`,
-                                    type: 'file',
-                                    label: 'ลิงก์ไฟล์เอกสาร / PDF (Google Drive)',
-                                    required: true,
-                                    order: 4,
-                                    file_config: {
-                                      submission_mode: 'link_only',
-                                      require_link_only: true,
-                                      allowed_types: ['.pdf'],
-                                      max_size_mb: 25,
-                                    },
-                                  },
-                                ],
-                              });
-                            }
-                          }}
-                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div>
-                          <div className="text-xs font-bold text-indigo-950 flex items-center gap-1">
-                            <span>📋 กำหนดช่องกรอก & Dropdown เอง</span>
-                            <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded font-bold">แอดมินกำหนดเอง</span>
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-normal mt-0.5">
-                            เลือกประเภทช่องกรอกได้ มี Dropdown พร้อมกำหนดตัวเลือก, วันที่, ข้อความยาว, ดึงข้อมูลครูอัตโนมัติ
-                          </div>
-                        </div>
-                      </label>
-                    </div>
-
-                    {useCustomFormForNew ? (
-                      <div className="pt-2">
-                        <DynamicFormBuilder
-                          fields={newDeadline.fields || []}
-                          onChange={(updatedFields) =>
-                            setNewDeadline({ ...newDeadline, fields: updatedFields })
-                          }
-                          availableTemplates={deadlines}
-                          currentTeacher={currentTeacher}
-                          sampleUrl={newDeadline.sample_url || ''}
-                          sampleTitle={newDeadline.sample_title || ''}
-                          exampleDocuments={newDeadline.example_documents || []}
-                          onSampleDocumentsChange={(sampleData) =>
-                            setNewDeadline({ ...newDeadline, ...sampleData })
-                          }
-                        />
-                      </div>
-                    ) : (
-                      <div className="bg-sky-50/70 p-3.5 rounded-xl border border-sky-200/90 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
-                            <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
-                            <span>แปะลิงก์เอกสารตัวอย่าง / แบบฟอร์มต้นแบบ (เผื่อครูอยากดูตัวอย่างก่อนส่ง)</span>
-                          </span>
-                          <span className="text-[10px] text-sky-700">Google Docs, PDF, หรือ Drive</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
-                          <div className="sm:col-span-5">
-                            <input
-                              type="text"
-                              value={newDeadline.sample_title || ''}
-                              onChange={(e) => setNewDeadline({ ...newDeadline, sample_title: e.target.value })}
-                              placeholder="ชื่อตัวอย่าง เช่น แบบฟอร์มแผนการสอน (Google Docs)"
-                              className="w-full px-3 py-1.5 border border-sky-300 rounded-lg text-xs bg-white text-slate-800"
-                            />
-                          </div>
-                          <div className="sm:col-span-7">
-                            <input
-                              type="url"
-                              value={newDeadline.sample_url || ''}
-                              onChange={(e) => setNewDeadline({ ...newDeadline, sample_url: e.target.value })}
-                              placeholder="ลิงก์ตัวอย่าง https://docs.google.com/... หรือ drive.google.com/..."
-                              className="w-full px-3 py-1.5 border border-sky-300 rounded-lg text-xs bg-white font-mono text-slate-800"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={newDeadline.allow_late ?? true}
-                        onChange={(e) => setNewDeadline({ ...newDeadline, allow_late: e.target.checked })}
-                        className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
-                      />
-                      <span>อนุญาตให้ส่งช้าได้ (โดยระบบจะติดป้ายสถานะ &quot;ส่งช้า&quot; อัตโนมัติ)</span>
-                    </label>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-medium text-slate-500 hidden sm:inline">
-                        {isSupabaseConnected ? '☁️ ซิงค์ Cloudflare D1 (เห็นทุกเครื่อง)' : '💾 บันทึกลงเครื่องนี้'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingDeadline(false)}
-                        className="px-3.5 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-100"
-                      >
-                        ยกเลิก
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
-                        title="บันทึกประเภทเอกสารและอัปเดตเข้า SQL อัตโนมัติทันที"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>บันทึกประเภทเอกสารนี้ (อัพเดทเข้า SQL ออโต้)</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
+                </div>
               )}
 
-              {/* Deadlines List */}
-              <div className="space-y-4">
-                {deadlines.map((dl) => {
-                  const isEditing = editingDeadlineId === dl.id;
+              {/* Deadlines List Cards (Clean, Readable, Comprehensive) */}
+              <div className="space-y-3.5">
+                {deadlines.map((dl, idx) => {
                   const deadlineDate = constructDateTime(dl.end_date, dl.end_time);
                   const isPastDeadline = Date.now() > deadlineDate.getTime();
+                  const remainingBadge = getRemainingTimeBadge(dl.end_date, dl.end_time);
+                  const evalType = dl.evaluation_type || 'rubric_score';
+                  const hasCustomFields = Boolean(dl.fields && dl.fields.length > 0);
+                  const selectFieldsCount = dl.fields ? dl.fields.filter((f) => f.type === 'select').length : 0;
 
                   return (
                     <div
                       key={dl.id}
-                      className={`bg-white rounded-2xl border transition-all p-5 shadow-xs ${
+                      className={`bg-white rounded-2xl border transition-all p-4 sm:p-5 shadow-xs hover:shadow-md ${
                         isPastDeadline
-                          ? 'border-amber-200/90 hover:border-amber-300'
-                          : 'border-slate-200 hover:border-indigo-300'
+                          ? 'border-amber-200/90 bg-gradient-to-br from-white to-amber-50/20'
+                          : 'border-slate-200 hover:border-amber-300'
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
-                              {dl.name}
+                      {/* Top Header Row of Card */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-800 border border-amber-500/20 text-xs font-bold flex items-center justify-center shrink-0">
+                            #{idx + 1}
+                          </span>
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base tracking-tight truncate max-w-md" title={dl.name}>
+                            {dl.name}
+                          </h3>
+                          <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
+                            ภาคเรียนที่ {dl.semester}/{dl.academic_year}
+                          </span>
+                        </div>
+
+                        {/* Status Pills */}
+                        <div className="flex items-center gap-2 flex-wrap shrink-0">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${remainingBadge.badgeClass}`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isPastDeadline ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                            <span>{remainingBadge.label}</span>
+                          </span>
+
+                          <span className="text-[11px] font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                            {dl.allow_late ? '✓ ส่งช้าได้' : '✕ ห้ามส่งช้า'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Middle Details Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 py-3.5">
+                        {/* 1. Deadline & Start Schedule */}
+                        <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-200/80 space-y-1.5">
+                          <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <span>กำหนดเวลาส่ง (Deadline)</span>
+                          </div>
+                          <div className="text-xs font-bold text-slate-900">
+                            {formatThaiDateTime(`${dl.end_date} ${dl.end_time}`)}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            เริ่มเปิดรับ: {formatThaiDateTime(`${dl.start_date} ${dl.start_time}`)}
+                          </div>
+                        </div>
+
+                        {/* 2. Evaluation Mode with 1-Click Toggle */}
+                        <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-200/80 space-y-1.5">
+                          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <Award className="w-3.5 h-3.5 text-purple-600" />
+                              <span>รูปแบบการตรวจประเมิน</span>
                             </span>
-                            <span className="text-xs text-slate-500 font-medium">
-                              ภาคเรียนที่ {dl.semester}/{dl.academic_year}
-                            </span>
-                            {/* Evaluation Mode Badge & Instant Toggle */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const current = dl.evaluation_type || 'rubric_score';
-                                const next = current === 'approval_only' ? 'rubric_score' : 'approval_only';
-                                handleUpdateDeadlineItem(dl.id, { evaluation_type: next });
-                              }}
-                              title="คลิกเพื่อสลับรูปแบบการตรวจ (ตรวจให้คะแนน vs ตรวจแค่อนุมัติ) อัตโนมัติทันที"
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-all cursor-pointer hover:shadow-xs active:scale-95 ${
-                                (dl.evaluation_type || 'rubric_score') === 'approval_only'
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100'
-                                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                              }`}
-                            >
-                              {(dl.evaluation_type || 'rubric_score') === 'approval_only' ? (
+                            <span className="text-[10px] text-slate-400">คลิกสลับได้ทันที</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = evalType === 'approval_only' ? 'rubric_score' : 'approval_only';
+                              handleUpdateDeadlineItem(dl.id, { evaluation_type: next });
+                            }}
+                            className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-bold border transition-all flex items-center justify-between cursor-pointer active:scale-98 ${
+                              evalType === 'rubric_score'
+                                ? 'bg-amber-100/80 hover:bg-amber-200 text-amber-950 border-amber-300'
+                                : 'bg-indigo-100/80 hover:bg-indigo-200 text-indigo-950 border-indigo-300'
+                            }`}
+                            title="คลิกเพื่อสลับระหว่าง ตรวจให้คะแนนรูบริก 100 กับ ตรวจแค่อนุมัติ/ส่งกลับ"
+                          >
+                            <span className="flex items-center gap-1.5 truncate">
+                              {evalType === 'rubric_score' ? (
                                 <>
-                                  <CheckCircle2 className="w-3 h-3 text-indigo-600" />
-                                  <span>ตรวจแค่อนุมัติ/ไม่อนุมัติ</span>
-                                  <span className="text-[10px] text-indigo-500 font-normal">↺ สลับ</span>
+                                  <Award className="w-3.5 h-3.5 text-amber-700" />
+                                  <span>🏆 รูบริก 100 คะแนน</span>
                                 </>
                               ) : (
                                 <>
-                                  <Award className="w-3 h-3 text-amber-600" />
-                                  <span>ตรวจแบบให้คะแนน (รูบริก 100)</span>
-                                  <span className="text-[10px] text-amber-600 font-normal">↺ สลับ</span>
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-700" />
+                                  <span>✅ ตรวจแค่อนุมัติ</span>
                                 </>
                               )}
-                            </button>
-                            {isPastDeadline ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                                <AlertTriangle className="w-3 h-3 text-rose-600" />
-                                <span>เลยกำหนดส่งแล้ว (ระบบตรวจพบส่งช้า)</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>เปิดรับส่งตามกำหนด</span>
-                              </span>
-                            )}
+                            </span>
+                            <span className="text-[10px] underline font-medium opacity-80">↺ สลับโหมด</span>
+                          </button>
+                          <div className="text-[10px] text-slate-500 line-clamp-1">
+                            {evalType === 'rubric_score' ? 'เกณฑ์ 5 ด้าน 100% เหมาะสำหรับวิจัย/แผนสมบูรณ์' : 'อนุมัติ/ส่งกลับ ไม่คิดคะแนน เหมาะสำหรับแผนย่อ'}
+                          </div>
+                        </div>
 
-                            {/* Custom Dynamic Form Badge & Quick Configure */}
-                            {dl.fields && dl.fields.length > 0 ? (
+                        {/* 3. Form & Sample Documents Preview */}
+                        <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-200/80 space-y-1.5">
+                          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <List className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>แบบฟอร์มที่ครูต้องกรอก</span>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {hasCustomFields ? (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setEditingFormDeadlineId(
-                                    editingFormDeadlineId === dl.id ? null : dl.id
-                                  )
-                                }
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
-                                  editingFormDeadlineId === dl.id
-                                    ? 'bg-purple-700 text-white border-purple-800 shadow-xs'
-                                    : 'bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-100'
-                                }`}
-                                title="คลิกเพื่อเปิด/ปิด แผงกำหนดข้อมูลที่ต้องการให้ผู้ส่งกรอก และตัวเลือก Dropdown"
+                                onClick={() => handleOpenFormTaskModal(dl)}
+                                className="px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-300 rounded-md text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
                               >
-                                <List className="w-3 h-3 text-purple-600" />
-                                <span>ฟอร์มกำหนดเอง ({dl.fields.length} ช่อง)</span>
-                                {dl.fields.some((f) => f.type === 'select') && (
-                                  <span className="text-[10px] bg-purple-200 text-purple-950 px-1.5 rounded-full font-bold">
-                                    Dropdown {dl.fields.filter((f) => f.type === 'select').length}
+                                <List className="w-3 h-3 text-purple-700" />
+                                <span>ฟอร์มกำหนดเอง ({dl.fields?.length} ช่อง)</span>
+                                {selectFieldsCount > 0 && (
+                                  <span className="text-[10px] bg-purple-200 px-1 rounded font-mono">
+                                    Dropdown {selectFieldsCount}
                                   </span>
                                 )}
                               </button>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleUpdateDeadlineItem(dl.id, {
-                                    fields: [
-                                      {
-                                        id: `fld_${Date.now()}_1`,
-                                        type: 'user_profile',
-                                        label: 'ครูผู้สอน',
-                                        required: true,
-                                        profile_key: 'name',
-                                        order: 1,
-                                      },
-                                      {
-                                        id: `fld_${Date.now()}_2`,
-                                        type: 'text',
-                                        label: 'ชื่อเรื่อง / รายวิชา',
-                                        required: true,
-                                        order: 2,
-                                      },
-                                      {
-                                        id: `fld_${Date.now()}_3`,
-                                        type: 'select',
-                                        label: 'รูปแบบ / ประเภท',
-                                        required: true,
-                                        options: ['ตัวเลือกที่ 1', 'ตัวเลือกที่ 2', 'ตัวเลือกที่ 3'],
-                                        order: 3,
-                                      },
-                                      {
-                                        id: `fld_${Date.now()}_4`,
-                                        type: 'file',
-                                        label: 'ลิงก์ไฟล์เอกสาร / PDF (Google Drive)',
-                                        required: true,
-                                        order: 4,
-                                        file_config: {
-                                          submission_mode: 'link_only',
-                                          require_link_only: true,
-                                          allowed_types: ['.pdf'],
-                                          max_size_mb: 25,
-                                        },
-                                      },
-                                    ],
-                                  });
-                                  setEditingFormDeadlineId(dl.id);
-                                }}
-                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors cursor-pointer"
-                                title="คลิกเพื่อเพิ่มช่องกรอกข้อมูลและตัวเลือก Dropdown ให้งานนี้"
-                              >
-                                <span>📄 แบบมาตรฐาน</span>
-                                <span className="text-[10px] text-indigo-600 font-bold ml-0.5">+ กำหนด Dropdown</span>
-                              </button>
+                              <span className="px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded-md text-xs font-medium">
+                                📄 แบบมาตรฐาน (วิชา+PDF)
+                              </span>
                             )}
-                            {/* Sample documents indicator */}
-                            {dl.sample_url || (dl.example_documents && dl.example_documents.length > 0) ? (
+
+                            {dl.sample_url ? (
                               <a
-                                href={
-                                  /^https?:\/\//i.test(dl.sample_url || '')
-                                    ? dl.sample_url
-                                    : dl.example_documents?.[0]?.url
-                                    ? dl.example_documents[0].url.startsWith('http')
-                                      ? dl.example_documents[0].url
-                                      : `https://${dl.example_documents[0].url}`
-                                    : '#'
-                                }
+                                href={dl.sample_url.startsWith('http') ? dl.sample_url : `https://${dl.sample_url}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-800 border border-sky-300 hover:bg-sky-100 transition-colors"
-                                title="คลิกเพื่อเปิดดูเอกสารตัวอย่างของประเภทนี้"
+                                className="px-2 py-0.5 bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors"
+                                title={dl.sample_title || 'เปิดดูตัวอย่าง'}
                               >
                                 <LinkIcon className="w-3 h-3 text-sky-600" />
-                                <span>มีลิงก์ตัวอย่าง ({(dl.sample_url ? 1 : 0) + (dl.example_documents?.length || 0)})</span>
-                                <ExternalLink className="w-2.5 h-2.5 text-sky-500 ml-0.5" />
+                                <span className="truncate max-w-[120px]">{dl.sample_title || 'ดูตัวอย่าง'}</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
                               </a>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingDeadlineId(dl.id);
-                                }}
-                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium text-slate-500 hover:text-sky-700 hover:bg-sky-50 border border-dashed border-slate-300 transition-colors cursor-pointer"
-                                title="คลิกเพื่อแปะลิงก์ตัวอย่างเอกสารสำหรับประเภทนี้"
-                              >
-                                <LinkIcon className="w-3 h-3 text-slate-400" />
-                                <span>+ แปะลิงก์ตัวอย่าง</span>
-                              </button>
-                            )}
+                            ) : null}
                           </div>
-
                           {dl.description && (
-                            <p className="text-xs text-slate-600">{dl.description}</p>
-                          )}
-
-                          {/* Date Range Display / Inline Edit */}
-                          {!isEditing ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs">
-                                <span className="text-slate-500 block text-[11px] font-medium">
-                                  วันและเวลาเริ่มต้นเปิดรับส่ง:
-                                </span>
-                                <span className="font-bold text-slate-800 mt-0.5 block">
-                                  {formatThaiDateTime(`${dl.start_date} ${dl.start_time}`)}
-                                </span>
-                              </div>
-
-                              <div className="p-3 bg-rose-50/60 rounded-xl border border-rose-200 text-xs">
-                                <span className="text-rose-700 block text-[11px] font-bold flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-rose-600" />
-                                  <span>วันและเวลากำหนดส่ง (Deadline):</span>
-                                </span>
-                                <span className="font-bold text-rose-950 mt-0.5 block text-sm">
-                                  {formatThaiDateTime(`${dl.end_date} ${dl.end_time}`)}
-                                </span>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 p-4 bg-amber-50/50 rounded-2xl border border-amber-200">
-                              <div className="space-y-2">
-                                <span className="text-xs font-bold text-slate-700">เริ่มต้นรับส่ง:</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <input
-                                    type="date"
-                                    value={dl.start_date}
-                                    onChange={(e) =>
-                                      handleUpdateDeadlineItem(dl.id, { start_date: e.target.value })
-                                    }
-                                    className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                                  />
-                                  <input
-                                    type="time"
-                                    value={dl.start_time}
-                                    onChange={(e) =>
-                                      handleUpdateDeadlineItem(dl.id, { start_time: e.target.value })
-                                    }
-                                    className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="space-y-2">
-                                <span className="text-xs font-bold text-rose-800">กำหนดส่ง (Deadline):</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <input
-                                    type="date"
-                                    value={dl.end_date}
-                                    onChange={(e) =>
-                                      handleUpdateDeadlineItem(dl.id, { end_date: e.target.value })
-                                    }
-                                    className="px-2.5 py-1.5 border border-rose-300 rounded-lg text-xs bg-white font-bold text-rose-900"
-                                  />
-                                  <input
-                                    type="time"
-                                    value={dl.end_time}
-                                    onChange={(e) =>
-                                      handleUpdateDeadlineItem(dl.id, { end_time: e.target.value })
-                                    }
-                                    className="px-2.5 py-1.5 border border-rose-300 rounded-lg text-xs bg-white font-bold text-rose-900"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Sample Document Links in edit mode */}
-                              <div className="sm:col-span-2 p-3.5 bg-sky-50/80 rounded-xl border border-sky-300 space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
-                                    <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
-                                    <span>แปะลิงก์เอกสารตัวอย่าง / แบบฟอร์มต้นแบบ (เผื่อครูอยากดูตัวอย่าง)</span>
-                                  </span>
-                                  <span className="text-[10px] text-sky-700 font-medium">Google Docs, Drive หรือ PDF</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
-                                  <div className="sm:col-span-5">
-                                    <input
-                                      type="text"
-                                      value={dl.sample_title || ''}
-                                      onChange={(e) =>
-                                        handleUpdateDeadlineItem(dl.id, { sample_title: e.target.value })
-                                      }
-                                      placeholder="ชื่อตัวอย่าง เช่น แบบฟอร์มวิจัย (Google Docs)"
-                                      className="w-full px-2.5 py-1.5 border border-sky-300 rounded-lg text-xs bg-white text-slate-800"
-                                    />
-                                  </div>
-                                  <div className="sm:col-span-7">
-                                    <input
-                                      type="url"
-                                      value={dl.sample_url || ''}
-                                      onChange={(e) =>
-                                        handleUpdateDeadlineItem(dl.id, { sample_url: e.target.value })
-                                      }
-                                      placeholder="https://docs.google.com/... หรือ drive.google.com/..."
-                                      className="w-full px-2.5 py-1.5 border border-sky-300 rounded-lg text-xs bg-white font-mono text-slate-800"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Inline evaluation type switcher */}
-                              <div className="sm:col-span-2 p-3 bg-white rounded-xl border border-amber-300">
-                                <span className="text-xs font-bold text-slate-800 block mb-1.5">
-                                  รูปแบบการตรวจประเมินของงานนี้:
-                                </span>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                  <label
-                                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                                      (dl.evaluation_type || 'rubric_score') === 'rubric_score'
-                                        ? 'bg-amber-50 border-amber-400 font-bold text-amber-950 shadow-2xs'
-                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    <input
-                                      type="radio"
-                                      name={`eval_${dl.id}`}
-                                      checked={(dl.evaluation_type || 'rubric_score') === 'rubric_score'}
-                                      onChange={() =>
-                                        handleUpdateDeadlineItem(dl.id, { evaluation_type: 'rubric_score' })
-                                      }
-                                      className="text-amber-600 focus:ring-amber-500"
-                                    />
-                                    <span>🏆 ตรวจแบบให้คะแนน (รูบริก 100)</span>
-                                  </label>
-
-                                  <label
-                                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                                      dl.evaluation_type === 'approval_only'
-                                        ? 'bg-indigo-50 border-indigo-400 font-bold text-indigo-950 shadow-2xs'
-                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    <input
-                                      type="radio"
-                                      name={`eval_${dl.id}`}
-                                      checked={dl.evaluation_type === 'approval_only'}
-                                      onChange={() =>
-                                        handleUpdateDeadlineItem(dl.id, { evaluation_type: 'approval_only' })
-                                      }
-                                      className="text-indigo-600 focus:ring-indigo-500"
-                                    />
-                                    <span>✅ ตรวจแค่อนุมัติ/ไม่อนุมัติ (ไม่คิดคะแนน)</span>
-                                  </label>
-                                </div>
-                              </div>
-
-                              <div className="sm:col-span-2 pt-2 flex items-center justify-between">
-                                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={dl.allow_late}
-                                    onChange={(e) =>
-                                      handleUpdateDeadlineItem(dl.id, { allow_late: e.target.checked })
-                                    }
-                                    className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
-                                  />
-                                  <span>อนุญาตให้ส่งช้าได้ (ติดป้ายส่งช้า)</span>
-                                </label>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingDeadlineId(null);
-                                    handleSaveDeadlines(deadlines);
-                                  }}
-                                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs active:scale-95 transition-all"
-                                  title="บันทึกการแก้ไขวันเวลาและอัปเดตเข้า SQL อัตโนมัติทันที"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>เสร็จสิ้น (อัพเดทเข้า SQL ออโต้)</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Action buttons */}
-                        <div className="flex sm:flex-col items-center gap-1.5 shrink-0 self-end sm:self-start">
-                          <button
-                            type="button"
-                            onClick={() => setBroadcastConfig(dl)}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-400 flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs active:scale-95"
-                            title="ส่งอีเมลแจ้งเตือนภาระงานนี้ให้ครูทุกคนทันที"
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                            <span>ส่งเมลแจ้งเตือน</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setEditingFormDeadlineId(
-                                editingFormDeadlineId === dl.id ? null : dl.id
-                              )
-                            }
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer transition-colors ${
-                              editingFormDeadlineId === dl.id
-                                ? 'bg-purple-700 text-white border-purple-800 shadow-sm'
-                                : 'bg-purple-50 hover:bg-purple-100 text-purple-900 border-purple-300'
-                            }`}
-                            title="กำหนดข้อมูลที่ต้องการให้ครูกรอก เช่น เมนู Dropdown, ข้อความ, วันที่, ไฟล์แนบ"
-                          >
-                            <List className="w-3.5 h-3.5 text-purple-600" />
-                            <span>{editingFormDeadlineId === dl.id ? 'ปิดตั้งฟอร์ม' : 'ฟอร์ม & Dropdown'}</span>
-                          </button>
-                          <button
-                            onClick={() => setEditingDeadlineId(isEditing ? null : dl.id)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1 cursor-pointer transition-colors ${
-                              isEditing
-                                ? 'bg-amber-100 text-amber-900 border-amber-300'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                            }`}
-                          >
-                            <Edit2 className="w-3 h-3" />
-                            <span>{isEditing ? 'ปิดการแก้ไข' : 'ตั้งค่าวันส่ง & โหมดตรวจ'}</span>
-                          </button>
-                          {deadlines.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteDeadline(dl.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="ลบประเภทนี้และอัปเดตเข้า SQL อัตโนมัติ"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <p className="text-[11px] text-slate-500 line-clamp-1 mt-1" title={dl.description}>
+                              คำชี้แจง: {dl.description}
+                            </p>
                           )}
                         </div>
                       </div>
 
-                      {/* Dedicated Dynamic Form Builder Expander for this Deadline */}
-                      {editingFormDeadlineId === dl.id && (
-                        <div className="mt-4 pt-4 border-t-2 border-purple-200/90 bg-purple-50/40 rounded-2xl p-3.5 sm:p-5 space-y-3.5 animate-in fade-in duration-150">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-purple-200/70 pb-3">
-                            <div>
-                              <h5 className="text-sm font-bold text-purple-950 flex items-center gap-2">
-                                <Layers className="w-4 h-4 text-purple-700" />
-                                <span>กำหนดข้อมูลที่ต้องการให้ครูกรอกสำหรับ: &ldquo;{dl.name}&rdquo;</span>
-                              </h5>
-                              <p className="text-xs text-slate-600 mt-0.5">
-                                แอดมินสามารถเพิ่มข้อความ, เมนู Dropdown พร้อมกำหนดตัวเลือก, วันที่, หรือช่องอัปโหลดไฟล์ที่ต้องการให้ครูกรอกได้เอง
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `ต้องการล้างช่องข้อมูลกำหนดเองของ "${dl.name}" แล้วเปลี่ยนกลับเป็นแบบฟอร์มมาตรฐานหรือไม่?`
-                                    )
-                                  ) {
-                                    handleUpdateDeadlineItem(dl.id, { fields: undefined });
-                                    setEditingFormDeadlineId(null);
-                                  }
-                                }}
-                                className="text-xs text-rose-600 hover:text-rose-800 hover:underline px-2 py-1 font-semibold"
-                              >
-                                สลับกลับเป็นแบบมาตรฐาน
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingFormDeadlineId(null)}
-                                className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>เสร็จสิ้น (บันทึกออโต้)</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          <DynamicFormBuilder
-                            fields={dl.fields || []}
-                            onChange={(updatedFields) =>
-                              handleUpdateDeadlineItem(dl.id, { fields: updatedFields })
-                            }
-                            availableTemplates={deadlines}
-                            currentTeacher={currentTeacher}
-                            sampleUrl={dl.sample_url || ''}
-                            sampleTitle={dl.sample_title || ''}
-                            exampleDocuments={dl.example_documents || []}
-                            onSampleDocumentsChange={(sampleData) =>
-                              handleUpdateDeadlineItem(dl.id, sampleData)
-                            }
-                          />
+                      {/* Card Action Bar (Grouped, Neat, Distinct Hierarchy) */}
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+                        <div className="text-[11px] text-slate-400">
+                          รหัสอ้างอิง: <span className="font-mono">{dl.id}</span>
                         </div>
-                      )}
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* 1. Primary Action: Edit task details & deadline */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditTaskModal(dl)}
+                            className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-amber-700" />
+                            <span>แก้ไขข้อมูล & กำหนดส่ง</span>
+                          </button>
+
+                          {/* 2. Secondary Action: Setup Form & Dropdown */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenFormTaskModal(dl)}
+                            className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                            title="กำหนดช่องกรอกข้อมูลและเมนู Dropdown"
+                          >
+                            <List className="w-3.5 h-3.5 text-purple-600" />
+                            <span>ฟอร์ม & Dropdown</span>
+                          </button>
+
+                          {/* 3. Broadcast Email to Staff */}
+                          <button
+                            type="button"
+                            onClick={() => setBroadcastConfig(dl)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                            title="ส่งอีเมลแจ้งเตือนภาระงานนี้ให้ครูทุกคนทันที"
+                          >
+                            <Mail className="w-3.5 h-3.5 text-slate-600" />
+                            <span>ส่งเมลแจ้งเตือน</span>
+                          </button>
+
+                          {/* 4. Delete Task */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeadline(dl.id, dl.name)}
+                            disabled={deadlines.length <= 1}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
+                            title={deadlines.length <= 1 ? 'ต้องมีภาระงานอย่างน้อย 1 ประเภทในระบบ' : 'ลบภาระงานนี้'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -2256,6 +1837,425 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                 </button>
 
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Dedicated Add/Edit Task Modal */}
+      {taskModal && taskModal.isOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/70 p-3 sm:p-5 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh] my-auto">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 p-4 sm:p-5 text-white shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white border border-white/30 shrink-0">
+                    {taskModal.isNew ? <Plus className="w-5 h-5 stroke-[2.5]" /> : <Edit2 className="w-5 h-5" />}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] uppercase font-bold text-amber-200 tracking-wider block">
+                      {taskModal.isNew ? 'New Task & Deadline' : 'Edit Task & Deadline'}
+                    </span>
+                    <h3 className="font-extrabold text-base sm:text-lg truncate">
+                      {taskModal.isNew ? 'เพิ่มภาระงานและกำหนดเวลาส่งใหม่' : `แก้ไขภาระงาน: ${taskModal.name || 'ไม่ระบุชื่อ'}`}
+                    </h3>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTaskModal(null)}
+                  className="p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Sub-Tabs for Task Modal */}
+              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/20">
+                <button
+                  type="button"
+                  onClick={() => setTaskModal({ ...taskModal, activeSubTab: 'general' })}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    taskModal.activeSubTab === 'general'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'bg-white/15 text-white hover:bg-white/25'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>1. ข้อมูลภาระงาน & กำหนดเวลาส่ง</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTaskModal({ ...taskModal, activeSubTab: 'form' })}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    taskModal.activeSubTab === 'form'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'bg-white/15 text-white hover:bg-white/25'
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>
+                    2. แบบฟอร์ม & Dropdown {taskModal.useCustomForm ? `(${taskModal.fields.length} ช่อง)` : '(แบบมาตรฐาน)'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs flex-1 bg-slate-50/50">
+              {taskModal.activeSubTab === 'general' ? (
+                <div className="space-y-4">
+                  {/* Basic Info */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3.5">
+                    <div className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                      <Tag className="w-4 h-4 text-amber-600" />
+                      <span>ข้อมูลทั่วไปของภาระงาน</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        ชื่อประเภทเอกสาร / ภาระงาน <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={taskModal.name}
+                        onChange={(e) => setTaskModal({ ...taskModal, name: e.target.value })}
+                        placeholder="เช่น ประเด็นการวิจัยในชั้นเรียน หรือ แผนการจัดการเรียนรู้บูรณาการ"
+                        className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          ภาคเรียน / ปีการศึกษา
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={taskModal.semester}
+                            onChange={(e) => setTaskModal({ ...taskModal, semester: e.target.value })}
+                            className="px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold bg-white flex-1"
+                          >
+                            <option value="1">ภาคเรียนที่ 1</option>
+                            <option value="2">ภาคเรียนที่ 2</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={taskModal.academic_year}
+                            onChange={(e) => setTaskModal({ ...taskModal, academic_year: e.target.value })}
+                            placeholder="ปีการศึกษา"
+                            className="w-24 px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          คำอธิบาย / ข้อกำหนดเพิ่มเติมสำหรับครู
+                        </label>
+                        <input
+                          type="text"
+                          value={taskModal.description}
+                          onChange={(e) => setTaskModal({ ...taskModal, description: e.target.value })}
+                          placeholder="คำชี้แจงสั้นๆ..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submission Schedule */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3.5">
+                    <div className="font-bold text-slate-800 text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <span>ช่วงเวลากำหนดส่ง (Schedule & Deadline)</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* Start Date */}
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                        <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                          <span>วันและเวลาเริ่มต้นเปิดรับส่ง:</span>
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] text-slate-500 mb-0.5">วันที่เริ่ม</label>
+                            <input
+                              type="date"
+                              required
+                              value={taskModal.start_date}
+                              onChange={(e) => setTaskModal({ ...taskModal, start_date: e.target.value })}
+                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-500 mb-0.5">เวลาที่เริ่ม</label>
+                            <input
+                              type="time"
+                              required
+                              value={taskModal.start_time}
+                              onChange={(e) => setTaskModal({ ...taskModal, start_time: e.target.value })}
+                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* End Date (Deadline) */}
+                      <div className="bg-rose-50/70 p-3 rounded-xl border border-rose-200 space-y-2">
+                        <span className="text-[11px] font-bold text-rose-900 flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                          <span>วันและเวลากำหนดส่ง (Deadline):</span>
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] text-rose-700 mb-0.5">วันที่กำหนดส่ง</label>
+                            <input
+                              type="date"
+                              required
+                              value={taskModal.end_date}
+                              onChange={(e) => setTaskModal({ ...taskModal, end_date: e.target.value })}
+                              className="w-full px-2.5 py-1.5 border border-rose-300 rounded-lg text-xs bg-white font-bold text-rose-950"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-rose-700 mb-0.5">เวลากำหนดส่ง</label>
+                            <input
+                              type="time"
+                              required
+                              value={taskModal.end_time}
+                              onChange={(e) => setTaskModal({ ...taskModal, end_time: e.target.value })}
+                              className="w-full px-2.5 py-1.5 border border-rose-300 rounded-lg text-xs bg-white font-bold text-rose-950"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 pt-1">
+                      <input
+                        type="checkbox"
+                        checked={taskModal.allow_late}
+                        onChange={(e) => setTaskModal({ ...taskModal, allow_late: e.target.checked })}
+                        className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
+                      />
+                      <span>อนุญาตให้ส่งช้าได้หลังพ้นกำหนด (ระบบจะติดป้าย &quot;ส่งช้า&quot; และคำนวณวันล่าช้าอัตโนมัติ)</span>
+                    </label>
+                  </div>
+
+                  {/* Evaluation Mode */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
+                    <div className="font-bold text-slate-800 text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-purple-600" />
+                        <span>รูปแบบการตรวจประเมิน</span>
+                        <span className="text-rose-500">*</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500">เลือกรูปแบบที่ให้ผู้ตรวจประเมินใช้</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label
+                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${
+                          taskModal.evaluation_type === 'rubric_score'
+                            ? 'border-amber-500 bg-amber-50/80 text-amber-950 shadow-xs'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="modal_eval_type"
+                          value="rubric_score"
+                          checked={taskModal.evaluation_type === 'rubric_score'}
+                          onChange={() => setTaskModal({ ...taskModal, evaluation_type: 'rubric_score' })}
+                          className="mt-0.5 text-amber-600 focus:ring-amber-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-900">
+                            🏆 ตรวจแบบให้คะแนนรูบริก (Rubric 100)
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                            มีเกณฑ์ประเมิน 5 ด้าน คำนวณเป็นร้อยละ 100 เหมาะสำหรับแผนฉบับสมบูรณ์ และงานวิจัยในชั้นเรียน
+                          </div>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 ${
+                          taskModal.evaluation_type === 'approval_only'
+                            ? 'border-indigo-500 bg-indigo-50/80 text-indigo-950 shadow-xs'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="modal_eval_type"
+                          value="approval_only"
+                          checked={taskModal.evaluation_type === 'approval_only'}
+                          onChange={() => setTaskModal({ ...taskModal, evaluation_type: 'approval_only' })}
+                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-900">
+                            ✅ ตรวจแค่อนุมัติ / ส่งกลับแก้ไข
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                            อนุมัติ หรือ ส่งกลับแก้ไข ไม่ต้องกรอกคะแนนรูบริก เหมาะสำหรับแผนย่อ หรือเอกสารส่งตามรอบ
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Sample Links */}
+                  <div className="bg-sky-50/70 p-4 rounded-2xl border border-sky-200/90 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                        <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
+                        <span>เอกสารตัวอย่าง / แบบฟอร์มต้นแบบ (ไม่บังคับ)</span>
+                      </span>
+                      <span className="text-[10px] text-sky-700">Google Docs, Drive หรือ PDF</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+                      <div className="sm:col-span-5">
+                        <input
+                          type="text"
+                          value={taskModal.sample_title}
+                          onChange={(e) => setTaskModal({ ...taskModal, sample_title: e.target.value })}
+                          placeholder="ชื่อตัวอย่าง เช่น แบบฟอร์มแผนการสอน (Google Docs)"
+                          className="w-full px-3 py-1.5 border border-sky-300 rounded-lg text-xs bg-white text-slate-800"
+                        />
+                      </div>
+                      <div className="sm:col-span-7">
+                        <input
+                          type="url"
+                          value={taskModal.sample_url}
+                          onChange={(e) => setTaskModal({ ...taskModal, sample_url: e.target.value })}
+                          placeholder="https://docs.google.com/... หรือ drive.google.com/..."
+                          className="w-full px-3 py-1.5 border border-sky-300 rounded-lg text-xs bg-white font-mono text-slate-800"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* SubTab: Form & Dropdown Builder */
+                <div className="space-y-4">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <List className="w-4 h-4 text-purple-600" />
+                        <span>เลือกรูปแบบฟอร์มที่ครูต้องกรอก</span>
+                      </span>
+                      <span className="text-[11px] text-purple-700 font-semibold">
+                        {taskModal.useCustomForm ? `เปิดใช้ฟอร์มกำหนดเอง (${taskModal.fields.length} ช่องข้อมูล)` : 'แบบมาตรฐาน'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                      <label
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                          !taskModal.useCustomForm
+                            ? 'border-indigo-600 bg-indigo-50/70 font-bold text-indigo-950 shadow-xs'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="modal_form_mode"
+                          checked={!taskModal.useCustomForm}
+                          onChange={() => setTaskModal({ ...taskModal, useCustomForm: false })}
+                          className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-900">📄 แบบฟอร์มมาตรฐาน</div>
+                          <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                            กรอกรหัสวิชา, ชื่อวิชา, ระดับชั้น, และแนบไฟล์แผนการสอน PDF ทั่วไป
+                          </div>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                          taskModal.useCustomForm
+                            ? 'border-purple-600 bg-purple-50/70 font-bold text-purple-950 shadow-xs'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="modal_form_mode"
+                          checked={taskModal.useCustomForm}
+                          onChange={() => {
+                            const fields =
+                              taskModal.fields && taskModal.fields.length > 0
+                                ? taskModal.fields
+                                : [...DEFAULT_DYNAMIC_FIELDS];
+                            setTaskModal({ ...taskModal, useCustomForm: true, fields });
+                          }}
+                          className="mt-0.5 text-purple-600 focus:ring-purple-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-purple-950 flex items-center gap-1">
+                            <span>📋 กำหนดช่องกรอก & Dropdown เอง</span>
+                            <span className="text-[10px] bg-purple-200 text-purple-900 px-1.5 py-0.2 rounded font-bold">กำหนดเอง</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                            เพิ่มเมนู Dropdown, ข้อความ, วันที่, และช่องแนบไฟล์ได้ตามใจชอบ
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {taskModal.useCustomForm ? (
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
+                      <DynamicFormBuilder
+                        fields={taskModal.fields || []}
+                        onChange={(updatedFields) =>
+                          setTaskModal({ ...taskModal, fields: updatedFields })
+                        }
+                        availableTemplates={deadlines}
+                        currentTeacher={currentTeacher}
+                        sampleUrl={taskModal.sample_url || ''}
+                        sampleTitle={taskModal.sample_title || ''}
+                        onSampleDocumentsChange={(sampleData) =>
+                          setTaskModal({ ...taskModal, ...sampleData })
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-100 rounded-2xl text-center text-slate-500 text-xs">
+                      ขณะนี้ใช้แบบฟอร์มมาตรฐาน หากต้องการเพิ่มตัวเลือก Dropdown หรือช่องกรอกเฉพาะทาง ให้คลิกเลือก &quot;กำหนดช่องกรอก & Dropdown เอง&quot; ด้านบน
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setTaskModal(null)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveTaskModal}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>{taskModal.isNew ? 'บันทึกภาระงานใหม่' : 'บันทึกการแก้ไขภาระงาน'}</span>
+              </button>
             </div>
           </div>
         </div>
