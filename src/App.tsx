@@ -59,6 +59,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { DeadlineManagerModal } from './components/DeadlineManagerModal';
 import { TeacherAssignmentNotification } from './components/TeacherAssignmentNotification';
 import { DynamicSubmitModal } from './components/DynamicSubmitModal';
+import { GoogleDriveConfigModal } from './components/GoogleDriveConfigModal';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
@@ -132,6 +133,7 @@ export default function App() {
   const [isFileStorageModalOpen, setIsFileStorageModalOpen] = useState(false);
   const [isAdminTrackerModalOpen, setIsAdminTrackerModalOpen] = useState(false);
   const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false);
+  const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState(false);
   const [deadlineConfigs, setDeadlineConfigs] = useState<PlanTypeDeadlineConfig[]>(() => getSavedDeadlineConfigs());
   const [statusConfigs, setStatusConfigs] = useState<PlanStatusConfig[]>(() => getSavedStatusConfigs());
   const [planToEdit, setPlanToEdit] = useState<LessonPlan | null>(null);
@@ -569,17 +571,33 @@ export default function App() {
 
   // Execute deletion in state and DB (no window.confirm block)
   const executeDeletePlan = async (planId: string) => {
+    // 1. Check if the plan has a Google Drive file to move to Trash
+    const targetPlan = plans.find((p) => p.id === planId);
+    let driveTrashNotice = '';
+    if (targetPlan && targetPlan.file_url) {
+      try {
+        const { trashGoogleDriveFile } = await import('./services/googleDriveService');
+        const trashRes = await trashGoogleDriveFile(targetPlan.file_url);
+        if (trashRes.success) {
+          driveTrashNotice = ' และย้ายไฟล์ PDF ใน Google Drive ลงถังขยะ (Trash) อัตโนมัติเรียบร้อยแล้ว (กู้คืนได้ใน 30 วัน)';
+        }
+      } catch (trashErr) {
+        console.warn('Could not trash file on drive:', trashErr);
+      }
+    }
+
     const res = await deletePlanRecord(planId);
     setPlans((prev) => prev.filter((p) => p.id !== planId));
 
     setToastNotice({
       type: 'success',
       message: 'ลบแผนการสอนเรียบร้อยแล้ว',
-      details: !isAdmin
-        ? 'ระบบได้ลบข้อมูลออกจากระบบเรียบร้อยแล้ว'
-        : res.isSupabase
-        ? 'ระบบได้ลบข้อมูลออกจากฐานข้อมูล Cloudflare D1 (ตาราง lesson_plans) อัตโนมัติแล้ว'
-        : 'ลบออกจากเครื่องเรียบร้อยแล้ว',
+      details:
+        (!isAdmin
+          ? 'ระบบได้ลบข้อมูลออกจากระบบเรียบร้อยแล้ว'
+          : res.isSupabase
+          ? 'ระบบได้ลบข้อมูลออกจากฐานข้อมูล Cloudflare D1 (ตาราง lesson_plans) อัตโนมัติแล้ว'
+          : 'ลบออกจากเครื่องเรียบร้อยแล้ว') + driveTrashNotice,
     });
   };
 
@@ -927,6 +945,7 @@ export default function App() {
           onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
           onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
           onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+          onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
           onScrollToAssignments={handleScrollToAssignments}
           onLogout={handleLogout}
           lastSyncTime={lastSyncTime}
@@ -968,6 +987,7 @@ export default function App() {
               onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
               onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
               onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+              onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
               onScrollToAssignments={handleScrollToAssignments}
               onLogout={handleLogout}
               lastSyncTime={lastSyncTime}
@@ -1853,6 +1873,21 @@ export default function App() {
           isSupabaseConnected={isSupabaseConnected}
           currentTeacher={currentTeacher}
           teachers={teachers}
+        />
+      )}
+
+      {/* Google Drive Automated Uploader Configuration Modal (Admin) */}
+      {isGoogleDriveModalOpen && (
+        <GoogleDriveConfigModal
+          isOpen={isGoogleDriveModalOpen}
+          onClose={() => setIsGoogleDriveModalOpen(false)}
+          onSaved={(_url) => {
+            setToastNotice({
+              type: 'success',
+              message: 'เชื่อมต่อ Google Drive ของโรงเรียนเรียบร้อยแล้ว!',
+              details: 'ระบบพร้อมรับไฟล์ PDF จากคุณครูและสร้างลิงก์ Google Drive อัตโนมัติทันที',
+            });
+          }}
         />
       )}
 

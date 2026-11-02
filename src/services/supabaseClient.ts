@@ -1029,10 +1029,44 @@ export async function deleteAssignmentSubmissionRecord(id: string): Promise<bool
 export async function uploadAssignmentAttachmentFile(
   file: File,
   teacherId: string,
-  assignmentId: string
+  assignmentId: string,
+  teacherName?: string
 ): Promise<{ success: boolean; url: string; fileName: string; fileSize: string; error?: string }> {
   const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
   const sizeText = Number(fileSizeMb) < 1 ? `${Math.round(file.size / 1024)} KB` : `${fileSizeMb} MB`;
+
+  // 1. Prioritize Google Drive Automated Upload (Zero database storage policy)
+  try {
+    const { uploadPdfFileToGoogleDrive, getSavedGoogleDriveWebhookUrl } = await import('./googleDriveService');
+    const gdriveUrl = getSavedGoogleDriveWebhookUrl();
+    if (gdriveUrl) {
+      const driveRes = await uploadPdfFileToGoogleDrive(file, {
+        teacherId,
+        teacherName: teacherName || teacherId,
+        assignmentName: assignmentId,
+      });
+
+      if (driveRes.success && driveRes.fileUrl) {
+        return {
+          success: true,
+          url: driveRes.fileUrl,
+          fileName: driveRes.fileName || file.name,
+          fileSize: driveRes.fileSize || sizeText,
+        };
+      } else if (driveRes.error) {
+        return {
+          success: false,
+          url: '',
+          fileName: file.name,
+          fileSize: sizeText,
+          error: driveRes.error,
+        };
+      }
+    }
+  } catch (e: any) {
+    console.warn('Google Drive automated upload check failed:', e);
+  }
+
   const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `assignments/${assignmentId}/${teacherId}_${Date.now()}_${sanitizedName}`;
 
@@ -1067,13 +1101,12 @@ export async function uploadAssignmentAttachmentFile(
   }
 
   // Zero-Egress Policy: Never convert binary files to Base64 data URLs in database rows!
-  // This completely eliminates megabytes of bandwidth on SELECT * queries.
   return {
     success: false,
     url: '',
     fileName: file.name,
     fileSize: sizeText,
-    error: 'ระบบบังคับส่งเอกสารเป็นลิงก์ PDF / Google Drive เท่านั้น เพื่อประหยัดแบนด์วิดท์เซิร์ฟเวอร์ กรุณาระบุเป็นลิงก์',
+    error: 'ยังไม่ได้เชื่อมต่อ Google Drive ของโรงเรียน กรุณาตั้งค่า Google Drive ในเมนูแอดมิน หรือระบุเป็นลิงก์ Google Drive โดยตรง',
   };
 }
 

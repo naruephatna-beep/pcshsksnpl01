@@ -29,6 +29,7 @@ interface NavbarProps {
   onOpenAdminTrackerModal: () => void;
   onOpenDeadlineManager?: () => void;
   onOpenExecutiveDashboard?: () => void;
+  onOpenGoogleDriveConfig?: () => void;
   onLogout: () => void;
   lastSyncTime?: string;
   isSyncing?: boolean;
@@ -45,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdminTrackerModal,
   onOpenDeadlineManager,
   onOpenExecutiveDashboard,
+  onOpenGoogleDriveConfig,
   onLogout,
   pendingAssignmentsCount,
   onScrollToAssignments,
@@ -129,6 +131,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Users className="w-3.5 h-3.5 text-slate-600" />
                       <span>บุคลากร</span>
                     </button>
+
+                    {onOpenGoogleDriveConfig && (
+                      <button
+                        onClick={onOpenGoogleDriveConfig}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs cursor-pointer active:scale-95"
+                        title="ตั้งค่าการเชื่อมต่อ Google Drive สำหรับอัปโหลดไฟล์อัตโนมัติ"
+                      >
+                        <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="hidden xl:inline">Google Drive</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -338,6 +351,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Users className="w-4 h-4 text-slate-600" />
                   <span>สมุดรายชื่อบุคลากร (27 ท่าน)</span>
                 </button>
+                {onOpenGoogleDriveConfig && (
+                  <button
+                    onClick={() => handleMobileAction(onOpenGoogleDriveConfig)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-emerald-900 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100"
+                  >
+                    <Cloud className="w-4 h-4 text-emerald-600" />
+                    <span>ตั้งค่า Google Drive (อัปโหลดอัตโนมัติ)</span>
+                  </button>
+                )}
               </div>
             )}
 

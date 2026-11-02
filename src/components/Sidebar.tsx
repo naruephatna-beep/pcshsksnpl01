@@ -47,6 +47,7 @@ interface SidebarProps {
   onOpenDirectoryModal: () => void;
   onOpenAdminTrackerModal: () => void;
   onOpenDeadlineManager: () => void;
+  onOpenGoogleDriveConfig?: () => void;
   onScrollToAssignments: () => void;
   onLogout: () => void;
   lastSyncTime?: string;
@@ -73,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenDirectoryModal,
   onOpenAdminTrackerModal,
   onOpenDeadlineManager,
+  onOpenGoogleDriveConfig,
   onScrollToAssignments,
   onLogout,
   lastSyncTime,
@@ -407,6 +409,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
+
+              {/* ตั้งค่า Google Drive อัตโนมัติ */}
+              {onOpenGoogleDriveConfig && (
+                <button
+                  onClick={() => handleNavClick(onOpenGoogleDriveConfig)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-emerald-300 hover:text-white bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all cursor-pointer group font-medium"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="truncate text-xs">ตั้งค่า Google Drive (Auto)</span>
+                  </div>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-mono">
+                    Drive
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         )}

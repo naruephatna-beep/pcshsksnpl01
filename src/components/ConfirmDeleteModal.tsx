@@ -71,6 +71,10 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
               <p>
                 ข้อมูลจะถูกลบออกจากระบบ และจะซิงก์ลบออกจากฐานข้อมูล Cloudflare D1 (ตาราง <code className="font-mono bg-rose-100 px-1 rounded">lesson_plans</code>) โดยอัตโนมัติทันที
               </p>
+              <p className="mt-1.5 pt-1.5 border-t border-rose-200/60 text-[11px] text-emerald-800 font-medium flex items-center gap-1">
+                <span>🗑️</span>
+                <span>ไฟล์ PDF ใน Google Drive ของโรงเรียนจะถูกย้ายลง <strong>"ถังขยะ (Trash)"</strong> ให้อัตโนมัติ (สามารถกู้คืนได้ภายใน 30 วัน)</span>
+              </p>
             </div>
           </div>
 

@@ -19,9 +19,12 @@ import {
   Copy,
   BookOpen,
   ExternalLink,
+  Cloud,
+  Upload,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PdfPermissionNotice } from './PdfPermissionNotice';
+import { uploadPdfFileToGoogleDrive } from '../services/googleDriveService';
 
 interface SubmitPlanModalProps {
   currentTeacher: Teacher;
@@ -122,7 +125,43 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
     createNewItem(defaultInitialType),
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
   const [error, setError] = useState('');
+
+  const handleFileUploadToDrive = async (itemId: string, file: File, item: SubmissionItem) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setError('อนุญาตเฉพาะไฟล์นามสกุล .pdf เท่านั้น');
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setError(`ไฟล์ "${file.name}" มีขนาดเกิน 25 MB กรุณาเลือกไฟล์ใหม่`);
+      return;
+    }
+    setUploadingItemId(itemId);
+    setError('');
+    try {
+      const res = await uploadPdfFileToGoogleDrive(file, {
+        teacherId: currentTeacher.Teacher_ID,
+        teacherName: currentTeacher.Name,
+        assignmentName: item.planType || item.subjectName || 'แผนการสอน',
+        learningArea: currentTeacher.Learning_Area,
+        semester: item.semester,
+        academicYear: item.academicYear,
+      });
+      if (res.success && res.fileUrl) {
+        handleUpdateItem(itemId, 'fileUrl', res.fileUrl);
+        handleUpdateItem(itemId, 'fileName', res.fileName || file.name);
+        handleUpdateItem(itemId, 'isPermissionConfirmed', true);
+      } else {
+        setError(`อัปโหลดขึ้น Google Drive ไม่สำเร็จ: ${res.error || 'โปรดตรวจสอบการเชื่อมต่อ'}`);
+      }
+    } catch (err: any) {
+      setError(`เกิดข้อผิดพลาดในการอัปโหลด: ${err?.message || 'ไม่สามารถอัปโหลดได้'}`);
+    } finally {
+      setUploadingItemId(null);
+    }
+  };
 
   // Reset form when modal opens or initialPlanType changes
   useEffect(() => {
@@ -755,17 +794,69 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                     />
                   </div>
 
-                  {/* Field 5: Strict PDF Link for this Item */}
-                  <div className="bg-white border-2 border-indigo-200/80 rounded-2xl p-3.5 sm:p-4 space-y-2">
-                    <div className="flex items-center justify-between">
+                  {/* Field 5: Google Drive Automated File Upload & PDF Link */}
+                  <div className="bg-white border-2 border-indigo-200/80 rounded-2xl p-3.5 sm:p-4 space-y-3">
+                    {/* Header */}
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
                       <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-rose-600" />
-                        <span>ลิงก์ไฟล์ PDF ของวิชานี้</span>
+                        <Cloud className="w-4 h-4 text-emerald-600" />
+                        <span>ไฟล์เอกสาร PDF (ส่งเข้า Google Drive โรงเรียนอัตโนมัติ)</span>
                         <span className="text-rose-500">*</span>
                       </label>
-                      <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                        บังคับไฟล์ PDF
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                        ระบบสร้างลิงก์ให้อัตโนมัติ
                       </span>
+                    </div>
+
+                    {/* Direct Upload to Google Drive */}
+                    <label className={`w-full flex flex-col items-center justify-center p-3.5 border-2 border-dashed rounded-xl transition-all cursor-pointer ${
+                      uploadingItemId === item.id
+                        ? 'bg-amber-50/80 border-amber-400 text-amber-900 pointer-events-none'
+                        : 'bg-slate-50/70 hover:bg-emerald-50/40 border-slate-300 hover:border-emerald-400 text-slate-700'
+                    }`}>
+                      {uploadingItemId === item.id ? (
+                        <div className="flex flex-col items-center gap-1.5 py-1">
+                          <div className="w-6 h-6 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                          <p className="font-bold text-xs text-emerald-900">
+                            กำลังนำไฟล์ PDF เข้าสู่ Google Drive ของโรงเรียน...
+                          </p>
+                          <p className="text-[10px] text-emerald-700">
+                            กำลังเปิดสิทธิ์และสร้างลิงก์สำหรับบันทึก
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                            <Upload className="w-4 h-4" />
+                          </div>
+                          <div className="text-left">
+                            <span className="font-bold text-xs text-slate-800 hover:text-emerald-700 block">
+                              คลิกเลือกไฟล์ PDF จากเครื่องเพื่อส่งเข้า Google Drive อัตโนมัติ
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              ระบบจะนำไฟล์เข้า Google Drive ฝ่ายวิชาการและดึงลิงก์มาบันทึกทันที
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        disabled={uploadingItemId === item.id}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUploadToDrive(item.id, file, item);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {/* Or Manual Link */}
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <div className="flex-1 border-t border-slate-200"></div>
+                      <span className="text-[10px] text-slate-400">หรือ กรอกลิงก์ Google Drive ด้วยตนเอง</span>
+                      <div className="flex-1 border-t border-slate-200"></div>
                     </div>
 
                     <div className="flex gap-2">
@@ -773,7 +864,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                         <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
                         <input
                           type="url"
-                          required
+                          required={!item.fileUrl}
                           value={item.fileUrl}
                           onChange={(e) => {
                             handleUpdateItem(item.id, 'fileUrl', e.target.value);
@@ -788,7 +879,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                             }
                           }}
                           placeholder="https://drive.google.com/file/d/... หรือ ลิงก์ตรงที่ลงท้ายด้วย .pdf"
-                          className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 font-mono text-xs sm:text-sm"
+                          className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 font-mono text-slate-800"
                         />
                       </div>
 
@@ -800,9 +891,16 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                         title="ทดสอบเปิดลิงก์ PDF ของวิชานี้ในแท็บใหม่"
                       >
                         <span>ทดสอบเปิด</span>
-                        <span>↗</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
                       </button>
                     </div>
+
+                    {item.fileUrl && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-emerald-800 font-bold bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="truncate">ลิงก์ Google Drive พร้อมบันทึกลง Database: {item.fileUrl}</span>
+                      </div>
+                    )}
 
                     {/* PDF Permission Notice & Checkbox */}
                     <PdfPermissionNotice
