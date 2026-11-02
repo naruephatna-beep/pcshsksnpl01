@@ -9,6 +9,7 @@ import {
   Lock,
   Layers,
 } from 'lucide-react';
+import { AnimatedCounter } from './AnimatedCounter';
 
 interface DashboardStatsProps {
   plans: LessonPlan[];
@@ -65,7 +66,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
       {/* Top 4 KPI Cards: Compact 2x2 on mobile, 4-col on desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         {/* Card 1: Total Plans */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all group">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-slate-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-[11px] sm:text-xs font-bold text-slate-500">
               {isAdmin ? 'แผนการสอนทั้งหมด' : 'แผนการสอนของฉัน'}
@@ -76,7 +77,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
           </div>
           <div className="mt-2.5 flex items-baseline gap-1.5">
             <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums tracking-tight">
-              {totalPlans}
+              <AnimatedCounter value={totalPlans} />
             </span>
             <span className="text-xs text-slate-400 font-medium">ฉบับ</span>
           </div>
@@ -88,7 +89,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
 
         {/* Card 2: Approved Plans */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-emerald-200/90 shadow-2xs hover:shadow-xs hover:border-emerald-300 transition-all group">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-emerald-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-[11px] sm:text-xs font-bold text-emerald-800">
               อนุมัติแล้ว
@@ -99,10 +100,10 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
           </div>
           <div className="mt-2.5 flex items-baseline gap-1.5">
             <span className="text-2xl sm:text-3xl font-extrabold text-emerald-700 tabular-nums tracking-tight">
-              {approvedPlans}
+              <AnimatedCounter value={approvedPlans} />
             </span>
             <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
-              {approvalRate}%
+              <AnimatedCounter value={approvalRate} suffix="%" />
             </span>
           </div>
           <p className="text-[10px] sm:text-[11px] text-emerald-600/90 mt-1 font-medium">
@@ -111,7 +112,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
 
         {/* Card 3: Pending Review */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-amber-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all group">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-amber-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-[11px] sm:text-xs font-bold text-amber-800">
               รอตรวจสอบ
@@ -122,7 +123,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
           </div>
           <div className="mt-2.5 flex items-baseline gap-1.5">
             <span className="text-2xl sm:text-3xl font-extrabold text-amber-700 tabular-nums tracking-tight">
-              {pendingPlans}
+              <AnimatedCounter value={pendingPlans} />
             </span>
             <span className="text-xs text-amber-600 font-medium">ฉบับ</span>
           </div>
@@ -132,7 +133,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
 
         {/* Card 4: Needs Revision */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-rose-200/90 shadow-2xs hover:shadow-xs hover:border-rose-300 transition-all group">
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-rose-200/90 shadow-2xs hover:shadow-md hover:border-rose-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-[11px] sm:text-xs font-bold text-rose-800">
               ส่งกลับแก้ไข
@@ -143,7 +144,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
           </div>
           <div className="mt-2.5 flex items-baseline gap-1.5">
             <span className="text-2xl sm:text-3xl font-extrabold text-rose-700 tabular-nums tracking-tight">
-              {revisionPlans}
+              <AnimatedCounter value={revisionPlans} />
             </span>
             <span className="text-xs text-rose-600 font-medium">ฉบับ</span>
           </div>
@@ -153,11 +154,14 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
       </div>
 
-      {/* Late submissions notification pill */}
+      {/* Late submissions notification pill with animated radar ping */}
       {latePlans > 0 && (
-        <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 sm:px-4 flex items-center justify-between gap-2.5 text-xs text-amber-950">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+        <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 sm:px-4 flex items-center justify-between gap-2.5 text-xs text-amber-950 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
             <span className="font-bold">
               {isAdmin ? 'ตรวจพบแผนการสอนที่ส่งช้ากว่ากำหนด:' : 'แผนของท่านที่ส่งช้ากว่ากำหนด:'}
             </span>

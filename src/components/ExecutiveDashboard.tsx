@@ -44,6 +44,7 @@ import {
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
 import { InfographicPromptModal } from './InfographicPromptModal';
+import { AnimatedCounter } from './AnimatedCounter';
 import {
   InfographicPromptPayload,
   generateEnglishInfographicPrompt,
@@ -789,7 +790,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           {/* Top 4 KPI Cards: Compact, Prominent Stats, Micro Labels */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
             {/* KPI 1: Submission Rate */}
-            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-indigo-300 hover:shadow-xs transition-all">
+            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-indigo-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-default">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
                   อัตราการส่งทั้งโรงเรียน
@@ -799,7 +800,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 </div>
               </div>
               <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-slate-900">{submissionRate}%</span>
+                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-slate-900">
+                  <AnimatedCounter value={submissionRate} suffix="%" />
+                </span>
                 <span className="text-[11px] text-slate-400 font-medium">
                   ({submittedTeachers.length}/{totalTeachersCount} ท่าน)
                 </span>
@@ -807,7 +810,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               {/* Progress bar */}
               <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
                 <div
-                  className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500"
+                  className="bg-indigo-600 h-1.5 rounded-full transition-all duration-700 ease-out"
                   style={{ width: `${submissionRate}%` }}
                 ></div>
               </div>
@@ -821,7 +824,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
 
             {/* KPI 2: Punctuality Breakdown */}
-            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-emerald-300 hover:shadow-xs transition-all">
+            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-emerald-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-default">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
                   ความตรงต่อเวลา
@@ -831,17 +834,19 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 </div>
               </div>
               <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-emerald-600">{onTimeRate}%</span>
+                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-emerald-600">
+                  <AnimatedCounter value={onTimeRate} suffix="%" />
+                </span>
                 <span className="text-[11px] text-slate-400 font-medium">({onTimePlans.length} ฉบับ)</span>
               </div>
               {/* Progress bar with ontime and late segments */}
               <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden flex">
                 <div
-                  className="bg-emerald-500 h-1.5 transition-all duration-500"
+                  className="bg-emerald-500 h-1.5 transition-all duration-700 ease-out"
                   style={{ width: `${onTimeRate}%` }}
                 ></div>
                 <div
-                  className="bg-amber-500 h-1.5 transition-all duration-500"
+                  className="bg-amber-500 h-1.5 transition-all duration-700 ease-out"
                   style={{ width: `${lateRate}%` }}
                 ></div>
               </div>
@@ -853,7 +858,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
 
             {/* KPI 3: Average Quality Score */}
-            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-amber-300 hover:shadow-xs transition-all">
+            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-amber-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-default">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
                   คะแนนคุณภาพเฉลี่ย
@@ -872,19 +877,19 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     รอผลประเมินจริง
                   </span>
                 ) : Number(avgScore) >= 90 ? (
-                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded-md shadow-2xs">
                     ดีเยี่ยม (90+) ★★★★★
                   </span>
                 ) : Number(avgScore) >= 80 ? (
-                  <span className="text-[10px] text-blue-700 font-bold bg-blue-100/70 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] text-blue-700 font-bold bg-blue-100/70 px-2 py-0.5 rounded-md shadow-2xs">
                     ดีมาก (80-89) ★★★★☆
                   </span>
                 ) : Number(avgScore) >= 70 ? (
-                  <span className="text-[10px] text-amber-700 font-bold bg-amber-100/70 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] text-amber-700 font-bold bg-amber-100/70 px-2 py-0.5 rounded-md shadow-2xs">
                     ดี (70-79) ★★★☆☆
                   </span>
                 ) : (
-                  <span className="text-[10px] text-rose-700 font-bold bg-rose-100/70 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] text-rose-700 font-bold bg-rose-100/70 px-2 py-0.5 rounded-md shadow-2xs">
                     ปรับปรุง (&lt;70)
                   </span>
                 )}
@@ -897,7 +902,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
 
             {/* KPI 4: Department Completion */}
-            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-sky-300 hover:shadow-xs transition-all">
+            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-sky-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-default">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
                   กลุ่มสาระส่งครบ 100%
@@ -908,13 +913,13 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </div>
               <div className="mt-1.5 flex items-baseline gap-1.5">
                 <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-sky-600">
-                  {areaStats.filter((a) => a.isCompleted).length}
+                  <AnimatedCounter value={areaStats.filter((a) => a.isCompleted).length} />
                 </span>
                 <span className="text-[11px] text-slate-400 font-medium">/ {areaStats.length} กลุ่มสาระ</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
                 <div
-                  className="bg-sky-500 h-1.5 rounded-full transition-all duration-500"
+                  className="bg-sky-500 h-1.5 rounded-full transition-all duration-700 ease-out"
                   style={{
                     width: `${Math.round(
                       (areaStats.filter((a) => a.isCompleted).length / (areaStats.length || 1)) * 100

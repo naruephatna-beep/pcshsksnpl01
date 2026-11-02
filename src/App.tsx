@@ -37,6 +37,7 @@ import {
   DEFAULT_STATUS_CONFIGS,
 } from './utils/deadlineUtils';
 import { Navbar } from './components/Navbar';
+import { triggerSchoolCelebration } from './utils/confettiUtils';
 import { DashboardStats } from './components/DashboardStats';
 import { ExecutiveDashboard } from './components/ExecutiveDashboard';
 import { LessonPlanCard } from './components/LessonPlanCard';
@@ -495,6 +496,9 @@ export default function App() {
     }
     setPlans((prev) => [...plansList, ...prev]);
 
+    // Celebrate successful submission with school-themed confetti
+    triggerSchoolCelebration('full');
+
     const count = plansList.length;
     if (!isAdmin) {
       setToastNotice({
@@ -547,6 +551,11 @@ export default function App() {
     setPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
+
+    // If plan was approved or has top score, fire a subtle celebration
+    if (updatedPlan.status === 'approved' || updatedPlan.status === 'passed' || (typeof updatedPlan.total_score === 'number' && updatedPlan.total_score >= 90)) {
+      triggerSchoolCelebration('light');
+    }
 
     if (res.isSupabase && res.success) {
       setToastNotice({

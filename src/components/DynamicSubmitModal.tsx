@@ -12,6 +12,7 @@ import {
   uploadAssignmentAttachmentFile,
   savePlanRecord,
 } from '../services/supabaseClient';
+import { triggerSchoolCelebration } from '../utils/confettiUtils';
 import {
   X,
   FileCheck2,
@@ -361,15 +362,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
 
       await savePlanRecord(correspondingPlan);
 
-      try {
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.6 },
-        });
-      } catch {
-        // ignore
-      }
+      triggerSchoolCelebration('full');
 
       if (onSubmitted) {
         onSubmitted(newRecord, correspondingPlan);
