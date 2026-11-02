@@ -438,7 +438,6 @@ export default function App() {
       prev.map((t) => (t.Teacher_ID === updated.Teacher_ID ? updated : t))
     );
     setCurrentTeacher(updated);
-    await syncWithDatabase(true);
 
     setToastNotice({
       type: 'success',
@@ -473,7 +472,6 @@ export default function App() {
           : p
       )
     );
-    await syncWithDatabase(true);
 
     setToastNotice({
       type: 'success',
@@ -496,7 +494,6 @@ export default function App() {
       lastRes = await savePlanRecord(plan);
     }
     setPlans((prev) => [...plansList, ...prev]);
-    await syncWithDatabase(true);
 
     const count = plansList.length;
     if (!isAdmin) {
@@ -550,7 +547,6 @@ export default function App() {
     setPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
-    await syncWithDatabase(true);
 
     if (res.isSupabase && res.success) {
       setToastNotice({
@@ -566,7 +562,6 @@ export default function App() {
   const executeDeletePlan = async (planId: string) => {
     const res = await deletePlanRecord(planId);
     setPlans((prev) => prev.filter((p) => p.id !== planId));
-    await syncWithDatabase(true);
 
     setToastNotice({
       type: 'success',
@@ -595,7 +590,6 @@ export default function App() {
     setPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
-    await syncWithDatabase(true);
 
     setToastNotice({
       type: 'success',
@@ -687,7 +681,6 @@ export default function App() {
 
     setPlans((prev) => prev.map((p) => (p.id === planId ? updatedPlan : p)));
     await savePlanRecord(updatedPlan);
-    await syncWithDatabase(true);
 
     const stInfo = getPlanStatusInfo(newStatus, statusConfigs);
     setToastNotice({
@@ -706,7 +699,6 @@ export default function App() {
     };
     setPlans((prev) => prev.map((p) => (p.id === plan.id ? updatedPlan : p)));
     await savePlanRecord(updatedPlan);
-    await syncWithDatabase(true);
 
     setToastNotice({
       type: 'info',
@@ -1743,7 +1735,7 @@ export default function App() {
       )}
 
       {/* Submit Plan Modal */}
-      {currentTeacher && (
+      {currentTeacher && isSubmitModalOpen && (
         <SubmitPlanModal
           currentTeacher={currentTeacher}
           isOpen={isSubmitModalOpen}
@@ -1795,7 +1787,7 @@ export default function App() {
       )}
 
       {/* Teacher Directory Modal */}
-      {currentTeacher && (
+      {currentTeacher && isDirectoryModalOpen && (
         <TeacherDirectoryModal
           teachers={teachers}
           currentTeacher={currentTeacher}
@@ -1809,45 +1801,51 @@ export default function App() {
       )}
 
       {/* File Storage Hub Info Modal */}
-      <FileStorageInfoModal
-        plans={plans}
-        isOpen={isFileStorageModalOpen}
-        onClose={() => setIsFileStorageModalOpen(false)}
-      />
+      {isFileStorageModalOpen && (
+        <FileStorageInfoModal
+          plans={plans}
+          isOpen={isFileStorageModalOpen}
+          onClose={() => setIsFileStorageModalOpen(false)}
+        />
+      )}
 
       {/* Admin Tracker Matrix Modal */}
-      <AdminTrackerModal
-        teachers={teachers}
-        plans={plans}
-        deadlineConfigs={deadlineConfigs}
-        statusConfigs={statusConfigs}
-        isOpen={isAdminTrackerModalOpen}
-        onClose={() => setIsAdminTrackerModalOpen(false)}
-        onEditTeacher={(t) => {
-          setTeacherToEdit(t);
-          setIsProfileModalOpen(true);
-        }}
-        onEditPlan={(p) => setPlanToEdit(p)}
-        onDeletePlan={(id) => handleDeletePlan(id)}
-        onOpenReview={(p) => setSelectedPlanForReview(p)}
-        onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
-      />
+      {isAdminTrackerModalOpen && (
+        <AdminTrackerModal
+          teachers={teachers}
+          plans={plans}
+          deadlineConfigs={deadlineConfigs}
+          statusConfigs={statusConfigs}
+          isOpen={isAdminTrackerModalOpen}
+          onClose={() => setIsAdminTrackerModalOpen(false)}
+          onEditTeacher={(t) => {
+            setTeacherToEdit(t);
+            setIsProfileModalOpen(true);
+          }}
+          onEditPlan={(p) => setPlanToEdit(p)}
+          onDeletePlan={(id) => handleDeletePlan(id)}
+          onOpenReview={(p) => setSelectedPlanForReview(p)}
+          onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+        />
+      )}
 
       {/* Deadline & Status Manager Modal (Admin) */}
-      <DeadlineManagerModal
-        isOpen={isDeadlineModalOpen}
-        onClose={() => setIsDeadlineModalOpen(false)}
-        deadlineConfigs={deadlineConfigs}
-        onSaveDeadlineConfigs={handleSaveDeadlineConfigs}
-        statusConfigs={statusConfigs}
-        onSaveStatusConfigs={handleSaveStatusConfigs}
-        plans={plans}
-        onUpdatePlanStatus={handleQuickChangePlanStatus}
-        onOpenReview={(p) => setSelectedPlanForReview(p)}
-        isSupabaseConnected={isSupabaseConnected}
-        currentTeacher={currentTeacher}
-        teachers={teachers}
-      />
+      {isDeadlineModalOpen && (
+        <DeadlineManagerModal
+          isOpen={isDeadlineModalOpen}
+          onClose={() => setIsDeadlineModalOpen(false)}
+          deadlineConfigs={deadlineConfigs}
+          onSaveDeadlineConfigs={handleSaveDeadlineConfigs}
+          statusConfigs={statusConfigs}
+          onSaveStatusConfigs={handleSaveStatusConfigs}
+          plans={plans}
+          onUpdatePlanStatus={handleQuickChangePlanStatus}
+          onOpenReview={(p) => setSelectedPlanForReview(p)}
+          isSupabaseConnected={isSupabaseConnected}
+          currentTeacher={currentTeacher}
+          teachers={teachers}
+        />
+      )}
 
       {/* Dynamic Assignment Submit Modal (when task has custom fields & dropdowns) */}
       {currentTeacher && selectedDynamicConfig && (
@@ -1863,7 +1861,6 @@ export default function App() {
             if (correspondingPlan) {
               setPlans((prev) => [correspondingPlan, ...prev]);
             }
-            await syncWithDatabase(true);
             setToastNotice({
               type: 'success',
               message: `ส่งภาระงาน "${selectedDynamicConfig.name}" เรียบร้อยแล้ว!`,
@@ -1887,7 +1884,6 @@ export default function App() {
             setPlans((prev) =>
               prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
             );
-            await syncWithDatabase(true);
 
             setToastNotice({
               type: 'success',
@@ -1901,29 +1897,35 @@ export default function App() {
       )}
 
       {/* Confirm Delete Modal (safe in iframe, no window.confirm) */}
-      <ConfirmDeleteModal
-        isOpen={!!planToDelete}
-        plan={planToDelete}
-        onClose={() => setPlanToDelete(null)}
-        onConfirm={async (id) => {
-          await executeDeletePlan(id);
-        }}
-      />
+      {planToDelete && (
+        <ConfirmDeleteModal
+          isOpen={!!planToDelete}
+          plan={planToDelete}
+          onClose={() => setPlanToDelete(null)}
+          onConfirm={async (id) => {
+            await executeDeletePlan(id);
+          }}
+        />
+      )}
 
       {/* Resubmit Plan Modal */}
-      <ResubmitPlanModal
-        isOpen={!!planToResubmit}
-        plan={planToResubmit}
-        onClose={() => setPlanToResubmit(null)}
-        onResubmit={handleResubmitPlan}
-      />
+      {planToResubmit && (
+        <ResubmitPlanModal
+          isOpen={!!planToResubmit}
+          plan={planToResubmit}
+          onClose={() => setPlanToResubmit(null)}
+          onResubmit={handleResubmitPlan}
+        />
+      )}
 
       {/* Login Modal */}
-      <LoginModal
-        teachers={teachers}
-        isOpen={isLoginModalOpen}
-        onLogin={handleSetCurrentUser}
-      />
+      {isLoginModalOpen && (
+        <LoginModal
+          teachers={teachers}
+          isOpen={isLoginModalOpen}
+          onLogin={handleSetCurrentUser}
+        />
+      )}
 
       {/* Mobile Floating Bottom Navigation Bar: สะดวกใช้งานบนมือถือด้วยนิ้วโป้งเดียว (Style 4: แสด-กรมท่า) */}
       {currentTeacher && (
