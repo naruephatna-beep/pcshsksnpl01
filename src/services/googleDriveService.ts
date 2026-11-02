@@ -11,12 +11,23 @@ import { fetchSystemSetting, saveSystemSetting } from './supabaseClient';
 export const STORAGE_KEY_GDRIVE_WEBHOOK = 'pcshs_gdrive_webhook_url';
 export const STORAGE_KEY_GDRIVE_FOLDER_NAME = 'pcshs_gdrive_folder_name';
 
-// Default default fallback placeholder or demo url
+/**
+ * URL Webhook ถาวรของ Google Apps Script Web App สำหรับโรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+ * ไม่ว่าจะเปิดจากเครื่องไหน เบราว์เซอร์ใด ระบบจะเชื่อมต่อกับ URL นี้เป็นค่าเริ่มต้นอัตโนมัติ
+ */
+export const DEFAULT_GDRIVE_WEBHOOK_URL =
+  'https://script.google.com/macros/s/AKfycbz90JWFomtPUKUjPth7GNixvljFDqEvE29vSpwc4PcBA9TfR8ipStdhr_yD298V7Zuw4w/exec';
+
+// คืนค่า URL ที่บันทึกไว้ หรือคืนค่า URL เริ่มต้นถาวรของโรงเรียน
 export function getSavedGoogleDriveWebhookUrl(): string {
   try {
-    return localStorage.getItem(STORAGE_KEY_GDRIVE_WEBHOOK) || '';
+    const val = localStorage.getItem(STORAGE_KEY_GDRIVE_WEBHOOK);
+    if (val && val.trim() && val.trim().startsWith('https://script.google.com/')) {
+      return val.trim();
+    }
+    return DEFAULT_GDRIVE_WEBHOOK_URL;
   } catch {
-    return '';
+    return DEFAULT_GDRIVE_WEBHOOK_URL;
   }
 }
 
@@ -25,15 +36,20 @@ export async function fetchGoogleDriveWebhookUrl(): Promise<string> {
   try {
     const res = await fetchSystemSetting<string>('gdrive_webhook_url', localUrl);
     if (res.data && typeof res.data === 'string' && res.data.trim()) {
-      if (res.data !== localUrl) {
-        localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, res.data.trim());
+      const cleanRemote = res.data.trim();
+      if (cleanRemote !== localUrl) {
+        localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, cleanRemote);
       }
-      return res.data.trim();
+      return cleanRemote;
+    } else {
+      // ซิงค์ URL ถาวรเข้าฐานข้อมูลเพื่อให้ทุกอุปกรณ์ใช้ร่วมกัน
+      await saveSystemSetting('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL);
+      return DEFAULT_GDRIVE_WEBHOOK_URL;
     }
   } catch (err) {
     console.warn('Could not fetch gdrive_webhook_url from system settings:', err);
   }
-  return localUrl;
+  return localUrl || DEFAULT_GDRIVE_WEBHOOK_URL;
 }
 
 export async function saveGoogleDriveWebhookUrl(url: string): Promise<boolean> {

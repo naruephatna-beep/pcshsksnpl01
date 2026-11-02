@@ -60,6 +60,10 @@ import { DeadlineManagerModal } from './components/DeadlineManagerModal';
 import { TeacherAssignmentNotification } from './components/TeacherAssignmentNotification';
 import { DynamicSubmitModal } from './components/DynamicSubmitModal';
 import { GoogleDriveConfigModal } from './components/GoogleDriveConfigModal';
+import {
+  DEFAULT_GDRIVE_WEBHOOK_URL,
+  STORAGE_KEY_GDRIVE_WEBHOOK,
+} from './services/googleDriveService';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
@@ -155,12 +159,13 @@ export default function App() {
   const syncWithDatabase = async (silent: boolean = true) => {
     setIsSyncing(true);
     try {
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes] = await Promise.all([
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes] = await Promise.all([
         fetchTeachers(),
         fetchPlans(),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
         fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
         fetchAssignmentSubmissionsList(),
+        fetchSystemSetting<string>('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL),
       ]);
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
@@ -180,6 +185,19 @@ export default function App() {
         setStatusConfigs(statusSettingsRes.data);
       } else if (statusSettingsRes.isSupabase && (!statusSettingsRes.data || (Array.isArray(statusSettingsRes.data) && statusSettingsRes.data.length === 0))) {
         saveSystemSetting('status_configs', DEFAULT_STATUS_CONFIGS);
+      }
+
+      // Sync Google Drive permanent webhook URL across all devices
+      const activeGdriveUrl = (gdriveRes?.data && typeof gdriveRes.data === 'string' && gdriveRes.data.trim())
+        ? gdriveRes.data.trim()
+        : DEFAULT_GDRIVE_WEBHOOK_URL;
+      try {
+        localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, activeGdriveUrl);
+        if (gdriveRes?.isSupabase && (!gdriveRes.data || !String(gdriveRes.data).trim())) {
+          saveSystemSetting('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL);
+        }
+      } catch {
+        // ignore
       }
 
       // CRITICAL FIX: Merge remote plans with dynamic submissions and local storage

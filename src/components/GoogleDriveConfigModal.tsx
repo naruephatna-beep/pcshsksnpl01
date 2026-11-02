@@ -22,6 +22,7 @@ import {
   saveGoogleDriveWebhookUrl,
   testGoogleDriveConnection,
   GOOGLE_APPS_SCRIPT_TEMPLATE,
+  DEFAULT_GDRIVE_WEBHOOK_URL,
 } from '../services/googleDriveService';
 
 interface GoogleDriveConfigModalProps {
@@ -212,12 +213,27 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
 
               {/* Webhook Input Field */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-800 flex items-center justify-between">
-                  <span>URL ของ Google Apps Script Web App (Webhook URL)</span>
-                  <span className="text-[11px] text-slate-400 font-normal">
-                    ขึ้นต้นด้วย https://script.google.com/macros/s/...
-                  </span>
-                </label>
+                <div className="flex flex-wrap items-center justify-between gap-1">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <span>URL ของ Google Apps Script Web App (Webhook URL)</span>
+                    {webhookUrl.trim() === DEFAULT_GDRIVE_WEBHOOK_URL && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        URL ประจำโรงเรียน จภ.กาฬสินธุ์
+                      </span>
+                    )}
+                  </label>
+                  {webhookUrl.trim() !== DEFAULT_GDRIVE_WEBHOOK_URL && (
+                    <button
+                      type="button"
+                      onClick={() => setWebhookUrl(DEFAULT_GDRIVE_WEBHOOK_URL)}
+                      className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-emerald-600" />
+                      <span>คืนค่าเป็น URL ของโรงเรียน</span>
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type="url"
@@ -227,9 +243,10 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                     className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs sm:text-sm font-mono text-slate-900 shadow-2xs placeholder:text-slate-400"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  * ได้รับจากการกด "ทำให้ใช้งานได้" (Deploy) &gt; "การทำให้ใช้งานได้รายการใหม่" &gt; "เว็บแอป" ใน Google Apps Script
-                </p>
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>* เชื่อมต่อถาวรกับทุกเครื่องและทุกอุปกรณ์อัตโนมัติ</span>
+                  <span className="text-[10px] font-mono text-slate-400">PCSHS KSN Google Apps Script</span>
+                </div>
               </div>
 
               {/* Action Buttons: Test & Save */}
