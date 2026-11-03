@@ -63,7 +63,11 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { openGmailComposeTab } from '../services/emailService';
+import {
+  openGmailComposeTab,
+  sendAcademicEmailOneClick,
+  ACADEMIC_SENDER_NAME,
+} from '../services/emailService';
 
 interface DeadlineManagerModalProps {
   isOpen: boolean;
@@ -1812,30 +1816,61 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   <span>คัดลอกข้อความ</span>
                 </button>
 
-                {/* 1-Click Gmail Broadcast Button */}
+                {/* 1-Click Direct Academic Broadcast Button */}
                 <button
                   type="button"
-                  onClick={() => {
+                  disabled={isBroadcastingEmail}
+                  onClick={async () => {
                     if (!broadcastConfig) return;
+                    setIsBroadcastingEmail(true);
+                    setBroadcastSuccessMsg(null);
                     const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
                     const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
                     const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งเอกสารวิชาการออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+                    const html = `<!DOCTYPE html><html><body><div style="font-family: sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;"><h2 style="color: #0b1329; border-bottom: 2px solid #f59e0b; padding-bottom: 8px;">📢 มอบหมายภาระงานใหม่ ฝ่ายวิชาการ จ.ภ. กาฬสินธุ์</h2><p>เรียน คุณครูทุกท่าน</p><p>ฝ่ายบริหารวิชาการขอแจ้งมอบหมายภาระงานในระบบส่งเอกสารวิชาการออนไลน์ ดังนี้:</p><div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 15px 0;"><strong>📌 ภาระงาน:</strong> ${broadcastConfig.name}<br/><strong>📅 ภาคเรียน/ปีการศึกษา:</strong> ภาคเรียนที่ ${broadcastConfig.semester}/${broadcastConfig.academic_year}<br/><strong>⏰ กำหนดส่ง:</strong> <span style="color: #dc2626; font-weight: bold;">${deadlineFormatted}</span><br/>${broadcastConfig.description ? `<strong>📝 รายละเอียด:</strong> ${broadcastConfig.description}<br/>` : ''}${broadcastConfig.sample_url ? `<a href="${broadcastConfig.sample_url}" style="color: #2563eb;">📎 ดูตัวอย่างเอกสาร</a>` : ''}</div><p><a href="${window.location.origin}" style="display: inline-block; background-color: #0b1329; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold;">🔗 เข้าสู่ระบบส่งงานวิชาการ</a></p><hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;"/><p style="font-size: 12px; color: #64748b;">กลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p></div></body></html>`;
 
-                    openGmailComposeTab({
-                      to: teacherEmails.join(','),
-                      subject,
-                      body,
-                    });
-                    setBroadcastSuccessMsg(`⚡ เปิด Gmail พร้อมส่งแจ้งเตือนถึงคุณครูทั้ง ${teacherEmails.length} ท่านแล้ว!`);
+                    let sentCount = 0;
+                    for (const email of teacherEmails) {
+                      try {
+                        const res = await sendAcademicEmailOneClick({
+                          to: email,
+                          subject,
+                          htmlBody: html,
+                          body,
+                          senderName: ACADEMIC_SENDER_NAME,
+                        });
+                        if (res.success) sentCount++;
+                      } catch {
+                        // continue
+                      }
+                    }
+
+                    setIsBroadcastingEmail(false);
+                    if (sentCount > 0) {
+                      setBroadcastSuccessMsg(`⚡ ส่งอีเมลแจ้งเตือนถึงครูสำเร็จ ${sentCount} จาก ${teacherEmails.length} ท่าน (1 คลิก)!`);
+                    } else {
+                      // Fallback
+                      openGmailComposeTab({
+                        to: teacherEmails.join(','),
+                        subject,
+                        body,
+                      });
+                      setBroadcastSuccessMsg(`⚡ เปิดหน้าต่าง Gmail ส่งถึงครูทุกคน (${teacherEmails.length} ท่าน) สำรองแล้ว!`);
+                    }
+
                     setTimeout(() => {
                       setBroadcastSuccessMsg(null);
                       setBroadcastConfig(null);
-                    }, 2500);
+                    }, 3500);
                   }}
-                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer text-xs"
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer text-xs disabled:opacity-50"
                 >
-                  <Zap className="w-4 h-4 text-slate-950" />
-                  <span>⚡ เปิดส่งใน Gmail (academics@pcshsksn.ac.th) ถึงครูทุกคน ({teacherEmails.length} ท่าน)</span>
+                  {isBroadcastingEmail ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : (
+                    <Zap className="w-4 h-4 text-slate-950" />
+                  )}
+                  <span>{isBroadcastingEmail ? 'กำลังส่งเมลถึงทุกคน...' : `⚡ ส่งอีเมลแจ้งครูทุกคนทันที (${teacherEmails.length} ท่าน - 1 คลิก)`}</span>
                 </button>
 
               </div>

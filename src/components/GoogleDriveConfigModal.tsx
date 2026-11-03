@@ -208,6 +208,10 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                     <span>🗑️</span>
                     <span>รองรับการย้ายไฟล์ลง <strong>"ถังขยะ Google Drive (Trash)"</strong> ให้อัตโนมัติเมื่อมีการกดยกเลิก/ลบงาน (กู้คืนได้ภายใน 30 วัน)</span>
                   </p>
+                  <p className="text-[11px] text-emerald-900 font-semibold flex items-center gap-1.5">
+                    <span>✉️</span>
+                    <span>ระบบส่งอีเมล <strong>"1 คลิกจากเมลฝ่ายวิชาการ"</strong> (แจ้งผลการตรวจ, แจ้งเตือนส่งงาน, ส่งสำเนาใบเสร็จ) ผ่านบัญชีวิชาการทันที</span>
+                  </p>
                 </div>
               </div>
 

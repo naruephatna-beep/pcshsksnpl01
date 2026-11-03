@@ -15,6 +15,8 @@ import {
   openGmailComposeTab,
   buildReminderPlainMessage,
   sendEmailViaApi,
+  sendAcademicEmailOneClick,
+  generateReminderEmailHtml,
   ACADEMIC_SENDER_EMAIL,
   ACADEMIC_SENDER_NAME,
 } from '../services/emailService';
@@ -420,33 +422,12 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     });
   };
 
-  // DIRECT 1-CLICK SEND: Opens Gmail compose immediately with sender forced to academics@pcshsksn.ac.th
-  const handleSendDirectEmailNow = () => {
-    if (!reminderModalData) return;
-    const { teacher, missingTasks } = reminderModalData;
-
-    const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${teacher.Name} มีภาระงานค้างส่ง ${missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
-    const body = buildReminderText(teacher, missingTasks);
-
-    // Open Gmail compose explicitly selecting academics@pcshsksn.ac.th
-    openGmailComposeTab({
-      to: teacher.Email,
-      subject,
-      body,
-      authUser: ACADEMIC_SENDER_EMAIL,
-    });
-
-    setEmailSuccessReceipt({
-      recipient: teacher.Email,
-      teacherName: teacher.Name,
-      timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      taskCount: missingTasks.length,
-      method: 'gmail_web',
-    });
-    showToast(`⚡ เปิด Gmail (${ACADEMIC_SENDER_EMAIL}) พร้อมส่งถึง ${teacher.Name} แล้ว!`);
+  // DIRECT 1-CLICK SEND: Sends email automatically via Academic Webhook in 1 click
+  const handleSendDirectEmailNow = async () => {
+    await handleSendBackgroundEmailNow();
   };
 
-  // BACKGROUND DIRECT SEND: Sends email automatically in the background via SMTP API
+  // BACKGROUND DIRECT SEND: Sends email automatically in 1-click via Google Apps Script Academic Webhook
   const handleSendBackgroundEmailNow = async () => {
     if (!reminderModalData) return;
     const { teacher, missingTasks } = reminderModalData;
@@ -454,15 +435,30 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     setIsSendingBackground(true);
     setBackgroundSendError(null);
 
-    const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${teacher.Name} มีภาระงานค้างส่ง ${missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
-    const body = buildReminderText(teacher, missingTasks);
+    const mappedTasks = missingTasks.map((t) => ({
+      name: t.config.name,
+      semester: t.config.semester,
+      academicYear: t.config.academic_year,
+      isOverdue: t.timeStatus.isOverdue,
+      daysOverdue: t.timeStatus.isOverdue ? t.timeStatus.days : undefined,
+      daysRemaining: !t.timeStatus.isOverdue ? t.timeStatus.days : undefined,
+      deadlineFormatted: t.timeStatus.deadlineFormatted,
+      statusText: t.timeStatus.statusText,
+    }));
+
+    const reminderData = generateReminderEmailHtml({
+      teacher,
+      missingTasks: mappedTasks,
+      systemUrl: window.location.origin,
+    });
 
     try {
-      const result = await sendEmailViaApi({
+      const result = await sendAcademicEmailOneClick({
         to: teacher.Email,
-        subject,
-        body,
-        appPassword: appPassword.trim() || undefined,
+        subject: reminderData.subject,
+        htmlBody: reminderData.html,
+        body: reminderData.plainText,
+        senderName: ACADEMIC_SENDER_NAME,
       });
 
       if (result.success) {
@@ -473,15 +469,9 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           taskCount: missingTasks.length,
           method: 'gmail_web',
         });
-        showToast(`⚡ ส่งอีเมลแจ้งเตือนถึงคุณครู ${teacher.Name} สำเร็จแล้ว!`);
+        showToast(`⚡ ส่งอีเมลแจ้งเตือนจากฝ่ายวิชาการถึงคุณครู ${teacher.Name} สำเร็จแล้ว (1 คลิก)!`);
       } else {
-        if (result.requiresAppPassword) {
-          setBackgroundSendError(
-            `Google ปฏิเสธการส่งเบื้องหลังด้วยรหัสผ่านปกติ บัญชี ${ACADEMIC_SENDER_EMAIL} จำเป็นต้องใช้ "รหัสผ่านสำหรับแอป 16 หลัก" (App Password) หรือกดส่งผ่านปุ่ม "⚡ เปิดส่งใน Gmail" ด้านล่างได้ทันทีโดยไม่ต้องตั้งค่า`
-          );
-        } else {
-          setBackgroundSendError(result.error || 'ไม่สามารถส่งอีเมลเบื้องหลังได้ แนะนำให้กดส่งผ่าน Gmail โดยตรง');
-        }
+        setBackgroundSendError(result.error || 'ไม่สามารถส่งอีเมลผ่านเมลวิชาการได้ แนะนำให้กดเปิดส่งผ่าน Gmail สำรอง');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -491,38 +481,12 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
     }
   };
 
-  // BULK 1-CLICK SEND: Opens Gmail to all uncompleted teachers in 1 click
-  const handleSendBulkDirectEmails = () => {
-    const list = stats.allUncompletedTeachersData;
-    if (list.length === 0) return;
-
-    const emails = list.map((m) => m.teacher.Email).filter(Boolean);
-    const subject = `[แจ้งเตือนภาระงานค้างส่ง] สรุปภาระงานที่ยังไม่ได้ส่งในระบบ (${list.length} ท่าน) - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
-    const body = [
-      `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`,
-      ``,
-      `ฝ่ายบริหารวิชาการ (${ACADEMIC_SENDER_EMAIL}) ขอแจ้งเตือนคุณครูที่มีภาระงานค้างส่งในระบบส่งเอกสารวิชาการออนไลน์`,
-      `ขอความกรุณาคุณครูทุกท่านเข้าสู่ระบบเพื่อดำเนินการส่งเอกสารตามกำหนดเวลา:`,
-      ``,
-      `🔗 ลิงก์ระบบ: ${window.location.origin}`,
-      ``,
-      `จึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา`,
-      `ขอขอบพระคุณเป็นอย่างสูงครับ/ค่ะ 🙏`,
-      `กลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`,
-    ].join('\n');
-
-    openGmailComposeTab({
-      to: emails.join(','),
-      subject,
-      body,
-      authUser: ACADEMIC_SENDER_EMAIL,
-    });
-
-    setShowBulkReminderModal(false);
-    showToast(`⚡ เปิด Gmail (${ACADEMIC_SENDER_EMAIL}) พร้อมส่งถึงครูที่ค้างส่งทั้ง ${emails.length} ท่านเรียบร้อยแล้ว!`);
+  // BULK 1-CLICK SEND: Sends emails automatically to all uncompleted teachers in 1 click
+  const handleSendBulkDirectEmails = async () => {
+    await handleSendBulkBackgroundEmails();
   };
 
-  // BULK BACKGROUND SEND: Sends emails automatically in sequence
+  // BULK BACKGROUND SEND: Sends emails automatically in sequence via Academic Webhook
   const handleSendBulkBackgroundEmails = async () => {
     const list = stats.allUncompletedTeachersData;
     if (list.length === 0) return;
@@ -546,105 +510,121 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
         successCount,
       });
 
-      const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${item.teacher.Name} มีภาระงานค้างส่ง ${item.missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
-      const body = buildReminderText(item.teacher, item.missingTasks);
+      const mappedTasks = item.missingTasks.map((t) => ({
+        name: t.config.name,
+        semester: t.config.semester,
+        academicYear: t.config.academic_year,
+        isOverdue: t.timeStatus.isOverdue,
+        daysOverdue: t.timeStatus.isOverdue ? t.timeStatus.days : undefined,
+        daysRemaining: !t.timeStatus.isOverdue ? t.timeStatus.days : undefined,
+        deadlineFormatted: t.timeStatus.deadlineFormatted,
+        statusText: t.timeStatus.statusText,
+      }));
 
-      const res = await sendEmailViaApi({
+      const reminderData = generateReminderEmailHtml({
+        teacher: item.teacher,
+        missingTasks: mappedTasks,
+        systemUrl: window.location.origin,
+      });
+
+      const res = await sendAcademicEmailOneClick({
         to: item.teacher.Email,
-        subject,
-        body,
-        appPassword: appPassword.trim() || undefined,
+        subject: reminderData.subject,
+        htmlBody: reminderData.html,
+        body: reminderData.plainText,
+        senderName: ACADEMIC_SENDER_NAME,
       });
 
       if (res.success) {
         successCount++;
-      } else if (res.requiresAppPassword) {
-        // Stop and alert user
-        alert(
-          `การส่งอัตโนมัติเบื้องหลังหยุดทำงาน: บัญชี ${ACADEMIC_SENDER_EMAIL} จำเป็นต้องใช้ "รหัสผ่านสำหรับแอป (App Password 16 หลัก)" จาก Google Account Security\n\nระบบจะเปิดส่งผ่าน Gmail ให้แทนในคลิกเดียว!`
-        );
-        setBulkSendingProgress(null);
-        handleSendBulkDirectEmails();
-        return;
       }
     }
 
     setBulkSendingProgress(null);
     setShowBulkReminderModal(false);
-    showToast(`⚡ ส่งอีเมลแจ้งเตือนอัตโนมัติสำเร็จ ${successCount} จาก ${list.length} ท่าน!`);
+    showToast(`⚡ ส่งอีเมลแจ้งเตือนอัตโนมัติสำเร็จ ${successCount} จาก ${list.length} ท่าน (1 คลิก)!`);
   };
 
-  // 1-CLICK INSTANT SENDER:
-  // Mode 1 (Gmail): Instantly opens Gmail compose window pre-filled for academics@pcshsksn.ac.th in 1 click (NO passwords, NO errors!)
-  // Mode 2 (Background): Sends silently in the background if 16-character App Password is set. If SMTP fails, auto falls back to Gmail so user is never blocked!
+  // 1-CLICK INSTANT SENDER: กดครั้งเดียว ส่งอีเมลแจ้งเตือนถึงครูท่านนั้นทันทีผ่าน Webhook เมลวิชาการ
   const handleQuickClickSend = async (
     teacher: Teacher,
     missingTasks: TeacherMissingTask[],
     primaryConfig?: PlanTypeDeadlineConfig
   ) => {
     if (missingTasks.length === 0) return;
-
-    const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${teacher.Name} มีภาระงานค้างส่ง ${missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
-    const body = buildReminderText(teacher, missingTasks);
-
-    // If in Gmail 1-Click mode OR no App Password is set:
-    if (quickSendMode === 'gmail' || !appPassword.trim()) {
-      openGmailComposeTab({
-        to: teacher.Email,
-        subject,
-        body,
-        authUser: ACADEMIC_SENDER_EMAIL,
-      });
-      showToast(`⚡ เปิด Gmail บัญชี ${ACADEMIC_SENDER_EMAIL} ส่งถึงคุณครู ${teacher.Name} แล้ว!`);
+    if (!teacher.Email) {
+      showToast(`⚠️ คุณครู ${teacher.Name} ยังไม่มีที่อยู่อีเมลในระบบ`);
       return;
     }
 
-    // Background silent send mode:
     setSendingTeacherId(teacher.Teacher_ID);
+    showToast(`📤 กำลังส่งอีเมลแจ้งเตือนถึงคุณครู ${teacher.Name}...`);
+
+    const mappedTasks = missingTasks.map((t) => ({
+      name: t.config.name,
+      semester: t.config.semester,
+      academicYear: t.config.academic_year,
+      isOverdue: t.timeStatus.isOverdue,
+      daysOverdue: t.timeStatus.isOverdue ? t.timeStatus.days : undefined,
+      daysRemaining: !t.timeStatus.isOverdue ? t.timeStatus.days : undefined,
+      deadlineFormatted: t.timeStatus.deadlineFormatted,
+      statusText: t.timeStatus.statusText,
+    }));
+
+    const reminderData = generateReminderEmailHtml({
+      teacher,
+      missingTasks: mappedTasks,
+      systemUrl: window.location.origin,
+    });
+
     try {
-      const res = await sendEmailViaApi({
+      const res = await sendAcademicEmailOneClick({
         to: teacher.Email,
-        subject,
-        body,
-        appPassword: appPassword.trim(),
+        subject: reminderData.subject,
+        htmlBody: reminderData.html,
+        body: reminderData.plainText,
+        senderName: ACADEMIC_SENDER_NAME,
       });
 
       if (res.success) {
-        showToast(`⚡ ส่งอีเมลแจ้งเตือนถึงคุณครู ${teacher.Name} (${teacher.Email}) จาก ${ACADEMIC_SENDER_EMAIL} เรียบร้อยแล้ว!`);
+        showToast(`⚡ ส่งอีเมลแจ้งเตือนถึงคุณครู ${teacher.Name} เรียบร้อยแล้ว (1 คลิก)!`);
       } else {
-        // If SMTP rejects (e.g. human password Pcs@12345 instead of 16-char app pass), auto open Gmail fallback!
-        showToast(`⚠️ ส่งเบื้องหลังไม่สำเร็จ (ต้องการรหัสแอป 16 หลัก) -> สลับเปิดหน้าต่าง Gmail ให้ทันที!`);
+        // Fallback to Gmail if Webhook fails
+        showToast(`⚠️ ส่งเมลตรงไม่สำเร็จ (${res.error || 'โปรดตรวจสอบสิทธิ์'}) -> สลับเปิด Gmail สำรอง...`);
         openGmailComposeTab({
           to: teacher.Email,
-          subject,
-          body,
+          subject: reminderData.subject,
+          body: reminderData.plainText,
           authUser: ACADEMIC_SENDER_EMAIL,
         });
-        setBackgroundSendError(res.error || 'Google ไม่อนุญาตให้ใช้รหัสปกติ (Pcs@12345) ส่งตรงผ่าน SMTP ระบบต้องใช้ "รหัสผ่านสำหรับแอป 16 หลัก" หรือส่งผ่านหน้าต่าง Gmail');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`⚠️ สลับเปิด Gmail บัญชี ${ACADEMIC_SENDER_EMAIL} ให้ทันที...`);
+      showToast(`⚠️ เกิดข้อผิดพลาด -> กำลังเปิดหน้าต่าง Gmail ให้...`);
       openGmailComposeTab({
         to: teacher.Email,
-        subject,
-        body,
+        subject: reminderData.subject,
+        body: reminderData.plainText,
         authUser: ACADEMIC_SENDER_EMAIL,
       });
-      setBackgroundSendError(msg);
     } finally {
       setSendingTeacherId(null);
     }
   };
 
-  // QUICK BULK SEND: Sends to all uncompleted teachers
+  // QUICK BULK SEND: ส่งอีเมลแจ้งเตือนครูทุกคนที่ค้างส่งงานในคลิกเดียวทันที
   const handleQuickBulkSend = () => {
-    if (quickSendMode === 'smtp' && appPassword.trim()) {
-      if (confirm(`ต้องการกดส่งอีเมลแจ้งเตือนถึงครูทุกคนที่ค้างส่งงาน (${stats.uncompletedCount} ท่าน) จากบัญชี ${ACADEMIC_SENDER_EMAIL} ทันทีหรือไม่?`)) {
-        handleSendBulkBackgroundEmails();
-      }
-    } else {
-      setShowBulkReminderModal(true);
+    if (stats.uncompletedCount === 0) {
+      showToast('🎉 ครูทุกคนส่งงานครบถ้วนแล้ว ไม่มีภาระงานค้างส่ง');
+      return;
+    }
+
+    if (
+      confirm(
+        `ต้องการส่งอีเมลแจ้งเตือนถึงครูทุกคนที่ยังไม่ส่งงาน (${stats.uncompletedCount} ท่าน) ใน 1 คลิกทันทีหรือไม่?`
+      )
+    ) {
+      handleSendBulkBackgroundEmails();
     }
   };
 
@@ -2201,31 +2181,42 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                     );
                   })()}
 
-                  {/* BACKGROUND SEND BUTTON */}
+                  {/* PRIMARY 1-CLICK EMAIL DISPATCH BUTTON */}
                   <button
                     type="button"
                     onClick={handleSendBackgroundEmailNow}
                     disabled={isSendingBackground}
-                    className="px-3.5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-900 transition-all cursor-pointer text-xs disabled:opacity-50"
-                    title="ทดลองส่งเบื้องหลังอัตโนมัติผ่าน SMTP API"
+                    className="px-5 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer text-xs bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 disabled:opacity-50"
+                    title="กดครั้งเดียว ส่งอีเมลแจ้งเตือนถึงคุณครูทันทีจากบัญชีฝ่ายวิชาการ"
                   >
                     {isSendingBackground ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-700" />
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
                     ) : (
-                      <Send className="w-3.5 h-3.5 text-indigo-600" />
+                      <Zap className="w-4 h-4 text-slate-950" />
                     )}
-                    <span>{isSendingBackground ? 'กำลังส่ง...' : '🚀 ส่งเบื้องหลังทันที'}</span>
+                    <span>{isSendingBackground ? 'กำลังส่งอีเมล...' : '⚡ ส่งอีเมลทันที (1 คลิก)'}</span>
                   </button>
 
-                  {/* PRIMARY 1-CLICK GMAIL COMPOSE BUTTON (Targeting academics@pcshsksn.ac.th) */}
+                  {/* SECONDARY GMAIL FALLBACK BUTTON */}
                   <button
                     type="button"
-                    onClick={handleSendDirectEmailNow}
-                    className="px-5 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer text-xs bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950"
-                    title="เปิดส่งใน Gmail จากบัญชี academics@pcshsksn.ac.th โดยตรง 100% แน่นอน"
+                    onClick={() => {
+                      if (!reminderModalData) return;
+                      const { teacher, missingTasks } = reminderModalData;
+                      const subject = `[แจ้งเตือนภาระงานค้างส่ง] คุณครู${teacher.Name} มีภาระงานค้างส่ง ${missingTasks.length} รายการ - ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+                      const body = buildReminderText(teacher, missingTasks);
+                      openGmailComposeTab({
+                        to: teacher.Email,
+                        subject,
+                        body,
+                        authUser: ACADEMIC_SENDER_EMAIL,
+                      });
+                    }}
+                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-xs"
+                    title="เปิดร่างในหน้าต่าง Gmail สำรอง"
                   >
-                    <Zap className="w-4 h-4 text-slate-950" />
-                    <span>⚡ เปิดส่งใน Gmail ({ACADEMIC_SENDER_EMAIL})</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-600" />
+                    <span>เปิดดูใน Gmail</span>
                   </button>
                 </div>
               </div>

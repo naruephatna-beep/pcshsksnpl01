@@ -1,6 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LessonPlan, Teacher } from '../types';
-import { X, Printer, Award, CheckCircle2, School, ShieldCheck } from 'lucide-react';
+import { X, Printer, Award, CheckCircle2, School, ShieldCheck, Mail, RefreshCw, Sparkles } from 'lucide-react';
+import {
+  sendAcademicEmailOneClick,
+  generateReceiptEmailHtml,
+  ACADEMIC_SENDER_NAME,
+} from '../services/emailService';
 
 interface SubmissionReceiptModalProps {
   plan: LessonPlan;
@@ -15,10 +20,43 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailMsg, setEmailMsg] = useState('');
+
   if (!isOpen) return null;
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleSendEmailReceipt = async () => {
+    const toEmail = (teacher?.Email || '').trim();
+    if (!toEmail) return;
+
+    setIsSendingEmail(true);
+    setEmailMsg('');
+    try {
+      const receiptMail = generateReceiptEmailHtml({ plan, teacher });
+      const res = await sendAcademicEmailOneClick({
+        to: toEmail,
+        subject: receiptMail.subject,
+        htmlBody: receiptMail.html,
+        body: receiptMail.plainText,
+        senderName: ACADEMIC_SENDER_NAME,
+      });
+
+      if (res.success) {
+        setEmailSent(true);
+        setEmailMsg(`ส่งหลักฐานเข้าอีเมล ${toEmail} สำเร็จแล้ว!`);
+      } else {
+        setEmailMsg(`ส่งเมลไม่สำเร็จ: ${res.error || 'โปรดตรวจสอบการเชื่อมต่อ'}`);
+      }
+    } catch (err: any) {
+      setEmailMsg(`ข้อผิดพลาด: ${err?.message}`);
+    } finally {
+      setIsSendingEmail(false);
+    }
   };
 
   return (
@@ -38,6 +76,26 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
             เอกสารหลักฐานการส่งแผนการจัดการเรียนรู้
           </span>
           <div className="flex items-center gap-2">
+            {teacher?.Email && (
+              <button
+                type="button"
+                onClick={handleSendEmailReceipt}
+                disabled={isSendingEmail || emailSent}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F59E0B] hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-70"
+                title={`ส่งสำเนาเข้า ${teacher.Email}`}
+              >
+                {isSendingEmail ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : emailSent ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
+                ) : (
+                  <Mail className="w-3.5 h-3.5 text-slate-950" />
+                )}
+                <span>
+                  {isSendingEmail ? 'กำลังส่งเมล...' : emailSent ? 'ส่งเมลแล้ว' : 'ส่งสำเนาเข้าเมล (1 คลิก)'}
+                </span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handlePrint}
@@ -57,6 +115,15 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
             </button>
           </div>
         </div>
+        {emailMsg && (
+          <div
+            className={`px-6 py-2 text-xs font-bold print:hidden ${
+              emailSent ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'
+            }`}
+          >
+            {emailMsg}
+          </div>
+        )}
 
         {/* Certificate / Receipt Sheet */}
         <div className="p-8 font-['Sarabun',sans-serif] text-slate-800 bg-white">

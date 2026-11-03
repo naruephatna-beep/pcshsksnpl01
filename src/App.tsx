@@ -1820,6 +1820,7 @@ export default function App() {
           onSaveReview={handleSaveReview}
           statusConfigs={statusConfigs}
           deadlineConfigs={deadlineConfigs}
+          teachers={teachers}
         />
       )}
 

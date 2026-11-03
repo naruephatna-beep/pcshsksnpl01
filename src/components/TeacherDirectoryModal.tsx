@@ -15,6 +15,8 @@ import {
   Lock,
 } from 'lucide-react';
 
+import { AcademicEmailModal } from './AcademicEmailModal';
+
 interface TeacherDirectoryModalProps {
   teachers: Teacher[];
   currentTeacher: Teacher;
@@ -33,6 +35,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [selectedArea, setSelectedArea] = useState('ทั้งหมด');
+  const [selectedTeacherForEmail, setSelectedTeacherForEmail] = useState<Teacher | null>(null);
 
   if (!isOpen) return null;
 
@@ -203,6 +206,16 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                   )}
 
                   <div className="flex items-center gap-1 mt-1">
+                    {isAdmin && t.Email && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTeacherForEmail(t)}
+                        className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                        title="ส่งอีเมลจากฝ่ายวิชาการ (1 คลิก)"
+                      >
+                        <Mail className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onEditTeacher(t)}
@@ -230,6 +243,22 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Academic Email Composer Modal */}
+      {selectedTeacherForEmail && (
+        <AcademicEmailModal
+          isOpen={!!selectedTeacherForEmail}
+          onClose={() => setSelectedTeacherForEmail(null)}
+          defaultRecipient={{
+            email: selectedTeacherForEmail.Email,
+            name: selectedTeacherForEmail.Name,
+            teacherId: selectedTeacherForEmail.Teacher_ID,
+          }}
+          defaultSubject={`[ฝ่ายบริหารวิชาการ จภ.กาฬสินธุ์] แจ้งข่าวสารงานวิชาการ`}
+          defaultPlainText={`เรียน คุณครู${selectedTeacherForEmail.Name} (${selectedTeacherForEmail.Teacher_ID})\n\nฝ่ายบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์ ขอแจ้งประชาสัมพันธ์ข้อมูลดังนี้:\n\n\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`}
+          categoryTitle={`ส่งอีเมลถึงคุณครู ${selectedTeacherForEmail.Name} (1 คลิก)`}
+        />
+      )}
     </div>
   );
 };

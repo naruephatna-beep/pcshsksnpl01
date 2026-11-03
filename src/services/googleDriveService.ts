@@ -361,6 +361,7 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * 2. ตั้งสิทธิ์เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู (Viewer)" อัตโนมัติ
  * 3. เมื่อครูหรือแอดมินยกเลิก/ลบงานในเว็บ สคริปต์จะย้ายไฟล์ลง "ถังขยะ (Trash)" ให้อัตโนมัติ
  *    (กู้คืนได้ภายใน 30 วัน ป้องกันการลบข้อมูลผิดพลาด)
+ * 4. ส่งอีเมลแจ้งเตือน / ผลตรวจ / ใบเสร็จ จากเมลฝ่ายวิชาการในคลิกเดียว (1-Click Academic Email)
  * 
  * ขั้นตอนการติดตั้ง:
  * 1. เข้าไปที่ https://script.google.com ด้วยบัญชี Google ของฝ่ายวิชาการ
@@ -377,8 +378,12 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
 
 // ใส่ ID ของโฟลเดอร์ Google Drive กลางของโรงเรียนตรงนี้
 // (ดูได้จาก URL ของโฟลเดอร์ใน Google Drive เช่น https://drive.google.com/drive/folders/1ABCxyz...)
+// *หมายเหตุ*: หากเว้นว่างไว้หรือไม่ใส่ ระบบจะสร้างโฟลเดอร์ชื่อ "PCSHS_KSN_งานวิชาการ" ในไดรฟ์ของท่านให้อัตโนมัติทันที
 var TARGET_FOLDER_ID = "ใส่_FOLDER_ID_ของท่านที่นี่";
 
+/**
+ * ฟังก์ชันหลักรับคำสั่ง POST จากระบบส่งงานของโรงเรียน
+ */
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
@@ -421,34 +426,80 @@ function doPost(e) {
     }
 
     // =========================================================================
-    // คำสั่งที่ 2: อัปโหลดไฟล์ PDF ใหม่เข้าสู่โฟลเดอร์ Google Drive (แยกตามประเภทงาน)
+    // คำสั่งที่ 2: ส่งอีเมลจากบัญชี Google ฝ่ายวิชาการในคลิกเดียว (1-Click Academic Email)
     // =========================================================================
-    var folder;
-    try {
-      folder = DriveApp.getFolderById(TARGET_FOLDER_ID.trim());
-    } catch (folderErr) {
-      return responseJSON({ 
-        success: false, 
-        error: "ไม่พบโฟลเดอร์ Google Drive ตาม ID ที่ระบุ: " + folderErr.toString() 
-      });
+    if (data.action === "send_email") {
+      var recipient = (data.to || "").toString().trim();
+      if (!recipient) {
+        return responseJSON({ success: false, error: "กรุณาระบุอีเมลผู้รับ (to)" });
+      }
+
+      try {
+        var senderName = data.senderName || "ฝ่ายบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์";
+        MailApp.sendEmail({
+          to: recipient,
+          subject: data.subject || "แจ้งเตือนจากฝ่ายบริหารวิชาการ PCSHS KSN",
+          body: data.body || "กรุณาเปิดอ่านเนื้อหาในรูปแบบ HTML",
+          htmlBody: data.htmlBody || data.body,
+          name: senderName
+        });
+
+        return responseJSON({
+          success: true,
+          message: "ส่งอีเมลจากฝ่ายวิชาการไปยัง " + recipient + " เรียบร้อยแล้ว",
+          recipient: recipient,
+          sentAt: new Date().toISOString()
+        });
+      } catch (mailErr) {
+        return responseJSON({
+          success: false,
+          error: "ไม่สามารถส่งอีเมลได้: " + mailErr.toString()
+        });
+      }
     }
 
-    // 2.1 แยกโฟลเดอร์ตามประเภทงาน (ถ้ายังไม่มี ให้ระบบสร้างโฟลเดอร์ใหม่ให้อัตโนมัติทันที)
+    // ส่งอีเมลแบบกลุ่มหลายฉบับ (Bulk Emails)
+    if (data.action === "send_bulk_emails" && Array.isArray(data.emails)) {
+      var results = [];
+      var bulkSender = data.senderName || "ฝ่ายบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์";
+      for (var b = 0; b < data.emails.length; b++) {
+        var mItem = data.emails[b];
+        try {
+          MailApp.sendEmail({
+            to: mItem.to,
+            subject: mItem.subject,
+            body: mItem.body || "กรุณาเปิดอ่านเนื้อหาในรูปแบบ HTML",
+            htmlBody: mItem.htmlBody || mItem.body,
+            name: bulkSender
+          });
+          results.push({ to: mItem.to, success: true });
+        } catch (bErr) {
+          results.push({ to: mItem.to, success: false, error: bErr.toString() });
+        }
+      }
+      return responseJSON({ success: true, count: results.length, details: results });
+    }
+
+    // =========================================================================
+    // คำสั่งที่ 3: อัปโหลดไฟล์ PDF ใหม่เข้าสู่โฟลเดอร์ Google Drive (แยกตามประเภทงาน)
+    // =========================================================================
+    var baseFolder = getTargetFolder();
+
+    // 3.1 แยกโฟลเดอร์ตามประเภทงาน (ถ้ายังไม่มี ให้ระบบสร้างโฟลเดอร์ใหม่ให้อัตโนมัติทันที)
     var taskFolderName = (data.assignmentName || data.planType || "เอกสารทั่วไป").toString().trim();
     var cleanFolderName = taskFolderName.replace(/[\/\\:*?"<>|]/g, "_") || "เอกสารทั่วไป";
-    var targetFolder = folder;
+    var targetFolder = baseFolder;
 
     try {
-      var subfolders = folder.getFoldersByName(cleanFolderName);
+      var subfolders = baseFolder.getFoldersByName(cleanFolderName);
       if (subfolders.hasNext()) {
         targetFolder = subfolders.next();
       } else {
         // หากเป็นงานประเภทใหม่ที่แอดมินเพิ่งสร้าง ระบบจะสร้างโฟลเดอร์ใหม่ใน Drive ให้อัตโนมัติทันที
-        targetFolder = folder.createFolder(cleanFolderName);
+        targetFolder = baseFolder.createFolder(cleanFolderName);
       }
     } catch (subfolderErr) {
-      // หากเกิดข้อผิดพลาดในการสร้างโฟลเดอร์ย่อย ให้บันทึกลงโฟลเดอร์หลักสำรอง
-      targetFolder = folder;
+      targetFolder = baseFolder;
     }
 
     // แปลง Base64 กลับเป็นไฟล์ PDF
@@ -456,13 +507,13 @@ function doPost(e) {
     var decodedBytes = Utilities.base64Decode(data.base64Data);
     var blob = Utilities.newBlob(decodedBytes, contentType, data.fileName || "document.pdf");
 
-    // 2.2 สร้างไฟล์ในโฟลเดอร์ประจำประเภทงาน
+    // 3.2 สร้างไฟล์ในโฟลเดอร์ประจำประเภทงาน
     var file = targetFolder.createFile(blob);
 
-    // 2.3 กำหนดสิทธิ์ให้ทุกคนที่มีลิงก์สามารถดูได้ (Viewer)
+    // 3.3 กำหนดสิทธิ์ให้ทุกคนที่มีลิงก์สามารถดูได้ (Viewer)
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-    // 2.4 สร้างลิงก์สำหรับเปิดดู
+    // 3.4 สร้างลิงก์สำหรับเปิดดู
     var fileId = file.getId();
     var viewUrl = "https://drive.google.com/file/d/" + fileId + "/view";
     var directUrl = "https://drive.google.com/uc?export=view&id=" + fileId;
@@ -485,6 +536,31 @@ function doPost(e) {
   }
 }
 
+/**
+ * ดึงโฟลเดอร์เป้าหมาย หรือสร้างให้อัตโนมัติหากยังไม่ได้ระบุ
+ */
+function getTargetFolder() {
+  var folderId = (TARGET_FOLDER_ID || "").trim();
+  if (folderId && folderId !== "ใส่_FOLDER_ID_ของท่านที่นี่") {
+    try {
+      return DriveApp.getFolderById(folderId);
+    } catch (e) {
+      Logger.log("ไม่พบโฟลเดอร์จาก ID: " + folderId + ", กำลังใช้โฟลเดอร์เริ่มต้น");
+    }
+  }
+
+  // หากไม่ได้ระบุ หรือหาโฟลเดอร์ไม่พบ ให้ใช้โฟลเดอร์กลางชื่อนี้ใน Drive
+  var defaultName = "PCSHS_KSN_งานวิชาการ";
+  var folders = DriveApp.getFoldersByName(defaultName);
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+  return DriveApp.createFolder(defaultName);
+}
+
+/**
+ * ทดสอบการเชื่อมต่อ (GET request)
+ */
 function doGet(e) {
   return responseJSON({
     status: "online",
@@ -494,6 +570,9 @@ function doGet(e) {
   });
 }
 
+/**
+ * ส่งข้อมูลกลับเป็น JSON
+ */
 function responseJSON(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
