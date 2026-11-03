@@ -16,6 +16,9 @@ import {
   HardDrive,
   FileText,
   ShieldCheck,
+  Mail,
+  Send,
+  Zap,
 } from 'lucide-react';
 import {
   getSavedGoogleDriveWebhookUrl,
@@ -24,6 +27,11 @@ import {
   GOOGLE_APPS_SCRIPT_TEMPLATE,
   DEFAULT_GDRIVE_WEBHOOK_URL,
 } from '../services/googleDriveService';
+import {
+  sendAcademicEmailOneClick,
+  ACADEMIC_SENDER_EMAIL,
+  ACADEMIC_SENDER_NAME,
+} from '../services/emailService';
 
 interface GoogleDriveConfigModalProps {
   isOpen: boolean;
@@ -47,12 +55,80 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'guide' | 'code'>('settings');
 
+  // Test Email States
+  const [testEmailAddress, setTestEmailAddress] = useState('naruephat.n@kkumail.com');
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<{
+    success: boolean;
+    message: string;
+    sentAt?: string;
+  } | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       setWebhookUrl(getSavedGoogleDriveWebhookUrl());
       setTestResult(null);
+      setEmailTestResult(null);
     }
   }, [isOpen]);
+
+  const handleTestEmail = async () => {
+    const to = testEmailAddress.trim();
+    if (!to || !to.includes('@')) {
+      setEmailTestResult({
+        success: false,
+        message: 'กรุณาระบุที่อยู่อีเมลที่ถูกต้องสำหรับการทดสอบ',
+      });
+      return;
+    }
+    setIsTestingEmail(true);
+    setEmailTestResult(null);
+    try {
+      const res = await sendAcademicEmailOneClick({
+        to,
+        subject: `[ทดสอบระบบ] การส่งอีเมลอัตโนมัติจากฝ่ายวิชาการ PCSHS KSN (${new Date().toLocaleTimeString('th-TH')})`,
+        htmlBody: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+            <div style="background: linear-gradient(135deg, #0B1329 0%, #1E293B 100%); padding: 18px 24px; border-radius: 12px; margin-bottom: 20px;">
+              <h2 style="color: #F59E0B; margin: 0; font-size: 18px;">โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</h2>
+              <p style="color: #e2e8f0; margin: 4px 0 0 0; font-size: 13px;">กลุ่มบริหารวิชาการ - ระบบส่งและติดตามเอกสารวิชาการ</p>
+            </div>
+            <p style="font-size: 15px; color: #1e293b; font-weight: bold;">เรียน คุณครู / ผู้ทดสอบระบบ</p>
+            <p style="font-size: 14px; color: #334155; line-height: 1.6;">
+              นี่คืออีเมลทดสอบการเชื่อมต่อระบบ <strong>1-Click Academic Email</strong> ส่งผ่าน Google Apps Script ของฝ่ายวิชาการ (${ACADEMIC_SENDER_EMAIL})
+            </p>
+            <div style="background-color: #f0fdf4; border: 1px solid #86efac; padding: 14px 18px; border-radius: 10px; margin: 16px 0; color: #166534; font-size: 13px;">
+              ✓ ระบบทำงานได้อย่างสมบูรณ์แบบ ส่งตรงจากบัญชีวิชาการโรงเรียนในคลิกเดียวโดยไม่ต้องเปิดแท็บหรือหน้าต่างอื่น
+            </div>
+            <p style="font-size: 12px; color: #64748b; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+              ส่งเมื่อ: ${new Date().toLocaleString('th-TH')} • ฝ่ายบริหารวิชาการ จ.ภ. กาฬสินธุ์
+            </p>
+          </div>
+        `,
+        senderName: ACADEMIC_SENDER_NAME,
+      });
+
+      if (res.success) {
+        setEmailTestResult({
+          success: true,
+          message: `✓ ${res.message || 'ส่งอีเมลสำเร็จ!'} (หากยังไม่พบในกล่องข้อความหลัก โปรดตรวจสอบในโฟลเดอร์ Junk/Spam)`,
+          sentAt: res.sentAt,
+        });
+      } else {
+        setEmailTestResult({
+          success: false,
+          message: res.error || 'ไม่สามารถส่งอีเมลได้',
+        });
+      }
+    } catch (err: any) {
+      setEmailTestResult({
+        success: false,
+        message: err?.message || 'เกิดข้อผิดพลาดในการทดสอบส่งอีเมล',
+      });
+    } finally {
+      setIsTestingEmail(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -311,6 +387,71 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* 1-Click Academic Email Live Test Box */}
+              <div className="p-4 rounded-2xl bg-slate-900 text-white border border-amber-400/40 space-y-3 mt-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs sm:text-sm text-white">ทดสอบการส่งอีเมลฝ่ายวิชาการ (1-Click Google Apps Script)</h4>
+                      <p className="text-[11px] text-slate-300">ส่งตรงจาก {ACADEMIC_SENDER_EMAIL} ผ่าน Google Apps Script ในคลิกเดียว</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      value={testEmailAddress}
+                      onChange={(e) => setTestEmailAddress(e.target.value)}
+                      placeholder="ระบุอีเมลผู้รับเพื่อทดสอบ..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleTestEmail}
+                    disabled={isTestingEmail || !testEmailAddress.trim()}
+                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {isTestingEmail ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5 text-slate-950" />
+                    )}
+                    <span>{isTestingEmail ? 'กำลังส่งเมล...' : '⚡ กดทดสอบส่งทันที'}</span>
+                  </button>
+                </div>
+
+                {emailTestResult && (
+                  <div
+                    className={`p-3 rounded-xl text-xs flex items-start gap-2.5 ${
+                      emailTestResult.success
+                        ? 'bg-emerald-950/80 border border-emerald-500/60 text-emerald-200'
+                        : 'bg-rose-950/80 border border-rose-500/60 text-rose-200'
+                    }`}
+                  >
+                    {emailTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="space-y-0.5 flex-1 min-w-0">
+                      <p className="font-semibold">{emailTestResult.message}</p>
+                      {emailTestResult.sentAt && (
+                        <p className="text-[10px] text-emerald-400 opacity-80">
+                          ส่งเมื่อ: {new Date(emailTestResult.sentAt).toLocaleTimeString('th-TH')} น.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

@@ -9,6 +9,71 @@ function emailApiPlugin(): Plugin {
     name: 'email-api-plugin',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
+        if (req.url === '/api/send-academic-email' && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const { to, subject, htmlBody, body: plainBody, senderName, webhookUrl } = payload;
+
+              if (!to || !to.includes('@')) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'กรุณาระบุที่อยู่อีเมลผู้รับที่ถูกต้อง' }));
+                return;
+              }
+
+              const targetWebhook =
+                (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('https://script.google.com/'))
+                  ? webhookUrl.trim()
+                  : 'https://script.google.com/macros/s/AKfycbz90JWFomtPUKUjPth7GNixvljFDqEvE29vSpwc4PcBA9TfR8ipStdhr_yD298V7Zuw4w/exec';
+
+              const scriptPayload = {
+                action: 'send_email',
+                to: to.trim(),
+                subject: subject || 'แจ้งเตือนจากฝ่ายบริหารวิชาการ PCSHS KSN',
+                htmlBody: htmlBody || plainBody || '<p>ข้อความจากฝ่ายบริหารวิชาการ</p>',
+                body: plainBody || 'กรุณาเปิดอ่านเนื้อหาในรูปแบบ HTML',
+                senderName: senderName || 'ฝ่ายบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์',
+                timestamp: new Date().toISOString(),
+              };
+
+              const scriptRes = await fetch(targetWebhook, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'text/plain;charset=utf-8',
+                },
+                body: JSON.stringify(scriptPayload),
+                redirect: 'follow',
+              });
+
+              const responseText = await scriptRes.text();
+              let resJson: any = {};
+              try {
+                resJson = JSON.parse(responseText);
+              } catch {
+                resJson = {
+                  success: false,
+                  error: `Google Apps Script ส่งผลลัพธ์ไม่ถูกต้อง: ${responseText.slice(0, 120)}`,
+                };
+              }
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(resJson));
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: errMsg }));
+            }
+          });
+          return;
+        }
+
         if (req.url === '/api/send-email' && req.method === 'POST') {
           let body = '';
           req.on('data', (chunk) => {
