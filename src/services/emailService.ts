@@ -28,6 +28,7 @@ export interface SendEmailResult {
   error?: string;
   sentAt?: string;
   usedFallback?: boolean;
+  isLegacyScript?: boolean;
 }
 
 /**
@@ -46,6 +47,34 @@ export async function sendAcademicEmailOneClick(
     };
   }
 
+  // 1. ตรวจสอบว่าแอดมินมีการตั้งค่า Google App Password 16 หลักไว้หรือไม่ หากมี สามารถส่งตรงผ่าน SMTP เบื้องหลังได้ทันที
+  try {
+    const savedAppPass = localStorage.getItem('academic_smtp_app_pass') || '';
+    if (savedAppPass.trim()) {
+      const smtpRes = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipient,
+          subject: payload.subject,
+          text: payload.body || payload.htmlBody.replace(/<[^>]+>/g, ' '),
+          appPassword: savedAppPass.trim(),
+        }),
+      });
+      const smtpJson = await smtpRes.json();
+      if (smtpJson.success) {
+        return {
+          success: true,
+          message: `ส่งอีเมลเบื้องหลังผ่านบัญชี ${ACADEMIC_SENDER_EMAIL} สำเร็จแล้ว`,
+          sentAt: new Date().toISOString(),
+        };
+      }
+    }
+  } catch {
+    // ดำเนินการต่อด้วย Google Apps Script Webhook
+  }
+
+  // 2. ส่งผ่าน Google Apps Script Web App ของโรงเรียน
   const webhookUrl = (await fetchGoogleDriveWebhookUrl()) || DEFAULT_GDRIVE_WEBHOOK_URL;
   if (!webhookUrl || !webhookUrl.startsWith('https://script.google.com/')) {
     return {
@@ -93,18 +122,37 @@ export async function sendAcademicEmailOneClick(
         sentAt: json.sentAt || new Date().toISOString(),
       };
     } else {
+      const errorStr = String(json.error || '');
+      const isLegacyScript =
+        errorStr.includes('เกิดข้อผิดพลาดในการบันทึกไฟล์') ||
+        errorStr.includes('Exception') ||
+        errorStr.includes('null にできません') ||
+        errorStr.includes('อาร์กิวเมนต์ต้องไม่เป็นนัล') ||
+        errorStr.includes('base64Data');
+
       return {
         success: false,
-        error: json.error || 'Google Apps Script ไม่สามารถส่งอีเมลได้',
+        isLegacyScript,
+        error: isLegacyScript
+          ? 'Google Apps Script ของโรงเรียนยังเป็นเวอร์ชันเดิม (ระบบรับไฟล์) กรุณานำโค้ด Google Apps Script เวอร์ชันใหม่ไปวางใน script.google.com แล้ว Deploy เวอร์ชันใหม่ (New version) เพื่อให้ระบบส่งอีเมลอัตโนมัติในคลิกเดียว'
+          : json.error || 'Google Apps Script ไม่สามารถส่งอีเมลได้',
       };
     }
   } catch (err: any) {
-    console.warn('Academic 1-Click email failed, error:', err);
     return {
       success: false,
       error: err?.message || 'ไม่สามารถเชื่อมต่อกับบริการส่งอีเมลได้',
     };
   }
+}
+
+/**
+ * ส่งอีเมลจากฝ่ายวิชาการผ่าน Google Apps Script 100% (ไม่มีการเด้งไปหน้าต่างอื่น)
+ */
+export async function sendAcademicEmailWithFallback(
+  payload: SendEmailPayload
+): Promise<SendEmailResult> {
+  return await sendAcademicEmailOneClick(payload);
 }
 
 /**
@@ -137,24 +185,19 @@ export async function sendBulkAcademicEmailsOneClick(
 }
 
 /**
- * Open Gmail compose in a new tab targeting academics@pcshsksn.ac.th as fallback or user choice
+ * Deprecated: All emails are sent directly through Google Apps Script in the background.
+ * Kept for interface compatibility with zero popups or redirects.
  */
 export function openGmailComposeTab({
   to,
   subject,
-  body,
-  authUser = ACADEMIC_SENDER_EMAIL,
 }: {
   to: string;
   subject: string;
-  body: string;
+  body?: string;
   authUser?: string;
 }): void {
-  const url = buildGmailComposeUrl(to, subject, body, authUser);
-  const win = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!win) {
-    window.location.href = buildMailtoUrl(to, subject, body);
-  }
+  console.info(`[Email Service] Background Google Apps Script mode active for: ${to} (${subject}). No popups or redirects.`);
 }
 
 /**

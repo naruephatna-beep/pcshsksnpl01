@@ -282,7 +282,14 @@ export function extractGoogleDriveFileId(urlOrId: string): string | null {
  */
 export async function trashGoogleDriveFile(
   fileUrlOrId: string
-): Promise<{ success: boolean; message: string; fileId?: string; error?: string }> {
+): Promise<{ success: boolean; message: string; fileId?: string; isLegacyScript?: boolean; error?: string }> {
+  if (!fileUrlOrId) {
+    return {
+      success: false,
+      message: 'ไม่มี URL หรือ ID ไฟล์',
+    };
+  }
+
   const fileId = extractGoogleDriveFileId(fileUrlOrId);
   if (!fileId) {
     return {
@@ -317,7 +324,10 @@ export async function trashGoogleDriveFile(
     });
 
     if (!response.ok) {
-      throw new Error(`Google Apps Script ส่งสถานะ HTTP ${response.status}`);
+      return {
+        success: false,
+        message: `Google Apps Script ส่งสถานะ HTTP ${response.status}`,
+      };
     }
 
     const resText = await response.text();
@@ -325,11 +335,36 @@ export async function trashGoogleDriveFile(
     try {
       resJson = JSON.parse(resText);
     } catch {
-      throw new Error(`ข้อมูลตอบกลับจาก Google Drive ไม่ถูกต้อง: ${resText.slice(0, 80)}`);
+      return {
+        success: false,
+        message: 'ข้อมูลตอบกลับจาก Google Drive ไม่ถูกต้อง',
+      };
     }
 
     if (!resJson.success) {
-      throw new Error(resJson.error || 'Google Drive รายงานว่าไม่สามารถย้ายไฟล์ลงถังขยะได้');
+      const errorStr = String(resJson.error || '');
+      // Check if this error indicates the Apps Script is an older version that only knows file uploads
+      // (throws: "อาร์กิวเมนต์ต้องไม่เป็นนัล: data" or "เกิดข้อผิดพลาดในการบันทึกไฟล์")
+      const isLegacyUploadScript =
+        errorStr.includes('อาร์กิวเมนต์ต้องไม่เป็นนัล: data') ||
+        errorStr.includes('Exception: อาร์กิวเมนต์ต้องไม่เป็นนัล') ||
+        errorStr.includes('เกิดข้อผิดพลาดในการบันทึกไฟล์') ||
+        errorStr.includes('base64Data');
+
+      if (isLegacyUploadScript) {
+        return {
+          success: false,
+          isLegacyScript: true,
+          message: 'Google Apps Script ยังเป็นเวอร์ชันอัปโหลดอย่างเดียว (สามารถคัดลอกโค้ดสคริปต์ใหม่ในระบบเพื่อเปิดใช้การย้ายไฟล์ลงถังขยะอัตโนมัติ)',
+          error: resJson.error,
+        };
+      }
+
+      return {
+        success: false,
+        message: resJson.error || 'Google Drive รายงานว่าไม่สามารถย้ายไฟล์ลงถังขยะได้',
+        error: resJson.error,
+      };
     }
 
     return {
@@ -338,7 +373,6 @@ export async function trashGoogleDriveFile(
       fileId: fileId,
     };
   } catch (err: any) {
-    console.warn('Could not trash Google Drive file:', err);
     return {
       success: false,
       message: `ไม่สามารถย้ายไฟล์ลงถังขยะใน Google Drive ได้: ${err?.message || 'ข้อผิดพลาดเครือข่าย'}`,
@@ -418,9 +452,17 @@ function doPost(e) {
           fileName: fileName
         });
       } catch (trashErr) {
+        var errStr = trashErr.toString();
+        if (errStr.indexOf("not found") !== -1 || errStr.indexOf("No item with the given ID") !== -1) {
+          return responseJSON({
+            success: true,
+            message: "ไฟล์นี้ไม่อยู่ใน Google Drive แล้ว หรือถูกลบไปก่อนหน้า",
+            fileId: targetFileId
+          });
+        }
         return responseJSON({
           success: false,
-          error: "ไม่สามารถย้ายไฟล์ลงถังขยะได้: " + trashErr.toString()
+          error: "ไม่สามารถย้ายไฟล์ลงถังขยะได้: " + errStr
         });
       }
     }
@@ -483,6 +525,14 @@ function doPost(e) {
     // =========================================================================
     // คำสั่งที่ 3: อัปโหลดไฟล์ PDF ใหม่เข้าสู่โฟลเดอร์ Google Drive (แยกตามประเภทงาน)
     // =========================================================================
+    var base64Payload = data.base64Data || data.data;
+    if (!base64Payload) {
+      return responseJSON({
+        success: false,
+        error: "ไม่พบข้อมูลไฟล์ base64Data สำหรับการอัปโหลด (หรือคำสั่ง action: '" + (data.action || "upload") + "' ไม่ถูกต้อง)"
+      });
+    }
+
     var baseFolder = getTargetFolder();
 
     // 3.1 แยกโฟลเดอร์ตามประเภทงาน (ถ้ายังไม่มี ให้ระบบสร้างโฟลเดอร์ใหม่ให้อัตโนมัติทันที)
@@ -504,7 +554,7 @@ function doPost(e) {
 
     // แปลง Base64 กลับเป็นไฟล์ PDF
     var contentType = data.mimeType || "application/pdf";
-    var decodedBytes = Utilities.base64Decode(data.base64Data);
+    var decodedBytes = Utilities.base64Decode(base64Payload);
     var blob = Utilities.newBlob(decodedBytes, contentType, data.fileName || "document.pdf");
 
     // 3.2 สร้างไฟล์ในโฟลเดอร์ประจำประเภทงาน

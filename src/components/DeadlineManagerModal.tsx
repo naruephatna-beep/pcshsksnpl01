@@ -17,8 +17,6 @@ import {
   constructDateTime,
   DEFAULT_DEADLINE_CONFIGS,
   DEFAULT_STATUS_CONFIGS,
-  buildGmailComposeUrl,
-  buildMailtoUrl,
 } from '../utils/deadlineUtils';
 import {
   SYSTEM_SETTINGS_TABLE_SQL,
@@ -64,9 +62,9 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import {
-  openGmailComposeTab,
   sendAcademicEmailOneClick,
   ACADEMIC_SENDER_NAME,
+  ACADEMIC_SENDER_EMAIL,
 } from '../services/emailService';
 
 interface DeadlineManagerModalProps {
@@ -1847,21 +1845,15 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
 
                     setIsBroadcastingEmail(false);
                     if (sentCount > 0) {
-                      setBroadcastSuccessMsg(`⚡ ส่งอีเมลแจ้งเตือนถึงครูสำเร็จ ${sentCount} จาก ${teacherEmails.length} ท่าน (1 คลิก)!`);
+                      setBroadcastSuccessMsg(`⚡ ส่งอีเมลแจ้งเตือนถึงครูสำเร็จ ${sentCount} จาก ${teacherEmails.length} ท่านจาก ${ACADEMIC_SENDER_EMAIL} (1 คลิก)!`);
                     } else {
-                      // Fallback
-                      openGmailComposeTab({
-                        to: teacherEmails.join(','),
-                        subject,
-                        body,
-                      });
-                      setBroadcastSuccessMsg(`⚡ เปิดหน้าต่าง Gmail ส่งถึงครูทุกคน (${teacherEmails.length} ท่าน) สำรองแล้ว!`);
+                      setBroadcastSuccessMsg(`⚠️ ไม่สามารถส่งอีเมลได้ โปรดตรวจสอบการเชื่อมต่อ Webhook ของโรงเรียน`);
                     }
 
                     setTimeout(() => {
                       setBroadcastSuccessMsg(null);
                       setBroadcastConfig(null);
-                    }, 3500);
+                    }, 4000);
                   }}
                   className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer text-xs disabled:opacity-50"
                 >

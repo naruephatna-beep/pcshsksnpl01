@@ -5,6 +5,7 @@ import {
   sendAcademicEmailOneClick,
   generateReceiptEmailHtml,
   ACADEMIC_SENDER_NAME,
+  ACADEMIC_SENDER_EMAIL,
 } from '../services/emailService';
 
 interface SubmissionReceiptModalProps {
@@ -48,7 +49,9 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
 
       if (res.success) {
         setEmailSent(true);
-        setEmailMsg(`ส่งหลักฐานเข้าอีเมล ${toEmail} สำเร็จแล้ว!`);
+        setEmailMsg(`ส่งหลักฐานเข้าอีเมล ${toEmail} ผ่าน Google Apps Script สำเร็จแล้ว!`);
+      } else if (res.isLegacyScript) {
+        setEmailMsg('⚠️ Google Apps Script ของโรงเรียนยังไม่ได้อัปเดตคำสั่งส่งอีเมล');
       } else {
         setEmailMsg(`ส่งเมลไม่สำเร็จ: ${res.error || 'โปรดตรวจสอบการเชื่อมต่อ'}`);
       }

@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Teacher } from '../types';
 import {
   sendAcademicEmailOneClick,
-  openGmailComposeTab,
   ACADEMIC_SENDER_EMAIL,
   ACADEMIC_SENDER_NAME,
 } from '../services/emailService';
+import { GOOGLE_APPS_SCRIPT_TEMPLATE } from '../services/googleDriveService';
 import {
   X,
   Mail,
@@ -13,7 +13,6 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
   Copy,
   Check,
   RefreshCw,
@@ -21,6 +20,8 @@ import {
   Edit3,
   School,
   FileText,
+  ExternalLink,
+  HelpCircle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -60,8 +61,11 @@ export const AcademicEmailModal: React.FC<AcademicEmailModalProps> = ({
     success: boolean;
     message: string;
     sentAt?: string;
+    isLegacyScript?: boolean;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [showScriptGuide, setShowScriptGuide] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -71,11 +75,20 @@ export const AcademicEmailModal: React.FC<AcademicEmailModalProps> = ({
       setMessage(defaultPlainText || '');
       setHtmlPreview(defaultHtml || '');
       setResult(null);
+      setShowScriptGuide(false);
       setActiveTab(defaultHtml ? 'preview' : 'edit');
     }
   }, [isOpen, defaultRecipient, defaultSubject, defaultHtml, defaultPlainText]);
 
   if (!isOpen) return null;
+
+
+  // Copy full new Google Apps Script template code
+  const handleCopyNewScript = () => {
+    navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_TEMPLATE);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
 
   // Handle 1-Click Send via Google Apps Script Web App
   const handleSendOneClick = async () => {
@@ -139,8 +152,12 @@ export const AcademicEmailModal: React.FC<AcademicEmailModalProps> = ({
       } else {
         setResult({
           success: false,
-          message: `ไม่สามารถส่งผ่าน Web App ได้: ${res.error || 'โปรดตรวจสอบการตั้งค่า'} (ท่านสามารถคลิกส่งผ่าน Gmail ด้านล่างแทนได้)`,
+          isLegacyScript: res.isLegacyScript,
+          message: res.error || 'Google Apps Script ยังไม่สามารถส่งอีเมลได้',
         });
+        if (res.isLegacyScript) {
+          setShowScriptGuide(true);
+        }
       }
     } catch (err: any) {
       setResult({
@@ -150,16 +167,6 @@ export const AcademicEmailModal: React.FC<AcademicEmailModalProps> = ({
     } finally {
       setIsSending(false);
     }
-  };
-
-  // Handle Open in Gmail Compose tab
-  const handleOpenInGmail = () => {
-    openGmailComposeTab({
-      to: toEmail.trim(),
-      subject: subject.trim(),
-      body: message || subject,
-      authUser: ACADEMIC_SENDER_EMAIL,
-    });
   };
 
   // Copy plain text content
@@ -324,25 +331,80 @@ export const AcademicEmailModal: React.FC<AcademicEmailModalProps> = ({
           {/* Result Alert Box */}
           {result && (
             <div
-              className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 animate-in fade-in ${
+              className={`p-3.5 rounded-2xl border text-xs space-y-2 animate-in fade-in ${
                 result.success
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
                   : 'bg-rose-50 border-rose-300 text-rose-900'
               }`}
             >
-              {result.success ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              )}
-              <div className="space-y-0.5 flex-1">
-                <p className="font-bold">{result.message}</p>
-                {result.sentAt && (
-                  <p className="text-[10px] text-emerald-700 opacity-80">
-                    เวลาที่ส่ง: {new Date(result.sentAt).toLocaleTimeString('th-TH')}
-                  </p>
+              <div className="flex items-start gap-2.5">
+                {result.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                 )}
+                <div className="space-y-1 flex-1 min-w-0">
+                  <p className="font-bold leading-snug">{result.message}</p>
+                  {result.sentAt && (
+                    <p className="text-[10px] text-emerald-700 opacity-80">
+                      เวลาที่ส่ง: {new Date(result.sentAt).toLocaleTimeString('th-TH')}
+                    </p>
+                  )}
+                </div>
               </div>
+
+              {/* Action shortcuts when 1-Click is blocked or legacy script */}
+              {!result.success && (
+                <div className="pt-2 border-t border-rose-200/80 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyNewScript}
+                    className="px-3.5 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                  >
+                    {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5 text-amber-300" />}
+                    <span>{copiedCode ? 'คัดลอกโค้ดแล้ว ✓' : '📋 คัดลอกโค้ด Google Apps Script ใหม่'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendOneClick}
+                    disabled={isSending}
+                    className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-800 border border-rose-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSending ? 'animate-spin' : ''}`} />
+                    <span>ลองส่งใหม่อีกครั้ง</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowScriptGuide(!showScriptGuide)}
+                    className="text-rose-700 hover:text-rose-900 underline text-[11px] font-medium ml-auto cursor-pointer"
+                  >
+                    {showScriptGuide ? 'ซ่อนวิธีอัปเดต' : '📖 วิธีอัปเดตสคริปต์'}
+                  </button>
+                </div>
+              )}
+
+              {/* 3-Step Update Guide */}
+              {showScriptGuide && (
+                <div className="mt-2.5 p-3.5 bg-white/95 rounded-2xl border border-rose-200 text-[11.5px] text-slate-800 space-y-2 leading-relaxed">
+                  <div className="font-bold text-rose-900 flex items-center gap-1.5">
+                    <HelpCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>วิธีอัปเดต Google Apps Script เพื่อให้ระบบส่งอีเมลจาก {ACADEMIC_SENDER_EMAIL} อัตโนมัติ:</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1.5 text-slate-700 pl-1">
+                    <li>กดปุ่ม <strong>"คัดลอกโค้ด Google Apps Script ใหม่"</strong> ด้านบน</li>
+                    <li>เข้าสู่ <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-blue-600 underline font-semibold">script.google.com</a> ด้วยบัญชีฝ่ายวิชาการ แล้วเปิดโปรเจกต์เดิม</li>
+                    <li>วางโค้ดที่คัดลอกทับโค้ดเดิมทั้งหมดในไฟล์ <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-slate-900">Code.gs</code> แล้วกดบันทึก (Ctrl+S)</li>
+                    <li>
+                      <span className="text-rose-900 font-bold bg-amber-100 px-1 py-0.5 rounded">ขั้นตอนสำคัญที่สุด:</span> กดปุ่ม <strong>"ทำให้ใช้งานได้" (Deploy)</strong> มุมขวาบน &rarr; เลือก <strong>"จัดการการทำให้ใช้งานได้" (Manage deployments)</strong> &rarr; กดไอคอนดินสอแก้ไข &rarr; ตรงช่องเวอร์ชันเลือก <strong>"เวอร์ชันใหม่" (New version)</strong> &rarr; กดปุ่ม <strong>"ทำให้ใช้งานได้" (Deploy)</strong>
+                    </li>
+                  </ol>
+                  <p className="text-[10.5px] text-slate-500 pt-1 border-t border-slate-100">
+                    * เมื่ออัปเดตเสร็จแล้ว สามารถกดปุ่ม "ลองส่งใหม่อีกครั้ง" ในหน้านี้ได้ทันที ระบบจะส่งอีเมลผ่าน Google Apps Script ให้ใน 1 วินาทีโดยไม่มีหน้าต่างอื่นเด้งขึ้นมา
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -353,40 +415,31 @@ export const AcademicEmailModal: React.FC<AcademicEmailModalProps> = ({
             <button
               type="button"
               onClick={handleCopyText}
-              className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="คัดลอกข้อความอีเมล"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}</span>
             </button>
-
-            <button
-              type="button"
-              onClick={handleOpenInGmail}
-              className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="เปิดเขียนใน Gmail ด้วยบัญชีวิชาการ"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
-              <span className="hidden sm:inline">เปิดส่งใน Gmail</span>
-              <span className="sm:hidden">Gmail</span>
-            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={onClose}
               disabled={isSending}
-              className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
             >
               ปิด
             </button>
 
+            {/* 1-Click Send Button via Google Apps Script */}
             <button
               type="button"
               onClick={handleSendOneClick}
               disabled={isSending || !toEmail.trim()}
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0B1329] via-[#162347] to-[#1E293B] hover:from-slate-900 hover:to-indigo-950 text-white text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-slate-900/20 active:scale-95 transition-all cursor-pointer border border-[#F59E0B] disabled:opacity-50"
+              title={`กดครั้งเดียว ส่งอีเมลแจ้งเตือนทันทีจาก ${ACADEMIC_SENDER_EMAIL} โดยไม่ต้องเปิดหน้าต่างอื่น`}
             >
               {isSending ? (
                 <>
@@ -396,7 +449,7 @@ export const AcademicEmailModal: React.FC<AcademicEmailModalProps> = ({
               ) : (
                 <>
                   <Send className="w-4 h-4 text-[#F59E0B]" />
-                  <span>ส่งอีเมลทันที (1 คลิก)</span>
+                  <span>⚡ ส่งอีเมลทันที (1 คลิกจาก {ACADEMIC_SENDER_EMAIL})</span>
                 </>
               )}
             </button>

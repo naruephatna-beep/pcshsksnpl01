@@ -599,8 +599,8 @@ export default function App() {
         if (trashRes.success) {
           driveTrashNotice = ' และย้ายไฟล์ PDF ใน Google Drive ลงถังขยะ (Trash) อัตโนมัติเรียบร้อยแล้ว (กู้คืนได้ใน 30 วัน)';
         }
-      } catch (trashErr) {
-        console.warn('Could not trash file on drive:', trashErr);
+      } catch {
+        // Silently proceed so document deletion in the app and DB is never blocked
       }
     }
 
@@ -609,7 +609,7 @@ export default function App() {
 
     setToastNotice({
       type: 'success',
-      message: 'ลบแผนการสอนเรียบร้อยแล้ว',
+      message: 'ลบเอกสารวิชาการเรียบร้อยแล้ว',
       details:
         (!isAdmin
           ? 'ระบบได้ลบข้อมูลออกจากระบบเรียบร้อยแล้ว'

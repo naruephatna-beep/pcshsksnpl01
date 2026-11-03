@@ -36,6 +36,7 @@ import {
 import {
   sendAcademicEmailOneClick,
   generateReviewEmailHtml,
+  ACADEMIC_SENDER_EMAIL,
 } from '../services/emailService';
 import { AcademicEmailModal } from './AcademicEmailModal';
 
@@ -640,7 +641,9 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                             });
 
                             if (res.success) {
-                              setDirectMailStatus('⚡ ส่งผลการตรวจเรียบร้อยแล้ว (1 คลิก)!');
+                              setDirectMailStatus('⚡ ส่งผลการตรวจผ่าน Google Apps Script เรียบร้อยแล้ว!');
+                            } else if (res.isLegacyScript) {
+                              setDirectMailStatus('⚠️ Google Apps Script ปัจจุบันยังไม่อัปเดตคำสั่งส่งเมล (โปรดดูวิธีอัปเดตในปุ่มตัวอย่าง)');
                             } else {
                               setDirectMailStatus(`⚠️ ส่งไม่สำเร็จ: ${res.error}`);
                             }
@@ -648,7 +651,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                             setDirectMailStatus(`ข้อผิดพลาด: ${err?.message}`);
                           } finally {
                             setIsSendingDirectEmail(false);
-                            setTimeout(() => setDirectMailStatus(null), 4000);
+                            setTimeout(() => setDirectMailStatus(null), 5000);
                           }
                         }}
                         className="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
