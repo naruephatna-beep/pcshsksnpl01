@@ -9,6 +9,7 @@ import {
   PlanStatusConfig,
   AssignmentSubmission,
   DepartmentConfig,
+  BranchConfig,
   ReviewWorkflowConfig,
 } from './types';
 import {
@@ -71,8 +72,11 @@ import {
 } from './services/googleDriveService';
 import {
   DEFAULT_DEPARTMENTS,
+  DEFAULT_BRANCHES,
   DEFAULT_WORKFLOWS,
   getLocalDepartments,
+  getLocalBranches,
+  saveBranches,
   getLocalWorkflows,
   getWorkflowForPlan,
   assignWorkflowToPlan,
@@ -170,6 +174,7 @@ export default function App() {
   const [isStaffStructureModalOpen, setIsStaffStructureModalOpen] = useState(false);
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   const [departments, setDepartments] = useState<DepartmentConfig[]>(() => getLocalDepartments());
+  const [branches, setBranches] = useState<BranchConfig[]>(() => getLocalBranches());
   const [workflows, setWorkflows] = useState<ReviewWorkflowConfig[]>(() => getLocalWorkflows());
   const [deadlineConfigs, setDeadlineConfigs] = useState<PlanTypeDeadlineConfig[]>(() => getSavedDeadlineConfigs());
   const [statusConfigs, setStatusConfigs] = useState<PlanStatusConfig[]>(() => getSavedStatusConfigs());
@@ -193,7 +198,7 @@ export default function App() {
     setIsSyncing(true);
     try {
       // Execute all database fetches and cloud deleted IDs sync concurrently in a single parallel batch
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, wfRes] = await Promise.all([
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes] = await Promise.all([
         fetchTeachers(),
         fetchPlans(),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
@@ -202,6 +207,7 @@ export default function App() {
         fetchSystemSetting<string>('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL),
         syncDeletedPlanIdsWithCloud(),
         fetchSystemSetting<DepartmentConfig[]>('school_departments', getLocalDepartments()),
+        fetchSystemSetting<BranchConfig[]>('school_branches', getLocalBranches()),
         fetchSystemSetting<ReviewWorkflowConfig[]>('review_workflows', getLocalWorkflows()),
       ]);
       setTeachers(teachersRes.data);
@@ -209,6 +215,9 @@ export default function App() {
 
       if (deptRes?.data && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
         setDepartments(deptRes.data);
+      }
+      if (branchRes?.data && Array.isArray(branchRes.data) && branchRes.data.length > 0) {
+        setBranches(branchRes.data);
       }
       if (wfRes?.data && Array.isArray(wfRes.data) && wfRes.data.length > 0) {
         setWorkflows(wfRes.data);
@@ -1368,7 +1377,7 @@ export default function App() {
                   title="ดูรายชื่อครูและข้อมูลติดต่อ"
                 >
                   <Users className="w-4 h-4 text-slate-500" />
-                  <span>ทำเนียบบุคลากร (27 ท่าน)</span>
+                  <span>ทำเนียบบุคลากร ({teachers.length} ท่าน)</span>
                 </button>
 
                 <button
@@ -1967,6 +1976,8 @@ export default function App() {
         <ProfileModal
           teacher={teacherToEdit}
           isOpen={isProfileModalOpen}
+          departments={departments}
+          branches={branches}
           onClose={() => {
             setIsProfileModalOpen(false);
             setTeacherToEdit(null);
@@ -2000,6 +2011,8 @@ export default function App() {
           onUpdateTeachers={(updated) => setTeachers(updated)}
           departments={departments}
           onUpdateDepartments={(updated) => setDepartments(updated)}
+          branches={branches}
+          onUpdateBranches={(updated) => setBranches(updated)}
         />
       )}
 
@@ -2012,6 +2025,7 @@ export default function App() {
           onUpdateWorkflows={(updated) => setWorkflows(updated)}
           teachers={teachers}
           departments={departments}
+          branches={branches}
           plans={plans}
           onUpdatePlans={(updated) => setPlans(updated)}
           deadlineConfigs={deadlineConfigs}
@@ -2033,6 +2047,8 @@ export default function App() {
         <TeacherDirectoryModal
           teachers={teachers}
           currentTeacher={currentTeacher}
+          departments={departments}
+          branches={branches}
           isOpen={isDirectoryModalOpen}
           onClose={() => setIsDirectoryModalOpen(false)}
           onEditTeacher={(t) => {

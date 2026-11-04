@@ -7,10 +7,12 @@ import {
   Teacher,
   LessonPlan,
   DepartmentConfig,
+  BranchConfig,
   PlanTypeDeadlineConfig,
 } from '../types';
 import {
   DEFAULT_WORKFLOWS,
+  DEFAULT_BRANCHES,
   saveWorkflows,
   autoAssignPlansForStage,
   resolveReviewersForStage,
@@ -44,6 +46,7 @@ import {
   BookOpen,
   FileText,
   Tag,
+  GitFork,
 } from 'lucide-react';
 
 interface WorkflowManagerModalProps {
@@ -53,6 +56,7 @@ interface WorkflowManagerModalProps {
   onUpdateWorkflows: (workflows: ReviewWorkflowConfig[]) => void;
   teachers: Teacher[];
   departments: DepartmentConfig[];
+  branches?: BranchConfig[];
   plans: LessonPlan[];
   onUpdatePlans: (plans: LessonPlan[]) => void;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
@@ -65,6 +69,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
   onUpdateWorkflows,
   teachers,
   departments,
+  branches = DEFAULT_BRANCHES,
   plans,
   onUpdatePlans,
   deadlineConfigs,
@@ -620,7 +625,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                 id: 'preview',
                 learning_area: departments[0]?.name || 'วิทยาศาสตร์และเทคโนโลยี',
               };
-              const eligibleReviewers = resolveReviewersForStage(stage, mockPlan, teachers, departments);
+              const eligibleReviewers = resolveReviewersForStage(stage, mockPlan, teachers, departments, branches);
 
               return (
                 <div
@@ -840,8 +845,8 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           </span>
                         </div>
 
-                        {/* Three Mode Buttons */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        {/* Four Mode Buttons */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           {/* Mode 1: ระบุชื่อรายบุคคล */}
                           <button
                             type="button"
@@ -854,10 +859,10 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           >
                             <div className="flex items-center gap-2">
                               <UserCheck className="w-4 h-4 text-indigo-600" />
-                              <span className="text-xs">1. ระบุชื่อรายบุคคล</span>
+                              <span className="text-xs">1. ระบุรายบุคคล</span>
                             </div>
                             <p className="text-[10px] text-slate-500 mt-1">
-                              ติ๊กเลือกคุณครูรายคนที่ต้องการมอบหมาย
+                              ติ๊กเลือกครูรายคนที่มอบหมาย
                             </p>
                           </button>
 
@@ -873,14 +878,33 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           >
                             <div className="flex items-center gap-2">
                               <Building2 className="w-4 h-4 text-amber-600" />
-                              <span className="text-xs">2. เลือกยกทั้งกลุ่มสาระ</span>
+                              <span className="text-xs">2. ยกกลุ่มสาระ</span>
                             </div>
                             <p className="text-[10px] text-slate-500 mt-1">
-                              เลือกครูทั้งกลุ่มสาระของผู้ส่ง หรือสาขาที่กำหนด
+                              ครูทั้งกลุ่มสาระของผู้ส่ง
                             </p>
                           </button>
 
-                          {/* Mode 3: เลือกจากตำแหน่ง */}
+                          {/* Mode 3: เลือกยกทั้งกลุ่มสาขาวิชา */}
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'branch' })}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              selectionType === 'branch'
+                                ? 'bg-sky-50/80 border-sky-600 shadow-2xs font-bold text-sky-950 ring-1 ring-sky-600/20'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <GitFork className="w-4 h-4 text-sky-600" />
+                              <span className="text-xs">3. ยกกลุ่มสาขา</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              ครูในสาขาวิชาเดียวกัน
+                            </p>
+                          </button>
+
+                          {/* Mode 4: เลือกจากตำแหน่ง */}
                           <button
                             type="button"
                             onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'role' })}
@@ -892,10 +916,10 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           >
                             <div className="flex items-center gap-2">
                               <Crown className="w-4 h-4 text-emerald-600" />
-                              <span className="text-xs">3. เลือกจากตำแหน่ง</span>
+                              <span className="text-xs">4. เลือกจากตำแหน่ง</span>
                             </div>
                             <p className="text-[10px] text-slate-500 mt-1">
-                              หัวหน้ากลุ่มสาระของผู้ส่ง, หัวหน้าสาขาทุกคน, หรือ ผอ.
+                              หัวหน้าสาขา, หัวหน้ากลุ่มสาระ, ผอ.
                             </p>
                           </button>
                         </div>
@@ -946,7 +970,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                         {selectionType === 'department' && (
                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                             <span className="text-xs font-bold text-slate-800 block">
-                              เลือกกลุ่มสาระที่รับผิดชอบการตรวจในขั้นนี้:
+                              เลือกกลุ่มสาระการเรียนรู้ที่รับผิดชอบการตรวจในขั้นนี้:
                             </span>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
@@ -971,7 +995,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                   className="rounded text-amber-600 focus:ring-amber-500"
                                 />
                                 <div>
-                                  <p className="text-xs font-bold">กลุ่มสาระของผู้ส่ง (ตรงสาขาวิชา)</p>
+                                  <p className="text-xs font-bold">กลุ่มสาระของผู้ส่ง (ตรงกลุ่มสาระ)</p>
                                   <p className="text-[10px] text-slate-500">ดึงครูในกลุ่มสาระเดียวกันมาตรวจ</p>
                                 </div>
                               </label>
@@ -1008,7 +1032,73 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           </div>
                         )}
 
-                        {/* Sub-form 3: เลือกจากตำแหน่ง */}
+                        {/* Sub-form 3: เลือกยกทั้งกลุ่มสาขาวิชา */}
+                        {selectionType === 'branch' && (
+                          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                            <span className="text-xs font-bold text-slate-800 block">
+                              เลือกกลุ่มสาขาวิชาที่รับผิดชอบการตรวจในขั้นนี้:
+                            </span>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                              {/* Dynamic: สาขาวิชาของผู้ส่งแผนการสอน */}
+                              <label
+                                className={`p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
+                                  (stage.assigned_branches || []).includes('submitter_branch')
+                                    ? 'bg-sky-50 border-sky-300 text-sky-950 font-bold shadow-2xs'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={(stage.assigned_branches || []).includes('submitter_branch')}
+                                  onChange={(e) => {
+                                    const currentBranches = stage.assigned_branches || [];
+                                    const nextBranches = e.target.checked
+                                      ? [...currentBranches, 'submitter_branch']
+                                      : currentBranches.filter((b) => b !== 'submitter_branch');
+                                    handleUpdateStage(stage.id, { assigned_branches: nextBranches });
+                                  }}
+                                  className="rounded text-sky-600 focus:ring-sky-500"
+                                />
+                                <div>
+                                  <p className="text-xs font-bold">สาขาวิชาของผู้ส่ง (ตรงสาขา)</p>
+                                  <p className="text-[10px] text-slate-500">ดึงครูในสาขาวิชาเดียวกันมาตรวจ (เช่น เทคโนโลยี)</p>
+                                </div>
+                              </label>
+
+                              {/* Fixed Branches */}
+                              {branches.map((branch) => {
+                                const isChecked = (stage.assigned_branches || []).includes(branch.name);
+                                return (
+                                  <label
+                                    key={branch.id}
+                                    className={`p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
+                                      isChecked
+                                        ? 'bg-sky-50 border-sky-300 text-sky-950 font-bold'
+                                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        const currentBranches = stage.assigned_branches || [];
+                                        const nextBranches = e.target.checked
+                                          ? [...currentBranches, branch.name]
+                                          : currentBranches.filter((b) => b !== branch.name);
+                                        handleUpdateStage(stage.id, { assigned_branches: nextBranches });
+                                      }}
+                                      className="rounded text-sky-600 focus:ring-sky-500"
+                                    />
+                                    <span className="truncate">{branch.name}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Sub-form 4: เลือกจากตำแหน่ง */}
                         {selectionType === 'role' && (
                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                             <span className="text-xs font-bold text-slate-800 block">
@@ -1016,11 +1106,43 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                             </span>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {/* Role A: หัวหน้ากลุ่มสาระของผู้ส่ง */}
+                              {/* Role 1: หัวหน้ากลุ่มสาขาวิชาของผู้ส่ง */}
+                              <label
+                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
+                                  stage.assigned_role === 'submitter_branch_head'
+                                    ? 'bg-indigo-50 border-indigo-400 text-indigo-950 font-bold shadow-2xs'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`role_${stage.id}`}
+                                  checked={stage.assigned_role === 'submitter_branch_head'}
+                                  onChange={() =>
+                                    handleUpdateStage(stage.id, {
+                                      assigned_role: 'submitter_branch_head',
+                                    })
+                                  }
+                                  className="mt-0.5 text-indigo-600"
+                                />
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <Award className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                    <p className="text-xs font-bold text-slate-900">
+                                      หัวหน้ากลุ่มสาขาวิชาของผู้ส่ง (Branch Head)
+                                    </p>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 mt-0.5">
+                                    ระบบจะค้นหาหัวหน้าสาขาวิชาที่ตรงกับสาขาของครูผู้ส่ง (เช่น ครู te028 ส่งแผนเทคโนโลยี ระบบส่งให้หัวหน้าสาขาเทคโนโลยี)
+                                  </p>
+                                </div>
+                              </label>
+
+                              {/* Role 2: หัวหน้ากลุ่มสาระการเรียนรู้ของผู้ส่ง */}
                               <label
                                 className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
                                   stage.assigned_role === 'submitter_department_head'
-                                    ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold shadow-2xs'
+                                    ? 'bg-amber-50 border-amber-400 text-amber-950 font-bold shadow-2xs'
                                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                                 }`}
                               >
@@ -1033,23 +1155,55 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                       assigned_role: 'submitter_department_head',
                                     })
                                   }
-                                  className="mt-0.5 text-emerald-600"
+                                  className="mt-0.5 text-amber-600"
                                 />
                                 <div>
-                                  <p className="text-xs font-bold text-slate-900">
-                                    หัวหน้ากลุ่มสาระของผู้ส่ง (Submitter's Department Head)
-                                  </p>
+                                  <div className="flex items-center gap-1.5">
+                                    <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                    <p className="text-xs font-bold text-slate-900">
+                                      หัวหน้ากลุ่มสาระการเรียนรู้ของผู้ส่ง (Dept Head)
+                                    </p>
+                                  </div>
                                   <p className="text-[11px] text-slate-500 mt-0.5">
-                                    ระบบจะค้นหาหัวหน้าสาขาที่ตรงกับกลุ่มสาระของแผนการสอนนั้นๆ โดยอัตโนมัติ
+                                    ระบบจะค้นหาหัวหน้ากลุ่มสาระที่ตรงกับกลุ่มสาระของแผนการสอนนั้นๆ (เช่น วิทยาศาสตร์และเทคโนโลยี)
                                   </p>
                                 </div>
                               </label>
 
-                              {/* Role B: หัวหน้าสาขาทุกคน */}
+                              {/* Role 3: หัวหน้าสาขาทุกคน */}
+                              <label
+                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
+                                  stage.assigned_role === 'all_branch_heads'
+                                    ? 'bg-indigo-50 border-indigo-400 text-indigo-950 font-bold shadow-2xs'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`role_${stage.id}`}
+                                  checked={stage.assigned_role === 'all_branch_heads'}
+                                  onChange={() =>
+                                    handleUpdateStage(stage.id, {
+                                      assigned_role: 'all_branch_heads',
+                                    })
+                                  }
+                                  className="mt-0.5 text-indigo-600"
+                                />
+                                <div>
+                                  <p className="text-xs font-bold text-slate-900">
+                                    หัวหน้ากลุ่มสาขาวิชาทุกคน (All Branch Heads)
+                                  </p>
+                                  <p className="text-[11px] text-slate-500 mt-0.5">
+                                    ดึงหัวหน้าสาขาวิชาทั้งหมดมาร่วมเป็นกรรมการตรวจประเมิน
+                                  </p>
+                                </div>
+                              </label>
+
+                              {/* Role 4: หัวหน้ากลุ่มสาระทุกคน */}
                               <label
                                 className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
                                   stage.assigned_role === 'all_department_heads'
-                                    ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold shadow-2xs'
+                                    ? 'bg-amber-50 border-amber-400 text-amber-950 font-bold shadow-2xs'
                                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                                 }`}
                               >
@@ -1062,19 +1216,19 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                       assigned_role: 'all_department_heads',
                                     })
                                   }
-                                  className="mt-0.5 text-emerald-600"
+                                  className="mt-0.5 text-amber-600"
                                 />
                                 <div>
                                   <p className="text-xs font-bold text-slate-900">
-                                    หัวหน้าสาขาทุกคน (All Department Heads)
+                                    หัวหน้ากลุ่มสาระทุกคน (All Department Heads)
                                   </p>
                                   <p className="text-[11px] text-slate-500 mt-0.5">
-                                    ดึงหัวหน้าสาขาทั้งหมดของโรงเรียนมาร่วมเป็นคณะกรรมการตรวจรูบริก
+                                    ดึงหัวหน้ากลุ่มสาระทั้ง 8 กลุ่มสาระมาร่วมเป็นคณะกรรมการตรวจ
                                   </p>
                                 </div>
                               </label>
 
-                              {/* Role C: ฝ่ายบริหาร/ผู้อำนวยการ */}
+                              {/* Role 5: ฝ่ายบริหาร/ผู้อำนวยการ */}
                               <label
                                 className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
                                   stage.assigned_role === 'school_leadership'
@@ -1103,7 +1257,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                 </div>
                               </label>
 
-                              {/* Role D: แอดมินทุกคน */}
+                              {/* Role 6: แอดมินทุกคน */}
                               <label
                                 className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
                                   stage.assigned_role === 'all_admins'

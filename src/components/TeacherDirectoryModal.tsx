@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Teacher, isTeacherAdmin, isDepartmentHead } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Teacher, isTeacherAdmin, isDepartmentHead, isBranchHead, BranchConfig, DepartmentConfig } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   X,
@@ -13,6 +13,9 @@ import {
   AlertCircle,
   ShieldAlert,
   Lock,
+  Crown,
+  Award,
+  GitFork,
 } from 'lucide-react';
 
 import { AcademicEmailModal } from './AcademicEmailModal';
@@ -20,6 +23,8 @@ import { AcademicEmailModal } from './AcademicEmailModal';
 interface TeacherDirectoryModalProps {
   teachers: Teacher[];
   currentTeacher: Teacher;
+  departments?: DepartmentConfig[];
+  branches?: BranchConfig[];
   isOpen: boolean;
   onClose: () => void;
   onSwitchUser?: (teacher: Teacher) => void;
@@ -29,34 +34,54 @@ interface TeacherDirectoryModalProps {
 export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
   teachers,
   currentTeacher,
+  departments,
+  branches,
   isOpen,
   onClose,
   onEditTeacher,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedArea, setSelectedArea] = useState('ทั้งหมด');
+  const [selectedBranch, setSelectedBranch] = useState('ทั้งหมด');
   const [selectedTeacherForEmail, setSelectedTeacherForEmail] = useState<Teacher | null>(null);
-
-  if (!isOpen) return null;
 
   const isAdmin = isTeacherAdmin(currentTeacher);
 
   // If not admin, teacher can ONLY see their own profile
-  const visibleTeachers = isAdmin
-    ? teachers
-    : teachers.filter((t) => t.Teacher_ID === currentTeacher.Teacher_ID);
+  const visibleTeachers = useMemo(() => {
+    return isAdmin
+      ? teachers
+      : teachers.filter((t) => t.Teacher_ID === currentTeacher.Teacher_ID);
+  }, [isAdmin, teachers, currentTeacher]);
 
-  const areas = ['ทั้งหมด', ...Array.from(new Set(visibleTeachers.map((t) => t.Learning_Area).filter(Boolean)))];
+  const areas = useMemo(() => {
+    const list = Array.from(new Set(visibleTeachers.map((t) => t.Learning_Area).filter(Boolean)));
+    return ['ทั้งหมด', ...list];
+  }, [visibleTeachers]);
 
-  const filtered = visibleTeachers.filter((t) => {
-    const matchArea = selectedArea === 'ทั้งหมด' || t.Learning_Area === selectedArea;
-    const matchQuery =
-      t.Name.toLowerCase().includes(query.toLowerCase()) ||
-      t.Email.toLowerCase().includes(query.toLowerCase()) ||
-      t.Teacher_ID.toLowerCase().includes(query.toLowerCase()) ||
-      t.Learning_Area.toLowerCase().includes(query.toLowerCase());
-    return matchArea && matchQuery;
-  });
+  const branchList = useMemo(() => {
+    const list = Array.from(new Set(visibleTeachers.map((t) => t.branch).filter(Boolean)));
+    return ['ทั้งหมด', ...list];
+  }, [visibleTeachers]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return visibleTeachers.filter((t) => {
+      const matchArea = selectedArea === 'ทั้งหมด' || t.Learning_Area === selectedArea;
+      const matchBranch = selectedBranch === 'ทั้งหมด' || t.branch === selectedBranch;
+      const matchQuery =
+        !q ||
+        t.Name.toLowerCase().includes(q) ||
+        t.Email.toLowerCase().includes(q) ||
+        t.Teacher_ID.toLowerCase().includes(q) ||
+        (t.Learning_Area && t.Learning_Area.toLowerCase().includes(q)) ||
+        (t.branch && t.branch.toLowerCase().includes(q));
+
+      return matchArea && matchBranch && matchQuery;
+    });
+  }, [visibleTeachers, selectedArea, selectedBranch, query]);
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -77,7 +102,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
             </div>
             <div className="min-w-0">
               <span className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-indigo-200 block truncate">
-                Staff Database
+                Staff Database · PCSHS Kalasin
               </span>
               <h2 className="text-base sm:text-xl font-bold truncate">
                 ทำเนียบบุคลากร ({teachers.length} ท่าน)
@@ -94,38 +119,63 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
         </div>
 
         {/* Filter bar */}
-        <div className="p-3.5 sm:p-6 pb-2 border-b border-slate-100 space-y-2.5 sm:space-y-3 shrink-0">
-          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 sm:top-3" />
+        <div className="p-3.5 sm:p-5 pb-2 border-b border-slate-100 space-y-2.5 shrink-0 bg-slate-50/50">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+            <div className="relative sm:col-span-6">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="ค้นหาชื่อ, รหัสครู (Teacher_ID), อีเมล..."
-                className="w-full pl-10 pr-4 py-2.5 sm:py-2 border border-slate-200 rounded-xl text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                placeholder="ค้นหาชื่อ, รหัสครู, อีเมล, กลุ่มสาระ, สาขาวิชา..."
+                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white"
               />
             </div>
-            <select
-              value={selectedArea}
-              onChange={(e) => setSelectedArea(e.target.value)}
-              className="px-3 py-2.5 sm:py-2 border border-slate-200 rounded-xl text-base sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white"
-            >
-              {areas.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+
+            {/* Filter by Learning Area */}
+            <div className="sm:col-span-3">
+              <select
+                value={selectedArea}
+                onChange={(e) => setSelectedArea(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white text-slate-800"
+                title="กรองตามกลุ่มสาระ"
+              >
+                <option value="ทั้งหมด">กลุ่มสาระ: ทั้งหมด</option>
+                {areas.filter((a) => a !== 'ทั้งหมด').map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter by Branch */}
+            <div className="sm:col-span-3">
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white text-slate-800"
+                title="กรองตามกลุ่มสาขาวิชา"
+              >
+                <option value="ทั้งหมด">สาขาวิชา: ทั้งหมด</option>
+                {branchList.filter((b) => b !== 'ทั้งหมด').map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
         {/* Teachers Grid */}
-        <div className="p-3.5 sm:p-6 flex-1 overflow-y-auto touch-scroll grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="p-3.5 sm:p-6 flex-1 overflow-y-auto touch-scroll grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/30">
           {filtered.map((t) => {
             const photoUrl = formatGoogleDriveImageUrl(t.photo);
             const isMe = t.Teacher_ID === currentTeacher.Teacher_ID;
             const hasDefaultPass = t.Pass === '12345';
+            const isDeptH = isDepartmentHead(t);
+            const isBranchH = isBranchHead(t);
 
             return (
               <div
@@ -133,7 +183,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                 className={`p-3.5 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
                   isMe
                     ? 'border-indigo-500 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-400'
-                    : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
+                    : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50 shadow-2xs'
                 }`}
               >
                 <div className="flex items-start gap-3 min-w-0">
@@ -170,18 +220,37 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                           {t.Teacher_ID === 'admin01' ? 'Super Admin' : 'Admin'}
                         </span>
                       )}
-                      {isDepartmentHead(t) && (
-                        <span className="text-[10px] bg-amber-100 text-amber-950 border border-amber-300 px-2 py-0.5 rounded-full font-bold shadow-2xs">
-                          หัวหน้าสาขา
+                      {isDeptH && (
+                        <span className="text-[10px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-bold shadow-2xs">
+                          👑 หัวหน้ากลุ่มสาระ
+                        </span>
+                      )}
+                      {isBranchH && (
+                        <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold shadow-2xs">
+                          🎖️ หัวหน้าสาขา
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-indigo-600 font-medium truncate mt-0.5">
-                      {t.Learning_Area}
-                    </p>
+
+                    {/* Department and Branch Row */}
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap text-xs">
+                      <span className="text-indigo-700 font-semibold truncate">
+                        {t.Learning_Area}
+                      </span>
+                      {t.branch && (
+                        <>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md font-semibold text-[11px] border border-amber-200">
+                            {t.branch}
+                          </span>
+                        </>
+                      )}
+                    </div>
+
                     <p className="text-[11px] text-slate-500 truncate mt-0.5">
                       {t.position} {t.academic_standing !== 'ยังไม่มีวิทยฐานะ' ? `(${t.academic_standing})` : ''} • {t.department}
                     </p>
+
                     <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
                       <span className="truncate flex items-center gap-1">
                         <Mail className="w-3 h-3" />
@@ -238,7 +307,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
 
         {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-          <span>รวมบุคลากรครูทั้งหมด {teachers.length} ท่าน</span>
+          <span>รวมบุคลากรครูที่ตรงตามตัวกรอง {filtered.length} จาก {teachers.length} ท่าน</span>
           <button
             type="button"
             onClick={onClose}

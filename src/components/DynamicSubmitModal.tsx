@@ -346,6 +346,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
         teacher_name: currentTeacher.Name,
         teacher_photo: currentTeacher.photo,
         learning_area: currentTeacher.Learning_Area || '',
+        branch: currentTeacher.branch || '',
         subject_code: String(subjectCodeCandidate),
         subject_name: String(subjectNameCandidate),
         grade_level: String(formValues['fld_grade_level'] || 'มัธยมศึกษา'),

@@ -343,6 +343,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
           teacher_name: currentTeacher.Name,
           teacher_photo: currentTeacher.photo,
           learning_area: currentTeacher.Learning_Area,
+          branch: currentTeacher.branch || '',
           subject_code: safeCode,
           subject_name: item.subjectName.trim(),
           grade_level: item.gradeLevel,

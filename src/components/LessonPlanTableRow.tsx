@@ -97,8 +97,8 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
             <div className="font-semibold text-slate-800 truncate max-w-[140px]">
               {plan.teacher_name}
             </div>
-            <div className="text-[10px] text-slate-400 font-mono">
-              {plan.teacher_id} · {plan.learning_area}
+            <div className="text-[10px] text-slate-400 font-mono truncate max-w-[160px]">
+              {plan.teacher_id} · {plan.learning_area}{plan.branch ? ` (${plan.branch})` : ''}
             </div>
           </div>
         </div>

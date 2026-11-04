@@ -175,8 +175,8 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
               <div className="text-xs font-bold text-slate-900 truncate">
                 {plan.teacher_name}
               </div>
-              <div className="text-[11px] text-slate-400 font-mono">
-                {plan.teacher_id} · {plan.learning_area}
+              <div className="text-[11px] text-slate-400 font-mono truncate max-w-[210px]">
+                {plan.teacher_id} · {plan.learning_area}{plan.branch ? ` (${plan.branch})` : ''}
               </div>
             </div>
           </div>

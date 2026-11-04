@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Teacher } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Teacher, BranchConfig, DepartmentConfig, isDepartmentHead, isBranchHead } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   X,
@@ -17,6 +17,8 @@ import {
   Upload,
   Check,
   FileCheck,
+  Crown,
+  GitFork,
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -24,6 +26,8 @@ interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (updated: Teacher) => Promise<void>;
+  departments?: DepartmentConfig[];
+  branches?: BranchConfig[];
 }
 
 const LEARNING_AREAS = [
@@ -61,12 +65,50 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  departments,
+  branches,
 }) => {
   const [formData, setFormData] = useState<Teacher>({ ...teacher });
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [imageError, setImageError] = useState(false);
+
+  const effectiveAreas = useMemo(() => {
+    if (departments && departments.length > 0) {
+      return departments.map((d) => d.name);
+    }
+    return LEARNING_AREAS;
+  }, [departments]);
+
+  const branchSuggestions = useMemo(() => {
+    if (branches && branches.length > 0) {
+      const match = branches.filter(
+        (b) =>
+          !b.learning_area_name ||
+          b.learning_area_name === formData.Learning_Area ||
+          b.learning_area_name.includes(formData.Learning_Area) ||
+          formData.Learning_Area.includes(b.learning_area_name)
+      );
+      if (match.length > 0) return match.map((b) => b.name);
+      return branches.map((b) => b.name);
+    }
+    return [
+      'สาขาเทคโนโลยี',
+      'สาขาเคมี',
+      'สาขาฟิสิกส์',
+      'สาขาชีววิทยา',
+      'สาขาดาราศาสตร์และอวกาศ',
+      'สาขาคณิตศาสตร์',
+      'สาขาภาษาไทย',
+      'สาขาภาษาต่างประเทศ',
+      'สาขาสังคมศึกษา',
+      'สาขาศิลปะ',
+      'สาขาสุขศึกษาและพลศึกษา',
+      'สาขาการงานอาชีพ',
+      'สาขากิจกรรมพัฒนาผู้เรียน',
+    ];
+  }, [branches, formData.Learning_Area]);
 
   if (!isOpen) return null;
   // Helper to compress image before saving as Data URL (cuts bandwidth/Egress by 99%)
@@ -199,9 +241,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <span className="px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-white/20 text-white backdrop-blur-sm">
                   รหัส {formData.Teacher_ID}
                 </span>
+                {isDepartmentHead(formData) && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-amber-400 text-slate-950 flex items-center gap-1 shadow-xs">
+                    <Crown className="w-3 h-3" />
+                    หัวหน้ากลุ่มสาระ
+                  </span>
+                )}
+                {isBranchHead(formData) && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-indigo-300 text-slate-950 flex items-center gap-1 shadow-xs">
+                    <Award className="w-3 h-3" />
+                    หัวหน้าสาขาวิชา
+                  </span>
+                )}
               </div>
               <p className="text-indigo-100 text-xs mt-0.5">
-                {formData.position} {formData.academic_standing !== 'ยังไม่มีวิทยฐานะ' ? `(${formData.academic_standing})` : ''} • {formData.Learning_Area}
+                {formData.position} {formData.academic_standing !== 'ยังไม่มีวิทยฐานะ' ? `(${formData.academic_standing})` : ''} • {formData.Learning_Area} {formData.branch ? `• ${formData.branch}` : ''}
               </p>
               <p className="text-[11px] text-indigo-200 mt-0.5">
                 Teacher_ID เป็นคีย์หลักที่ผูกกับแผนการสอนและเอกสารในระบบ
@@ -297,13 +351,38 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     onChange={(e) => setFormData({ ...formData, Learning_Area: e.target.value })}
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white"
                   >
-                    {LEARNING_AREAS.map((area) => (
+                    {effectiveAreas.map((area) => (
                       <option key={area} value={area}>
                         {area}
                       </option>
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  กลุ่มสาขาวิชา (Academic Discipline / Branch)
+                </label>
+                <div className="relative">
+                  <GitFork className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    list="profile-branch-options"
+                    value={formData.branch || ''}
+                    onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white"
+                    placeholder="เช่น สาขาเทคโนโลยี, สาขาเคมี, สาขาฟิสิกส์..."
+                  />
+                  <datalist id="profile-branch-options">
+                    {branchSuggestions.map((b) => (
+                      <option key={b} value={b} />
+                    ))}
+                  </datalist>
+                </div>
+                <span className="text-[11px] text-slate-500 mt-1 block">
+                  ตัวอย่าง: สาขาเทคโนโลยี, สาขาเคมี, สาขาฟิสิกส์, สาขาชีววิทยา
+                </span>
               </div>
             </div>
           </div>

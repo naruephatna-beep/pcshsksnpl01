@@ -3,7 +3,8 @@ export interface Teacher {
   Name: string;
   Email: string;
   Pass: string;
-  Learning_Area: string;
+  Learning_Area: string; // กลุ่มสาระการเรียนรู้ เช่น วิทยาศาสตร์และเทคโนโลยี, คณิตศาสตร์
+  branch?: string; // สาขาวิชา / สาขา เช่น สาขาเทคโนโลยี, สาขาเคมี, สาขาฟิสิกส์, สาขาชีววิทยา
   photo: string;
   national_id: string;
   phone: string;
@@ -11,30 +12,47 @@ export interface Teacher {
   birth_date: string;
   position: string;
   academic_standing: string;
-  department: string;
-  role: 'teacher' | 'head_of_department' | 'academic_director' | 'admin';
-  is_head_of_department?: boolean;
+  department: string; // ฝ่ายบริหารงาน เช่น กลุ่มบริหารวิชาการ
+  role: 'teacher' | 'head_of_department' | 'head_of_branch' | 'academic_director' | 'admin' | 'executive';
+  is_head_of_department?: boolean; // หัวหน้ากลุ่มสาระ
+  is_head_of_branch?: boolean; // หัวหน้ากลุ่มสาขา
   department_id?: string;
+  branch_id?: string;
   created_at?: string;
   updated_at?: string;
 }
 
 export interface DepartmentConfig {
   id: string;
-  name: string;
+  name: string; // ชื่อกลุ่มสาระการเรียนรู้
   code: string;
   color?: string;
-  head_teacher_id?: string;
+  head_teacher_id?: string; // หัวหน้ากลุ่มสาระ
   head_teacher_name?: string;
   description?: string;
   created_at?: string;
 }
 
-export type ReviewerSelectionType = 'individual' | 'department' | 'role';
+export interface BranchConfig {
+  id: string;
+  name: string; // ชื่อกลุ่มสาขา / สาขาวิชา เช่น สาขาเทคโนโลยี, สาขาฟิสิกส์, สาขาเคมี
+  code: string;
+  learning_area_id?: string;
+  learning_area_name: string; // สังกัดกลุ่มสาระ เช่น วิทยาศาสตร์และเทคโนโลยี
+  color?: string;
+  head_teacher_id?: string; // หัวหน้ากลุ่มสาขา
+  head_teacher_name?: string;
+  description?: string;
+  created_at?: string;
+}
+
+export type ReviewerSelectionType = 'individual' | 'department' | 'branch' | 'role';
 
 export type ReviewerRoleType =
-  | 'submitter_department_head' // หัวหน้ากลุ่มสาระประจำวิชาของผู้ส่ง
-  | 'all_department_heads' // หัวหน้าสาขาทุกคน
+  | 'submitter_branch_head' // หัวหน้ากลุ่มสาขาประจำวิชาของผู้ส่ง (เช่น หัวหน้าสาขาเทคโนโลยี)
+  | 'submitter_department_head' // หัวหน้ากลุ่มสาระประจำวิชาของผู้ส่ง (เช่น หัวหน้ากลุ่มสาระวิทยาศาสตร์และเทคโนโลยี)
+  | 'all_branch_heads' // หัวหน้ากลุ่มสาขาทุกคน
+  | 'all_department_heads' // หัวหน้ากลุ่มสาระทุกคน
   | 'school_leadership' // ฝ่ายบริหารสถานศึกษา (ผู้อำนวยการ/รองฯ)
   | 'all_admins'; // ผู้ดูแลระบบทุกคน
 
@@ -44,9 +62,10 @@ export interface ReviewStageConfig {
   title: string;
   description?: string;
   evaluation_mode: 'approval_only' | 'rubric_score'; // 3. รูปแบบการตรวจ: อนุมัติ หรือ รูบริก
-  reviewer_selection_type: ReviewerSelectionType; // 2. ดึงคนมาตรวจ: รายบุคคล, ทั้งกลุ่มสาระ, จากตำแหน่ง
+  reviewer_selection_type: ReviewerSelectionType; // 2. ดึงคนมาตรวจ: รายบุคคล, ทั้งกลุ่มสาระ, ทั้งสาขา, จากตำแหน่ง
   assigned_teacher_ids?: string[]; // กรณีระบุรายบุคคล
   assigned_departments?: string[]; // กรณีเลือกกลุ่มสาระ
+  assigned_branches?: string[]; // กรณีเลือกกลุ่มสาขา
   assigned_role?: ReviewerRoleType; // กรณีเลือกจากตำแหน่ง
   auto_assign_enabled?: boolean; // ระบบกระจายงานอัตโนมัติเท่าๆ กัน
 }
@@ -205,6 +224,7 @@ export interface LessonPlan {
   teacher_name: string;
   teacher_photo?: string;
   learning_area: string;
+  branch?: string; // สาขาวิชา เช่น สาขาเทคโนโลยี, สาขาฟิสิกส์, สาขาเคมี
   subject_code: string;
   subject_name: string;
   grade_level: string;
@@ -268,8 +288,20 @@ export function isTeacherExecutive(teacher: Teacher | null | undefined): boolean
   return id === 'admin03' || role === 'executive';
 }
 
+/**
+ * ตรวจสอบว่าเป็นหัวหน้ากลุ่มสาระการเรียนรู้ (Head of Learning Area / Department Head) หรือไม่
+ */
 export function isDepartmentHead(teacher: Teacher | null | undefined): boolean {
   if (!teacher) return false;
   const role = String(teacher.role || '').toLowerCase().trim();
   return role === 'head_of_department' || teacher.is_head_of_department === true;
+}
+
+/**
+ * ตรวจสอบว่าเป็นหัวหน้ากลุ่มสาขา / หัวหน้าสาขาวิชา (Head of Discipline / Branch Head) หรือไม่
+ */
+export function isBranchHead(teacher: Teacher | null | undefined): boolean {
+  if (!teacher) return false;
+  const role = String(teacher.role || '').toLowerCase().trim();
+  return role === 'head_of_branch' || teacher.is_head_of_branch === true;
 }

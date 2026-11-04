@@ -1,5 +1,6 @@
 import {
   DepartmentConfig,
+  BranchConfig,
   ReviewWorkflowConfig,
   ReviewStageConfig,
   StageReviewRecord,
@@ -7,6 +8,8 @@ import {
   LessonPlan,
   isTeacherAdmin,
   isTeacherExecutive,
+  isDepartmentHead,
+  isBranchHead,
 } from '../types';
 import {
   fetchSystemSetting,
@@ -15,9 +18,10 @@ import {
 } from './supabaseClient';
 
 const STORAGE_KEY_DEPARTMENTS = 'lp_school_departments';
+const STORAGE_KEY_BRANCHES = 'lp_school_branches';
 const STORAGE_KEY_WORKFLOWS = 'lp_review_workflows';
 
-// Standard 10 Learning Areas (สาขา/กลุ่มสาระ) of PCSHS Kalasin
+// Standard 10 Learning Areas (กลุ่มสาระการเรียนรู้) of PCSHS Kalasin
 export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
   {
     id: 'dept_sci',
@@ -33,8 +37,8 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
     name: 'คณิตศาสตร์',
     code: 'MATH',
     color: '#D97706', // Amber
-    head_teacher_id: 'te008',
-    head_teacher_name: 'นายอดุลย์ พลทะยาน',
+    head_teacher_id: 'te004',
+    head_teacher_name: 'นายสิทธิพงษ์ ฉลวยศรี',
     description: 'กลุ่มสาระการเรียนรู้คณิตศาสตร์และสถิติประยุกต์',
   },
   {
@@ -42,8 +46,8 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
     name: 'ภาษาไทย',
     code: 'THA',
     color: '#EA580C', // Orange
-    head_teacher_id: 'te013',
-    head_teacher_name: 'นางสาวทิพาพร มุงคุณศรี',
+    head_teacher_id: 'te021',
+    head_teacher_name: 'นางสาวผกามาศ ขจรโมทย์',
     description: 'กลุ่มสาระการเรียนรู้ภาษาไทย วรรณคดี และการสื่อสาร',
   },
   {
@@ -51,8 +55,8 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
     name: 'ภาษาต่างประเทศ',
     code: 'ENG',
     color: '#4F46E5', // Indigo
-    head_teacher_id: 'te015',
-    head_teacher_name: 'นางสาววิภาพร สารธิยากุล',
+    head_teacher_id: 'te008',
+    head_teacher_name: 'นายคฑาอินทร์ อารมณ์สวะ',
     description: 'กลุ่มสาระการเรียนรู้ภาษาอังกฤษ ภาษาญี่ปุ่น และภาษาที่สาม',
   },
   {
@@ -60,8 +64,8 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
     name: 'สังคมศึกษา ศาสนา และวัฒนธรรม',
     code: 'SOC',
     color: '#16A34A', // Green
-    head_teacher_id: 'te018',
-    head_teacher_name: 'นายอัครเดช บัวระภา',
+    head_teacher_id: 'te011',
+    head_teacher_name: 'นางภคนันท์ ศิริบุญ',
     description: 'กลุ่มสาระการเรียนรู้สังคมศึกษา ประวัติศาสตร์ และหน้าที่พลเมือง',
   },
   {
@@ -69,8 +73,8 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
     name: 'สุขศึกษาและพลศึกษา',
     code: 'HPE',
     color: '#DC2626', // Red
-    head_teacher_id: 'te020',
-    head_teacher_name: 'นายกิตติศักดิ์ คำพวง',
+    head_teacher_id: 'te018',
+    head_teacher_name: 'สิบเอกอุดมศักดิ์ ทิพย์กระโทก',
     description: 'กลุ่มสาระการเรียนรู้สุขศึกษา พลศึกษา และสุขภาพองค์รวม',
   },
   {
@@ -78,8 +82,8 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
     name: 'ศิลปะ',
     code: 'ART',
     color: '#9333EA', // Purple
-    head_teacher_id: 'te021',
-    head_teacher_name: 'นายจตุพร โสมดี',
+    head_teacher_id: 'te007',
+    head_teacher_name: 'นายปิยะวัฒน์ พิมพ์ประสงค์',
     description: 'กลุ่มสาระการเรียนรู้ทัศนศิลป์ ดนตรี และนาฏศิลป์',
   },
   {
@@ -88,7 +92,7 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
     code: 'OCC',
     color: '#CA8A04', // Yellow gold
     head_teacher_id: 'te022',
-    head_teacher_name: 'นางลัดดาวัลย์ สุระโคตร',
+    head_teacher_name: 'นายศิรชัช ชนะค้า',
     description: 'กลุ่มสาระการเรียนรู้การงานอาชีพ ทักษะชีวิต และเทคโนโลยีการเกษตร',
   },
   {
@@ -97,7 +101,7 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
     code: 'ACT',
     color: '#0D9488', // Teal
     head_teacher_id: 'te023',
-    head_teacher_name: 'นางสาววิชุดา ภูสอดสี',
+    head_teacher_name: 'นางสาวชนัญดา แกล้วกล้า',
     description: 'กิจกรรมแนะแนว ลูกเสือ-เนตรนารี ชุมนุม และกิจกรรมจิตอาสา',
   },
   {
@@ -111,12 +115,180 @@ export const DEFAULT_DEPARTMENTS: DepartmentConfig[] = [
   },
 ];
 
-// Default Workflows mapped to document types (รูปแบบที่ 1: ผูกสายงานและจำนวนขั้นตามประเภทเอกสาร)
+// Standard Academic Branches / Disciplines (กลุ่มสาขาวิชา) of PCSHS Kalasin
+export const DEFAULT_BRANCHES: BranchConfig[] = [
+  // ภายใต้กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี
+  {
+    id: 'branch_tech',
+    name: 'สาขาเทคโนโลยี',
+    code: 'TECH',
+    learning_area_id: 'dept_sci',
+    learning_area_name: 'วิทยาศาสตร์และเทคโนโลยี',
+    color: '#0EA5E9',
+    head_teacher_id: 'te028',
+    head_teacher_name: 'นายนฤพัทธ์ นามมงคุณ',
+    description: 'สาขาวิชาเทคโนโลยี คอมพิวเตอร์ วิทยาการคำนวณ และนวัตกรรมดิจิทัล',
+  },
+  {
+    id: 'branch_chem',
+    name: 'สาขาเคมี',
+    code: 'CHEM',
+    learning_area_id: 'dept_sci',
+    learning_area_name: 'วิทยาศาสตร์และเทคโนโลยี',
+    color: '#0284C7',
+    head_teacher_id: 'te001',
+    head_teacher_name: 'นางสาวธัญญรัศท์ สุภษร',
+    description: 'สาขาวิชาเคมีและเคมีประยุกต์',
+  },
+  {
+    id: 'branch_phys',
+    name: 'สาขาฟิสิกส์',
+    code: 'PHYS',
+    learning_area_id: 'dept_sci',
+    learning_area_name: 'วิทยาศาสตร์และเทคโนโลยี',
+    color: '#2563EB',
+    head_teacher_id: 'te002',
+    head_teacher_name: 'นายณัฐพล ไสยสาลี',
+    description: 'สาขาวิชาฟิสิกส์และดาราศาสตร์ฟิสิกส์',
+  },
+  {
+    id: 'branch_bio',
+    name: 'สาขาชีววิทยา',
+    code: 'BIO',
+    learning_area_id: 'dept_sci',
+    learning_area_name: 'วิทยาศาสตร์และเทคโนโลยี',
+    color: '#059669',
+    head_teacher_id: 'te005',
+    head_teacher_name: 'นางสาวธนัญญา ทองด่านเหนือ',
+    description: 'สาขาวิชาชีววิทยาและวิทยาศาสตร์ชีวภาพ',
+  },
+  {
+    id: 'branch_astro',
+    name: 'สาขาดาราศาสตร์และอวกาศ',
+    code: 'ASTRO',
+    learning_area_id: 'dept_sci',
+    learning_area_name: 'วิทยาศาสตร์และเทคโนโลยี',
+    color: '#6366F1',
+    head_teacher_id: 'te014',
+    head_teacher_name: 'นายอิสระพงษ์ ถิ่นวิมล',
+    description: 'สาขาวิชาดาราศาสตร์ โลก และอวกาศ',
+  },
+  // ภายใต้กลุ่มสาระการเรียนรู้คณิตศาสตร์
+  {
+    id: 'branch_math',
+    name: 'สาขาคณิตศาสตร์',
+    code: 'MATH',
+    learning_area_id: 'dept_math',
+    learning_area_name: 'คณิตศาสตร์',
+    color: '#D97706',
+    head_teacher_id: 'te004',
+    head_teacher_name: 'นายสิทธิพงษ์ ฉลวยศรี',
+    description: 'สาขาวิชาคณิตศาสตร์และสถิติประยุกต์',
+  },
+  // ภายใต้กลุ่มสาระการเรียนรู้ภาษาไทย
+  {
+    id: 'branch_tha',
+    name: 'สาขาภาษาไทย',
+    code: 'THA',
+    learning_area_id: 'dept_tha',
+    learning_area_name: 'ภาษาไทย',
+    color: '#EA580C',
+    head_teacher_id: 'te021',
+    head_teacher_name: 'นางสาวผกามาศ ขจรโมทย์',
+    description: 'สาขาวิชาภาษาไทย วรรณคดี และการสื่อสาร',
+  },
+  // ภายใต้กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ
+  {
+    id: 'branch_eng',
+    name: 'สาขาภาษาต่างประเทศ',
+    code: 'ENG',
+    learning_area_id: 'dept_eng',
+    learning_area_name: 'ภาษาต่างประเทศ',
+    color: '#4F46E5',
+    head_teacher_id: 'te008',
+    head_teacher_name: 'นายคฑาอินทร์ อารมณ์สวะ',
+    description: 'สาขาวิชาภาษาอังกฤษและภาษาต่างประเทศที่สอง',
+  },
+  // ภายใต้กลุ่มสาระการเรียนรู้สังคมศึกษาฯ
+  {
+    id: 'branch_soc',
+    name: 'สาขาสังคมศึกษา',
+    code: 'SOC',
+    learning_area_id: 'dept_soc',
+    learning_area_name: 'สังคมศึกษา ศาสนา และวัฒนธรรม',
+    color: '#16A34A',
+    head_teacher_id: 'te011',
+    head_teacher_name: 'นางภคนันท์ ศิริบุญ',
+    description: 'สาขาวิชาสังคมศึกษา ศาสนา วัฒนธรรม และประวัติศาสตร์',
+  },
+  // ภายใต้กลุ่มสาระการเรียนรู้สุขศึกษาและพลศึกษา
+  {
+    id: 'branch_hpe',
+    name: 'สาขาสุขศึกษาและพลศึกษา',
+    code: 'HPE',
+    learning_area_id: 'dept_hpe',
+    learning_area_name: 'สุขศึกษาและพลศึกษา',
+    color: '#DC2626',
+    head_teacher_id: 'te018',
+    head_teacher_name: 'สิบเอกอุดมศักดิ์ ทิพย์กระโทก',
+    description: 'สาขาวิชาสุขศึกษา พลศึกษา และสุขภาพองค์รวม',
+  },
+  // ภายใต้กลุ่มสาระการเรียนรู้ศิลปะ
+  {
+    id: 'branch_art',
+    name: 'สาขาศิลปะ',
+    code: 'ART',
+    learning_area_id: 'dept_art',
+    learning_area_name: 'ศิลปะ',
+    color: '#9333EA',
+    head_teacher_id: 'te007',
+    head_teacher_name: 'นายปิยะวัฒน์ พิมพ์ประสงค์',
+    description: 'สาขาวิชาทัศนศิลป์ ดนตรี และนาฏศิลป์',
+  },
+  // ภายใต้กลุ่มสาระการเรียนรู้การงานอาชีพ
+  {
+    id: 'branch_occ',
+    name: 'สาขาการงานอาชีพ',
+    code: 'OCC',
+    learning_area_id: 'dept_occ',
+    learning_area_name: 'การงานอาชีพ',
+    color: '#CA8A04',
+    head_teacher_id: 'te022',
+    head_teacher_name: 'นายศิรชัช ชนะค้า',
+    description: 'สาขาวิชาการงานอาชีพและทักษะชีวิต',
+  },
+  // ภายใต้กิจกรรมพัฒนาผู้เรียน
+  {
+    id: 'branch_act',
+    name: 'สาขากิจกรรมพัฒนาผู้เรียน',
+    code: 'ACT',
+    learning_area_id: 'dept_act',
+    learning_area_name: 'กิจกรรมพัฒนาผู้เรียน',
+    color: '#0D9488',
+    head_teacher_id: 'te023',
+    head_teacher_name: 'นางสาวชนัญดา แกล้วกล้า',
+    description: 'สาขาวิชาแนะแนวและกิจกรรมพัฒนาผู้เรียน',
+  },
+  // ภายใต้กลุ่มบริหารงานวิชาการ
+  {
+    id: 'branch_acad',
+    name: 'สาขาวิชาการและสารสนเทศ',
+    code: 'ACAD',
+    learning_area_id: 'dept_acad',
+    learning_area_name: 'กลุ่มบริหารงานวิชาการและสารสนเทศ',
+    color: '#1E293B',
+    head_teacher_id: 'admin01',
+    head_teacher_name: 'ผู้ดูแลระบบกลาง (System Administrator)',
+    description: 'สาขางานวิชาการ หลักสูตร วัดผล และสารสนเทศ',
+  },
+];
+
+// Default Workflows mapped to document types (มีทั้งหัวหน้ากลุ่มสาขา และ หัวหน้ากลุ่มสาระ)
 export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
   {
     id: 'wf_summary_plan',
     name: 'สายงานตรวจแผนการจัดการเรียนรู้ฉบับย่อ (1 ลำดับขั้น)',
-    description: 'ตรวจ 1 ขั้นตอน: หัวหน้ากลุ่มสาระตรวจทานความถูกต้องและอนุมัติทันที',
+    description: 'ตรวจ 1 ขั้นตอน: หัวหน้ากลุ่มสาขาตรวจทานความถูกต้องและอนุมัติทันที',
     plan_type: 'แผนการจัดการเรียนรู้ฉบับย่อ',
     target_plan_types: ['แผนการจัดการเรียนรู้ฉบับย่อ', 'แผนย่อ', 'summary'],
     is_active: true,
@@ -125,19 +297,19 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
       {
         id: 'stage_sum_1',
         order: 1,
-        title: 'ขั้นที่ 1: หัวหน้ากลุ่มสาระตรวจทานและอนุมัติ',
-        description: 'หัวหน้าสาขา/กลุ่มสาระประจำวิชาของผู้ส่ง ตรวจสอบความถูกต้องและอนุมัติการใช้งาน',
+        title: 'ขั้นที่ 1: หัวหน้ากลุ่มสาขาตรวจทานและอนุมัติ',
+        description: 'หัวหน้ากลุ่มสาขาประจำวิชาของผู้ส่ง (เช่น หัวหน้าสาขาเทคโนโลยี/เคมี/ฟิสิกส์) ตรวจสอบความถูกต้องและอนุมัติ',
         evaluation_mode: 'approval_only', // 1. แบบกดอนุมัติ (Approve/Reject)
         reviewer_selection_type: 'role', // 2. ดึงจากตำแหน่ง
-        assigned_role: 'submitter_department_head', // หัวหน้ากลุ่มสาระของผู้ส่ง
+        assigned_role: 'submitter_branch_head', // หัวหน้ากลุ่มสาขาของผู้ส่ง
         auto_assign_enabled: false,
       },
     ],
   },
   {
     id: 'wf_full_plan',
-    name: 'สายงานตรวจแผนการจัดการเรียนรู้ฉบับสมบูรณ์ (3 ลำดับขั้น)',
-    description: 'ตรวจ 3 ขั้นตอน: หัวหน้ากลุ่มสาระตรวจทาน ➔ คณะกรรมการประเมินรูบริก ➔ ผู้อำนวยการอนุมัติ',
+    name: 'สายงานตรวจแผนการจัดการเรียนรู้ฉบับสมบูรณ์ (4 ลำดับขั้น)',
+    description: 'ตรวจ 4 ขั้นตอน: หัวหน้ากลุ่มสาขาตรวจทาน ➔ หัวหน้ากลุ่มสาระกลั่นกรอง ➔ คณะกรรมการประเมินรูบริก ➔ ผู้อำนวยการอนุมัติ',
     plan_type: 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์',
     target_plan_types: ['แผนการจัดการเรียนรู้ฉบับสมบูรณ์', 'แผนสมบูรณ์', 'full'],
     is_active: true,
@@ -146,17 +318,27 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
       {
         id: 'stage_full_1',
         order: 1,
-        title: 'ขั้นที่ 1: หัวหน้ากลุ่มสาระตรวจทานความสมบูรณ์',
-        description: 'หัวหน้าสาขา/กลุ่มสาระประจำวิชาของผู้ส่ง ตรวจสอบโครงสร้างแผนการสอนและมาตรฐานตัวชี้วัด',
+        title: 'ขั้นที่ 1: หัวหน้ากลุ่มสาขาตรวจทานความถูกต้องเชิงลึก',
+        description: 'หัวหน้ากลุ่มสาขาประจำวิชาของผู้ส่ง ตรวจสอบเนื้อหารายวิชา กิจกรรมการเรียนรู้ และสื่ออุปกรณ์เชิงลึก',
         evaluation_mode: 'approval_only',
         reviewer_selection_type: 'role',
-        assigned_role: 'submitter_department_head',
+        assigned_role: 'submitter_branch_head', // หัวหน้ากลุ่มสาขาของผู้ส่ง
         auto_assign_enabled: false,
       },
       {
         id: 'stage_full_2',
         order: 2,
-        title: 'ขั้นที่ 2: คณะกรรมการผู้ทรงคุณวุฒิประเมินเกณฑ์รูบริก',
+        title: 'ขั้นที่ 2: หัวหน้ากลุ่มสาระการเรียนรู้กลั่นกรองและรับรอง',
+        description: 'หัวหน้ากลุ่มสาระการเรียนรู้ ตรวจสอบโครงสร้างแผนการสอนและมาตรฐานตัวชี้วัดในภาพรวมกลุ่มสาระ',
+        evaluation_mode: 'approval_only',
+        reviewer_selection_type: 'role',
+        assigned_role: 'submitter_department_head', // หัวหน้ากลุ่มสาระของผู้ส่ง
+        auto_assign_enabled: false,
+      },
+      {
+        id: 'stage_full_3',
+        order: 3,
+        title: 'ขั้นที่ 3: คณะกรรมการผู้ทรงคุณวุฒิประเมินเกณฑ์รูบริก',
         description: 'ผู้ตรวจประเมินให้คะแนนรูบริก 5 ด้านตามเกณฑ์วิชาการ ว.PA พร้อมให้ข้อเสนอแนะเชิงพัฒนา',
         evaluation_mode: 'rubric_score',
         reviewer_selection_type: 'role',
@@ -164,9 +346,9 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         auto_assign_enabled: true, // ระบบกระจายงานอัตโนมัติหารแบ่งเท่าๆ กัน
       },
       {
-        id: 'stage_full_3',
-        order: 3,
-        title: 'ขั้นที่ 3: ผู้อำนวยการสถานศึกษาอนุมัติการใช้แผน',
+        id: 'stage_full_4',
+        order: 4,
+        title: 'ขั้นที่ 4: ผู้อำนวยการสถานศึกษาอนุมัติการใช้แผน',
         description: 'ฝ่ายบริหาร/ผู้อำนวยการ พิจารณาอนุมัติให้ใช้แผนการจัดการเรียนรู้ในห้องเรียนอย่างเป็นทางการ',
         evaluation_mode: 'approval_only',
         reviewer_selection_type: 'role',
@@ -375,7 +557,7 @@ export async function removeDepartmentHead(
 }
 
 /**
- * Assigns or moves a teacher to a department
+ * Assigns or moves a teacher to a department (กลุ่มสาระการเรียนรู้)
  */
 export async function assignTeacherToDepartment(
   teacherId: string,
@@ -401,6 +583,290 @@ export async function assignTeacherToDepartment(
   }
 
   return { success: true, updatedTeachers };
+}
+
+// ==========================================
+// 2. Branch (สาขาวิชา / กลุ่มสาขา) Storage & Management Functions
+// ==========================================
+
+export function getLocalBranches(): BranchConfig[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_BRANCHES);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return DEFAULT_BRANCHES;
+}
+
+export function saveLocalBranches(branches: BranchConfig[]): void {
+  localStorage.setItem(STORAGE_KEY_BRANCHES, JSON.stringify(branches));
+}
+
+export async function getSavedBranches(): Promise<BranchConfig[]> {
+  const local = getLocalBranches();
+  try {
+    const res = await fetchSystemSetting<BranchConfig[]>('school_branches', local);
+    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      saveLocalBranches(res.data);
+      return res.data;
+    }
+  } catch (e) {
+    console.warn('Error fetching branches from cloud:', e);
+  }
+  return local;
+}
+
+export async function saveBranches(
+  branches: BranchConfig[]
+): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
+  saveLocalBranches(branches);
+  try {
+    return await saveSystemSetting('school_branches', branches);
+  } catch (err: any) {
+    return { success: false, isSupabase: false, error: err?.message };
+  }
+}
+
+/**
+ * Appoints a teacher as Head of Branch (แต่งตั้งหัวหน้ากลุ่มสาขา / หัวหน้าสาขาวิชา)
+ */
+export async function appointBranchHead(
+  branchId: string,
+  teacherId: string,
+  allTeachers: Teacher[],
+  branches: BranchConfig[]
+): Promise<{ success: boolean; updatedBranches: BranchConfig[]; updatedTeachers: Teacher[] }> {
+  const branchIdx = branches.findIndex((b) => b.id === branchId);
+  if (branchIdx === -1) return { success: false, updatedBranches: branches, updatedTeachers: allTeachers };
+
+  const targetTeacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (!targetTeacher) return { success: false, updatedBranches: branches, updatedTeachers: allTeachers };
+
+  const prevHeadId = branches[branchIdx].head_teacher_id;
+
+  const updatedTeachers = allTeachers.map((t) => {
+    if (t.Teacher_ID === teacherId) {
+      return {
+        ...t,
+        role: (t.role === 'admin' ? 'admin' : t.role === 'head_of_department' ? 'head_of_department' : 'head_of_branch') as any,
+        is_head_of_branch: true,
+        branch: branches[branchIdx].name,
+      };
+    }
+    // Revert old head if different and not department head
+    if (prevHeadId && t.Teacher_ID === prevHeadId && prevHeadId !== teacherId && t.role === 'head_of_branch') {
+      return {
+        ...t,
+        role: (t.is_head_of_department ? 'head_of_department' : 'teacher') as any,
+        is_head_of_branch: false,
+      };
+    }
+    return t;
+  });
+
+  const updatedBranches = [...branches];
+  updatedBranches[branchIdx] = {
+    ...updatedBranches[branchIdx],
+    head_teacher_id: targetTeacher.Teacher_ID,
+    head_teacher_name: targetTeacher.Name,
+  };
+
+  // Persist
+  await saveBranches(updatedBranches);
+  const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (updatedTeacherObj) {
+    await updateTeacherRecord(updatedTeacherObj);
+  }
+  if (prevHeadId && prevHeadId !== teacherId) {
+    const prevTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === prevHeadId);
+    if (prevTeacherObj) await updateTeacherRecord(prevTeacherObj);
+  }
+
+  return { success: true, updatedBranches, updatedTeachers };
+}
+
+/**
+ * Removes appointment of Head of Branch (ถอดถอนหัวหน้ากลุ่มสาขา)
+ */
+export async function removeBranchHead(
+  branchId: string,
+  allTeachers: Teacher[],
+  branches: BranchConfig[]
+): Promise<{ success: boolean; updatedBranches: BranchConfig[]; updatedTeachers: Teacher[] }> {
+  const branchIdx = branches.findIndex((b) => b.id === branchId);
+  if (branchIdx === -1) return { success: false, updatedBranches: branches, updatedTeachers: allTeachers };
+
+  const currentHeadId = branches[branchIdx].head_teacher_id;
+
+  const updatedTeachers = allTeachers.map((t) => {
+    if (currentHeadId && t.Teacher_ID === currentHeadId) {
+      return {
+        ...t,
+        role: (t.is_head_of_department ? 'head_of_department' : t.role === 'admin' ? 'admin' : 'teacher') as any,
+        is_head_of_branch: false,
+      };
+    }
+    return t;
+  });
+
+  const updatedBranches = [...branches];
+  updatedBranches[branchIdx] = {
+    ...updatedBranches[branchIdx],
+    head_teacher_id: undefined,
+    head_teacher_name: undefined,
+  };
+
+  await saveBranches(updatedBranches);
+  if (currentHeadId) {
+    const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === currentHeadId);
+    if (updatedTeacherObj) await updateTeacherRecord(updatedTeacherObj);
+  }
+
+  return { success: true, updatedBranches, updatedTeachers };
+}
+
+/**
+ * Assigns a teacher to a branch (สาขาวิชา)
+ */
+export async function assignTeacherToBranch(
+  teacherId: string,
+  branchName: string,
+  allTeachers: Teacher[]
+): Promise<{ success: boolean; updatedTeachers: Teacher[] }> {
+  const teacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (!teacher) return { success: false, updatedTeachers: allTeachers };
+
+  const updatedTeachers = allTeachers.map((t) =>
+    t.Teacher_ID === teacherId
+      ? {
+          ...t,
+          branch: branchName,
+        }
+      : t
+  );
+
+  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (updatedObj) {
+    await updateTeacherRecord(updatedObj);
+  }
+
+  return { success: true, updatedTeachers };
+}
+
+/**
+ * Assigns a teacher to both department and branch
+ */
+export async function assignTeacherToDepartmentAndBranch(
+  teacherId: string,
+  departmentName: string,
+  branchName: string,
+  allTeachers: Teacher[]
+): Promise<{ success: boolean; updatedTeachers: Teacher[] }> {
+  const teacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (!teacher) return { success: false, updatedTeachers: allTeachers };
+
+  const updatedTeachers = allTeachers.map((t) =>
+    t.Teacher_ID === teacherId
+      ? {
+          ...t,
+          Learning_Area: departmentName,
+          branch: branchName,
+        }
+      : t
+  );
+
+  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (updatedObj) {
+    await updateTeacherRecord(updatedObj);
+  }
+
+  return { success: true, updatedTeachers };
+}
+
+/**
+ * Removes a teacher from a department (Learning Area)
+ */
+export async function removeTeacherFromDepartment(
+  teacherId: string,
+  allTeachers: Teacher[],
+  departments: DepartmentConfig[]
+): Promise<{ success: boolean; updatedTeachers: Teacher[]; updatedDepartments: DepartmentConfig[] }> {
+  const teacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (!teacher) return { success: false, updatedTeachers: allTeachers, updatedDepartments: departments };
+
+  let updatedDepartments = [...departments];
+  const isHeadOfAny = departments.some((d) => d.head_teacher_id === teacherId);
+  if (isHeadOfAny) {
+    updatedDepartments = updatedDepartments.map((d) =>
+      d.head_teacher_id === teacherId
+        ? { ...d, head_teacher_id: undefined, head_teacher_name: undefined }
+        : d
+    );
+    await saveDepartments(updatedDepartments);
+  }
+
+  const updatedTeachers = allTeachers.map((t) =>
+    t.Teacher_ID === teacherId
+      ? {
+          ...t,
+          Learning_Area: '',
+          is_head_of_department: false,
+          role: (t.is_head_of_branch ? 'head_of_branch' : t.role === 'admin' ? 'admin' : 'teacher') as any,
+        }
+      : t
+  );
+
+  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (updatedObj) {
+    await updateTeacherRecord(updatedObj);
+  }
+
+  return { success: true, updatedTeachers, updatedDepartments };
+}
+
+/**
+ * Removes a teacher from a branch (Discipline)
+ */
+export async function removeTeacherFromBranch(
+  teacherId: string,
+  allTeachers: Teacher[],
+  branches: BranchConfig[]
+): Promise<{ success: boolean; updatedTeachers: Teacher[]; updatedBranches: BranchConfig[] }> {
+  const teacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (!teacher) return { success: false, updatedTeachers: allTeachers, updatedBranches: branches };
+
+  let updatedBranches = [...branches];
+  const isHeadOfAny = branches.some((b) => b.head_teacher_id === teacherId);
+  if (isHeadOfAny) {
+    updatedBranches = updatedBranches.map((b) =>
+      b.head_teacher_id === teacherId
+        ? { ...b, head_teacher_id: undefined, head_teacher_name: undefined }
+        : b
+    );
+    await saveBranches(updatedBranches);
+  }
+
+  const updatedTeachers = allTeachers.map((t) =>
+    t.Teacher_ID === teacherId
+      ? {
+          ...t,
+          branch: '',
+          is_head_of_branch: false,
+          role: (t.is_head_of_department ? 'head_of_department' : t.role === 'admin' ? 'admin' : 'teacher') as any,
+        }
+      : t
+  );
+
+  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
+  if (updatedObj) {
+    await updateTeacherRecord(updatedObj);
+  }
+
+  return { success: true, updatedTeachers, updatedBranches };
 }
 
 // ==========================================
@@ -551,9 +1017,14 @@ export function resolveReviewersForStage(
   stage: ReviewStageConfig,
   plan: LessonPlan,
   allTeachers: Teacher[],
-  departments: DepartmentConfig[]
+  departments: DepartmentConfig[],
+  branches: BranchConfig[] = getLocalBranches()
 ): Teacher[] {
   if (!stage) return [];
+
+  const submitterTeacher = allTeachers.find((t) => t.Teacher_ID === plan.teacher_id);
+  const planBranch = (plan.branch || submitterTeacher?.branch || '').trim();
+  const planLearningArea = (plan.learning_area || submitterTeacher?.Learning_Area || '').trim();
 
   // 1. ระบุชื่อรายบุคคล (Specific Teachers)
   if (stage.reviewer_selection_type === 'individual') {
@@ -564,7 +1035,7 @@ export function resolveReviewersForStage(
     return allTeachers.filter((t) => idSet.has(t.Teacher_ID));
   }
 
-  // 2. เลือกยกทั้งกลุ่มสาระ (Entire Department)
+  // 2. เลือกยกทั้งกลุ่มสาระการเรียนรู้ (Entire Learning Area)
   if (stage.reviewer_selection_type === 'department') {
     if (!stage.assigned_departments || stage.assigned_departments.length === 0) {
       return [];
@@ -573,24 +1044,81 @@ export function resolveReviewersForStage(
     const isSubmitterDept = targetDepts.has('submitter_department');
 
     return allTeachers.filter((t) => {
-      if (isSubmitterDept && t.Learning_Area.trim() === plan.learning_area.trim()) {
+      if (isSubmitterDept && t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()) {
         return true;
       }
       return targetDepts.has(t.Learning_Area.trim());
     });
   }
 
-  // 3. เลือกจากตำแหน่ง (Role / Position)
+  // 3. เลือกยกทั้งสาขาวิชา (Entire Branch)
+  if (stage.reviewer_selection_type === 'branch') {
+    const assignedBranches = stage.assigned_branches || [];
+    if (assignedBranches.length === 0) {
+      return [];
+    }
+    const targetBranches = new Set(assignedBranches);
+    const isSubmitterBranch = targetBranches.has('submitter_branch');
+
+    return allTeachers.filter((t) => {
+      const teacherBranch = (t.branch || '').trim();
+      if (isSubmitterBranch && planBranch && teacherBranch.toLowerCase() === planBranch.toLowerCase()) {
+        return true;
+      }
+      return targetBranches.has(teacherBranch);
+    });
+  }
+
+  // 4. เลือกจากตำแหน่ง (Role / Position)
   if (stage.reviewer_selection_type === 'role') {
     const role = stage.assigned_role;
 
-    // หัวหน้ากลุ่มสาระประจำวิชาของผู้ส่ง (Submitter's Department Head)
+    // A. หัวหน้ากลุ่มสาขาประจำวิชาของผู้ส่ง (Submitter's Branch Head - เช่น หัวหน้าสาขาเทคโนโลยี, หัวหน้าสาขาฟิสิกส์, หัวหน้าสาขาเคมี)
+    if (role === 'submitter_branch_head') {
+      if (planBranch) {
+        const branchMatch = branches.find(
+          (b) =>
+            b.name.trim().toLowerCase() === planBranch.toLowerCase() ||
+            planBranch.toLowerCase().includes(b.name.trim().toLowerCase()) ||
+            b.name.trim().toLowerCase().includes(planBranch.toLowerCase())
+        );
+
+        if (branchMatch && branchMatch.head_teacher_id) {
+          const head = allTeachers.find((t) => t.Teacher_ID === branchMatch.head_teacher_id);
+          if (head) return [head];
+        }
+
+        // Fallback: look for teacher in same branch with role or flag
+        const fallbackBranchHead = allTeachers.find(
+          (t) =>
+            (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase() &&
+            (isBranchHead(t) || t.role === 'head_of_branch')
+        );
+        if (fallbackBranchHead) return [fallbackBranchHead];
+      }
+
+      // If branch head not found, fallback to department head
+      const planDept = departments.find(
+        (d) =>
+          d.name.trim().toLowerCase() === planLearningArea.toLowerCase() ||
+          planLearningArea.toLowerCase().includes(d.name.trim().toLowerCase()) ||
+          d.name.trim().toLowerCase().includes(planLearningArea.toLowerCase())
+      );
+      if (planDept && planDept.head_teacher_id) {
+        const deptHead = allTeachers.find((t) => t.Teacher_ID === planDept.head_teacher_id);
+        if (deptHead) return [deptHead];
+      }
+
+      return allTeachers.filter((t) => isTeacherAdmin(t));
+    }
+
+    // B. หัวหน้ากลุ่มสาระประจำวิชาของผู้ส่ง (Submitter's Department Head - เช่น หัวหน้ากลุ่มสาระวิทยาศาสตร์และเทคโนโลยี)
     if (role === 'submitter_department_head') {
       const planDept = departments.find(
         (d) =>
-          d.name.trim().toLowerCase() === plan.learning_area.trim().toLowerCase() ||
-          plan.learning_area.trim().toLowerCase().includes(d.name.trim().toLowerCase()) ||
-          d.name.trim().toLowerCase().includes(plan.learning_area.trim().toLowerCase())
+          d.name.trim().toLowerCase() === planLearningArea.toLowerCase() ||
+          planLearningArea.toLowerCase().includes(d.name.trim().toLowerCase()) ||
+          d.name.trim().toLowerCase().includes(planLearningArea.toLowerCase())
       );
 
       if (planDept && planDept.head_teacher_id) {
@@ -601,8 +1129,8 @@ export function resolveReviewersForStage(
       // Fallback: look for teacher in same area with role head_of_department
       const fallbackHead = allTeachers.find(
         (t) =>
-          t.Learning_Area.trim() === plan.learning_area.trim() &&
-          (t.role === 'head_of_department' || t.is_head_of_department)
+          t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase() &&
+          isDepartmentHead(t)
       );
       if (fallbackHead) return [fallbackHead];
 
@@ -610,23 +1138,31 @@ export function resolveReviewersForStage(
       return allTeachers.filter((t) => isTeacherAdmin(t));
     }
 
-    // หัวหน้าสาขาทุกคน (All Department Heads)
+    // C. หัวหน้ากลุ่มสาขาทุกคน (All Branch Heads)
+    if (role === 'all_branch_heads') {
+      const headIds = new Set(
+        branches.map((b) => b.head_teacher_id).filter(Boolean) as string[]
+      );
+      const heads = allTeachers.filter(
+        (t) => headIds.has(t.Teacher_ID) || isBranchHead(t)
+      );
+      if (heads.length > 0) return heads;
+      return allTeachers.filter((t) => isTeacherAdmin(t));
+    }
+
+    // D. หัวหน้ากลุ่มสาระทุกคน (All Department Heads)
     if (role === 'all_department_heads') {
       const headIds = new Set(
         departments.map((d) => d.head_teacher_id).filter(Boolean) as string[]
       );
       const heads = allTeachers.filter(
-        (t) =>
-          headIds.has(t.Teacher_ID) ||
-          t.role === 'head_of_department' ||
-          t.is_head_of_department === true
+        (t) => headIds.has(t.Teacher_ID) || isDepartmentHead(t)
       );
       if (heads.length > 0) return heads;
-      // If none appointed yet, fallback to admins
       return allTeachers.filter((t) => isTeacherAdmin(t));
     }
 
-    // ฝ่ายบริหารสถานศึกษา (School Leadership / Director)
+    // E. ฝ่ายบริหารสถานศึกษา (School Leadership / Director)
     if (role === 'school_leadership') {
       const leaders = allTeachers.filter(
         (t) =>
@@ -639,7 +1175,7 @@ export function resolveReviewersForStage(
       return allTeachers.filter((t) => isTeacherAdmin(t));
     }
 
-    // ผู้ดูแลระบบทุกคน (All Admins)
+    // F. ผู้ดูแลระบบทุกคน (All Admins)
     if (role === 'all_admins') {
       return allTeachers.filter((t) => isTeacherAdmin(t));
     }
@@ -650,14 +1186,15 @@ export function resolveReviewersForStage(
 }
 
 /**
- * 3. ระบบกระจายงานอัตโนมัติ (Auto-assign / Workload Balancer)
+ * 4. ระบบกระจายงานอัตโนมัติ (Auto-assign / Workload Balancer)
  * Distributes plans in the specified stage evenly among eligible reviewers.
  */
 export function autoAssignPlansForStage(
   plans: LessonPlan[],
   stage: ReviewStageConfig,
   allTeachers: Teacher[],
-  departments: DepartmentConfig[]
+  departments: DepartmentConfig[],
+  branches: BranchConfig[] = getLocalBranches()
 ): {
   updatedPlans: LessonPlan[];
   assignedCount: number;
@@ -686,7 +1223,7 @@ export function autoAssignPlansForStage(
     }
 
     // Resolve candidates
-    const candidates = resolveReviewersForStage(stage, p, allTeachers, departments);
+    const candidates = resolveReviewersForStage(stage, p, allTeachers, departments, branches);
     if (candidates.length === 0) return p;
 
     // Initialize workload tracking for newly discovered candidates
