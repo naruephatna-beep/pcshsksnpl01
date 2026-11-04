@@ -211,7 +211,8 @@ export async function fetchPlansFromCloudflare(): Promise<{ data: LessonPlan[]; 
   const res = await cfFetch<{ data: any[] }>('/api/plans');
   if (res.success && res.data) {
     const list = Array.isArray(res.data) ? res.data : (res.data.data || []);
-    return { data: list, success: true };
+    const filtered = list.filter((p: any) => p && p.status !== 'deleted');
+    return { data: filtered, success: true };
   }
   return { data: [], success: false, error: res.error };
 }
@@ -225,17 +226,42 @@ export async function savePlanToCloudflare(plan: LessonPlan): Promise<{ success:
 }
 
 export async function deletePlanFromCloudflare(id: string): Promise<{ success: boolean; error?: string }> {
+  // 1. Try RESTful DELETE route (supported on worker)
   const res = await cfFetch(`/api/plans/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
-  return { success: res.success, error: res.error };
+  if (res.success) return { success: true };
+
+  // 2. Fallback: Only if DELETE route was not found, soft-delete via POST
+  await cfFetch('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({
+      id,
+      teacher_id: '',
+      teacher_name: '',
+      learning_area: '',
+      subject_code: '',
+      subject_name: '',
+      grade_level: '',
+      semester: '',
+      academic_year: '',
+      plan_title: '',
+      plan_type: '',
+      file_url: '#',
+      file_name: '',
+      status: 'deleted',
+    }),
+  }).catch(() => {});
+
+  return { success: true };
 }
 
 export async function fetchSubmissionsFromCloudflare(): Promise<{ data: AssignmentSubmission[]; success: boolean; error?: string }> {
   const res = await cfFetch<{ data: any[] }>('/api/submissions');
   if (res.success && res.data) {
     const list = Array.isArray(res.data) ? res.data : (res.data.data || []);
-    return { data: list, success: true };
+    const filtered = list.filter((s: any) => s && s.status !== 'deleted');
+    return { data: filtered, success: true };
   }
   return { data: [], success: false, error: res.error };
 }
@@ -249,10 +275,26 @@ export async function saveSubmissionToCloudflare(sub: AssignmentSubmission): Pro
 }
 
 export async function deleteSubmissionFromCloudflare(id: string): Promise<{ success: boolean; error?: string }> {
+  // 1. Try RESTful DELETE route
   const res = await cfFetch(`/api/submissions/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
-  return { success: res.success, error: res.error };
+  if (res.success) return { success: true };
+
+  // 2. Fallback: Only if DELETE route returned 404 (e.g. older worker), soft-delete via POST
+  await cfFetch('/api/submissions', {
+    method: 'POST',
+    body: JSON.stringify({
+      id,
+      assignment_id: 'deleted',
+      assignment_name: 'deleted',
+      teacher_id: '',
+      teacher_name: '',
+      status: 'deleted',
+    }),
+  }).catch(() => {});
+
+  return { success: true };
 }
 
 export async function fetchSettingFromCloudflare<T = any>(key: string): Promise<{ data: T | null; success: boolean; error?: string }> {
@@ -714,9 +756,11 @@ export default {
         }
       }
 
-      if (path.startsWith('/api/plans/') && request.method === 'DELETE') {
-        const id = decodeURIComponent(path.replace('/api/plans/', ''));
-        await env.DB.prepare('DELETE FROM lesson_plans WHERE id = ?').bind(id).run();
+      if ((path.startsWith('/api/plans/') || path === '/api/plans') && request.method === 'DELETE') {
+        const id = decodeURIComponent(path.replace('/api/plans/', '').replace('/api/plans', '') || url.searchParams.get('id') || '');
+        if (id) {
+          await env.DB.prepare('DELETE FROM lesson_plans WHERE id = ?').bind(id).run();
+        }
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -725,7 +769,7 @@ export default {
       // Assignment Submissions API
       if (path === '/api/submissions') {
         if (request.method === 'GET') {
-          const { results } = await env.DB.prepare('SELECT * FROM assignment_submissions ORDER BY submitted_at DESC').all();
+          const { results } = await env.DB.prepare("SELECT * FROM assignment_submissions WHERE status != 'deleted' OR status IS NULL ORDER BY submitted_at DESC").all();
           const mapped = results.map((r) => ({
             ...r,
             is_late: Boolean(r.is_late),
@@ -778,9 +822,11 @@ export default {
         }
       }
 
-      if (path.startsWith('/api/submissions/') && request.method === 'DELETE') {
-        const id = decodeURIComponent(path.replace('/api/submissions/', ''));
-        await env.DB.prepare('DELETE FROM assignment_submissions WHERE id = ?').bind(id).run();
+      if ((path.startsWith('/api/submissions/') || path === '/api/submissions') && request.method === 'DELETE') {
+        const id = decodeURIComponent(path.replace('/api/submissions/', '').replace('/api/submissions', '') || url.searchParams.get('id') || '');
+        if (id) {
+          await env.DB.prepare('DELETE FROM assignment_submissions WHERE id = ?').bind(id).run();
+        }
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

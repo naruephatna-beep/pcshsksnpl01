@@ -23,6 +23,9 @@ import {
   fetchAssignmentSubmissionsList,
   getLocalPlans,
   saveLocalPlans,
+  getDeletedPlanIds,
+  recordDeletedPlanId,
+  syncDeletedPlanIdsWithCloud,
 } from './services/supabaseClient';
 import {
   getSavedDeadlineConfigs,
@@ -169,13 +172,15 @@ export default function App() {
   const syncWithDatabase = async (silent: boolean = true) => {
     setIsSyncing(true);
     try {
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes] = await Promise.all([
+      // Execute all database fetches and cloud deleted IDs sync concurrently in a single parallel batch
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds] = await Promise.all([
         fetchTeachers(),
         fetchPlans(),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
         fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
         fetchAssignmentSubmissionsList(),
         fetchSystemSetting<string>('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL),
+        syncDeletedPlanIdsWithCloud(),
       ]);
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
@@ -211,13 +216,13 @@ export default function App() {
       }
 
       // CRITICAL FIX: Merge remote plans with dynamic submissions and local storage
-      // so teacher submitted work NEVER disappears even if Supabase SQL table has FK or sync delays!
-      const remotePlans = plansRes.data || [];
+      // ALWAYS exclude any deleted plans (from deletedIds and status === 'deleted') so they never resurface!
+      const remotePlans = (plansRes.data || []).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
       const remotePlanIds = new Set(remotePlans.map((p) => p.id));
 
       // 1. Convert dynamic submissions that might not yet be in lesson_plans table
       const convertedDynamicPlans: LessonPlan[] = (submissionsRes || [])
-        .filter((sub) => !remotePlanIds.has(sub.id))
+        .filter((sub) => !remotePlanIds.has(sub.id) && !deletedIds.has(sub.id) && sub.status !== 'deleted')
         .map((sub) => {
           const firstAtt = sub.attachments?.[0];
           const dlConfig = effectiveDl.find((d) => d.id === sub.assignment_id || d.name === sub.assignment_name);
@@ -257,12 +262,14 @@ export default function App() {
           };
         });
 
-      // 2. Also keep local storage plans that haven't been pushed or were saved recently
-      const localPlans = getLocalPlans();
+      // 2. Also keep local storage plans that haven't been pushed or were saved recently (filtered strictly)
+      const localPlans = getLocalPlans().filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
       const knownIds = new Set([...remotePlans.map((p) => p.id), ...convertedDynamicPlans.map((p) => p.id)]);
       const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
 
-      const mergedPlans = [...remotePlans, ...convertedDynamicPlans, ...missingLocals];
+      const mergedPlans = [...remotePlans, ...convertedDynamicPlans, ...missingLocals].filter(
+        (p) => !deletedIds.has(p.id) && p.status !== 'deleted'
+      );
       saveLocalPlans(mergedPlans);
 
       const evaluated = mergedPlans.map((p) => {
@@ -332,14 +339,15 @@ export default function App() {
   const syncTable = async (table: string) => {
     try {
       if (table === 'lesson_plans') {
+        const deletedIds = getDeletedPlanIds();
         const plansRes = await fetchPlans();
         if (plansRes.data) {
           const effectiveDl = deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
-          const remotePlans = plansRes.data || [];
+          const remotePlans = (plansRes.data || []).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
           const remotePlanIds = new Set(remotePlans.map((p) => p.id));
-          const localSubmissions = getSavedSubmissions();
+          const localSubmissions = getSavedSubmissions().filter((s) => !deletedIds.has(s.id) && s.status !== 'deleted');
           const convertedDynamicPlans: LessonPlan[] = (localSubmissions || [])
-            .filter((sub: AssignmentSubmission) => !remotePlanIds.has(sub.id))
+            .filter((sub: AssignmentSubmission) => !remotePlanIds.has(sub.id) && !deletedIds.has(sub.id) && sub.status !== 'deleted')
             .map((sub: AssignmentSubmission) => {
               const firstAtt = sub.attachments?.[0];
               const dlConfig = effectiveDl.find((d) => d.id === sub.assignment_id || d.name === sub.assignment_name);
@@ -374,10 +382,12 @@ export default function App() {
                 notes: JSON.stringify(answers),
               };
             });
-          const localPlans = getLocalPlans();
+          const localPlans = getLocalPlans().filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
           const knownIds = new Set([...remotePlans.map((p) => p.id), ...convertedDynamicPlans.map((p) => p.id)]);
           const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
-          const merged = [...remotePlans, ...convertedDynamicPlans, ...missingLocals];
+          const merged = [...remotePlans, ...convertedDynamicPlans, ...missingLocals].filter(
+            (p) => !deletedIds.has(p.id) && p.status !== 'deleted'
+          );
           setPlans(merged);
         }
       } else if (table === 'teachers') {
@@ -599,7 +609,13 @@ export default function App() {
 
   // Execute deletion in state and DB (no window.confirm block)
   const executeDeletePlan = async (planId: string) => {
-    // 1. Check if the plan has a Google Drive file to move to Trash
+    // 1. Immediately record in deleted plan IDs & cloud storage to prevent any resurrection
+    recordDeletedPlanId(planId);
+
+    // 2. Immediately purge from React state for instant UI responsiveness
+    setPlans((prev) => prev.filter((p) => p.id !== planId));
+
+    // 3. Check if the plan has a Google Drive file to move to Trash
     const targetPlan = plans.find((p) => p.id === planId);
     let driveTrashNotice = '';
     if (targetPlan && targetPlan.file_url) {
@@ -615,7 +631,6 @@ export default function App() {
     }
 
     const res = await deletePlanRecord(planId);
-    setPlans((prev) => prev.filter((p) => p.id !== planId));
 
     setToastNotice({
       type: 'success',
@@ -624,7 +639,7 @@ export default function App() {
         (!isAdmin
           ? 'ระบบได้ลบข้อมูลออกจากระบบเรียบร้อยแล้ว'
           : res.isSupabase
-          ? 'ระบบได้ลบข้อมูลออกจากฐานข้อมูล Cloudflare D1 (ตาราง lesson_plans) อัตโนมัติแล้ว'
+          ? 'ระบบได้ลบข้อมูลออกจากฐานข้อมูล Cloudflare D1 (ตาราง lesson_plans และ submissions) อัตโนมัติแล้ว'
           : 'ลบออกจากเครื่องเรียบร้อยแล้ว') + driveTrashNotice,
     });
   };
@@ -1349,7 +1364,7 @@ export default function App() {
                   setExecutiveMode('ranking');
                   setMainView('executive');
                 }}
-                className="flex-1 sm:flex-initial justify-center px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
                 title="จัดอันดับกลุ่มสาระที่ส่งเอกสารครบและตรงเวลาทุกคนก่อน"
               >
                 <Trophy className="w-4 h-4 text-slate-950" />
@@ -1357,18 +1372,35 @@ export default function App() {
               </button>
               <button
                 onClick={() => setIsDeadlineModalOpen(true)}
-                className="flex-1 sm:flex-initial justify-center px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl flex items-center gap-2 transition-all shadow-2xs cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
                 title="กำหนดช่วงเวลาส่งของแต่ละประเภทเอกสาร และปรับแต่งสถานะทั้งหมด"
               >
                 <Calendar className="w-4 h-4 text-slate-500" />
                 <span>กำหนดส่ง & สถานะ</span>
               </button>
               <button
-                onClick={() => setIsAdminTrackerModalOpen(true)}
-                className="flex-1 sm:flex-initial justify-center px-4 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors shadow-xs cursor-pointer active:scale-95"
+                onClick={() => handleOpenAdminTracker('breakdown')}
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="ดูสรุปจำแนกประเภทเอกสารรายบุคคล ใครส่งอะไรแล้วบ้างและส่งกี่ฉบับ"
+              >
+                <Layers className="w-4 h-4 text-amber-700" />
+                <span>จำแนกประเภทเอกสาร</span>
+              </button>
+              <button
+                onClick={() => handleOpenAdminTracker('table')}
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+                title="ตารางติดตามดูสถานะการส่งเอกสารของบุคลากรทุกคน"
               >
                 <ClipboardList className="w-4 h-4 text-amber-400" />
                 <span>ตารางติดตามส่ง</span>
+              </button>
+              <button
+                onClick={() => syncWithDatabase(false)}
+                disabled={isSyncing}
+                className="p-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
+                title={`ซิงก์ข้อมูลและล้างแคชล่าสุดกับ Cloudflare D1 (${lastSyncTime})`}
+              >
+                <RefreshCw className={`w-4 h-4 text-slate-600 ${isSyncing ? 'animate-spin text-amber-500' : ''}`} />
               </button>
             </div>
           </div>

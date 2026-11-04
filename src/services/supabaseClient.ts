@@ -57,18 +57,66 @@ export function getDeletedPlanIds(): Set<string> {
   return new Set();
 }
 
+/**
+ * Synchronizes deleted document IDs across all devices and browsers via Cloudflare D1
+ */
+export async function syncDeletedPlanIdsWithCloud(): Promise<Set<string>> {
+  const localSet = getDeletedPlanIds();
+  try {
+    const cloudRes = await fetchSystemSetting<string[]>('deleted_document_ids', []);
+    if (cloudRes.data && Array.isArray(cloudRes.data)) {
+      cloudRes.data.forEach((id) => {
+        if (id && typeof id === 'string') localSet.add(id);
+      });
+      // Save merged set back to localStorage
+      localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(Array.from(localSet)));
+    }
+    // If local set has IDs that aren't yet in the cloud, push the merged set to Cloudflare D1
+    const cloudSet = new Set(cloudRes.data || []);
+    const hasNewLocal = Array.from(localSet).some((id) => !cloudSet.has(id));
+    if (hasNewLocal || (!cloudRes.data && localSet.size > 0)) {
+      await saveSystemSetting('deleted_document_ids', Array.from(localSet));
+    }
+  } catch (e) {
+    console.warn('syncDeletedPlanIdsWithCloud warning:', e);
+  }
+  return localSet;
+}
+
+let deletedSyncTimer: any = null;
+
 export function recordDeletedPlanId(id: string) {
   if (!id) return;
   const set = getDeletedPlanIds();
+  if (set.has(id)) return; // Already recorded! Avoid redundant writes and network calls
   set.add(id);
-  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(Array.from(set)));
+  const arr = Array.from(set);
+  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(arr));
+
+  // Purge immediately from local storage caches
+  try {
+    const localPlans = getLocalPlans().filter((p) => p.id !== id);
+    saveLocalPlans(localPlans);
+    const localSubs = getSavedSubmissions().filter((s) => s.id !== id);
+    saveSubmissions(localSubs);
+  } catch {}
+
+  // Single debounced sync (60ms) to bundle simultaneous deletions into exactly 1 cloud request
+  if (deletedSyncTimer) clearTimeout(deletedSyncTimer);
+  deletedSyncTimer = setTimeout(() => {
+    saveSystemSetting('deleted_document_ids', arr).catch((err) => {
+      console.warn('Push deleted_document_ids to cloud warning:', err);
+    });
+  }, 60);
 }
 
 export function clearDeletedPlanId(id: string) {
   if (!id) return;
   const set = getDeletedPlanIds();
   set.delete(id);
-  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(Array.from(set)));
+  const arr = Array.from(set);
+  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(arr));
+  saveSystemSetting('deleted_document_ids', arr).catch(() => {});
 }
 
 let supabaseInstance: SupabaseClient | null = null;
@@ -493,7 +541,7 @@ export async function fetchPlans(): Promise<{ data: LessonPlan[]; isSupabase: bo
       try {
         const cfRes = await fetchPlansFromCloudflare();
         if (cfRes.success && cfRes.data) {
-          const filtered = cfRes.data.filter((p) => !deletedIds.has(p.id));
+          const filtered = cfRes.data.filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
           saveLocalPlans(filtered);
           return { data: filtered, isSupabase: true };
         }
@@ -511,7 +559,7 @@ export async function fetchPlans(): Promise<{ data: LessonPlan[]; isSupabase: bo
         .select('*')
         .order('submitted_at', { ascending: false });
       if (!error && data) {
-        const filtered = (data as LessonPlan[]).filter((p) => !deletedIds.has(p.id));
+        const filtered = (data as LessonPlan[]).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
         saveLocalPlans(filtered);
         return { data: filtered, isSupabase: true };
       }
@@ -952,7 +1000,7 @@ export async function saveAssignmentSubmissionRecord(
 
 export async function fetchAssignmentSubmissionsList(): Promise<AssignmentSubmission[]> {
   const deletedIds = getDeletedPlanIds();
-  const local = getSavedSubmissions().filter((s) => !deletedIds.has(s.id));
+  const local = getSavedSubmissions().filter((s) => !deletedIds.has(s.id) && s.status !== 'deleted');
 
   if (getDatabaseProvider() === 'cloudflare') {
     const cf = getSavedCloudflareConfig();
@@ -960,7 +1008,7 @@ export async function fetchAssignmentSubmissionsList(): Promise<AssignmentSubmis
       try {
         const cfRes = await fetchSubmissionsFromCloudflare();
         if (cfRes.success && Array.isArray(cfRes.data)) {
-          const filtered = cfRes.data.filter((s) => !deletedIds.has(s.id));
+          const filtered = cfRes.data.filter((s) => !deletedIds.has(s.id) && s.status !== 'deleted');
           saveSubmissions(filtered);
           return filtered;
         }
@@ -980,7 +1028,7 @@ export async function fetchAssignmentSubmissionsList(): Promise<AssignmentSubmis
       .order('submitted_at', { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      const filtered = (data as AssignmentSubmission[]).filter((s) => !deletedIds.has(s.id));
+      const filtered = (data as AssignmentSubmission[]).filter((s) => !deletedIds.has(s.id) && s.status !== 'deleted');
       saveSubmissions(filtered);
       return filtered;
     }
@@ -988,7 +1036,7 @@ export async function fetchAssignmentSubmissionsList(): Promise<AssignmentSubmis
     // Check system_settings fallback
     const fallbackRes = await fetchSystemSetting<AssignmentSubmission[]>('dynamic_submissions_data', []);
     if (fallbackRes.isSupabase && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
-      const filtered = fallbackRes.data.filter((s) => !deletedIds.has(s.id));
+      const filtered = fallbackRes.data.filter((s) => !deletedIds.has(s.id) && s.status !== 'deleted');
       saveSubmissions(filtered);
       return filtered;
     }
@@ -1014,11 +1062,15 @@ export async function deleteAssignmentSubmissionRecord(id: string): Promise<bool
     }
   }
 
+  // Always update dynamic_submissions_data in cloud system_settings
+  try {
+    await saveSystemSetting('dynamic_submissions_data', local);
+  } catch {}
+
   const client = getSupabaseClient();
   if (client) {
     try {
       await client.from('assignment_submissions').delete().eq('id', id);
-      await saveSystemSetting('dynamic_submissions_data', local);
     } catch {
       // ignore
     }
@@ -1234,11 +1286,14 @@ export async function seedPlansToSupabase(): Promise<{ success: boolean; count: 
 }
 
 export async function deletePlanRecord(planId: string): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
-  // 1. Remove from local lesson plans
+  // 1. Immediately record in deleted plan IDs & cloud system_settings
+  recordDeletedPlanId(planId);
+
+  // 2. Remove from local lesson plans
   const plans = getLocalPlans().filter((p) => p.id !== planId);
   saveLocalPlans(plans);
 
-  // 2. Also remove from assignment submissions to prevent sync revival
+  // 3. Also remove from assignment submissions to prevent sync revival
   await deleteAssignmentSubmissionRecord(planId);
 
   // If Cloudflare is active, delete on Cloudflare D1
