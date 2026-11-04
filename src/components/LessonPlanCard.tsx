@@ -116,13 +116,22 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
         </div>
 
         {/* Prominent Document Type Tag (แยกชนิดเอกสารชัดเจน) */}
-        <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold border ${docMeta.badgeClass} shadow-2xs`}>
-            <span>{docMeta.shortBadge}</span>
-          </span>
-          <span className="text-[11px] text-slate-400 font-mono">
-            เทอม {plan.semester}/{plan.academic_year} · {plan.grade_level}
-          </span>
+        <div className="mt-2.5 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold border ${docMeta.badgeClass} shadow-2xs`}>
+              <span>{docMeta.shortBadge}</span>
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono">
+              เทอม {plan.semester}/{plan.academic_year} · {plan.grade_level}
+            </span>
+          </div>
+
+          {plan.current_stage_order && plan.status !== 'approved' && (
+            <span className="text-[10px] font-bold text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-md">
+              ขั้นที่ {plan.current_stage_order}{plan.total_stages ? `/${plan.total_stages}` : ''}
+              {plan.assigned_reviewer_name ? ` · ${plan.assigned_reviewer_name.split(' ')[0]}` : ''}
+            </span>
+          )}
         </div>
 
         {/* Title */}

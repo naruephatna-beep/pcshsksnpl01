@@ -26,6 +26,10 @@ import {
   Cloud,
   Trophy,
   Layers,
+  Building2,
+  Workflow,
+  UserCheck,
+  Crown,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 
@@ -49,6 +53,9 @@ interface SidebarProps {
   onOpenAdminTrackerModal: (initialView?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
   onOpenDeadlineManager: () => void;
   onOpenGoogleDriveConfig?: () => void;
+  onOpenStaffStructure?: () => void;
+  onOpenWorkflowManager?: () => void;
+  assignedToMeCount?: number;
   onScrollToAssignments: () => void;
   onLogout: () => void;
   lastSyncTime?: string;
@@ -76,6 +83,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAdminTrackerModal,
   onOpenDeadlineManager,
   onOpenGoogleDriveConfig,
+  onOpenStaffStructure,
+  onOpenWorkflowManager,
+  assignedToMeCount = 0,
   onScrollToAssignments,
   onLogout,
   lastSyncTime,
@@ -232,6 +242,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-[11px] font-mono text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded shrink-0 border border-slate-700/60">
                 {isAdmin ? totalPlansCount : myPlansCount}
               </span>
+            </button>
+
+            {/* งานที่มอบหมายให้ฉันตรวจ (Assigned for Review) */}
+            <button
+              onClick={() =>
+                handleNavClick(() => {
+                  setMainView('plans');
+                  setViewTab('assigned_to_me');
+                })
+              }
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                mainView === 'plans' && viewTab === 'assigned_to_me'
+                  ? 'bg-indigo-600/20 text-indigo-300 font-semibold border-l-2 border-indigo-400 shadow-2xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <UserCheck className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span className="truncate text-xs">งานที่มอบหมายให้ฉันตรวจ</span>
+              </div>
+              {assignedToMeCount > 0 ? (
+                <span className="text-[11px] font-mono font-bold text-slate-950 bg-amber-400 px-2 py-0.5 rounded-full shrink-0 shadow-xs">
+                  {assignedToMeCount}
+                </span>
+              ) : (
+                <span className="text-[11px] font-mono text-slate-500 bg-slate-800/90 px-1.5 py-0.5 rounded shrink-0">
+                  0
+                </span>
+              )}
             </button>
 
             {/* Status Sub-Filters for regular teachers */}
@@ -412,6 +451,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
+
+              {/* โครงสร้างสาขา & หัวหน้าสาขา */}
+              {onOpenStaffStructure && (
+                <button
+                  onClick={() => handleNavClick(onOpenStaffStructure)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="truncate text-xs">โครงสร้างสาขา & หัวหน้าสาระ</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                </button>
+              )}
+
+              {/* สายงานอนุมัติ & ผู้ตรวจ */}
+              {onOpenWorkflowManager && (
+                <button
+                  onClick={() => handleNavClick(onOpenWorkflowManager)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Workflow className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span className="truncate text-xs">สายงานอนุมัติ & ผู้ตรวจ (Stages)</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                    Workflow
+                  </span>
+                </button>
+              )}
 
               {/* สมุดรายชื่อบุคลากร */}
               <button

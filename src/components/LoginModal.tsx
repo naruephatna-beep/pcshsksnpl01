@@ -10,6 +10,7 @@ import {
   Info,
   X,
 } from 'lucide-react';
+import { GoogleSchoolSignInModal } from './GoogleSchoolSignInModal';
 
 interface LoginModalProps {
   teachers: Teacher[];
@@ -27,8 +28,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-
-  if (!isOpen) return null;
+  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 
   const allAvailableTeachers: Teacher[] = React.useMemo(() => {
     const map = new Map<string, Teacher>();
@@ -36,6 +36,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     teachers.forEach((t) => map.set(t.Teacher_ID.toLowerCase(), t));
     return Array.from(map.values());
   }, [teachers]);
+
+  if (!isOpen) return null;
 
   const handleFormLogin = (e: React.FormEvent) => {
     e.preventDefault();

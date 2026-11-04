@@ -13,8 +13,72 @@ export interface Teacher {
   academic_standing: string;
   department: string;
   role: 'teacher' | 'head_of_department' | 'academic_director' | 'admin';
+  is_head_of_department?: boolean;
+  department_id?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface DepartmentConfig {
+  id: string;
+  name: string;
+  code: string;
+  color?: string;
+  head_teacher_id?: string;
+  head_teacher_name?: string;
+  description?: string;
+  created_at?: string;
+}
+
+export type ReviewerSelectionType = 'individual' | 'department' | 'role';
+
+export type ReviewerRoleType =
+  | 'submitter_department_head' // หัวหน้ากลุ่มสาระประจำวิชาของผู้ส่ง
+  | 'all_department_heads' // หัวหน้าสาขาทุกคน
+  | 'school_leadership' // ฝ่ายบริหารสถานศึกษา (ผู้อำนวยการ/รองฯ)
+  | 'all_admins'; // ผู้ดูแลระบบทุกคน
+
+export interface ReviewStageConfig {
+  id: string;
+  order: number; // 1, 2, 3...
+  title: string;
+  description?: string;
+  evaluation_mode: 'approval_only' | 'rubric_score'; // 3. รูปแบบการตรวจ: อนุมัติ หรือ รูบริก
+  reviewer_selection_type: ReviewerSelectionType; // 2. ดึงคนมาตรวจ: รายบุคคล, ทั้งกลุ่มสาระ, จากตำแหน่ง
+  assigned_teacher_ids?: string[]; // กรณีระบุรายบุคคล
+  assigned_departments?: string[]; // กรณีเลือกกลุ่มสาระ
+  assigned_role?: ReviewerRoleType; // กรณีเลือกจากตำแหน่ง
+  auto_assign_enabled?: boolean; // ระบบกระจายงานอัตโนมัติเท่าๆ กัน
+}
+
+export interface ReviewWorkflowConfig {
+  id: string;
+  name: string;
+  description?: string;
+  plan_type?: string; // 'all' หรือชื่อประเภทเอกสารหลัก
+  target_plan_types?: string[]; // รายการประเภทเอกสารที่ผูกกับสายงานนี้
+  is_active: boolean;
+  stages: ReviewStageConfig[];
+  auto_assign_on_deadline?: boolean;
+  is_default?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface StageReviewRecord {
+  stage_id: string;
+  stage_order: number;
+  stage_title: string;
+  evaluation_mode: 'approval_only' | 'rubric_score';
+  assigned_reviewer_id?: string;
+  assigned_reviewer_name?: string;
+  reviewer_id?: string;
+  reviewer_name?: string;
+  reviewed_at?: string;
+  status: 'pending' | 'approved' | 'needs_revision' | 'passed' | 'rejected';
+  comment?: string;
+  rubric_scores?: RubricScore;
+  total_score?: number;
 }
 
 export type PlanStatus = 'submitted' | 'approved' | 'needs_revision' | 'late' | string;
@@ -166,6 +230,13 @@ export interface LessonPlan {
   rubric_scores?: RubricScore;
   total_score?: number;
   evaluation_type?: EvaluationType;
+  // Multi-stage workflow review tracking
+  workflow_id?: string;
+  current_stage_order?: number; // 1, 2, ... total_stages
+  total_stages?: number;
+  stage_reviews?: StageReviewRecord[];
+  assigned_reviewer_id?: string;
+  assigned_reviewer_name?: string;
 }
 
 export interface SupabaseConfig {
@@ -195,4 +266,10 @@ export function isTeacherExecutive(teacher: Teacher | null | undefined): boolean
   const id = String(teacher.Teacher_ID || (teacher as any).teacher_id || '').toLowerCase().trim();
   const role = String(teacher.role || '').toLowerCase().trim();
   return id === 'admin03' || role === 'executive';
+}
+
+export function isDepartmentHead(teacher: Teacher | null | undefined): boolean {
+  if (!teacher) return false;
+  const role = String(teacher.role || '').toLowerCase().trim();
+  return role === 'head_of_department' || teacher.is_head_of_department === true;
 }

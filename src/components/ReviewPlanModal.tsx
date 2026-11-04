@@ -7,12 +7,19 @@ import {
   PlanStatusConfig,
   PlanTypeDeadlineConfig,
   EvaluationType,
+  ReviewWorkflowConfig,
+  StageReviewRecord,
 } from '../types';
 import {
   getSavedStatusConfigs,
   getPlanEvaluationType,
   classifyDocumentType,
 } from '../utils/deadlineUtils';
+import {
+  getLocalWorkflows,
+  getWorkflowForPlan,
+  advancePlanStage,
+} from '../services/departmentWorkflowService';
 import {
   X,
   CheckCircle,
@@ -49,6 +56,8 @@ interface ReviewPlanModalProps {
   statusConfigs?: PlanStatusConfig[];
   deadlineConfigs?: PlanTypeDeadlineConfig[];
   teachers?: Teacher[];
+  workflow?: ReviewWorkflowConfig;
+  workflows?: ReviewWorkflowConfig[];
 }
 
 export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
@@ -60,8 +69,16 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   statusConfigs,
   deadlineConfigs,
   teachers,
+  workflow,
+  workflows,
 }) => {
   const allStatuses = statusConfigs || getSavedStatusConfigs();
+  const activeWorkflow = workflow || getWorkflowForPlan(plan, workflows || getLocalWorkflows());
+  const currentStageOrder = plan.current_stage_order || 1;
+  const currentStage =
+    activeWorkflow?.stages?.find((s) => s.order === currentStageOrder) ||
+    activeWorkflow?.stages?.[0];
+
   const [status, setStatus] = useState<PlanStatus>(
     plan.status === 'submitted' ? 'approved' : plan.status
   );
@@ -88,7 +105,9 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   const teacherEmail = (targetTeacher?.Email || '').trim();
 
   const initialEvalType =
-    plan.evaluation_type || getPlanEvaluationType(plan.plan_type, deadlineConfigs);
+    currentStage?.evaluation_mode ||
+    plan.evaluation_type ||
+    getPlanEvaluationType(plan.plan_type, deadlineConfigs);
   const [evaluationType, setEvaluationType] = useState<EvaluationType>(initialEvalType);
   const isApprovalOnly = evaluationType === 'approval_only';
   const docMeta = classifyDocumentType(plan.plan_type);
@@ -127,17 +146,36 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-    const updated: LessonPlan = {
-      ...plan,
-      status,
-      reviewed_by: reviewer.Teacher_ID,
+    const reviewRecord: StageReviewRecord = {
+      stage_id: currentStage?.id || `stage_${currentStageOrder}`,
+      stage_order: currentStageOrder,
+      stage_title: currentStage?.title || `ขั้นที่ ${currentStageOrder}`,
+      evaluation_mode: isApprovalOnly ? 'approval_only' : 'rubric_score',
+      reviewer_id: reviewer.Teacher_ID,
       reviewer_name: `${reviewer.Name} (${reviewer.position})`,
       reviewed_at: dateStr,
-      review_comment: comment.trim(),
+      status: (status === 'approved' ? 'approved' : status === 'needs_revision' ? 'needs_revision' : status) as any,
+      comment: comment.trim(),
       rubric_scores: isApprovalOnly ? undefined : rubrics,
       total_score: isApprovalOnly ? undefined : totalRubricScore,
-      evaluation_type: isApprovalOnly ? 'approval_only' : 'rubric_score',
     };
+
+    let updated: LessonPlan;
+    if (activeWorkflow && activeWorkflow.stages.length > 0) {
+      updated = advancePlanStage(plan, activeWorkflow, reviewRecord, reviewer);
+    } else {
+      updated = {
+        ...plan,
+        status,
+        reviewed_by: reviewer.Teacher_ID,
+        reviewer_name: `${reviewer.Name} (${reviewer.position})`,
+        reviewed_at: dateStr,
+        review_comment: comment.trim(),
+        rubric_scores: isApprovalOnly ? undefined : rubrics,
+        total_score: isApprovalOnly ? undefined : totalRubricScore,
+        evaluation_type: isApprovalOnly ? 'approval_only' : 'rubric_score',
+      };
+    }
 
     try {
       await onSaveReview(updated);
@@ -218,6 +256,59 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
         {/* Scrollable Modal Body (Contains Plan Details + Review Controls) */}
         <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 sm:space-y-5 bg-white">
+          {/* Multi-Stage Approval Pipeline Breadcrumbs */}
+          {activeWorkflow && activeWorkflow.stages.length > 0 && (
+            <div className="bg-[#0B1329] text-white p-4 rounded-2xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="font-bold text-amber-400">
+                    สายงานอนุมัติ: {activeWorkflow.name}
+                  </span>
+                </div>
+                <span className="text-slate-400 font-mono text-[11px]">
+                  ขั้นที่ {currentStageOrder} จาก {activeWorkflow.stages.length} ขั้น
+                </span>
+              </div>
+
+              {/* Progress Steps */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {activeWorkflow.stages.map((st, idx) => {
+                  const isPast = st.order < currentStageOrder;
+                  const isCurrent = st.order === currentStageOrder;
+                  const isModeApproval = st.evaluation_mode === 'approval_only';
+
+                  return (
+                    <React.Fragment key={st.id}>
+                      <div
+                        className={`px-3 py-1.5 rounded-xl text-xs flex items-center gap-2 shrink-0 transition-all ${
+                          isPast
+                            ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 font-semibold'
+                            : isCurrent
+                            ? 'bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-400/20 ring-2 ring-white/30'
+                            : 'bg-slate-800/80 text-slate-400 border border-slate-700/60'
+                        }`}
+                      >
+                        <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] bg-black/20 font-black">
+                          {isPast ? '✓' : st.order}
+                        </span>
+                        <div className="text-left">
+                          <p className="truncate max-w-[150px] leading-tight">{st.title}</p>
+                          <p className={`text-[9px] ${isCurrent ? 'text-slate-900 font-semibold' : 'text-slate-400'}`}>
+                            {isModeApproval ? 'แบบกดอนุมัติ' : 'แบบให้คะแนนรูบริก'}
+                          </p>
+                        </div>
+                      </div>
+                      {idx < activeWorkflow.stages.length - 1 && (
+                        <span className="text-slate-600 text-xs font-bold">→</span>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Plan Summary Card */}
           <div className="p-3.5 sm:p-4 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
             <div className="flex items-start justify-between gap-3">

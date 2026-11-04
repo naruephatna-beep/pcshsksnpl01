@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Teacher, isTeacherAdmin } from '../types';
+import { Teacher, isTeacherAdmin, isDepartmentHead } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   X,
@@ -168,6 +168,11 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                       {isTeacherAdmin(t) && (
                         <span className="text-[10px] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-full font-bold shadow-xs">
                           {t.Teacher_ID === 'admin01' ? 'Super Admin' : 'Admin'}
+                        </span>
+                      )}
+                      {isDepartmentHead(t) && (
+                        <span className="text-[10px] bg-amber-100 text-amber-950 border border-amber-300 px-2 py-0.5 rounded-full font-bold shadow-2xs">
+                          หัวหน้าสาขา
                         </span>
                       )}
                     </div>

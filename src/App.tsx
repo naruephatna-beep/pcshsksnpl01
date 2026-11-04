@@ -8,6 +8,8 @@ import {
   PlanTypeDeadlineConfig,
   PlanStatusConfig,
   AssignmentSubmission,
+  DepartmentConfig,
+  ReviewWorkflowConfig,
 } from './types';
 import {
   fetchTeachers,
@@ -67,6 +69,17 @@ import {
   DEFAULT_GDRIVE_WEBHOOK_URL,
   STORAGE_KEY_GDRIVE_WEBHOOK,
 } from './services/googleDriveService';
+import {
+  DEFAULT_DEPARTMENTS,
+  DEFAULT_WORKFLOWS,
+  getLocalDepartments,
+  getLocalWorkflows,
+  getWorkflowForPlan,
+  assignWorkflowToPlan,
+  resolveReviewersForStage,
+} from './services/departmentWorkflowService';
+import { StaffStructureManagerModal } from './components/StaffStructureManagerModal';
+import { WorkflowManagerModal } from './components/WorkflowManagerModal';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
@@ -102,6 +115,9 @@ import {
   BrainCircuit,
   Cloud,
   Trophy,
+  UserCheck,
+  Building2,
+  Workflow as WorkflowIcon,
 } from 'lucide-react';
 
 export default function App() {
@@ -112,7 +128,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Filters & Views
-  const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision'>('all');
+  const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision' | 'assigned_to_me'>('all');
   const [mainView, setMainView] = useState<'plans' | 'executive'>('plans');
   const [executiveMode, setExecutiveMode] = useState<'standard' | 'ranking' | 'ddo'>('standard');
   const [planDisplayMode, setPlanDisplayMode] = useState<'board' | 'table'>('board');
@@ -151,6 +167,10 @@ export default function App() {
   };
   const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false);
   const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState(false);
+  const [isStaffStructureModalOpen, setIsStaffStructureModalOpen] = useState(false);
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [departments, setDepartments] = useState<DepartmentConfig[]>(() => getLocalDepartments());
+  const [workflows, setWorkflows] = useState<ReviewWorkflowConfig[]>(() => getLocalWorkflows());
   const [deadlineConfigs, setDeadlineConfigs] = useState<PlanTypeDeadlineConfig[]>(() => getSavedDeadlineConfigs());
   const [statusConfigs, setStatusConfigs] = useState<PlanStatusConfig[]>(() => getSavedStatusConfigs());
   const [planToEdit, setPlanToEdit] = useState<LessonPlan | null>(null);
@@ -173,7 +193,7 @@ export default function App() {
     setIsSyncing(true);
     try {
       // Execute all database fetches and cloud deleted IDs sync concurrently in a single parallel batch
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds] = await Promise.all([
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, wfRes] = await Promise.all([
         fetchTeachers(),
         fetchPlans(),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
@@ -181,9 +201,18 @@ export default function App() {
         fetchAssignmentSubmissionsList(),
         fetchSystemSetting<string>('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL),
         syncDeletedPlanIdsWithCloud(),
+        fetchSystemSetting<DepartmentConfig[]>('school_departments', getLocalDepartments()),
+        fetchSystemSetting<ReviewWorkflowConfig[]>('review_workflows', getLocalWorkflows()),
       ]);
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
+
+      if (deptRes?.data && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
+        setDepartments(deptRes.data);
+      }
+      if (wfRes?.data && Array.isArray(wfRes.data) && wfRes.data.length > 0) {
+        setWorkflows(wfRes.data);
+      }
 
       let effectiveDl = getSavedDeadlineConfigs();
       if (dlSettingsRes.isSupabase && Array.isArray(dlSettingsRes.data) && dlSettingsRes.data.length > 0) {
@@ -527,8 +556,16 @@ export default function App() {
 
   // Plan creation (supports single or multiple lesson plans)
   const handleCreatePlan = async (newPlanOrPlans: LessonPlan | LessonPlan[]) => {
-    const plansList = Array.isArray(newPlanOrPlans) ? newPlanOrPlans : [newPlanOrPlans];
-    if (plansList.length === 0) return { success: true, isSupabase: false };
+    const rawList = Array.isArray(newPlanOrPlans) ? newPlanOrPlans : [newPlanOrPlans];
+    if (rawList.length === 0) return { success: true, isSupabase: false };
+
+    // Automatically resolve and attach the document-specific workflow and total stages
+    const plansList = rawList.map((p) => {
+      if (!p.workflow_id || !p.total_stages) {
+        return assignWorkflowToPlan(p, workflows);
+      }
+      return p;
+    });
 
     let lastRes: any = { success: true, isSupabase: false };
     for (const plan of plansList) {
@@ -827,6 +864,20 @@ export default function App() {
     }
   };
 
+  const assignedToMeCount = useMemo(() => {
+    if (!currentTeacher) return 0;
+    const activeWorkflow = workflows[0] || DEFAULT_WORKFLOWS[0];
+    return plans.filter((p) => {
+      if (p.status === 'approved' || p.status === 'deleted') return false;
+      if (p.assigned_reviewer_id === currentTeacher.Teacher_ID) return true;
+      const currentStageOrder = p.current_stage_order || 1;
+      const stage = activeWorkflow?.stages?.find((s) => s.order === currentStageOrder);
+      if (!stage) return false;
+      const candidates = resolveReviewersForStage(stage, p, teachers, departments);
+      return candidates.some((c) => c.Teacher_ID === currentTeacher.Teacher_ID);
+    }).length;
+  }, [plans, currentTeacher, workflows, teachers, departments]);
+
   const userVisiblePlans = useMemo(() => {
     if (isAdmin) return plans;
     return plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID);
@@ -855,6 +906,22 @@ export default function App() {
 
   // Filtered plans logic
   const filteredPlans = plans.filter((plan) => {
+    // If viewing assigned reviews for this teacher/reviewer
+    if (viewTab === 'assigned_to_me') {
+      if (plan.status === 'deleted') return false;
+      const activeWorkflow = workflows[0] || DEFAULT_WORKFLOWS[0];
+      const isDirectlyAssigned = plan.assigned_reviewer_id === currentTeacher?.Teacher_ID;
+      const currentStageOrder = plan.current_stage_order || 1;
+      const stage = activeWorkflow?.stages?.find((s) => s.order === currentStageOrder);
+      const isEligible = stage
+        ? resolveReviewersForStage(stage, plan, teachers, departments).some(
+            (c) => c.Teacher_ID === currentTeacher?.Teacher_ID
+          )
+        : false;
+
+      return isDirectlyAssigned || isEligible;
+    }
+
     // CRITICAL: Regular teachers can ONLY see their own plans! Normalized comparison prevents case/whitespace bugs
     if (!isAdmin) {
       const normalize = (val?: string) => String(val || '').trim().toLowerCase();
@@ -989,6 +1056,9 @@ export default function App() {
           onOpenAdminTrackerModal={handleOpenAdminTracker}
           onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
           onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
+          onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
+          onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+          assignedToMeCount={assignedToMeCount}
           onScrollToAssignments={handleScrollToAssignments}
           onLogout={handleLogout}
           lastSyncTime={lastSyncTime}
@@ -1031,6 +1101,9 @@ export default function App() {
               onOpenAdminTrackerModal={handleOpenAdminTracker}
               onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
               onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
+              onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
+              onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+              assignedToMeCount={assignedToMeCount}
               onScrollToAssignments={handleScrollToAssignments}
               onLogout={handleLogout}
               lastSyncTime={lastSyncTime}
@@ -1122,16 +1195,54 @@ export default function App() {
               </button>
             </div>
 
+            {/* Quick Button: งานที่ได้รับมอบหมายให้ตรวจ */}
+            {assignedToMeCount > 0 && (
+              <button
+                onClick={() => {
+                  setMainView('plans');
+                  setViewTab('assigned_to_me' as any);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="งานที่ได้รับมอบหมายให้ฉันตรวจ"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                <span>งานที่ต้องตรวจ</span>
+                <span className="min-w-4 h-4 px-1 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-[10px] font-black">
+                  {assignedToMeCount}
+                </span>
+              </button>
+            )}
+
             {/* Admin Quick Action Button: สรุปประเภทเอกสาร (รายคน) */}
             {isAdmin && (
-              <button
-                onClick={() => handleOpenAdminTracker('breakdown')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสารเป็นรายคน"
-              >
-                <Layers className="w-3.5 h-3.5 text-amber-600" />
-                <span>จำแนกประเภทเอกสาร</span>
-              </button>
+              <>
+                <button
+                  onClick={() => setIsStaffStructureModalOpen(true)}
+                  className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-300 text-slate-800 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                  title="จัดการโครงสร้างสาขาและแต่งตั้งหัวหน้าสาขา"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                  <span>โครงสร้างสาขา</span>
+                </button>
+
+                <button
+                  onClick={() => setIsWorkflowModalOpen(true)}
+                  className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                  title="ตั้งค่าสายงานการอนุมัติและกระจายงานอัตโนมัติ"
+                >
+                  <WorkflowIcon className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>สายงานอนุมัติ</span>
+                </button>
+
+                <button
+                  onClick={() => handleOpenAdminTracker('breakdown')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                  title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสารเป็นรายคน"
+                >
+                  <Layers className="w-3.5 h-3.5 text-amber-600" />
+                  <span>จำแนกประเภทเอกสาร</span>
+                </button>
+              </>
             )}
 
             {/* Teacher Profile Button */}
@@ -1875,6 +1986,35 @@ export default function App() {
           statusConfigs={statusConfigs}
           deadlineConfigs={deadlineConfigs}
           teachers={teachers}
+          workflows={workflows}
+          workflow={getWorkflowForPlan(selectedPlanForReview, workflows)}
+        />
+      )}
+
+      {/* Staff Structure & Department Head Manager Modal (Admin) */}
+      {isStaffStructureModalOpen && (
+        <StaffStructureManagerModal
+          isOpen={isStaffStructureModalOpen}
+          onClose={() => setIsStaffStructureModalOpen(false)}
+          teachers={teachers}
+          onUpdateTeachers={(updated) => setTeachers(updated)}
+          departments={departments}
+          onUpdateDepartments={(updated) => setDepartments(updated)}
+        />
+      )}
+
+      {/* Multi-stage Review Workflow Manager Modal (Admin) */}
+      {isWorkflowModalOpen && (
+        <WorkflowManagerModal
+          isOpen={isWorkflowModalOpen}
+          onClose={() => setIsWorkflowModalOpen(false)}
+          workflows={workflows}
+          onUpdateWorkflows={(updated) => setWorkflows(updated)}
+          teachers={teachers}
+          departments={departments}
+          plans={plans}
+          onUpdatePlans={(updated) => setPlans(updated)}
+          deadlineConfigs={deadlineConfigs}
         />
       )}
 

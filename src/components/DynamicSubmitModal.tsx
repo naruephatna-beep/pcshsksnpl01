@@ -12,6 +12,7 @@ import {
   uploadAssignmentAttachmentFile,
   savePlanRecord,
 } from '../services/supabaseClient';
+import { assignWorkflowToPlan } from '../services/departmentWorkflowService';
 import { triggerSchoolCelebration } from '../utils/confettiUtils';
 import {
   X,
@@ -363,12 +364,13 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
         notes: JSON.stringify(formValues),
       };
 
-      await savePlanRecord(correspondingPlan);
+      const finalPlan = assignWorkflowToPlan(correspondingPlan);
+      await savePlanRecord(finalPlan);
 
       triggerSchoolCelebration('full');
 
       if (onSubmitted) {
-        onSubmitted(newRecord, correspondingPlan);
+        onSubmitted(newRecord, finalPlan);
       }
 
       setSuccessNotice('ส่งภาระงานสำเร็จเรียบร้อยแล้ว!');

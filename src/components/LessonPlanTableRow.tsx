@@ -147,6 +147,12 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
             <span className="font-mono text-[10px]">({plan.total_score}%)</span>
           ) : null}
         </span>
+        {plan.current_stage_order && plan.status !== 'approved' && (
+          <div className="text-[10px] text-amber-800 font-semibold mt-0.5">
+            ขั้นที่ {plan.current_stage_order}
+            {plan.assigned_reviewer_name ? ` · ${plan.assigned_reviewer_name.split(' ')[0]}` : ''}
+          </div>
+        )}
       </td>
 
       {/* 6. Actions */}

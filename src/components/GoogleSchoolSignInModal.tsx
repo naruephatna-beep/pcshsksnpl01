@@ -29,8 +29,6 @@ export const GoogleSchoolSignInModal: React.FC<GoogleSchoolSignInModalProps> = (
   const [search, setSearch] = useState('');
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
 
-  if (!isOpen) return null;
-
   // Merge directory teachers
   const allTeachers: Teacher[] = useMemo(() => {
     const map = new Map<string, Teacher>();
@@ -51,6 +49,8 @@ export const GoogleSchoolSignInModal: React.FC<GoogleSchoolSignInModalProps> = (
         t.Learning_Area.toLowerCase().includes(q)
     );
   }, [allTeachers, search]);
+
+  if (!isOpen) return null;
 
   const handleSelectAccount = (teacher: Teacher) => {
     setSelectedTeacher(teacher);

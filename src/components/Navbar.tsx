@@ -17,6 +17,8 @@ import {
   Database,
   Cloud,
   Layers,
+  Building2,
+  Workflow,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 
@@ -29,6 +31,8 @@ interface NavbarProps {
   onOpenFileStorageModal?: () => void;
   onOpenAdminTrackerModal: (initialView?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
   onOpenDeadlineManager?: () => void;
+  onOpenStaffStructure?: () => void;
+  onOpenWorkflowManager?: () => void;
   onOpenExecutiveDashboard?: () => void;
   onOpenGoogleDriveConfig?: () => void;
   onLogout: () => void;
@@ -46,6 +50,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDirectoryModal,
   onOpenAdminTrackerModal,
   onOpenDeadlineManager,
+  onOpenStaffStructure,
+  onOpenWorkflowManager,
   onOpenExecutiveDashboard,
   onOpenGoogleDriveConfig,
   onLogout,
@@ -134,6 +140,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="hidden lg:inline">แยกประเภทเอกสาร</span>
                       <span className="lg:hidden">แยกประเภท</span>
                     </button>
+
+                    {onOpenStaffStructure && (
+                      <button
+                        onClick={onOpenStaffStructure}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
+                        title="โครงสร้างสาขา และแต่งตั้งหัวหน้าสาขา"
+                      >
+                        <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="hidden xl:inline">โครงสร้างสาขา</span>
+                      </button>
+                    )}
+
+                    {onOpenWorkflowManager && (
+                      <button
+                        onClick={onOpenWorkflowManager}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 shadow-2xs cursor-pointer active:scale-95"
+                        title="ตั้งค่าสายงานอนุมัติ ผู้ตรวจ และระบบกระจายงานอัตโนมัติ"
+                      >
+                        <Workflow className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>สายงานอนุมัติ</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={onOpenDirectoryModal}
