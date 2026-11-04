@@ -72,6 +72,7 @@ interface AdminTrackerModalProps {
   onDeletePlan: (planId: string) => void;
   onOpenReview?: (plan: LessonPlan) => void;
   onOpenDeadlineManager?: () => void;
+  onOpenCertificate?: (plan: LessonPlan) => void;
 }
 
 export interface TeacherMissingTask {
@@ -98,6 +99,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   onDeletePlan,
   onOpenReview,
   onOpenDeadlineManager,
+  onOpenCertificate,
 }) => {
   const [filterArea, setFilterArea] = useState<string>('ทั้งหมด');
   const [filterStatus, setFilterStatus] = useState<'all' | 'uncompleted' | 'completed' | 'late'>('all');

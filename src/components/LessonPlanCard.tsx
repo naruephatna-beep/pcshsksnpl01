@@ -24,6 +24,7 @@ import {
   RotateCcw,
   ShieldCheck,
   Edit,
+  Award,
 } from 'lucide-react';
 
 interface LessonPlanCardProps {
@@ -34,6 +35,7 @@ interface LessonPlanCardProps {
   onDeletePlan: (planId: string) => void;
   onEditPlan?: (plan: LessonPlan) => void;
   onResubmitPlan?: (plan: LessonPlan) => void;
+  onOpenCertificate?: (plan: LessonPlan) => void;
   statusConfigs?: PlanStatusConfig[];
   deadlineConfigs?: PlanTypeDeadlineConfig[];
   onQuickChangeStatus?: (plan: LessonPlan, newStatus: string) => void;
@@ -48,6 +50,7 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
   onDeletePlan,
   onEditPlan,
   onResubmitPlan,
+  onOpenCertificate,
   statusConfigs,
   deadlineConfigs,
   onQuickChangeStatus,
@@ -295,6 +298,18 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
             <Printer className="w-3.5 h-3.5" />
             <span>ใบตอบรับ</span>
           </button>
+
+          {/* Certificate button for approved plans */}
+          {plan.status === 'approved' && onOpenCertificate && (
+            <button
+              onClick={() => onOpenCertificate(plan)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-95"
+              title="ดูและพิมพ์วุฒิบัตร / เกียรติบัตร ว.PA"
+            >
+              <Award className="w-3.5 h-3.5 text-slate-950" />
+              <span>วุฒิบัตร ว.PA</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">

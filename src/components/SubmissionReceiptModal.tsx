@@ -13,6 +13,7 @@ interface SubmissionReceiptModalProps {
   teacher?: Teacher;
   isOpen: boolean;
   onClose: () => void;
+  onOpenCertificate?: (plan: LessonPlan) => void;
 }
 
 export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
@@ -20,6 +21,7 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
   teacher,
   isOpen,
   onClose,
+  onOpenCertificate,
 }) => {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -315,6 +317,20 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
             ระบบส่งเอกสารวิชาการ • ร.ร.วิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
           </span>
           <div className="flex items-center gap-2 ml-auto">
+            {plan.status === 'approved' && onOpenCertificate && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenCertificate(plan);
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                title="เปิดดูวุฒิบัตร / เกียรติบัตร ว.PA ของแผนนี้"
+              >
+                <Award className="w-4 h-4 text-slate-950" />
+                <span>ดูวุฒิบัตร ว.PA</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handlePrint}

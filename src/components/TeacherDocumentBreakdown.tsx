@@ -32,6 +32,7 @@ import {
   X,
   Send,
   Zap,
+  Mail,
 } from 'lucide-react';
 
 export interface TeacherDocumentBreakdownProps {
@@ -43,6 +44,7 @@ export interface TeacherDocumentBreakdownProps {
   onEditPlan?: (plan: LessonPlan) => void;
   onDeletePlan?: (planId: string) => void;
   onSendReminder?: (teacher: Teacher, missingTypes?: string[]) => void;
+  onOpenCertificate?: (plan: LessonPlan) => void;
   embedded?: boolean;
 }
 
@@ -66,6 +68,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
   onEditPlan,
   onDeletePlan,
   onSendReminder,
+  onOpenCertificate,
   embedded = false,
 }) => {
   // Filters & Search
@@ -648,6 +651,25 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
               <Printer className="w-3 h-3" />
               <span>พิมพ์สรุป</span>
             </button>
+
+            {/* Bulk Reminder to Teachers with 0 submissions via academics@pcshsksn.ac.th */}
+            {onSendReminder && overallStats.teachersWithoutSubmissions > 0 && (
+              <button
+                onClick={() => {
+                  const zeroSubTeachers = filteredRows
+                    .filter((r) => r.totalSubmitted === 0)
+                    .map((r) => r.teacher);
+                  if (zeroSubTeachers.length > 0) {
+                    zeroSubTeachers.forEach((t) => onSendReminder(t, []));
+                  }
+                }}
+                className="h-7 px-2.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white rounded-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                title={`คลิกเดียวส่งอีเมลแจ้งเตือนคุณครูที่ยังไม่ได้ส่งเอกสารทั้งหมด ${overallStats.teachersWithoutSubmissions} ท่าน จาก academics@pcshsksn.ac.th`}
+              >
+                <Mail className="w-3 h-3" />
+                <span>เตือนเมล ({overallStats.teachersWithoutSubmissions} ท่าน)</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1142,6 +1164,18 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                                         )}
 
                                         <div className="flex items-center gap-1">
+                                          {/* Certificate Button for Approved Plans */}
+                                          {isApproved && onOpenCertificate && (
+                                            <button
+                                              onClick={() => onOpenCertificate(plan)}
+                                              className="h-7 px-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-lg text-[11px] transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                                              title="เปิดดูและพิมพ์วุฒิบัตร / เกียรติบัตร ว.PA"
+                                            >
+                                              <Award className="w-3 h-3 text-slate-950" />
+                                              <span>วุฒิบัตร ว.PA</span>
+                                            </button>
+                                          )}
+
                                           {/* Review Button */}
                                           {onOpenReview && (
                                             <button

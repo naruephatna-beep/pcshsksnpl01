@@ -24,6 +24,7 @@ import {
   Trash2,
   RotateCcw,
   Edit,
+  Award,
 } from 'lucide-react';
 
 interface LessonPlanTableRowProps {
@@ -34,6 +35,7 @@ interface LessonPlanTableRowProps {
   onDeletePlan: (planId: string) => void;
   onEditPlan?: (plan: LessonPlan) => void;
   onResubmitPlan?: (plan: LessonPlan) => void;
+  onOpenCertificate?: (plan: LessonPlan) => void;
   statusConfigs?: PlanStatusConfig[];
   deadlineConfigs?: PlanTypeDeadlineConfig[];
 }
@@ -46,6 +48,7 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
   onDeletePlan,
   onEditPlan,
   onResubmitPlan,
+  onOpenCertificate,
   statusConfigs,
   deadlineConfigs,
 }) => {
@@ -168,6 +171,17 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
           >
             <Printer className="w-3.5 h-3.5" />
           </button>
+
+          {/* Certificate button for approved plans */}
+          {plan.status === 'approved' && onOpenCertificate && (
+            <button
+              onClick={() => onOpenCertificate(plan)}
+              className="p-2 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+              title="ดูและพิมพ์วุฒิบัตร / เกียรติบัตร ว.PA"
+            >
+              <Award className="w-3.5 h-3.5 text-amber-600" />
+            </button>
+          )}
 
           {/* Resubmit if needs revision */}
           {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan && (
