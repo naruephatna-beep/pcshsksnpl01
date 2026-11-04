@@ -25,6 +25,7 @@ import {
   Database,
   Cloud,
   Trophy,
+  Layers,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 
@@ -45,7 +46,7 @@ interface SidebarProps {
   onOpenSubmitModal: () => void;
   onOpenProfileModal: () => void;
   onOpenDirectoryModal: () => void;
-  onOpenAdminTrackerModal: () => void;
+  onOpenAdminTrackerModal: (initialView?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
   onOpenDeadlineManager: () => void;
   onOpenGoogleDriveConfig?: () => void;
   onScrollToAssignments: () => void;
@@ -376,7 +377,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               {/* ศูนย์ติดตามงานรายบุคคล */}
               <button
-                onClick={() => handleNavClick(onOpenAdminTrackerModal)}
+                onClick={() => handleNavClick(() => onOpenAdminTrackerModal('table'))}
                 className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -384,6 +385,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span className="truncate text-xs">ติดตามงานรายบุคคล</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+              </button>
+
+              {/* จำแนกประเภทเอกสารรายคน */}
+              <button
+                onClick={() => handleNavClick(() => onOpenAdminTrackerModal('breakdown'))}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Layers className="w-4 h-4 text-amber-400 shrink-0 transition-colors" />
+                  <span className="truncate text-xs">สรุปประเภทเอกสารรายคน</span>
+                </div>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  Breakdown
+                </span>
               </button>
 
               {/* กำหนดส่ง & จัดการสถานะ */}

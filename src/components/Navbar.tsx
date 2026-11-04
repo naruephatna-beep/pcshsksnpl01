@@ -16,6 +16,7 @@ import {
   PlusCircle,
   Database,
   Cloud,
+  Layers,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 
@@ -26,7 +27,7 @@ interface NavbarProps {
   onOpenProfileModal: () => void;
   onOpenDirectoryModal: () => void;
   onOpenFileStorageModal?: () => void;
-  onOpenAdminTrackerModal: () => void;
+  onOpenAdminTrackerModal: (initialView?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
   onOpenDeadlineManager?: () => void;
   onOpenExecutiveDashboard?: () => void;
   onOpenGoogleDriveConfig?: () => void;
@@ -116,12 +117,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
 
                     <button
-                      onClick={onOpenAdminTrackerModal}
+                      onClick={() => onOpenAdminTrackerModal('table')}
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
                       title="ติดตามดูว่าใครยังไม่ส่งชิ้นงานไหนแยกตามภาระงานที่มอบหมาย"
                     >
                       <ClipboardList className="w-3.5 h-3.5 text-slate-600" />
                       <span>ติดตามงานรายบุคคล</span>
+                    </button>
+
+                    <button
+                      onClick={() => onOpenAdminTrackerModal('breakdown')}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs cursor-pointer active:scale-95"
+                      title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสารเป็นรายคน"
+                    >
+                      <Layers className="w-3.5 h-3.5 text-amber-600" />
+                      <span className="hidden lg:inline">แยกประเภทเอกสาร</span>
+                      <span className="lg:hidden">แยกประเภท</span>
                     </button>
 
                     <button
@@ -338,11 +349,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
                 <button
-                  onClick={() => handleMobileAction(onOpenAdminTrackerModal)}
+                  onClick={() => handleMobileAction(() => onOpenAdminTrackerModal('table'))}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50"
                 >
                   <ClipboardList className="w-4 h-4 text-slate-600" />
                   <span>เปิดตารางติดตามการส่งแผน</span>
+                </button>
+                <button
+                  onClick={() => handleMobileAction(() => onOpenAdminTrackerModal('breakdown'))}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-amber-950 bg-amber-50 border border-amber-300 hover:bg-amber-100"
+                >
+                  <Layers className="w-4 h-4 text-amber-600" />
+                  <span>สรุปประเภทเอกสารรายคน (Breakdown)</span>
                 </button>
                 <button
                   onClick={() => handleMobileAction(onOpenDirectoryModal)}

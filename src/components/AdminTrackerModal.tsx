@@ -53,15 +53,18 @@ import {
   Settings,
   UserCheck,
   Award,
+  Layers,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
+import { TeacherDocumentBreakdown } from './TeacherDocumentBreakdown';
 
 interface AdminTrackerModalProps {
   teachers: Teacher[];
   plans: LessonPlan[];
   deadlineConfigs?: PlanTypeDeadlineConfig[];
   statusConfigs?: PlanStatusConfig[];
+  initialViewMode?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown';
   isOpen: boolean;
   onClose: () => void;
   onEditTeacher: (teacher: Teacher) => void;
@@ -87,6 +90,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   plans,
   deadlineConfigs,
   statusConfigs,
+  initialViewMode,
   isOpen,
   onClose,
   onEditTeacher,
@@ -99,7 +103,9 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   const [filterStatus, setFilterStatus] = useState<'all' | 'uncompleted' | 'completed' | 'late'>('all');
   const [filterTask, setFilterTask] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'cards' | 'matrix' | 'ranking'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'>(
+    initialViewMode || 'table'
+  );
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isPrintSummaryModalOpen, setIsPrintSummaryModalOpen] = useState(false);
@@ -692,6 +698,16 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                 <List className="w-3.5 h-3.5" />
                 <span>เมทริกซ์</span>
               </button>
+              <button
+                onClick={() => setViewMode('breakdown')}
+                className={`h-7 px-2.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  viewMode === 'breakdown' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
+                }`}
+                title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสารเป็นรายคน"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>แยกประเภทเอกสาร</span>
+              </button>
             </div>
 
             {/* Primary Action 1: ส่งเมลเตือนทุกคน (แสดงเมื่อมีคนค้างส่ง) */}
@@ -748,6 +764,17 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                     >
                       <Trophy className="w-4 h-4 text-amber-400" />
                       <span>🏆 จัดอันดับกลุ่มสาระ</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setViewMode('breakdown');
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Layers className="w-4 h-4 text-amber-400" />
+                      <span>📊 แยกประเภทเอกสาร (รายคน)</span>
                     </button>
 
                     {onOpenDeadlineManager && (
@@ -1005,96 +1032,98 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           </div>
         )}
 
-        {/* Filter & Search Toolbar (กะทัดรัด ประหยัดพื้นที่แนวตั้ง) */}
-        <div className="p-2 sm:p-2.5 border-b border-slate-200 space-y-1.5 shrink-0 bg-slate-50/80">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-2">
-            {/* Search Input */}
-            <div className="relative flex-1 w-full">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหาชื่อครู, รหัสครู, อีเมล, กลุ่มสาระ..."
-                className="w-full h-8 pl-9 pr-3 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-              />
+        {/* Filter & Search Toolbar (กะทัดรัด ประหยัดพื้นที่แนวตั้ง - เฉพาะโหมด table, cards, matrix) */}
+        {viewMode !== 'ranking' && viewMode !== 'breakdown' && (
+          <div className="p-2 sm:p-2.5 border-b border-slate-200 space-y-1.5 shrink-0 bg-slate-50/80">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-2">
+              {/* Search Input */}
+              <div className="relative flex-1 w-full">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ค้นหาชื่อครู, รหัสครู, อีเมล, กลุ่มสาระ..."
+                  className="w-full h-8 pl-9 pr-3 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+              </div>
+
+              {/* Filter by Specific Task */}
+              <div className="flex items-center gap-2 w-full lg:w-auto shrink-0">
+                <select
+                  value={filterTask}
+                  onChange={(e) => setFilterTask(e.target.value)}
+                  className="w-full sm:w-auto h-8 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer"
+                >
+                  <option value="all">ภาระงานทั้งหมด (ดูทุกช่อง)</option>
+                  {activeAssignments.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      🔍 ดูเฉพาะคนยังไม่ส่ง: {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex h-8 bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold shrink-0 overflow-x-auto max-w-full touch-scroll w-full lg:w-auto">
+                <button
+                  onClick={() => setFilterStatus('all')}
+                  className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center ${
+                    filterStatus === 'all' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ทั้งหมด ({teachingStaff.length})
+                </button>
+                <button
+                  onClick={() => setFilterStatus('uncompleted')}
+                  className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 ${
+                    filterStatus === 'uncompleted' ? 'bg-rose-600 text-white shadow-2xs' : 'text-rose-700 hover:bg-white/50'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                  <span>ค้างส่งงาน ({stats.uncompletedCount})</span>
+                </button>
+                <button
+                  onClick={() => setFilterStatus('completed')}
+                  className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 ${
+                    filterStatus === 'completed' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-emerald-700 hover:bg-white/50'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span>ส่งครบแล้ว ({stats.completedAllCount})</span>
+                </button>
+                <button
+                  onClick={() => setFilterStatus('late')}
+                  className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center ${
+                    filterStatus === 'late' ? 'bg-amber-500 text-slate-950 shadow-2xs' : 'text-amber-800 hover:bg-white/50'
+                  }`}
+                >
+                  ⚠️ ส่งช้า ({stats.lateCount})
+                </button>
+              </div>
             </div>
 
-            {/* Filter by Specific Task */}
-            <div className="flex items-center gap-2 w-full lg:w-auto shrink-0">
-              <select
-                value={filterTask}
-                onChange={(e) => setFilterTask(e.target.value)}
-                className="w-full sm:w-auto h-8 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 cursor-pointer"
-              >
-                <option value="all">ภาระงานทั้งหมด (ดูทุกช่อง)</option>
-                {activeAssignments.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    🔍 ดูเฉพาะคนยังไม่ส่ง: {a.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Status Filter Tabs */}
-            <div className="flex h-8 bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold shrink-0 overflow-x-auto max-w-full touch-scroll w-full lg:w-auto">
-              <button
-                onClick={() => setFilterStatus('all')}
-                className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center ${
-                  filterStatus === 'all' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                ทั้งหมด ({teachingStaff.length})
-              </button>
-              <button
-                onClick={() => setFilterStatus('uncompleted')}
-                className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 ${
-                  filterStatus === 'uncompleted' ? 'bg-rose-600 text-white shadow-2xs' : 'text-rose-700 hover:bg-white/50'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                <span>ค้างส่งงาน ({stats.uncompletedCount})</span>
-              </button>
-              <button
-                onClick={() => setFilterStatus('completed')}
-                className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 ${
-                  filterStatus === 'completed' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-emerald-700 hover:bg-white/50'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>ส่งครบแล้ว ({stats.completedAllCount})</span>
-              </button>
-              <button
-                onClick={() => setFilterStatus('late')}
-                className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center ${
-                  filterStatus === 'late' ? 'bg-amber-500 text-slate-950 shadow-2xs' : 'text-amber-800 hover:bg-white/50'
-                }`}
-              >
-                ⚠️ ส่งช้า ({stats.lateCount})
-              </button>
+            {/* Learning Area Filter Badges */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-xs touch-scroll">
+              <span className="text-[11px] font-bold text-slate-400 uppercase shrink-0 mr-1 flex items-center">กลุ่มสาระ:</span>
+              {areas.map((a) => (
+                <button
+                  key={a}
+                  onClick={() => setFilterArea(a)}
+                  className={`h-6.5 px-2.5 rounded-lg shrink-0 font-semibold transition-all cursor-pointer text-[11px] flex items-center whitespace-nowrap ${
+                    filterArea === a
+                      ? 'bg-[#0B1329] text-amber-400 font-bold shadow-xs'
+                      : 'bg-white hover:bg-slate-200/70 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  {a}
+                </button>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* Learning Area Filter Badges */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-xs touch-scroll">
-            <span className="text-[11px] font-bold text-slate-400 uppercase shrink-0 mr-1 flex items-center">กลุ่มสาระ:</span>
-            {areas.map((a) => (
-              <button
-                key={a}
-                onClick={() => setFilterArea(a)}
-                className={`h-6.5 px-2.5 rounded-lg shrink-0 font-semibold transition-all cursor-pointer text-[11px] flex items-center whitespace-nowrap ${
-                  filterArea === a
-                    ? 'bg-[#0B1329] text-amber-400 font-bold shadow-xs'
-                    : 'bg-white hover:bg-slate-200/70 text-slate-600 border border-slate-200'
-                }`}
-              >
-                {a}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Content: Main Assignment Matrix Grid / Cards / Department Ranking */}
+        {/* Content: Main Assignment Matrix Grid / Cards / Department Ranking / Teacher Document Breakdown */}
         <div className="p-3 sm:p-5 flex-1 overflow-y-auto touch-scroll">
           {viewMode === 'ranking' ? (
             <DepartmentRankingLeaderboard
@@ -1102,6 +1131,18 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               plans={plans}
               deadlineConfigs={deadlineConfigs}
               statusConfigs={statusConfigs}
+              embedded={true}
+            />
+          ) : viewMode === 'breakdown' ? (
+            <TeacherDocumentBreakdown
+              teachers={teachers}
+              plans={plans}
+              deadlineConfigs={deadlineConfigs}
+              statusConfigs={statusConfigs}
+              onOpenReview={onOpenReview}
+              onEditPlan={onEditPlan}
+              onDeletePlan={onDeletePlan}
+              onSendReminder={(t) => handleQuickClickSend(t, [])}
               embedded={true}
             />
           ) : filteredRows.length === 0 ? (

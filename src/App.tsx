@@ -136,6 +136,16 @@ export default function App() {
   const [isDirectoryModalOpen, setIsDirectoryModalOpen] = useState(false);
   const [isFileStorageModalOpen, setIsFileStorageModalOpen] = useState(false);
   const [isAdminTrackerModalOpen, setIsAdminTrackerModalOpen] = useState(false);
+  const [adminTrackerInitialView, setAdminTrackerInitialView] = useState<
+    'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'
+  >('table');
+
+  const handleOpenAdminTracker = (
+    view: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown' = 'table'
+  ) => {
+    setAdminTrackerInitialView(view);
+    setIsAdminTrackerModalOpen(true);
+  };
   const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false);
   const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState(false);
   const [deadlineConfigs, setDeadlineConfigs] = useState<PlanTypeDeadlineConfig[]>(() => getSavedDeadlineConfigs());
@@ -961,7 +971,7 @@ export default function App() {
             setIsProfileModalOpen(true);
           }}
           onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
-          onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
+          onOpenAdminTrackerModal={handleOpenAdminTracker}
           onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
           onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
           onScrollToAssignments={handleScrollToAssignments}
@@ -1003,7 +1013,7 @@ export default function App() {
                 setIsProfileModalOpen(true);
               }}
               onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
-              onOpenAdminTrackerModal={() => setIsAdminTrackerModalOpen(true)}
+              onOpenAdminTrackerModal={handleOpenAdminTracker}
               onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
               onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
               onScrollToAssignments={handleScrollToAssignments}
@@ -1096,6 +1106,18 @@ export default function App() {
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
               </button>
             </div>
+
+            {/* Admin Quick Action Button: สรุปประเภทเอกสาร (รายคน) */}
+            {isAdmin && (
+              <button
+                onClick={() => handleOpenAdminTracker('breakdown')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสารเป็นรายคน"
+              >
+                <Layers className="w-3.5 h-3.5 text-amber-600" />
+                <span>จำแนกประเภทเอกสาร</span>
+              </button>
+            )}
 
             {/* Teacher Profile Button */}
             <button
@@ -1864,6 +1886,7 @@ export default function App() {
           plans={plans}
           deadlineConfigs={deadlineConfigs}
           statusConfigs={statusConfigs}
+          initialViewMode={adminTrackerInitialView}
           isOpen={isAdminTrackerModalOpen}
           onClose={() => setIsAdminTrackerModalOpen(false)}
           onEditTeacher={(t) => {
