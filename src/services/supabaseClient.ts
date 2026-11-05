@@ -370,15 +370,57 @@ export async function saveAllTeachers(
     if (getDatabaseProvider() === 'cloudflare') {
       const cf = getSavedCloudflareConfig();
       if (cf.workerUrl) {
-        saveTeacherToCloudflare(teachers[0]).catch(() => {});
+        for (const t of teachers) {
+          saveTeacherToCloudflare(t).catch(() => {});
+        }
       }
     }
     const client = getSupabaseClient();
     if (client) {
-      // Upsert in background
-      for (const t of teachers) {
-        updateTeacherRecord(t).catch(() => {});
-      }
+      // Upsert full records in a single batch instead of 45 racing calls
+      const teacherPayloads = teachers.map((t) => ({
+        Teacher_ID: t.Teacher_ID,
+        Name: t.Name,
+        Email: t.Email,
+        Pass: t.Pass,
+        Learning_Area: t.Learning_Area || '',
+        branch: t.branch || '',
+        photo: t.photo || '',
+        national_id: t.national_id || '',
+        phone: t.phone || '',
+        signature_url: t.signature_url || '',
+        birth_date: t.birth_date || '',
+        position: t.position || '',
+        academic_standing: t.academic_standing || '',
+        department: t.department || '',
+        role: t.role || 'teacher',
+        is_head_of_department: !!t.is_head_of_department,
+        is_head_of_branch: !!t.is_head_of_branch,
+        department_id: t.department_id || '',
+        branch_id: t.branch_id || '',
+        updated_at: new Date().toISOString(),
+      }));
+      (async () => {
+        try {
+          const { error } = await client.from('teachers').upsert(teacherPayloads);
+          if (error) {
+            const lowercasePayloads = teachers.map((t) => ({
+              teacher_id: t.Teacher_ID,
+              name: t.Name,
+              email: t.Email,
+              pass: t.Pass,
+              learning_area: t.Learning_Area || '',
+              photo: t.photo || '',
+              national_id: t.national_id || '',
+              phone: t.phone || '',
+              department: t.department || '',
+              role: t.role || 'teacher',
+              updated_at: new Date().toISOString(),
+            }));
+            await client.from('teachers').upsert(lowercasePayloads);
+          }
+        } catch {}
+      })();
     }
   } catch {}
 
@@ -391,14 +433,17 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
   INITIAL_TEACHERS.forEach((t) => teachersMap.set(t.Teacher_ID, { ...t }));
 
   // 2. Overlay existing local storage data (user edits already saved locally)
+  // CRITICAL: Must use typeof === 'string' so that an empty string '' (removed from branch/dept) is honored!
   const localList = getLocalTeachers();
   localList.forEach((lt) => {
     const existing = teachersMap.get(lt.Teacher_ID) || lt;
     teachersMap.set(lt.Teacher_ID, {
       ...existing,
       ...lt,
-      Learning_Area: lt.Learning_Area || existing.Learning_Area || '',
-      branch: lt.branch || existing.branch || '',
+      Learning_Area: typeof lt.Learning_Area === 'string' ? lt.Learning_Area : (existing.Learning_Area || ''),
+      branch: typeof lt.branch === 'string' ? lt.branch : (existing.branch || ''),
+      is_head_of_department: lt.is_head_of_department !== undefined ? lt.is_head_of_department : existing.is_head_of_department,
+      is_head_of_branch: lt.is_head_of_branch !== undefined ? lt.is_head_of_branch : existing.is_head_of_branch,
     });
   });
 
@@ -411,10 +456,10 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
         teachersMap.set(ct.Teacher_ID, {
           ...existing,
           ...ct,
-          Learning_Area: ct.Learning_Area || existing.Learning_Area || '',
-          branch: ct.branch || existing.branch || '',
-          is_head_of_department: ct.is_head_of_department ?? existing.is_head_of_department,
-          is_head_of_branch: ct.is_head_of_branch ?? existing.is_head_of_branch,
+          Learning_Area: typeof ct.Learning_Area === 'string' ? ct.Learning_Area : (existing.Learning_Area || ''),
+          branch: typeof ct.branch === 'string' ? ct.branch : (existing.branch || ''),
+          is_head_of_department: ct.is_head_of_department !== undefined ? ct.is_head_of_department : existing.is_head_of_department,
+          is_head_of_branch: ct.is_head_of_branch !== undefined ? ct.is_head_of_branch : existing.is_head_of_branch,
         });
       });
     }
@@ -432,12 +477,13 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
           cfRes.data.forEach((row) => {
             const norm = normalizeTeacher(row);
             const existing = teachersMap.get(norm.Teacher_ID);
+            const hasBranchCol = ('branch' in row) || ('Branch' in row);
+            const hasAreaCol = ('learning_area' in row) || ('Learning_Area' in row);
             teachersMap.set(norm.Teacher_ID, {
               ...existing,
               ...norm,
-              // Never blank out existing Learning_Area or branch if the remote table returned null/empty
-              Learning_Area: norm.Learning_Area || existing?.Learning_Area || '',
-              branch: norm.branch || existing?.branch || '',
+              Learning_Area: hasAreaCol ? norm.Learning_Area : (existing?.Learning_Area || ''),
+              branch: hasBranchCol ? norm.branch : (existing?.branch || ''),
               is_head_of_department: norm.is_head_of_department ?? existing?.is_head_of_department ?? false,
               is_head_of_branch: norm.is_head_of_branch ?? existing?.is_head_of_branch ?? false,
             });
@@ -468,12 +514,13 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
           data.forEach((row) => {
             const norm = normalizeTeacher(row);
             const existing = teachersMap.get(norm.Teacher_ID);
+            const hasBranchCol = ('branch' in row) || ('Branch' in row);
+            const hasAreaCol = ('learning_area' in row) || ('Learning_Area' in row);
             teachersMap.set(norm.Teacher_ID, {
               ...existing,
               ...norm,
-              // Never erase valid Learning_Area or branch with blank string from DB
-              Learning_Area: norm.Learning_Area || existing?.Learning_Area || '',
-              branch: norm.branch || existing?.branch || '',
+              Learning_Area: hasAreaCol ? norm.Learning_Area : (existing?.Learning_Area || ''),
+              branch: hasBranchCol ? norm.branch : (existing?.branch || ''),
               is_head_of_department: norm.is_head_of_department ?? existing?.is_head_of_department ?? false,
               is_head_of_branch: norm.is_head_of_branch ?? existing?.is_head_of_branch ?? false,
             });

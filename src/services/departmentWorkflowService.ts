@@ -727,11 +727,15 @@ export async function assignTeacherToBranch(
   const teacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
   if (!teacher) return { success: false, updatedTeachers: allTeachers };
 
+  const isClearing = !branchName || !branchName.trim();
+
   const updatedTeachers = allTeachers.map((t) =>
     t.Teacher_ID === teacherId
       ? {
           ...t,
-          branch: branchName,
+          branch: isClearing ? '' : branchName.trim(),
+          branch_id: isClearing ? '' : t.branch_id,
+          is_head_of_branch: isClearing ? false : t.is_head_of_branch,
         }
       : t
   );
@@ -753,15 +757,35 @@ export async function assignTeacherToDepartmentAndBranch(
   const teacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
   if (!teacher) return { success: false, updatedTeachers: allTeachers };
 
-  const updatedTeachers = allTeachers.map((t) =>
-    t.Teacher_ID === teacherId
-      ? {
-          ...t,
-          Learning_Area: departmentName,
-          branch: branchName,
-        }
-      : t
-  );
+  const isClearingBranch = !branchName || !branchName.trim();
+  const isClearingDept = !departmentName || !departmentName.trim();
+
+  const updatedTeachers = allTeachers.map((t) => {
+    if (t.Teacher_ID === teacherId) {
+      const isHeadDept = isClearingDept ? false : t.is_head_of_department;
+      const isHeadBranch = isClearingBranch ? false : t.is_head_of_branch;
+      return {
+        ...t,
+        Learning_Area: isClearingDept ? '' : departmentName.trim(),
+        department: isClearingDept ? '' : departmentName.trim(),
+        department_id: isClearingDept ? '' : t.department_id,
+        branch: isClearingBranch ? '' : branchName.trim(),
+        branch_id: isClearingBranch ? '' : t.branch_id,
+        is_head_of_department: isHeadDept,
+        is_head_of_branch: isHeadBranch,
+        role: (
+          t.role === 'admin'
+            ? 'admin'
+            : isHeadDept
+            ? 'head_of_department'
+            : isHeadBranch
+            ? 'head_of_branch'
+            : 'teacher'
+        ) as any,
+      };
+    }
+    return t;
+  });
 
   await saveAllTeachers(updatedTeachers);
 
@@ -796,6 +820,7 @@ export async function removeTeacherFromDepartment(
           ...t,
           Learning_Area: '',
           department: '',
+          department_id: '',
           is_head_of_department: false,
           role: (t.is_head_of_branch ? 'head_of_branch' : t.role === 'admin' ? 'admin' : 'teacher') as any,
         }
@@ -834,6 +859,7 @@ export async function removeTeacherFromBranch(
       ? {
           ...t,
           branch: '',
+          branch_id: '',
           is_head_of_branch: false,
           role: (t.is_head_of_department ? 'head_of_department' : t.role === 'admin' ? 'admin' : 'teacher') as any,
         }

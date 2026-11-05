@@ -66,7 +66,16 @@ export const isTeacherInBranch = (teacherBranch?: string | null, branchName?: st
   const t = (teacherBranch || '').trim().toLowerCase();
   const b = (branchName || '').trim().toLowerCase();
   if (!t || !b) return false;
-  return t === b || t.includes(b) || b.includes(t);
+  if (t === b) return true;
+
+  // Clean common prefixes ("สาขาวิชา", "สาขา")
+  const cleanT = t.replace(/^สาขาวิชา|^สาขา/, '').trim();
+  const cleanB = b.replace(/^สาขาวิชา|^สาขา/, '').trim();
+
+  if (cleanT && cleanB && cleanT === cleanB) return true;
+  if (cleanT && cleanB && (cleanT.includes(cleanB) || cleanB.includes(cleanT))) return true;
+
+  return t.includes(b) || b.includes(t);
 };
 
 export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProps> = ({
