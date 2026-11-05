@@ -38,6 +38,7 @@ interface LessonPlanTableRowProps {
   onOpenCertificate?: (plan: LessonPlan) => void;
   statusConfigs?: PlanStatusConfig[];
   deadlineConfigs?: PlanTypeDeadlineConfig[];
+  canReview?: boolean;
 }
 
 export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
@@ -51,11 +52,17 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
   onOpenCertificate,
   statusConfigs,
   deadlineConfigs,
+  canReview: canReviewProp,
 }) => {
   const photoUrl = formatGoogleDriveImageUrl(plan.teacher_photo);
   const isAdmin = isTeacherAdmin(currentTeacher);
   const isOwner = plan.teacher_id === currentTeacher.Teacher_ID;
-  const canReview = isAdmin;
+  const isDirectlyAssigned = Boolean(
+    currentTeacher &&
+      (plan.assigned_reviewer_id === currentTeacher.Teacher_ID ||
+        plan.assigned_reviewer_name === currentTeacher.Name)
+  );
+  const canReview = canReviewProp !== undefined ? canReviewProp : (isAdmin || isDirectlyAssigned);
 
   const timeliness = checkSubmissionTimeliness(plan.plan_type, plan.submitted_at, deadlineConfigs);
   const isLate = plan.is_late !== undefined ? plan.is_late : timeliness.isLate;

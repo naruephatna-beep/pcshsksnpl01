@@ -164,6 +164,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
     if (activeWorkflow && activeWorkflow.stages.length > 0) {
       updated = advancePlanStage(plan, activeWorkflow, reviewRecord, reviewer);
     } else {
+      const existingReviews = plan.stage_reviews || [];
       updated = {
         ...plan,
         status,
@@ -174,6 +175,10 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
         rubric_scores: isApprovalOnly ? undefined : rubrics,
         total_score: isApprovalOnly ? undefined : totalRubricScore,
         evaluation_type: isApprovalOnly ? 'approval_only' : 'rubric_score',
+        stage_reviews: [
+          ...existingReviews.filter((r) => r.stage_id !== reviewRecord.stage_id),
+          reviewRecord,
+        ],
       };
     }
 

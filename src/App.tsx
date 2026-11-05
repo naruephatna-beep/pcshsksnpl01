@@ -674,6 +674,12 @@ export default function App() {
             message: `✓ บันทึกผลการตรวจและสำเนาไฟล์เข้า Google Drive เรียบร้อยแล้ว`,
             details: `จัดเก็บในโฟลเดอร์ "${archiveRes.folderPath}" เรียบร้อยแล้ว`,
           });
+        } else if (archiveRes.isLegacyScript) {
+          setToastNotice({
+            type: 'info',
+            message: `✓ บันทึกผลการตรวจเรียบร้อยแล้ว`,
+            details: `(หากต้องการให้ทำสำเนาไฟล์เข้า Google Drive อัตโนมัติ กรุณาอัปเดตโค้ดสคริปต์ในเมนู "ตั้งค่า Google Drive (Auto)")`,
+          });
         } else {
           console.warn('[GoogleDrive Archive Notice]', archiveRes.error);
         }
@@ -910,66 +916,267 @@ export default function App() {
     }
   };
 
-  const { assignedPendingCount, assignedCompletedCount } = useMemo(() => {
-    if (!currentTeacher) return { assignedPendingCount: 0, assignedCompletedCount: 0 };
-    const activeWorkflow = workflows[0] || DEFAULT_WORKFLOWS[0];
+  // Helper to check if two teacher identities match
+  const isSameTeacherIdOrName = (tId?: string, tName?: string, teacher?: Teacher | null) => {
+    if (!teacher) return false;
+    const targetId = String(tId || '').trim().toLowerCase();
+    const targetName = String(tName || '').trim().toLowerCase();
+    const myId = String(teacher.Teacher_ID || (teacher as any).teacher_id || '').trim().toLowerCase();
+    const myEmail = String(teacher.Email || (teacher as any).email || '').trim().toLowerCase();
+    const myName = String(teacher.Name || (teacher as any).name || '').trim().toLowerCase();
 
-    let pending = 0;
-    let completed = 0;
+    if (targetId && (targetId === myId || targetId === myEmail)) return true;
+    if (targetName && myName && (targetName === myName || targetName.includes(myName) || myName.includes(targetName))) {
+      return true;
+    }
+    return false;
+  };
+
+  // Helper to check if a teacher has already reviewed this plan
+  const hasTeacherReviewedPlan = (plan: LessonPlan, teacher: Teacher | null): boolean => {
+    if (!teacher) return false;
+    if (isSameTeacherIdOrName(plan.reviewed_by, plan.reviewer_name, teacher)) {
+      return true;
+    }
+    if (
+      plan.stage_reviews &&
+      plan.stage_reviews.some((r) => isSameTeacherIdOrName(r.reviewer_id, r.reviewer_name, teacher))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  // Helper to check if plan review has reached completion/revision state
+  const isPlanReviewCompleted = (plan: LessonPlan): boolean => {
+    const s = String(plan.status || '').toLowerCase().trim();
+    return (
+      s === 'approved' ||
+      s === 'passed' ||
+      s === 'needs_revision' ||
+      s === 'rejected' ||
+      s === 'completed'
+    );
+  };
+
+  // Helper to check if a plan is currently pending review by this teacher
+  const isPlanPendingForMe = (
+    plan: LessonPlan,
+    teacher: Teacher | null,
+    allWorkflows: ReviewWorkflowConfig[],
+    allTeachers: Teacher[],
+    depts: DepartmentConfig[]
+  ): boolean => {
+    if (!teacher || plan.status === 'deleted') return false;
+
+    // Never review your own plan
+    if (isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher)) {
+      return false;
+    }
+
+    // If the plan has already completed review or returned for revision, it is NOT pending review!
+    if (isPlanReviewCompleted(plan)) {
+      return false;
+    }
+
+    // If this teacher has already submitted a review for this plan, they are done with this review!
+    if (hasTeacherReviewedPlan(plan, teacher)) {
+      return false;
+    }
+
+    // Check direct assignment
+    const isDirectlyAssigned = isSameTeacherIdOrName(
+      plan.assigned_reviewer_id,
+      plan.assigned_reviewer_name,
+      teacher
+    );
+
+    // Resolve the exact workflow specifically designated for THIS plan's document type
+    const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
+    const currentStageOrder = plan.current_stage_order || 1;
+    const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
+    const isEligible = stage
+      ? resolveReviewersForStage(stage, plan, allTeachers, depts).some((c) =>
+          isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
+        )
+      : false;
+
+    return isDirectlyAssigned || isEligible;
+  };
+
+  // Helper to check if a plan was reviewed by this teacher or finished
+  const isPlanCompletedForMe = (
+    plan: LessonPlan,
+    teacher: Teacher | null,
+    allWorkflows: ReviewWorkflowConfig[],
+    allTeachers: Teacher[],
+    depts: DepartmentConfig[]
+  ): boolean => {
+    if (!teacher || plan.status === 'deleted') return false;
+
+    // Never review your own plan
+    if (isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher)) {
+      return false;
+    }
+
+    // If this teacher has personally reviewed this plan
+    if (hasTeacherReviewedPlan(plan, teacher)) {
+      return true;
+    }
+
+    // If this plan was assigned/eligible for this teacher and has reached completed review
+    if (isPlanReviewCompleted(plan)) {
+      const isDirectlyAssigned = isSameTeacherIdOrName(
+        plan.assigned_reviewer_id,
+        plan.assigned_reviewer_name,
+        teacher
+      );
+      const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
+      const currentStageOrder = plan.current_stage_order || 1;
+      const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
+      const isEligible = stage
+        ? resolveReviewersForStage(stage, plan, allTeachers, depts).some((c) =>
+            isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
+          )
+        : false;
+
+      if (isDirectlyAssigned || isEligible) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Helper to accurately match document types against category or specific name
+  const matchesDocumentTypeFilter = (plan: LessonPlan, filter: string): boolean => {
+    if (!filter || filter === 'all') return true;
+
+    const rawType = String(plan.plan_type || '').trim();
+    const lowerType = rawType.toLowerCase();
+    const lowerFilter = filter.trim().toLowerCase();
+
+    // Direct exact or substring match
+    if (lowerType === lowerFilter || lowerType.includes(lowerFilter) || lowerFilter.includes(lowerType)) {
+      return true;
+    }
+
+    const meta = classifyDocumentType(plan.plan_type);
+
+    if (filter === 'summary_plan') {
+      return meta.key === 'summary_plan' || lowerType.includes('ย่อ') || lowerType.includes('summary');
+    }
+    if (filter === 'full_plan') {
+      return (
+        meta.key === 'full_plan' ||
+        lowerType.includes('สมบูรณ์') ||
+        lowerType.includes('full') ||
+        lowerType.includes('active learning')
+      );
+    }
+    if (filter === 'classroom_research') {
+      return (
+        meta.key === 'classroom_research' ||
+        lowerType.includes('วิจัย') ||
+        lowerType.includes('research')
+      );
+    }
+    if (filter === 'syllabus') {
+      return (
+        meta.key === 'syllabus' ||
+        lowerType.includes('กำหนดการ') ||
+        lowerType.includes('โครงการสอน') ||
+        lowerType.includes('syllabus')
+      );
+    }
+    if (filter === 'post_teaching') {
+      return (
+        meta.key === 'post_teaching' ||
+        lowerType.includes('บันทึกหลังสอน') ||
+        lowerType.includes('บันทึกหลังการสอน')
+      );
+    }
+    if (filter === 'general_academic') {
+      return (
+        meta.key === 'general_academic' ||
+        (!lowerType.includes('ย่อ') &&
+          !lowerType.includes('สมบูรณ์') &&
+          !lowerType.includes('วิจัย'))
+      );
+    }
+
+    return meta.key === filter;
+  };
+
+  // Review queues memoization
+  const { assignedPendingPlans, assignedCompletedPlans, allAssignedReviewPlans } = useMemo(() => {
+    if (!currentTeacher) {
+      return { assignedPendingPlans: [], assignedCompletedPlans: [], allAssignedReviewPlans: [] };
+    }
+    const pendingList: LessonPlan[] = [];
+    const completedList: LessonPlan[] = [];
+    const allList: LessonPlan[] = [];
 
     for (const p of plans) {
       if (p.status === 'deleted') continue;
 
-      const currentStageOrder = p.current_stage_order || 1;
-      const isDirectlyAssigned = p.assigned_reviewer_id === currentTeacher.Teacher_ID;
-      const stage = activeWorkflow?.stages?.find((s) => s.order === currentStageOrder);
-      const isEligible = stage
-        ? resolveReviewersForStage(stage, p, teachers, departments).some(
-            (c) => c.Teacher_ID === currentTeacher.Teacher_ID
-          )
-        : false;
+      const isPending = isPlanPendingForMe(p, currentTeacher, workflows, teachers, departments);
+      const isCompleted = isPlanCompletedForMe(p, currentTeacher, workflows, teachers, departments);
 
-      const isReviewedByMeInThisStage = Boolean(
-        p.stage_reviews?.some(
-          (r) => r.stage_order === currentStageOrder && r.reviewer_id === currentTeacher.Teacher_ID
-        )
-      );
-
-      const isFullyApproved = p.status === 'approved' || p.status === 'passed';
-      const isDoneForMe = isFullyApproved || isReviewedByMeInThisStage;
-
-      const hasReviewedByMeEver = Boolean(
-        p.stage_reviews?.some((r) => r.reviewer_id === currentTeacher.Teacher_ID) ||
-        p.reviewed_by === currentTeacher.Teacher_ID
-      );
-
-      if (isDirectlyAssigned || isEligible) {
-        if (!isDoneForMe) {
-          pending++;
-        } else {
-          completed++;
-        }
-      } else if (hasReviewedByMeEver) {
-        completed++;
+      if (isPending) {
+        pendingList.push(p);
+      }
+      if (isCompleted) {
+        completedList.push(p);
+      }
+      if (isPending || isCompleted) {
+        allList.push(p);
       }
     }
 
-    return { assignedPendingCount: pending, assignedCompletedCount: completed };
+    return {
+      assignedPendingPlans: pendingList,
+      assignedCompletedPlans: completedList,
+      allAssignedReviewPlans: allList,
+    };
   }, [plans, currentTeacher, workflows, teachers, departments]);
 
+  const assignedPendingCount = assignedPendingPlans.length;
+  const assignedCompletedCount = assignedCompletedPlans.length;
   const assignedToMeCount = assignedPendingCount;
 
-  const userVisiblePlans = useMemo(() => {
-    if (isAdmin) return plans;
-    return plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID);
-  }, [isAdmin, plans, currentTeacher]);
+  // Contextual plans for category counts so buttons reflect the active tab
+  const contextPlansForCategoryCounts = useMemo(() => {
+    if (viewTab === 'assigned_to_me') {
+      if (assignedReviewSubTab === 'pending') return assignedPendingPlans;
+      if (assignedReviewSubTab === 'completed') return assignedCompletedPlans;
+      return allAssignedReviewPlans;
+    }
+    if (isAdmin) {
+      if (areaFilter) return plans.filter((p) => p.learning_area === areaFilter && p.status !== 'deleted');
+      return plans.filter((p) => p.status !== 'deleted');
+    }
+    return plans.filter(
+      (p) => isSameTeacherIdOrName(p.teacher_id, p.teacher_name, currentTeacher) && p.status !== 'deleted'
+    );
+  }, [
+    viewTab,
+    assignedReviewSubTab,
+    assignedPendingPlans,
+    assignedCompletedPlans,
+    allAssignedReviewPlans,
+    isAdmin,
+    areaFilter,
+    plans,
+    currentTeacher,
+  ]);
 
   const docCategoryCounts = useMemo(() => {
     let summary = 0;
     let full = 0;
     let research = 0;
     let general = 0;
-    for (const p of userVisiblePlans) {
+    for (const p of contextPlansForCategoryCounts) {
       const meta = classifyDocumentType(p.plan_type);
       if (meta.key === 'summary_plan') summary++;
       else if (meta.key === 'full_plan') full++;
@@ -977,73 +1184,45 @@ export default function App() {
       else general++;
     }
     return {
-      all: userVisiblePlans.length,
+      all: contextPlansForCategoryCounts.length,
       summary,
       full,
       research,
       general,
     };
-  }, [userVisiblePlans]);
+  }, [contextPlansForCategoryCounts]);
 
   // Filtered plans logic
   const filteredPlans = plans.filter((plan) => {
-    // If viewing assigned reviews for this teacher/reviewer
+    if (plan.status === 'deleted') return false;
+
+    // 1. Tab-level filter
     if (viewTab === 'assigned_to_me') {
-      if (plan.status === 'deleted') return false;
+      if (!currentTeacher) return false;
 
-      const currentStageOrder = plan.current_stage_order || 1;
-      const activeWorkflow = workflows[0] || DEFAULT_WORKFLOWS[0];
-      const isDirectlyAssigned = plan.assigned_reviewer_id === currentTeacher?.Teacher_ID;
-      const stage = activeWorkflow?.stages?.find((s) => s.order === currentStageOrder);
-      const isEligible = stage
-        ? resolveReviewersForStage(stage, plan, teachers, departments).some(
-            (c) => c.Teacher_ID === currentTeacher?.Teacher_ID
-          )
-        : false;
-
-      const isReviewedByMeInThisStage = Boolean(
-        plan.stage_reviews?.some(
-          (r) => r.stage_order === currentStageOrder && r.reviewer_id === currentTeacher?.Teacher_ID
-        )
-      );
-
-      const isFullyApproved = plan.status === 'approved' || plan.status === 'passed';
-      const isDoneForMe = isFullyApproved || isReviewedByMeInThisStage;
-
-      const hasReviewedByMeEver = Boolean(
-        plan.stage_reviews?.some((r) => r.reviewer_id === currentTeacher?.Teacher_ID) ||
-        plan.reviewed_by === currentTeacher?.Teacher_ID
-      );
-
-      // "ถ้าตรวจเสร็จแล้วให้เอกสารที่ตรวจแล้วหายไป" (เมื่อเลือกแท็บรอตรวจ)
       if (assignedReviewSubTab === 'pending') {
-        if (isDoneForMe) return false;
-        return isDirectlyAssigned || isEligible;
+        if (!isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments)) {
+          return false;
+        }
       } else if (assignedReviewSubTab === 'completed') {
-        if (!isDoneForMe && !hasReviewedByMeEver) return false;
-        return isDirectlyAssigned || isEligible || hasReviewedByMeEver;
+        if (!isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments)) {
+          return false;
+        }
       } else {
-        return isDirectlyAssigned || isEligible || hasReviewedByMeEver;
+        const isPending = isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments);
+        const isCompleted = isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments);
+        if (!isPending && !isCompleted) {
+          return false;
+        }
       }
-    }
-
-    // CRITICAL: Regular teachers can ONLY see their own plans! Normalized comparison prevents case/whitespace bugs
-    if (!isAdmin) {
-      const normalize = (val?: string) => String(val || '').trim().toLowerCase();
-      const planTeacherId = normalize(plan.teacher_id || (plan as any).Teacher_ID);
-      const currentTeacherId = normalize(currentTeacher?.Teacher_ID || (currentTeacher as any)?.teacher_id);
-      const planTeacherName = normalize(plan.teacher_name || (plan as any).Teacher_Name);
-      const currentTeacherName = normalize(currentTeacher?.Name || (currentTeacher as any)?.name);
-
-      const isOwner =
-        (currentTeacherId && planTeacherId === currentTeacherId) ||
-        (currentTeacherName && planTeacherName === currentTeacherName);
-
+    } else if (!isAdmin) {
+      // Regular teacher's personal view
+      const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, currentTeacher);
       if (!isOwner) {
         return false;
       }
 
-      // Waiting for review tab: show all unreviewed plans (both 'submitted' and 'late')
+      // Waiting for review tab: show unreviewed plans
       if (viewTab === 'pending_review' && (plan.status === 'approved' || plan.status === 'needs_revision')) {
         return false;
       }
@@ -1056,53 +1235,44 @@ export default function App() {
       if ((viewTab as any) === 'late' && !plan.is_late) {
         return false;
       }
-    }
-
-    // Status filter (Admin)
-    if (isAdmin && statusFilter !== 'all') {
-      if (statusFilter === 'late') {
-        if (!plan.is_late) return false;
-      } else if (plan.status !== statusFilter) {
+    } else {
+      // Admin filters
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'late') {
+          if (!plan.is_late) return false;
+        } else if (plan.status !== statusFilter) {
+          return false;
+        }
+      }
+      if (areaFilter && plan.learning_area !== areaFilter) {
         return false;
       }
     }
 
-    // Area filter (Admin)
-    if (isAdmin && areaFilter && plan.learning_area !== areaFilter) {
+    // 2. Document Type Filter (แยกประเภทเอกสาร)
+    if (!matchesDocumentTypeFilter(plan, docTypeFilter)) {
       return false;
     }
 
-    // Document Type Filter (แยกประเภทเอกสาร)
-    if (docTypeFilter !== 'all') {
-      const docTypeMeta = classifyDocumentType(plan.plan_type);
-      if (docTypeFilter === 'general_academic') {
-        if (
-          docTypeMeta.key === 'summary_plan' ||
-          docTypeMeta.key === 'full_plan' ||
-          docTypeMeta.key === 'classroom_research'
-        ) {
-          return false;
-        }
-      } else if (docTypeMeta.key !== docTypeFilter) {
-        return false;
-      }
-    }
-
-    // Search query
+    // 3. Search query
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       const matchSubject =
-        plan.subject_code.toLowerCase().includes(q) ||
-        plan.subject_name.toLowerCase().includes(q);
-      const matchTitle = plan.plan_title.toLowerCase().includes(q);
-      if (!isAdmin) {
-        if (!matchSubject && !matchTitle) return false;
+        (plan.subject_code || '').toLowerCase().includes(q) ||
+        (plan.subject_name || '').toLowerCase().includes(q);
+      const matchTitle = (plan.plan_title || '').toLowerCase().includes(q);
+      const matchTeacher =
+        (plan.teacher_name || '').toLowerCase().includes(q) ||
+        (plan.teacher_id || '').toLowerCase().includes(q);
+      const matchArea =
+        (plan.learning_area || '').toLowerCase().includes(q) ||
+        (plan.branch || '').toLowerCase().includes(q);
+      const matchNotes = (plan.notes || '').toLowerCase().includes(q);
+
+      if (!isAdmin && viewTab !== 'assigned_to_me') {
+        if (!matchSubject && !matchTitle && !matchNotes) return false;
       } else {
-        const matchTeacher =
-          plan.teacher_name.toLowerCase().includes(q) ||
-          plan.teacher_id.toLowerCase().includes(q);
-        const matchArea = plan.learning_area.toLowerCase().includes(q);
-        if (!matchSubject && !matchTitle && !matchTeacher && !matchArea) {
+        if (!matchSubject && !matchTitle && !matchTeacher && !matchArea && !matchNotes) {
           return false;
         }
       }
@@ -1624,17 +1794,19 @@ export default function App() {
 
         {/* Content Display: Either Executive Dashboard OR Plans Grid */}
         {isAdmin && mainView === 'executive' ? (
-          <ExecutiveDashboard
-            teachers={teachers}
-            plans={plans}
-            currentTeacher={currentTeacher}
-            deadlineConfigs={deadlineConfigs}
-            executiveMode={executiveMode}
-            onExecutiveModeChange={setExecutiveMode}
-            onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
-            onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
-            onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
-          />
+          <div id="executive-dashboard-section" className="scroll-mt-20">
+            <ExecutiveDashboard
+              teachers={teachers}
+              plans={plans}
+              currentTeacher={currentTeacher}
+              deadlineConfigs={deadlineConfigs}
+              executiveMode={executiveMode}
+              onExecutiveModeChange={setExecutiveMode}
+              onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
+              onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+              onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
+            />
+          </div>
         ) : (
           <>
             {/* For regular users: Show assigned documents notification & deadline alert */}
@@ -1650,18 +1822,20 @@ export default function App() {
             )}
 
             {/* Dashboard Statistics */}
-            <DashboardStats
-              plans={plans}
-              teachers={teachers}
-              currentTeacher={currentTeacher}
-              selectedArea={areaFilter}
-              onSelectArea={(area) => setAreaFilter(area)}
-              selectedDocType={docTypeFilter}
-              onSelectDocType={(dt) => setDocTypeFilter(dt)}
-            />
+            <div id="dashboard-stats-section" className="scroll-mt-20">
+              <DashboardStats
+                plans={plans}
+                teachers={teachers}
+                currentTeacher={currentTeacher}
+                selectedArea={areaFilter}
+                onSelectArea={(area) => setAreaFilter(area)}
+                selectedDocType={docTypeFilter}
+                onSelectDocType={(dt) => setDocTypeFilter(dt)}
+              />
+            </div>
 
         {/* Lesson Plans Control Bar */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs space-y-3 sm:space-y-4">
+        <div id="lesson-plans-section" className="scroll-mt-20 bg-white rounded-2xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs space-y-3 sm:space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
             {/* View Tabs */}
             {!isAdmin ? (
@@ -1817,7 +1991,7 @@ export default function App() {
               </span>
             </button>
             <button
-              onClick={() => setDocTypeFilter('summary_plan')}
+              onClick={() => setDocTypeFilter((prev) => (prev === 'summary_plan' ? 'all' : 'summary_plan'))}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'summary_plan'
                   ? 'bg-sky-600 text-white shadow-xs font-bold'
@@ -1834,7 +2008,7 @@ export default function App() {
               </span>
             </button>
             <button
-              onClick={() => setDocTypeFilter('full_plan')}
+              onClick={() => setDocTypeFilter((prev) => (prev === 'full_plan' ? 'all' : 'full_plan'))}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'full_plan'
                   ? 'bg-emerald-600 text-white shadow-xs font-bold'
@@ -1851,7 +2025,7 @@ export default function App() {
               </span>
             </button>
             <button
-              onClick={() => setDocTypeFilter('classroom_research')}
+              onClick={() => setDocTypeFilter((prev) => (prev === 'classroom_research' ? 'all' : 'classroom_research'))}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'classroom_research'
                   ? 'bg-purple-600 text-white shadow-xs font-bold'
@@ -1869,7 +2043,7 @@ export default function App() {
             </button>
             {docCategoryCounts.general > 0 && (
               <button
-                onClick={() => setDocTypeFilter('general_academic')}
+                onClick={() => setDocTypeFilter((prev) => (prev === 'general_academic' ? 'all' : 'general_academic'))}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                   docTypeFilter === 'general_academic'
                     ? 'bg-indigo-600 text-white shadow-xs font-bold'
@@ -1911,7 +2085,9 @@ export default function App() {
                     ? 'แผนฯ ฉบับสมบูรณ์'
                     : docTypeFilter === 'classroom_research'
                     ? 'วิจัยในชั้นเรียน'
-                    : 'เอกสารวิชาการ'}
+                    : docTypeFilter === 'general_academic'
+                    ? 'เอกสารวิชาการอื่นๆ'
+                    : docTypeFilter}
                 </span>
                 <button
                   onClick={() => setDocTypeFilter('all')}
@@ -2072,22 +2248,35 @@ export default function App() {
             </div>
           ) : planDisplayMode === 'board' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredPlans.map((plan) => (
-                <LessonPlanCard
-                  key={plan.id}
-                  plan={plan}
-                  currentTeacher={currentTeacher || teachers[0]}
-                  onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
-                  onOpenReview={(p) => setSelectedPlanForReview(p)}
-                  onDeletePlan={(id) => handleDeletePlan(id)}
-                  onEditPlan={(p) => setPlanToEdit(p)}
-                  onResubmitPlan={(p) => setPlanToResubmit(p)}
-                  statusConfigs={statusConfigs}
-                  deadlineConfigs={deadlineConfigs}
-                  onQuickChangeStatus={handleQuickChangePlanStatus}
-                  onToggleLate={handleTogglePlanLate}
-                />
-              ))}
+              {filteredPlans.map((plan) => {
+                const canReviewThisPlan =
+                  isAdmin ||
+                  viewTab === 'assigned_to_me' ||
+                  isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
+                  isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
+                  (Boolean(currentTeacher) &&
+                    (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
+                      plan.assigned_reviewer_name === currentTeacher?.Name) &&
+                    plan.teacher_id !== currentTeacher?.Teacher_ID);
+
+                return (
+                  <LessonPlanCard
+                    key={plan.id}
+                    plan={plan}
+                    currentTeacher={currentTeacher || teachers[0]}
+                    onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
+                    onOpenReview={(p) => setSelectedPlanForReview(p)}
+                    onDeletePlan={(id) => handleDeletePlan(id)}
+                    onEditPlan={(p) => setPlanToEdit(p)}
+                    onResubmitPlan={(p) => setPlanToResubmit(p)}
+                    statusConfigs={statusConfigs}
+                    deadlineConfigs={deadlineConfigs}
+                    onQuickChangeStatus={handleQuickChangePlanStatus}
+                    onToggleLate={handleTogglePlanLate}
+                    canReview={canReviewThisPlan}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
@@ -2104,20 +2293,33 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredPlans.map((plan) => (
-                      <LessonPlanTableRow
-                        key={plan.id}
-                        plan={plan}
-                        currentTeacher={currentTeacher || teachers[0]}
-                        onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
-                        onOpenReview={(p) => setSelectedPlanForReview(p)}
-                        onDeletePlan={(id) => handleDeletePlan(id)}
-                        onEditPlan={(p) => setPlanToEdit(p)}
-                        onResubmitPlan={(p) => setPlanToResubmit(p)}
-                        statusConfigs={statusConfigs}
-                        deadlineConfigs={deadlineConfigs}
-                      />
-                    ))}
+                    {filteredPlans.map((plan) => {
+                      const canReviewThisPlan =
+                        isAdmin ||
+                        viewTab === 'assigned_to_me' ||
+                        isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
+                        isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
+                        (Boolean(currentTeacher) &&
+                          (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
+                            plan.assigned_reviewer_name === currentTeacher?.Name) &&
+                          plan.teacher_id !== currentTeacher?.Teacher_ID);
+
+                      return (
+                        <LessonPlanTableRow
+                          key={plan.id}
+                          plan={plan}
+                          currentTeacher={currentTeacher || teachers[0]}
+                          onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
+                          onOpenReview={(p) => setSelectedPlanForReview(p)}
+                          onDeletePlan={(id) => handleDeletePlan(id)}
+                          onEditPlan={(p) => setPlanToEdit(p)}
+                          onResubmitPlan={(p) => setPlanToResubmit(p)}
+                          statusConfigs={statusConfigs}
+                          deadlineConfigs={deadlineConfigs}
+                          canReview={canReviewThisPlan}
+                        />
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

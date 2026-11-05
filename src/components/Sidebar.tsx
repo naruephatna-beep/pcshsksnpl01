@@ -97,9 +97,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const photoUrl = formatGoogleDriveImageUrl(currentTeacher.photo);
   const isExecutive = isTeacherExecutive(currentTeacher);
 
-  const handleNavClick = (callback: () => void) => {
+  const handleNavClick = (callback: () => void, targetElementId?: string) => {
     callback();
     onCloseMobile();
+    if (targetElementId) {
+      setTimeout(() => {
+        const el = document.getElementById(targetElementId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    }
   };
 
   return (
@@ -199,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={() => {
                 setMainView('plans');
-                handleNavClick(onScrollToAssignments);
+                handleNavClick(onScrollToAssignments, 'assigned-documents-section');
               }}
               className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all group cursor-pointer"
             >
@@ -225,7 +233,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 handleNavClick(() => {
                   setMainView('plans');
                   setViewTab('all');
-                })
+                }, 'lesson-plans-section')
               }
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
                 mainView === 'plans' && viewTab === 'all'
@@ -250,7 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 handleNavClick(() => {
                   setMainView('plans');
                   setViewTab('assigned_to_me');
-                })
+                }, 'lesson-plans-section')
               }
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
                 mainView === 'plans' && viewTab === 'assigned_to_me'
@@ -281,7 +289,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     handleNavClick(() => {
                       setMainView('plans');
                       setViewTab('pending_review');
-                    })
+                    }, 'lesson-plans-section')
                   }
                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
                     mainView === 'plans' && viewTab === 'pending_review'
@@ -300,7 +308,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     handleNavClick(() => {
                       setMainView('plans');
                       setViewTab('approved');
-                    })
+                    }, 'lesson-plans-section')
                   }
                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
                     mainView === 'plans' && viewTab === 'approved'
@@ -319,7 +327,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     handleNavClick(() => {
                       setMainView('plans');
                       setViewTab('needs_revision');
-                    })
+                    }, 'lesson-plans-section')
                   }
                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
                     mainView === 'plans' && viewTab === 'needs_revision'
@@ -351,7 +359,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   handleNavClick(() => {
                     setMainView('executive');
                     if (setExecutiveMode) setExecutiveMode('standard');
-                  })
+                  }, 'executive-dashboard-section')
                 }
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'standard'
@@ -374,7 +382,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   handleNavClick(() => {
                     setMainView('executive');
                     if (setExecutiveMode) setExecutiveMode('ranking');
-                  })
+                  }, 'executive-dashboard-section')
                 }
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'ranking'
@@ -397,7 +405,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   handleNavClick(() => {
                     setMainView('executive');
                     if (setExecutiveMode) setExecutiveMode('ddo');
-                  })
+                  }, 'executive-dashboard-section')
                 }
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'ddo'

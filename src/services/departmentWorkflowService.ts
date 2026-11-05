@@ -1327,6 +1327,8 @@ export function advancePlanStage(
       total_stages: totalStages,
       stage_reviews: updatedReviews,
       admin_notes: `ผ่านขั้นที่ ${currentStageOrder} (${reviewRecord.stage_title}) เรียบร้อยแล้ว กำลังรอ ${nextStage?.title || 'ขั้นถัดไป'}`,
+      assigned_reviewer_id: undefined,
+      assigned_reviewer_name: undefined,
     };
   }
 

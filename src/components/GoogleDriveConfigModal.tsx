@@ -51,6 +51,8 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
     success: boolean;
     message: string;
     details?: any;
+    isLegacyScript?: boolean;
+    supportsArchive?: boolean;
   } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [activeTab, setActiveTab] = useState<'settings' | 'guide' | 'code'>('settings');
@@ -369,24 +371,38 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
               {testResult && (
                 <div
                   className={`p-4 rounded-2xl border text-xs flex items-start gap-3 transition-all ${
-                    testResult.success
+                    testResult.isLegacyScript
+                      ? 'bg-amber-50 border-amber-300 text-amber-950'
+                      : testResult.success
                       ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
                       : 'bg-rose-50 border-rose-300 text-rose-900'
                   }`}
                 >
-                  {testResult.success ? (
+                  {testResult.isLegacyScript ? (
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  ) : testResult.success ? (
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   ) : (
                     <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                   )}
-                  <div className="space-y-1">
-                    <p className="font-bold">{testResult.message}</p>
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <p className="font-bold text-sm">{testResult.message}</p>
                     {testResult.details && (
-                      <p className="font-mono text-[11px] opacity-80 break-all">
+                      <p className={`text-[11px] leading-relaxed ${testResult.isLegacyScript ? 'text-amber-800' : 'opacity-80 font-mono break-all'}`}>
                         {typeof testResult.details === 'string'
                           ? testResult.details
                           : JSON.stringify(testResult.details)}
                       </p>
+                    )}
+                    {testResult.isLegacyScript && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('code')}
+                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition-all cursor-pointer shadow-xs"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>เปิดแท็บ "โค้ด Apps Script" เพื่อคัดลอกโค้ด</span>
+                      </button>
                     )}
                   </div>
                 </div>

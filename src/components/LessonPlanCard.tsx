@@ -40,6 +40,7 @@ interface LessonPlanCardProps {
   deadlineConfigs?: PlanTypeDeadlineConfig[];
   onQuickChangeStatus?: (plan: LessonPlan, newStatus: string) => void;
   onToggleLate?: (plan: LessonPlan) => void;
+  canReview?: boolean;
 }
 
 export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
@@ -55,11 +56,17 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
   deadlineConfigs,
   onQuickChangeStatus,
   onToggleLate,
+  canReview: canReviewProp,
 }) => {
   const photoUrl = formatGoogleDriveImageUrl(plan.teacher_photo);
   const isAdmin = isTeacherAdmin(currentTeacher);
   const isOwner = plan.teacher_id === currentTeacher.Teacher_ID;
-  const canReview = isAdmin;
+  const isDirectlyAssigned = Boolean(
+    currentTeacher &&
+      (plan.assigned_reviewer_id === currentTeacher.Teacher_ID ||
+        plan.assigned_reviewer_name === currentTeacher.Name)
+  );
+  const canReview = canReviewProp !== undefined ? canReviewProp : (isAdmin || isDirectlyAssigned);
 
   // Timeliness & Late Status calculation
   const timeliness = checkSubmissionTimeliness(plan.plan_type, plan.submitted_at, deadlineConfigs);

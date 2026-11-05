@@ -106,7 +106,7 @@ function fileToBase64(file: File): Promise<string> {
  */
 export async function testGoogleDriveConnection(
   webhookUrl?: string
-): Promise<{ success: boolean; message: string; details?: any }> {
+): Promise<{ success: boolean; message: string; details?: any; isLegacyScript?: boolean; supportsArchive?: boolean }> {
   const targetUrl = (webhookUrl || getSavedGoogleDriveWebhookUrl()).trim();
   if (!targetUrl) {
     return {
@@ -144,9 +144,43 @@ export async function testGoogleDriveConnection(
       // not json, but ok
     }
 
+    // Now test if the script has updated 'archive_reviewed_pdf' capability
+    let isLegacy = false;
+    try {
+      const probeRes = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'archive_reviewed_pdf', probe: true, fileUrl: 'probe' }),
+        redirect: 'follow',
+      });
+      if (probeRes.ok) {
+        const probeText = await probeRes.text();
+        if (
+          probeText.includes('引數不能為空值') ||
+          probeText.includes('อาร์กิวเมนต์ต้องไม่เป็นนัล') ||
+          probeText.includes('Exception: อาร์กิวเมนต์ต้องไม่เป็นนัล')
+        ) {
+          isLegacy = true;
+        }
+      }
+    } catch {
+      // probe error ignored
+    }
+
+    if (isLegacy) {
+      return {
+        success: true,
+        isLegacyScript: true,
+        supportsArchive: false,
+        message: 'เชื่อมต่อสำเร็จ แต่สคริปต์ในไดรฟ์ยังเป็นเวอร์ชันเดิม (ยังไม่รองรับการทำสำเนาไฟล์ที่ตรวจแล้ว)',
+        details: 'กรุณากดแท็บ "โค้ดสคริปต์ Google Apps Script" ด้านบน แล้วคัดลอกโค้ดไปวางใน script.google.com จากนั้น Deploy เวอร์ชันใหม่ เพื่อเปิดใช้งานการทำสำเนาเข้า Google Drive อัตโนมัติ',
+      };
+    }
+
     return {
       success: true,
-      message: 'เชื่อมต่อกับ Google Apps Script สำเร็จพร้อมใช้งาน!',
+      supportsArchive: true,
+      message: 'เชื่อมต่อกับ Google Apps Script สำเร็จพร้อมใช้งาน! (รองรับทั้งอัปโหลด, ย้ายลงถังขยะ และทำสำเนาไฟล์ตรวจแล้วครบวงจร)',
       details: json || text,
     };
   } catch (err: any) {
@@ -402,6 +436,7 @@ export interface ArchiveReviewedResult {
   folderPath?: string;
   folderName?: string;
   fileName?: string;
+  isLegacyScript?: boolean;
   error?: string;
 }
 
@@ -486,6 +521,19 @@ export async function archiveReviewedPlanToGoogleDrive(
     }
 
     if (!resJson.success) {
+      const errorStr = String(resJson.error || '');
+      const isLegacy =
+        errorStr.includes('引數不能為空值') ||
+        errorStr.includes('อาร์กิวเมนต์ต้องไม่เป็นนัล') ||
+        errorStr.includes('Exception: อาร์กิวเมนต์ต้องไม่เป็นนัล');
+
+      if (isLegacy) {
+        return {
+          success: false,
+          isLegacyScript: true,
+          error: 'สคริปต์ Google Apps Script ในไดรฟ์ยังเป็นเวอร์ชันเดิม กรุณาอัปเดตโค้ดสคริปต์ในเมนู "ตั้งค่า Google Drive (Auto)" เพื่อเปิดใช้งานการทำสำเนาอัตโนมัติ',
+        };
+      }
       throw new Error(resJson.error || 'Google Apps Script ไม่สามารถคัดลอกไฟล์สำเนาได้');
     }
 
