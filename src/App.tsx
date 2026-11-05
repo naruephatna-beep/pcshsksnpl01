@@ -69,6 +69,7 @@ import { GoogleDriveConfigModal } from './components/GoogleDriveConfigModal';
 import {
   DEFAULT_GDRIVE_WEBHOOK_URL,
   STORAGE_KEY_GDRIVE_WEBHOOK,
+  archiveReviewedPlanToGoogleDrive,
 } from './services/googleDriveService';
 import {
   DEFAULT_DEPARTMENTS,
@@ -141,6 +142,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [areaFilter, setAreaFilter] = useState<string>('');
   const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
+  const [assignedReviewSubTab, setAssignedReviewSubTab] = useState<'pending' | 'completed' | 'all'>('pending');
 
   // Auto-switch to executive dashboard for leadership accounts
   useEffect(() => {
@@ -643,6 +645,41 @@ export default function App() {
       triggerSchoolCelebration('light');
     }
 
+    // Auto archive copy into Google Drive "ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"
+    if (updatedPlan.status === 'approved' || updatedPlan.status === 'passed') {
+      const planTeacher = teachers.find((t) => t.Teacher_ID === updatedPlan.teacher_id);
+      const teacherBranch =
+        updatedPlan.branch ||
+        planTeacher?.branch ||
+        planTeacher?.Learning_Area ||
+        updatedPlan.learning_area ||
+        'ทั่วไป';
+
+      archiveReviewedPlanToGoogleDrive({
+        planId: updatedPlan.id,
+        planTitle: updatedPlan.plan_title || updatedPlan.subject_name || 'เอกสารวิชาการ',
+        planType: updatedPlan.plan_type,
+        branch: teacherBranch,
+        learningArea: updatedPlan.learning_area || planTeacher?.Learning_Area,
+        teacherName: updatedPlan.teacher_name || planTeacher?.Name || 'คุณครู',
+        teacherId: updatedPlan.teacher_id,
+        fileUrl: updatedPlan.file_url,
+        fileName: updatedPlan.file_name,
+        reviewerName: currentTeacher?.Name,
+        reviewerId: currentTeacher?.Teacher_ID,
+      }).then((archiveRes) => {
+        if (archiveRes.success) {
+          setToastNotice({
+            type: 'success',
+            message: `✓ บันทึกผลการตรวจและสำเนาไฟล์เข้า Google Drive เรียบร้อยแล้ว`,
+            details: `จัดเก็บในโฟลเดอร์ "${archiveRes.folderPath}" เรียบร้อยแล้ว`,
+          });
+        } else {
+          console.warn('[GoogleDrive Archive Notice]', archiveRes.error);
+        }
+      });
+    }
+
     if (res.isSupabase && res.success) {
       setToastNotice({
         type: 'success',
@@ -873,19 +910,54 @@ export default function App() {
     }
   };
 
-  const assignedToMeCount = useMemo(() => {
-    if (!currentTeacher) return 0;
+  const { assignedPendingCount, assignedCompletedCount } = useMemo(() => {
+    if (!currentTeacher) return { assignedPendingCount: 0, assignedCompletedCount: 0 };
     const activeWorkflow = workflows[0] || DEFAULT_WORKFLOWS[0];
-    return plans.filter((p) => {
-      if (p.status === 'approved' || p.status === 'deleted') return false;
-      if (p.assigned_reviewer_id === currentTeacher.Teacher_ID) return true;
+
+    let pending = 0;
+    let completed = 0;
+
+    for (const p of plans) {
+      if (p.status === 'deleted') continue;
+
       const currentStageOrder = p.current_stage_order || 1;
+      const isDirectlyAssigned = p.assigned_reviewer_id === currentTeacher.Teacher_ID;
       const stage = activeWorkflow?.stages?.find((s) => s.order === currentStageOrder);
-      if (!stage) return false;
-      const candidates = resolveReviewersForStage(stage, p, teachers, departments);
-      return candidates.some((c) => c.Teacher_ID === currentTeacher.Teacher_ID);
-    }).length;
+      const isEligible = stage
+        ? resolveReviewersForStage(stage, p, teachers, departments).some(
+            (c) => c.Teacher_ID === currentTeacher.Teacher_ID
+          )
+        : false;
+
+      const isReviewedByMeInThisStage = Boolean(
+        p.stage_reviews?.some(
+          (r) => r.stage_order === currentStageOrder && r.reviewer_id === currentTeacher.Teacher_ID
+        )
+      );
+
+      const isFullyApproved = p.status === 'approved' || p.status === 'passed';
+      const isDoneForMe = isFullyApproved || isReviewedByMeInThisStage;
+
+      const hasReviewedByMeEver = Boolean(
+        p.stage_reviews?.some((r) => r.reviewer_id === currentTeacher.Teacher_ID) ||
+        p.reviewed_by === currentTeacher.Teacher_ID
+      );
+
+      if (isDirectlyAssigned || isEligible) {
+        if (!isDoneForMe) {
+          pending++;
+        } else {
+          completed++;
+        }
+      } else if (hasReviewedByMeEver) {
+        completed++;
+      }
+    }
+
+    return { assignedPendingCount: pending, assignedCompletedCount: completed };
   }, [plans, currentTeacher, workflows, teachers, departments]);
+
+  const assignedToMeCount = assignedPendingCount;
 
   const userVisiblePlans = useMemo(() => {
     if (isAdmin) return plans;
@@ -918,9 +990,10 @@ export default function App() {
     // If viewing assigned reviews for this teacher/reviewer
     if (viewTab === 'assigned_to_me') {
       if (plan.status === 'deleted') return false;
+
+      const currentStageOrder = plan.current_stage_order || 1;
       const activeWorkflow = workflows[0] || DEFAULT_WORKFLOWS[0];
       const isDirectlyAssigned = plan.assigned_reviewer_id === currentTeacher?.Teacher_ID;
-      const currentStageOrder = plan.current_stage_order || 1;
       const stage = activeWorkflow?.stages?.find((s) => s.order === currentStageOrder);
       const isEligible = stage
         ? resolveReviewersForStage(stage, plan, teachers, departments).some(
@@ -928,7 +1001,30 @@ export default function App() {
           )
         : false;
 
-      return isDirectlyAssigned || isEligible;
+      const isReviewedByMeInThisStage = Boolean(
+        plan.stage_reviews?.some(
+          (r) => r.stage_order === currentStageOrder && r.reviewer_id === currentTeacher?.Teacher_ID
+        )
+      );
+
+      const isFullyApproved = plan.status === 'approved' || plan.status === 'passed';
+      const isDoneForMe = isFullyApproved || isReviewedByMeInThisStage;
+
+      const hasReviewedByMeEver = Boolean(
+        plan.stage_reviews?.some((r) => r.reviewer_id === currentTeacher?.Teacher_ID) ||
+        plan.reviewed_by === currentTeacher?.Teacher_ID
+      );
+
+      // "ถ้าตรวจเสร็จแล้วให้เอกสารที่ตรวจแล้วหายไป" (เมื่อเลือกแท็บรอตรวจ)
+      if (assignedReviewSubTab === 'pending') {
+        if (isDoneForMe) return false;
+        return isDirectlyAssigned || isEligible;
+      } else if (assignedReviewSubTab === 'completed') {
+        if (!isDoneForMe && !hasReviewedByMeEver) return false;
+        return isDirectlyAssigned || isEligible || hasReviewedByMeEver;
+      } else {
+        return isDirectlyAssigned || isEligible || hasReviewedByMeEver;
+      }
     }
 
     // CRITICAL: Regular teachers can ONLY see their own plans! Normalized comparison prevents case/whitespace bugs
@@ -1626,6 +1722,27 @@ export default function App() {
                   <span className="w-2 h-2 rounded-full bg-orange-500"></span>
                   <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.is_late).length})</span>
                 </button>
+                <button
+                  onClick={() => setViewTab('assigned_to_me')}
+                  className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    viewTab === 'assigned_to_me'
+                      ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                      : 'text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 font-semibold'
+                  }`}
+                  title="งานตรวจที่ได้รับมอบหมายให้ฉันตรวจ"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>งานตรวจที่มอบหมาย</span>
+                  {assignedToMeCount > 0 ? (
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
+                      {assignedToMeCount}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] opacity-75 font-mono">
+                      (0)
+                    </span>
+                  )}
+                </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -1822,10 +1939,80 @@ export default function App() {
 
         {/* Lesson Plans Grid & Table View */}
         <div>
+          {/* Review Queue Special Banner & Sub-filter (งานตรวจที่มอบหมาย) */}
+          {viewTab === 'assigned_to_me' && (
+            <div className="mb-4 bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 sm:p-5 border border-indigo-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shrink-0 shadow-sm">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm sm:text-base font-bold text-white">
+                      งานตรวจที่ได้รับมอบหมาย (Review Tasks)
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
+                      {assignedReviewSubTab === 'pending' ? 'เอกสารที่ตรวจแล้วจะหายไปอัตโนมัติ' : 'ประวัติงานตรวจ'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-indigo-200 mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span>📁 เมื่อตรวจเสร็จ สำเนาไฟล์จะถูกจัดเก็บใน Google Drive:</span>
+                    <span className="font-mono bg-white/10 px-2 py-0.5 rounded border border-white/20 text-amber-300 font-bold">
+                      ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Sub-filter tab switcher */}
+              <div className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-indigo-700/60 shadow-inner self-start md:self-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setAssignedReviewSubTab('pending')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    assignedReviewSubTab === 'pending'
+                      ? 'bg-amber-400 text-slate-950 shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <span>รอตรวจ</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${assignedReviewSubTab === 'pending' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-amber-300 font-mono'}`}>
+                    {assignedPendingCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignedReviewSubTab('completed')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    assignedReviewSubTab === 'completed'
+                      ? 'bg-emerald-500 text-slate-950 shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <span>ตรวจแล้ว</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${assignedReviewSubTab === 'completed' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-emerald-300 font-mono'}`}>
+                    {assignedCompletedCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignedReviewSubTab('all')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    assignedReviewSubTab === 'all'
+                      ? 'bg-white text-slate-950 shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <span>ทั้งหมด</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="text-sm sm:text-base font-semibold text-slate-900 flex items-center gap-2">
               <FileCheck2 className="w-4 h-4 text-amber-500" />
-              <span>รายการเอกสารวิชาการ / แผนการจัดการเรียนรู้</span>
+              <span>{viewTab === 'assigned_to_me' ? 'รายการเอกสารที่ได้รับมอบหมายให้ตรวจ' : 'รายการเอกสารวิชาการ / แผนการจัดการเรียนรู้'}</span>
               <span className="text-xs text-slate-500 font-normal">
                 (พบ {filteredPlans.length} รายการ)
               </span>
@@ -2008,7 +2195,15 @@ export default function App() {
           isOpen={isStaffStructureModalOpen}
           onClose={() => setIsStaffStructureModalOpen(false)}
           teachers={teachers}
-          onUpdateTeachers={(updated) => setTeachers(updated)}
+          onUpdateTeachers={(updated) => {
+            setTeachers(updated);
+            if (currentTeacher) {
+              const me = updated.find(
+                (t) => t.Teacher_ID === currentTeacher.Teacher_ID || (t.Email && t.Email === currentTeacher.Email)
+              );
+              if (me) setCurrentTeacher(me);
+            }
+          }}
           departments={departments}
           onUpdateDepartments={(updated) => setDepartments(updated)}
           branches={branches}

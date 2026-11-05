@@ -381,8 +381,133 @@ export async function trashGoogleDriveFile(
   }
 }
 
+export interface ArchiveReviewedOptions {
+  planId: string;
+  planTitle: string;
+  planType: string;
+  branch?: string;
+  learningArea?: string;
+  teacherName: string;
+  teacherId?: string;
+  fileUrl: string;
+  fileName?: string;
+  reviewerName?: string;
+  reviewerId?: string;
+}
+
+export interface ArchiveReviewedResult {
+  success: boolean;
+  fileUrl?: string;
+  fileId?: string;
+  folderPath?: string;
+  folderName?: string;
+  fileName?: string;
+  error?: string;
+}
+
 /**
- * โค้ดแม่แบบ Google Apps Script ฉบับสมบูรณ์ที่พร้อมใช้งานทันที (รองรับทั้ง Upload และย้ายลง Trash)
+ * ส่งคำสั่งไป Google Apps Script ให้คัดลอกไฟล์สำเนาที่ตรวจเสร็จแล้ว
+ * ไปจัดเก็บในโฟลเดอร์ Google Drive: "ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"
+ * รองรับทั้ง Google Drive Link, ลิงก์ตรงไฟล์ PDF ภายนอก และ Base64 Data
+ */
+export async function archiveReviewedPlanToGoogleDrive(
+  options: ArchiveReviewedOptions
+): Promise<ArchiveReviewedResult> {
+  if (!options.fileUrl) {
+    return {
+      success: false,
+      error: 'ไม่พบลิงก์หรือไฟล์เอกสารที่ต้องการสำรอง',
+    };
+  }
+
+  const webhookUrl = await fetchGoogleDriveWebhookUrl();
+  if (!webhookUrl) {
+    return {
+      success: false,
+      error: 'ยังไม่ได้เชื่อมต่อ Google Drive Webhook URL',
+    };
+  }
+
+  try {
+    const cleanDocType = (options.planType || 'เอกสารทั่วไป').trim();
+    const cleanBranch = (options.branch || options.learningArea || 'ทั่วไป').trim();
+    const subfolderName = `${cleanDocType}_${cleanBranch}`.replace(/[\/\\:*?"<>|]/g, '_');
+
+    let cleanFileName = options.fileName?.trim();
+    if (!cleanFileName) {
+      cleanFileName = `[ตรวจแล้ว]_${options.teacherName || 'ครู'}_${options.planTitle || cleanDocType}.pdf`.replace(/[\/\\:*?"<>|]/g, '_');
+    } else if (!cleanFileName.startsWith('[ตรวจแล้ว]')) {
+      cleanFileName = `[ตรวจแล้ว]_${cleanFileName}`;
+    }
+
+    const payload: any = {
+      action: 'archive_reviewed_pdf',
+      planId: options.planId,
+      docType: cleanDocType,
+      branch: cleanBranch,
+      subfolderName: subfolderName,
+      teacherName: options.teacherName,
+      teacherId: options.teacherId,
+      planTitle: options.planTitle,
+      fileUrl: options.fileUrl,
+      fileName: cleanFileName,
+      reviewerName: options.reviewerName,
+      reviewerId: options.reviewerId,
+      reviewedAt: new Date().toISOString(),
+    };
+
+    // If fileUrl is a data URL, extract base64 directly
+    if (options.fileUrl.startsWith('data:')) {
+      const parts = options.fileUrl.split(',');
+      if (parts[1]) {
+        payload.base64Data = parts[1];
+      }
+    }
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google Apps Script ส่งสถานะ HTTP ${response.status}`);
+    }
+
+    const resText = await response.text();
+    let resJson: any;
+    try {
+      resJson = JSON.parse(resText);
+    } catch {
+      throw new Error(`รูปแบบข้อมูลตอบกลับจาก Google Drive ไม่ถูกต้อง: ${resText.slice(0, 100)}`);
+    }
+
+    if (!resJson.success) {
+      throw new Error(resJson.error || 'Google Apps Script ไม่สามารถคัดลอกไฟล์สำเนาได้');
+    }
+
+    return {
+      success: true,
+      fileUrl: resJson.fileUrl,
+      fileId: resJson.fileId,
+      folderPath: resJson.folderPath || `ตรวจแล้ว/${subfolderName}`,
+      folderName: resJson.folderName || subfolderName,
+      fileName: resJson.fileName || cleanFileName,
+    };
+  } catch (err: any) {
+    console.warn('Failed to archive reviewed plan to Google Drive:', err);
+    return {
+      success: false,
+      error: err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ Google Drive',
+    };
+  }
+}
+
+/**
+ * โค้ดแม่แบบ Google Apps Script ฉบับสมบูรณ์ที่พร้อมใช้งานทันที (รองรับทั้ง Upload, ย้ายลง Trash, ส่งอีเมล และจัดเก็บไฟล์ตรวจแล้ว)
  */
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * =========================================================================
@@ -523,7 +648,107 @@ function doPost(e) {
     }
 
     // =========================================================================
-    // คำสั่งที่ 3: อัปโหลดไฟล์ PDF ใหม่เข้าสู่โฟลเดอร์ Google Drive (แยกตามประเภทงาน)
+    // คำสั่งที่ 3: ทำสำเนาไฟล์ที่ตรวจแล้วเข้าโฟลเดอร์ "ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"
+    // =========================================================================
+    if (data.action === "archive_reviewed_pdf") {
+      var rootFolderName = "ตรวจแล้ว";
+      var rootFolder;
+      var rootIter = DriveApp.getFoldersByName(rootFolderName);
+      if (rootIter.hasNext()) {
+        rootFolder = rootIter.next();
+      } else {
+        rootFolder = DriveApp.createFolder(rootFolderName);
+      }
+
+      var docType = (data.docType || data.planType || "เอกสารทั่วไป").toString().trim();
+      var branch = (data.branch || data.learningArea || "ทั่วไป").toString().trim();
+      var subfolderName = (data.subfolderName || (docType + "_" + branch)).replace(/[\/\\:*?"<>|]/g, "_");
+
+      var targetSubfolder;
+      var subIter = rootFolder.getFoldersByName(subfolderName);
+      if (subIter.hasNext()) {
+        targetSubfolder = subIter.next();
+      } else {
+        targetSubfolder = rootFolder.createFolder(subfolderName);
+      }
+
+      var fileUrl = (data.fileUrl || "").toString().trim();
+      var newFileName = (data.fileName || ("[ตรวจแล้ว]_" + (data.teacherName || "ครู") + "_" + docType + ".pdf")).replace(/[\/\\:*?"<>|]/g, "_");
+      if (!newFileName.toLowerCase().endsWith(".pdf")) {
+        newFileName += ".pdf";
+      }
+
+      var copiedFile = null;
+
+      // 3.1 ตรวจสอบกรณีเป็น Google Drive File ID หรือ URL
+      var driveId = null;
+      var dMatch = fileUrl.match(/\/file\/d\/([-\w]+)/);
+      if (dMatch && dMatch[1]) driveId = dMatch[1];
+      if (!driveId) {
+        var idMatch = fileUrl.match(/[?&]id=([-\w]+)/);
+        if (idMatch && idMatch[1]) driveId = idMatch[1];
+      }
+      if (!driveId && /^[-\w]{25,}$/.test(fileUrl)) {
+        driveId = fileUrl;
+      }
+
+      if (driveId) {
+        try {
+          var srcDriveFile = DriveApp.getFileById(driveId);
+          copiedFile = srcDriveFile.makeCopy(newFileName, targetSubfolder);
+        } catch (copyErr) {
+          try {
+            var downloadUrl = "https://drive.google.com/uc?export=download&id=" + driveId;
+            var fetchResp = UrlFetchApp.fetch(downloadUrl, { muteHttpExceptions: true });
+            if (fetchResp.getResponseCode() === 200) {
+              var blob = fetchResp.getBlob().setName(newFileName);
+              copiedFile = targetSubfolder.createFile(blob);
+            }
+          } catch (dlErr) {}
+        }
+      }
+
+      // 3.2 ตรวจสอบกรณีเป็นลิงก์ PDF ภายนอก (ดาวน์โหลดไฟล์จริงมาเก็บเป็นสำเนา)
+      if (!copiedFile && fileUrl && (fileUrl.indexOf("http://") === 0 || fileUrl.indexOf("https://") === 0)) {
+        try {
+          var webResp = UrlFetchApp.fetch(fileUrl, { muteHttpExceptions: true, followRedirects: true });
+          if (webResp.getResponseCode() === 200) {
+            var blobWeb = webResp.getBlob().setName(newFileName);
+            copiedFile = targetSubfolder.createFile(blobWeb);
+          }
+        } catch (fetchErr) {}
+      }
+
+      // 3.3 กรณีมี Base64 Payload ส่งมาด้วย
+      if (!copiedFile && (data.base64Data || data.data)) {
+        try {
+          var decoded = Utilities.base64Decode(data.base64Data || data.data);
+          var bBlob = Utilities.newBlob(decoded, "application/pdf", newFileName);
+          copiedFile = targetSubfolder.createFile(bBlob);
+        } catch (bErr) {}
+      }
+
+      if (copiedFile) {
+        copiedFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        return responseJSON({
+          success: true,
+          message: "บันทึกไฟล์สำเนาลงในโฟลเดอร์ตรวจแล้วสำเร็จ",
+          fileId: copiedFile.getId(),
+          fileUrl: "https://drive.google.com/file/d/" + copiedFile.getId() + "/view",
+          folderPath: rootFolderName + "/" + subfolderName,
+          folderName: subfolderName,
+          fileName: copiedFile.getName()
+        });
+      } else {
+        return responseJSON({
+          success: false,
+          error: "ไม่สามารถคัดลอกไฟล์จากลิงก์: " + fileUrl + " ได้ กรุณาตรวจสอบลิงก์หรือสิทธิ์การเข้าถึง"
+        });
+      }
+    }
+
+    // =========================================================================
+    // คำสั่งที่ 4: อัปโหลดไฟล์ PDF ใหม่เข้าสู่โฟลเดอร์ Google Drive (แยกตามประเภทงาน)
     // =========================================================================
     var base64Payload = data.base64Data || data.data;
     if (!base64Payload) {

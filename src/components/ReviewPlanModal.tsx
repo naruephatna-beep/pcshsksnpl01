@@ -512,6 +512,18 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                 ))}
               </select>
             </div>
+
+            {status === 'approved' && (
+              <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-950 font-medium">
+                <span className="text-base">📁</span>
+                <div>
+                  <span className="font-bold text-emerald-900">สำรองไฟล์เข้า Google Drive อัตโนมัติ:</span>
+                  <span className="text-emerald-800 ml-1">
+                    เมื่อกดบันทึกผล ระบบจะคัดลอกไฟล์สำเนาไปเก็บในโฟลเดอร์ <strong className="font-mono bg-white px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-950">ตรวจแล้ว/{plan.plan_type}_{plan.branch || (teachers?.find(t => t.Teacher_ID === plan.teacher_id)?.branch) || plan.learning_area}</strong> ใน Google Drive ทันที
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Rubric Evaluation OR Approval-Only Notice */}

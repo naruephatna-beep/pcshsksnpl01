@@ -15,6 +15,7 @@ import {
   fetchSystemSetting,
   saveSystemSetting,
   updateTeacherRecord,
+  saveLocalTeachers,
 } from './supabaseClient';
 
 const STORAGE_KEY_DEPARTMENTS = 'lp_school_departments';
@@ -504,6 +505,8 @@ export async function appointDepartmentHead(
 
   // Persist
   await saveDepartments(updatedDepartments);
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
   const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
   if (updatedTeacherObj) {
     await updateTeacherRecord(updatedTeacherObj);
@@ -548,6 +551,8 @@ export async function removeDepartmentHead(
   };
 
   await saveDepartments(updatedDepartments);
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
   if (currentHeadId) {
     const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === currentHeadId);
     if (updatedTeacherObj) await updateTeacherRecord(updatedTeacherObj);
@@ -576,6 +581,9 @@ export async function assignTeacherToDepartment(
         }
       : t
   );
+
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
 
   const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
   if (updatedObj) {
@@ -677,6 +685,8 @@ export async function appointBranchHead(
 
   // Persist
   await saveBranches(updatedBranches);
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
   const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
   if (updatedTeacherObj) {
     await updateTeacherRecord(updatedTeacherObj);
@@ -721,6 +731,8 @@ export async function removeBranchHead(
   };
 
   await saveBranches(updatedBranches);
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
   if (currentHeadId) {
     const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === currentHeadId);
     if (updatedTeacherObj) await updateTeacherRecord(updatedTeacherObj);
@@ -748,6 +760,9 @@ export async function assignTeacherToBranch(
         }
       : t
   );
+
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
 
   const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
   if (updatedObj) {
@@ -778,6 +793,9 @@ export async function assignTeacherToDepartmentAndBranch(
         }
       : t
   );
+
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
 
   const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
   if (updatedObj) {
@@ -814,11 +832,15 @@ export async function removeTeacherFromDepartment(
       ? {
           ...t,
           Learning_Area: '',
+          department: '',
           is_head_of_department: false,
           role: (t.is_head_of_branch ? 'head_of_branch' : t.role === 'admin' ? 'admin' : 'teacher') as any,
         }
       : t
   );
+
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
 
   const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
   if (updatedObj) {
@@ -860,6 +882,9 @@ export async function removeTeacherFromBranch(
         }
       : t
   );
+
+  saveLocalTeachers(updatedTeachers);
+  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
 
   const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
   if (updatedObj) {

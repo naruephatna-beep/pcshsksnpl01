@@ -53,6 +53,20 @@ interface StaffStructureManagerModalProps {
   onUpdateBranches?: (branches: BranchConfig[]) => void;
 }
 
+export const isTeacherInDept = (teacherDept?: string | null, deptName?: string | null): boolean => {
+  const t = (teacherDept || '').trim().toLowerCase();
+  const d = (deptName || '').trim().toLowerCase();
+  if (!t || !d) return false;
+  return t === d || t.includes(d) || d.includes(t);
+};
+
+export const isTeacherInBranch = (teacherBranch?: string | null, branchName?: string | null): boolean => {
+  const t = (teacherBranch || '').trim().toLowerCase();
+  const b = (branchName || '').trim().toLowerCase();
+  if (!t || !b) return false;
+  return t === b || t.includes(b) || b.includes(t);
+};
+
 export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProps> = ({
   isOpen,
   onClose,
@@ -126,30 +140,17 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
   // Teachers currently in selected department
   const teachersInSelectedDept = useMemo(() => {
     if (!selectedDepartment) return [];
-    const deptName = selectedDepartment.name.trim().toLowerCase();
-    return teachers.filter((t) => {
-      const teacherDept = (t.Learning_Area || '').trim().toLowerCase();
-      return (
-        teacherDept === deptName ||
-        teacherDept.includes(deptName) ||
-        deptName.includes(teacherDept)
-      );
-    });
+    return teachers.filter((t) => isTeacherInDept(t.Learning_Area, selectedDepartment.name));
   }, [teachers, selectedDepartment]);
 
   // Teachers available to be added into selected department (not already in it)
   const teachersAvailableForDept = useMemo(() => {
     if (!selectedDepartment) return [];
-    const deptName = selectedDepartment.name.trim().toLowerCase();
     const q = memberDeptSearchQuery.trim().toLowerCase();
 
     return teachers
       .filter((t) => {
-        const teacherDept = (t.Learning_Area || '').trim().toLowerCase();
-        const isInDept =
-          teacherDept === deptName ||
-          teacherDept.includes(deptName) ||
-          deptName.includes(teacherDept);
+        const isInDept = isTeacherInDept(t.Learning_Area, selectedDepartment.name);
         if (isInDept) return false;
         if (!q) return true;
         return (
@@ -161,8 +162,8 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
       })
       .sort((a, b) => {
         // Unassigned teachers first, then alphabetical
-        const aEmpty = !a.Learning_Area;
-        const bEmpty = !b.Learning_Area;
+        const aEmpty = !a.Learning_Area || !a.Learning_Area.trim();
+        const bEmpty = !b.Learning_Area || !b.Learning_Area.trim();
         if (aEmpty && !bEmpty) return -1;
         if (!aEmpty && bEmpty) return 1;
         return a.Name.localeCompare(b.Name, 'th');
@@ -172,31 +173,18 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
   // Teachers currently in selected branch
   const teachersInSelectedBranch = useMemo(() => {
     if (!selectedBranch) return [];
-    const bName = selectedBranch.name.trim().toLowerCase();
-    return teachers.filter((t) => {
-      const teacherBranch = (t.branch || '').trim().toLowerCase();
-      return (
-        teacherBranch === bName ||
-        teacherBranch.includes(bName) ||
-        bName.includes(teacherBranch)
-      );
-    });
+    return teachers.filter((t) => isTeacherInBranch(t.branch, selectedBranch.name));
   }, [teachers, selectedBranch]);
 
   // Teachers available to be added into selected branch (not already in it)
   const teachersAvailableForBranch = useMemo(() => {
     if (!selectedBranch) return [];
-    const bName = selectedBranch.name.trim().toLowerCase();
     const parentArea = (selectedBranch.learning_area_name || '').trim().toLowerCase();
     const q = memberBranchSearchQuery.trim().toLowerCase();
 
     return teachers
       .filter((t) => {
-        const teacherBranch = (t.branch || '').trim().toLowerCase();
-        const isInBranch =
-          teacherBranch === bName ||
-          teacherBranch.includes(bName) ||
-          bName.includes(teacherBranch);
+        const isInBranch = isTeacherInBranch(t.branch, selectedBranch.name);
         if (isInBranch) return false;
         if (!q) return true;
         return (
@@ -208,8 +196,8 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
       })
       .sort((a, b) => {
         // Teachers in parent learning area first
-        const aInParent = (a.Learning_Area || '').toLowerCase().includes(parentArea);
-        const bInParent = (b.Learning_Area || '').toLowerCase().includes(parentArea);
+        const aInParent = Boolean(parentArea && (a.Learning_Area || '').toLowerCase().includes(parentArea));
+        const bInParent = Boolean(parentArea && (b.Learning_Area || '').toLowerCase().includes(parentArea));
         if (aInParent && !bInParent) return -1;
         if (!aInParent && bInParent) return 1;
         return a.Name.localeCompare(b.Name, 'th');
@@ -292,22 +280,6 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
 
   // Delete Department
   const handleDeleteDepartment = async (dept: DepartmentConfig) => {
-    const memberCount = teachers.filter((t) =>
-      (t.Learning_Area || '').toLowerCase().includes(dept.name.toLowerCase())
-    ).length;
-
-    if (memberCount > 0) {
-      if (
-        !window.confirm(
-          `กลุ่มสาระ "${dept.name}" มีครูสังกัดอยู่ ${memberCount} ท่าน ยืนยันที่จะลบหรือไม่?`
-        )
-      ) {
-        return;
-      }
-    } else {
-      if (!window.confirm(`ยืนยันการลบกลุ่มสาระ "${dept.name}" หรือไม่?`)) return;
-    }
-
     const updated = departments.filter((d) => d.id !== dept.id);
     onUpdateDepartments(updated);
     await saveDepartments(updated);
@@ -331,13 +303,11 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
 
   const handleRemoveDeptHead = async (deptId: string) => {
     const dept = departments.find((d) => d.id === deptId);
-    if (!window.confirm(`ยืนยันการปลดหัวหน้ากลุ่มสาระของ "${dept?.name}" หรือไม่?`)) return;
-
     const res = await removeDepartmentHead(deptId, teachers, departments);
     if (res.success) {
       onUpdateDepartments(res.updatedDepartments);
       onUpdateTeachers(res.updatedTeachers);
-      showToast('ปลดหัวหน้ากลุ่มสาระเรียบร้อยแล้ว');
+      showToast(`ปลดหัวหน้ากลุ่มสาระของ "${dept?.name || ''}" เรียบร้อยแล้ว`);
     }
   };
 
@@ -347,22 +317,18 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
     if (res.success) {
       onUpdateTeachers(res.updatedTeachers);
       const teacher = teachers.find((t) => t.Teacher_ID === teacherId);
-      showToast(`เพิ่มคุณครู "${teacher?.Name}" เข้ากลุ่มสาระ "${deptName}" เรียบร้อยแล้ว`);
+      showToast(`เพิ่มคุณครู "${teacher?.Name || teacherId}" เข้ากลุ่มสาระ "${deptName}" เรียบร้อยแล้ว`);
     }
   };
 
   // 1-Click: Remove Teacher from Department
   const handleRemoveTeacherFromDept = async (teacherId: string, deptName: string) => {
     const teacher = teachers.find((t) => t.Teacher_ID === teacherId);
-    if (!window.confirm(`ยืนยันการนำคุณครู "${teacher?.Name}" ออกจากกลุ่มสาระ "${deptName}" หรือไม่?`)) {
-      return;
-    }
-
     const res = await removeTeacherFromDepartment(teacherId, teachers, departments);
     if (res.success) {
       onUpdateTeachers(res.updatedTeachers);
       onUpdateDepartments(res.updatedDepartments);
-      showToast(`นำคุณครู "${teacher?.Name}" ออกจากกลุ่มสาระ "${deptName}" เรียบร้อยแล้ว`);
+      showToast(`นำคุณครู "${teacher?.Name || teacherId}" ออกจากกลุ่มสาระ "${deptName}" เรียบร้อยแล้ว`);
     }
   };
 
@@ -416,22 +382,6 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
 
   // Delete Branch
   const handleDeleteBranch = async (branch: BranchConfig) => {
-    const memberCount = teachers.filter((t) =>
-      (t.branch || '').toLowerCase().includes(branch.name.toLowerCase())
-    ).length;
-
-    if (memberCount > 0) {
-      if (
-        !window.confirm(
-          `สาขาวิชา "${branch.name}" มีครูสังกัดอยู่ ${memberCount} ท่าน ยืนยันที่จะลบหรือไม่?`
-        )
-      ) {
-        return;
-      }
-    } else {
-      if (!window.confirm(`ยืนยันการลบสาขาวิชา "${branch.name}" หรือไม่?`)) return;
-    }
-
     const updated = branches.filter((b) => b.id !== branch.id);
     if (onUpdateBranches) {
       onUpdateBranches(updated);
@@ -459,15 +409,13 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
 
   const handleRemoveBranchHeadAction = async (branchId: string) => {
     const b = branches.find((item) => item.id === branchId);
-    if (!window.confirm(`ยืนยันการปลดหัวหน้าสาขาของ "${b?.name}" หรือไม่?`)) return;
-
     const res = await removeBranchHead(branchId, teachers, branches);
     if (res.success) {
       if (onUpdateBranches) {
         onUpdateBranches(res.updatedBranches);
       }
       onUpdateTeachers(res.updatedTeachers);
-      showToast('ปลดหัวหน้าสาขาวิชาเรียบร้อยแล้ว');
+      showToast(`ปลดหัวหน้าสาขาวิชา "${b?.name || ''}" เรียบร้อยแล้ว`);
     }
   };
 
@@ -487,24 +435,20 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
 
     if (res.success) {
       onUpdateTeachers(res.updatedTeachers);
-      showToast(`เพิ่มคุณครู "${teacher?.Name}" เข้าสาขาวิชา "${branchName}" เรียบร้อยแล้ว`);
+      showToast(`เพิ่มคุณครู "${teacher?.Name || teacherId}" เข้าสาขาวิชา "${branchName}" เรียบร้อยแล้ว`);
     }
   };
 
   // 1-Click: Remove Teacher from Branch
   const handleRemoveTeacherFromBranchAction = async (teacherId: string, branchName: string) => {
     const teacher = teachers.find((t) => t.Teacher_ID === teacherId);
-    if (!window.confirm(`ยืนยันการนำคุณครู "${teacher?.Name}" ออกจากสาขาวิชา "${branchName}" หรือไม่?`)) {
-      return;
-    }
-
     const res = await removeTeacherFromBranch(teacherId, teachers, branches);
     if (res.success) {
       onUpdateTeachers(res.updatedTeachers);
       if (onUpdateBranches) {
         onUpdateBranches(res.updatedBranches);
       }
-      showToast(`นำคุณครู "${teacher?.Name}" ออกจากสาขาวิชา "${branchName}" เรียบร้อยแล้ว`);
+      showToast(`นำคุณครู "${teacher?.Name || teacherId}" ออกจากสาขาวิชา "${branchName}" เรียบร้อยแล้ว`);
     }
   };
 
@@ -524,7 +468,7 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
       onUpdateTeachers(res.updatedTeachers);
       const t = teachers.find((item) => item.Teacher_ID === teacherId);
       showToast(
-        `บันทึกสังกัดคุณครู "${t?.Name}" (${newDept || 'ยังไม่ระบุกลุ่มสาระ'} • ${
+        `บันทึกสังกัดคุณครู "${t?.Name || teacherId}" (${newDept || 'ยังไม่ระบุกลุ่มสาระ'} • ${
           newBranch || 'ยังไม่ระบุสาขา'
         }) เรียบร้อย`
       );
@@ -534,12 +478,10 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
   // Clear/Reset Teacher Assignment
   const handleResetTeacherAssignment = async (teacherId: string) => {
     const t = teachers.find((item) => item.Teacher_ID === teacherId);
-    if (!window.confirm(`ยืนยันการล้างสังกัดทั้งหมดของคุณครู "${t?.Name}" หรือไม่?`)) return;
-
     const res = await assignTeacherToDepartmentAndBranch(teacherId, '', '', teachers);
     if (res.success) {
       onUpdateTeachers(res.updatedTeachers);
-      showToast(`ล้างสังกัดคุณครู "${t?.Name}" เรียบร้อยแล้ว`);
+      showToast(`ล้างสังกัดคุณครู "${t?.Name || teacherId}" เรียบร้อยแล้ว`);
     }
   };
 
@@ -689,11 +631,7 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
                 <div className="space-y-2 max-h-[58vh] overflow-y-auto pr-1">
                   {departments.map((dept) => {
                     const isSelected = selectedDeptId === dept.id;
-                    const memberCount = teachers.filter((t) => {
-                      const teacherDept = (t.Learning_Area || '').trim().toLowerCase();
-                      const dName = dept.name.trim().toLowerCase();
-                      return teacherDept === dName || teacherDept.includes(dName) || dName.includes(teacherDept);
-                    }).length;
+                    const memberCount = teachers.filter((t) => isTeacherInDept(t.Learning_Area, dept.name)).length;
 
                     return (
                       <div
@@ -1101,11 +1039,7 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
                 <div className="space-y-2 max-h-[58vh] overflow-y-auto pr-1">
                   {branches.map((branch) => {
                     const isSelected = selectedBranchId === branch.id;
-                    const memberCount = teachers.filter((t) => {
-                      const teacherBranch = (t.branch || '').trim().toLowerCase();
-                      const bName = branch.name.trim().toLowerCase();
-                      return teacherBranch === bName || teacherBranch.includes(bName) || bName.includes(teacherBranch);
-                    }).length;
+                    const memberCount = teachers.filter((t) => isTeacherInBranch(t.branch, branch.name)).length;
 
                     return (
                       <div
@@ -1344,9 +1278,11 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
                             ))
                           ) : (
                             teachers
-                              .filter((t) =>
-                                (t.Learning_Area || '').includes(selectedBranch.learning_area_name || '')
-                              )
+                              .filter((t) => {
+                                const parent = (selectedBranch.learning_area_name || '').trim();
+                                if (!parent) return true;
+                                return isTeacherInDept(t.Learning_Area, parent);
+                              })
                               .map((t) => (
                                 <button
                                   key={t.Teacher_ID}
@@ -1599,13 +1535,11 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
                         const currentBranch = t.branch || '';
 
                         // Get matching branches for this teacher's learning area
-                        const relevantBranches = branches.filter(
-                          (b) =>
-                            !b.learning_area_name ||
-                            b.learning_area_name === currentDept ||
-                            b.learning_area_name.includes(currentDept) ||
-                            currentDept.includes(b.learning_area_name)
-                        );
+                        const relevantBranches = branches.filter((b) => {
+                          if (!b.learning_area_name) return true;
+                          if (!currentDept) return true;
+                          return isTeacherInDept(currentDept, b.learning_area_name);
+                        });
 
                         return (
                           <tr key={t.Teacher_ID} className="hover:bg-slate-50/80 transition-colors">

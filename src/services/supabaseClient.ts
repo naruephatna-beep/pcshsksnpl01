@@ -259,6 +259,7 @@ export function normalizeTeacher(raw: any): Teacher {
     Email: raw.Email || raw.email || '',
     Pass: raw.Pass || raw.pass || '',
     Learning_Area: raw.Learning_Area || raw.learning_area || '',
+    branch: raw.branch || raw.Branch || '',
     photo: raw.photo || raw.Photo || '',
     national_id: raw.national_id || raw.National_ID || '',
     phone: raw.phone || raw.Phone || '',
@@ -268,6 +269,10 @@ export function normalizeTeacher(raw: any): Teacher {
     academic_standing: raw.academic_standing || raw.Academic_Standing || '',
     department: raw.department || raw.Department || '',
     role: (raw.role || (isAdm ? 'admin' : 'teacher')) as any,
+    is_head_of_department: raw.is_head_of_department === true || raw.role === 'head_of_department',
+    is_head_of_branch: raw.is_head_of_branch === true || raw.role === 'head_of_branch',
+    department_id: raw.department_id || '',
+    branch_id: raw.branch_id || '',
     created_at: raw.created_at,
     updated_at: raw.updated_at,
   };

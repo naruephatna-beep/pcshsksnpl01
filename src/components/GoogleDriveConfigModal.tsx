@@ -288,6 +288,10 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                     <span>✉️</span>
                     <span>ระบบส่งอีเมล <strong>"1 คลิกจากเมลฝ่ายวิชาการ"</strong> (แจ้งผลการตรวจ, แจ้งเตือนส่งงาน, ส่งสำเนาใบเสร็จ) ผ่านบัญชีวิชาการทันที</span>
                   </p>
+                  <p className="text-[11px] text-emerald-900 font-semibold flex items-center gap-1.5">
+                    <span>📑</span>
+                    <span>ระบบสำเนาไฟล์ที่ตรวจแล้วเข้าโฟลเดอร์ <strong>"ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"</strong> อัตโนมัติ (ดึงและดาวน์โหลดไฟล์ PDF จริงจากลิงก์มาเก็บเป็นสำเนา)</span>
+                  </p>
                 </div>
               </div>
 
