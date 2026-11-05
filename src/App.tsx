@@ -83,6 +83,8 @@ import {
   getWorkflowForPlan,
   assignWorkflowToPlan,
   resolveReviewersForStage,
+  isTeacherBranchHeadOfPlan,
+  isTeacherDeptHeadOfPlan,
 } from './services/departmentWorkflowService';
 import { StaffStructureManagerModal } from './components/StaffStructureManagerModal';
 import { WorkflowManagerModal } from './components/WorkflowManagerModal';
@@ -969,9 +971,23 @@ export default function App() {
   ): boolean => {
     if (!teacher || plan.status === 'deleted') return false;
 
-    // Never review your own plan
-    if (isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher)) {
-      return false;
+    // Check if this is the teacher's own plan
+    const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
+    if (isOwner) {
+      // Allow reviewing own plan if the teacher is the appointed Branch Head of the plan's branch,
+      // Department Head of the plan's learning area, directly assigned, or an Admin.
+      const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
+      const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
+      const isAdm = isTeacherAdmin(teacher);
+      const isDirectlyAssigned = isSameTeacherIdOrName(
+        plan.assigned_reviewer_id,
+        plan.assigned_reviewer_name,
+        teacher
+      );
+
+      if (!isBranchHead && !isDeptHead && !isAdm && !isDirectlyAssigned) {
+        return false;
+      }
     }
 
     // If the plan has already completed review or returned for revision, it is NOT pending review!
@@ -1000,13 +1016,32 @@ export default function App() {
     const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
     const currentStageOrder = plan.current_stage_order || 1;
     const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
-    const isEligible = stage
-      ? resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
-          isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
-        )
-      : false;
+    if (!stage) return false;
 
-    return isEligible;
+    const isEligible = resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
+      isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
+    );
+
+    if (isEligible) return true;
+
+    // Direct check for branch head or dept head on their own plan when stage role matches
+    if (isOwner) {
+      const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
+      const isBranchStage =
+        stage.assigned_role === 'submitter_branch_head' ||
+        stage.assigned_role === 'all_branch_heads' ||
+        stage.title?.toLowerCase().includes('สาขา');
+      if (isBranchHead && isBranchStage) return true;
+
+      const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
+      const isDeptStage =
+        stage.assigned_role === 'submitter_department_head' ||
+        stage.assigned_role === 'all_department_heads' ||
+        stage.title?.toLowerCase().includes('กลุ่มสาระ');
+      if (isDeptHead && isDeptStage) return true;
+    }
+
+    return false;
   };
 
   // Helper to check if a plan was reviewed by this teacher or finished
@@ -1019,9 +1054,19 @@ export default function App() {
   ): boolean => {
     if (!teacher || plan.status === 'deleted') return false;
 
-    // Never review your own plan
-    if (isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher)) {
-      return false;
+    const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
+    if (isOwner) {
+      const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
+      const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
+      const isAdm = isTeacherAdmin(teacher);
+      const isDirectlyAssigned = isSameTeacherIdOrName(
+        plan.assigned_reviewer_id,
+        plan.assigned_reviewer_name,
+        teacher
+      );
+      if (!isBranchHead && !isDeptHead && !isAdm && !isDirectlyAssigned) {
+        return false;
+      }
     }
 
     // If this teacher has personally reviewed this plan
@@ -1051,6 +1096,12 @@ export default function App() {
 
       if (isEligible) {
         return true;
+      }
+
+      if (isOwner) {
+        if (isTeacherBranchHeadOfPlan(teacher, plan, branches) || isTeacherDeptHeadOfPlan(teacher, plan, depts)) {
+          return true;
+        }
       }
     }
 
@@ -2281,7 +2332,9 @@ export default function App() {
                   (Boolean(currentTeacher) &&
                     (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
                       plan.assigned_reviewer_name === currentTeacher?.Name) &&
-                    plan.teacher_id !== currentTeacher?.Teacher_ID);
+                    (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches) ||
+                      isTeacherDeptHeadOfPlan(currentTeacher, plan, departments) ||
+                      plan.teacher_id !== currentTeacher?.Teacher_ID));
 
                 return (
                   <LessonPlanCard
@@ -2326,7 +2379,9 @@ export default function App() {
                         (Boolean(currentTeacher) &&
                           (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
                             plan.assigned_reviewer_name === currentTeacher?.Name) &&
-                          plan.teacher_id !== currentTeacher?.Teacher_ID);
+                          (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches) ||
+                            isTeacherDeptHeadOfPlan(currentTeacher, plan, departments) ||
+                            plan.teacher_id !== currentTeacher?.Teacher_ID));
 
                       return (
                         <LessonPlanTableRow

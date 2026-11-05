@@ -285,6 +285,89 @@ export const DEFAULT_BRANCHES: BranchConfig[] = [
   },
 ];
 
+export const isTeacherInDept = (teacherDept?: string | null, deptName?: string | null): boolean => {
+  const t = (teacherDept || '').trim().toLowerCase();
+  const d = (deptName || '').trim().toLowerCase();
+  if (!t || !d) return false;
+  return t === d || t.includes(d) || d.includes(t);
+};
+
+export const isTeacherInBranch = (teacherBranch?: string | null, branchName?: string | null): boolean => {
+  const t = (teacherBranch || '').trim().toLowerCase();
+  const b = (branchName || '').trim().toLowerCase();
+  if (!t || !b) return false;
+  if (t === b) return true;
+
+  // Clean common prefixes ("สาขาวิชา", "สาขา")
+  const cleanT = t.replace(/^สาขาวิชา|^สาขา/, '').trim();
+  const cleanB = b.replace(/^สาขาวิชา|^สาขา/, '').trim();
+
+  if (cleanT && cleanB && cleanT === cleanB) return true;
+  if (cleanT && cleanB && (cleanT.includes(cleanB) || cleanB.includes(cleanT))) return true;
+
+  return t.includes(b) || b.includes(t);
+};
+
+/**
+ * Checks if a teacher is the appointed Branch Head of the specific branch of a plan
+ */
+export const isTeacherBranchHeadOfPlan = (
+  teacher?: Teacher | null,
+  plan?: LessonPlan | null,
+  branches: BranchConfig[] = []
+): boolean => {
+  if (!teacher || !plan) return false;
+  const planBranch = (plan.branch || '').trim();
+  const teacherId = teacher.Teacher_ID;
+
+  // 1. Is teacher appointed head in matching branch in branches list?
+  const matchedBranch = branches.find((b) => {
+    if (b.head_teacher_id !== teacherId) return false;
+    if (!planBranch) return true;
+    return isTeacherInBranch(planBranch, b.name);
+  });
+  if (matchedBranch) return true;
+
+  // 2. Is teacher flagged as is_head_of_branch or role head_of_branch with matching branch?
+  const isHeadRole = teacher.is_head_of_branch === true || teacher.role === 'head_of_branch';
+  if (isHeadRole) {
+    if (!planBranch) return true;
+    if (isTeacherInBranch(teacher.branch, planBranch)) return true;
+  }
+
+  return false;
+};
+
+/**
+ * Checks if a teacher is the appointed Department Head of the learning area of a plan
+ */
+export const isTeacherDeptHeadOfPlan = (
+  teacher?: Teacher | null,
+  plan?: LessonPlan | null,
+  departments: DepartmentConfig[] = []
+): boolean => {
+  if (!teacher || !plan) return false;
+  const planArea = (plan.learning_area || '').trim();
+  const teacherId = teacher.Teacher_ID;
+
+  // 1. Is teacher appointed head in matching department?
+  const matchedDept = departments.find((d) => {
+    if (d.head_teacher_id !== teacherId) return false;
+    if (!planArea) return true;
+    return isTeacherInDept(planArea, d.name);
+  });
+  if (matchedDept) return true;
+
+  // 2. Is teacher flagged as is_head_of_department or role head_of_department with matching area?
+  const isHeadRole = teacher.is_head_of_department === true || teacher.role === 'head_of_department';
+  if (isHeadRole) {
+    if (!planArea) return true;
+    if (isTeacherInDept(teacher.Learning_Area, planArea)) return true;
+  }
+
+  return false;
+};
+
 // Default Workflows mapped to document types (มีทั้งหัวหน้ากลุ่มสาขา และ หัวหน้ากลุ่มสาระ)
 export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
   {
@@ -1249,8 +1332,15 @@ export function resolveReviewersForStage(
     result = allTeachers.filter((t) => isTeacherAdmin(t));
   }
 
-  // Submitter should never evaluate their own plan (unless only 1 reviewer in system)
-  if (result.length > 1 && plan.teacher_id) {
+  // Submitter should never evaluate their own plan, UNLESS they are the designated branch head or department head appointed for this stage
+  const isDesignatedBranchHead =
+    (stage.assigned_role === 'submitter_branch_head' || stage.title?.includes('สาขา')) &&
+    submitterBranchHeadId === plan.teacher_id;
+  const isDesignatedDeptHead =
+    (stage.assigned_role === 'submitter_department_head' || stage.title?.includes('กลุ่มสาระ')) &&
+    submitterDeptHeadId === plan.teacher_id;
+
+  if (!isDesignatedBranchHead && !isDesignatedDeptHead && result.length > 1 && plan.teacher_id) {
     const withoutSelf = result.filter((t) => t.Teacher_ID !== plan.teacher_id);
     if (withoutSelf.length > 0) {
       result = withoutSelf;
