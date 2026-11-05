@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Teacher, LessonPlan, AssignmentSubmission } from '../types';
 import { INITIAL_TEACHERS, INITIAL_LESSON_PLANS } from '../data/initialTeachers';
 import { getSavedSubmissions, saveSubmissions } from '../utils/deadlineUtils';
+import { uploadPdfFileToGoogleDrive, getSavedGoogleDriveWebhookUrl } from './googleDriveService';
 import {
   getDatabaseProvider,
   setDatabaseProvider,
@@ -1094,7 +1095,6 @@ export async function uploadAssignmentAttachmentFile(
 
   // 1. Prioritize Google Drive Automated Upload (Zero database storage policy)
   try {
-    const { uploadPdfFileToGoogleDrive, getSavedGoogleDriveWebhookUrl } = await import('./googleDriveService');
     const gdriveUrl = getSavedGoogleDriveWebhookUrl();
     if (gdriveUrl) {
       const driveRes = await uploadPdfFileToGoogleDrive(file, {

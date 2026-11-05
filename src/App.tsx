@@ -70,6 +70,7 @@ import {
   DEFAULT_GDRIVE_WEBHOOK_URL,
   STORAGE_KEY_GDRIVE_WEBHOOK,
   archiveReviewedPlanToGoogleDrive,
+  trashGoogleDriveFile,
 } from './services/googleDriveService';
 import {
   DEFAULT_DEPARTMENTS,
@@ -709,7 +710,6 @@ export default function App() {
     let driveTrashNotice = '';
     if (targetPlan && targetPlan.file_url) {
       try {
-        const { trashGoogleDriveFile } = await import('./services/googleDriveService');
         const trashRes = await trashGoogleDriveFile(targetPlan.file_url);
         if (trashRes.success) {
           driveTrashNotice = ' และย้ายไฟล์ PDF ใน Google Drive ลงถังขยะ (Trash) อัตโนมัติเรียบร้อยแล้ว (กู้คืนได้ใน 30 วัน)';
