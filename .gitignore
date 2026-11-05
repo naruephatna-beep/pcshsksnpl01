@@ -10,3 +10,7 @@ firebase-applet-config.json
 firebase*.json
 *.pem
 *.key
+bun.lock
+bun.lockb
+pnpm-lock.yaml
+yarn.lock
