@@ -16,6 +16,7 @@ import {
   saveSystemSetting,
   updateTeacherRecord,
   saveLocalTeachers,
+  saveAllTeachers,
 } from './supabaseClient';
 
 const STORAGE_KEY_DEPARTMENTS = 'lp_school_departments';
@@ -513,16 +514,7 @@ export async function appointDepartmentHead(
 
   // Persist
   await saveDepartments(updatedDepartments);
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-  const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedTeacherObj) {
-    await updateTeacherRecord(updatedTeacherObj);
-  }
-  if (prevHeadId && prevHeadId !== teacherId) {
-    const prevTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === prevHeadId);
-    if (prevTeacherObj) await updateTeacherRecord(prevTeacherObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedDepartments, updatedTeachers };
 }
@@ -559,12 +551,7 @@ export async function removeDepartmentHead(
   };
 
   await saveDepartments(updatedDepartments);
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-  if (currentHeadId) {
-    const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === currentHeadId);
-    if (updatedTeacherObj) await updateTeacherRecord(updatedTeacherObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedDepartments, updatedTeachers };
 }
@@ -590,13 +577,7 @@ export async function assignTeacherToDepartment(
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers };
 }
@@ -693,16 +674,7 @@ export async function appointBranchHead(
 
   // Persist
   await saveBranches(updatedBranches);
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-  const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedTeacherObj) {
-    await updateTeacherRecord(updatedTeacherObj);
-  }
-  if (prevHeadId && prevHeadId !== teacherId) {
-    const prevTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === prevHeadId);
-    if (prevTeacherObj) await updateTeacherRecord(prevTeacherObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedBranches, updatedTeachers };
 }
@@ -739,12 +711,7 @@ export async function removeBranchHead(
   };
 
   await saveBranches(updatedBranches);
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-  if (currentHeadId) {
-    const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === currentHeadId);
-    if (updatedTeacherObj) await updateTeacherRecord(updatedTeacherObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedBranches, updatedTeachers };
 }
@@ -769,13 +736,7 @@ export async function assignTeacherToBranch(
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers };
 }
@@ -802,13 +763,7 @@ export async function assignTeacherToDepartmentAndBranch(
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers };
 }
@@ -847,13 +802,7 @@ export async function removeTeacherFromDepartment(
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers, updatedDepartments };
 }
@@ -891,13 +840,7 @@ export async function removeTeacherFromBranch(
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers, updatedBranches };
 }

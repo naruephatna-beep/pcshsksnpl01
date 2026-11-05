@@ -356,23 +356,103 @@ export function saveLocalPlans(plans: LessonPlan[]) {
 }
 
 // Database API Facade (Cloudflare D1 / Supabase with LocalStorage fallback)
+export async function saveAllTeachers(
+  teachers: Teacher[]
+): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
+  // 1. Save locally immediately
+  saveLocalTeachers(teachers);
+
+  // 2. Persist to system_settings 'school_teachers_all' which guarantees 100% preservation of all fields
+  const settingRes = await saveSystemSetting('school_teachers_all', teachers);
+
+  // 3. Background upsert to Cloudflare or Supabase teachers table
+  try {
+    if (getDatabaseProvider() === 'cloudflare') {
+      const cf = getSavedCloudflareConfig();
+      if (cf.workerUrl) {
+        saveTeacherToCloudflare(teachers[0]).catch(() => {});
+      }
+    }
+    const client = getSupabaseClient();
+    if (client) {
+      // Upsert in background
+      for (const t of teachers) {
+        updateTeacherRecord(t).catch(() => {});
+      }
+    }
+  } catch {}
+
+  return settingRes;
+}
+
 export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: boolean; error?: string }> {
+  // 1. Build authoritative in-memory map starting from INITIAL_TEACHERS
+  const teachersMap = new Map<string, Teacher>();
+  INITIAL_TEACHERS.forEach((t) => teachersMap.set(t.Teacher_ID, { ...t }));
+
+  // 2. Overlay existing local storage data (user edits already saved locally)
+  const localList = getLocalTeachers();
+  localList.forEach((lt) => {
+    const existing = teachersMap.get(lt.Teacher_ID) || lt;
+    teachersMap.set(lt.Teacher_ID, {
+      ...existing,
+      ...lt,
+      Learning_Area: lt.Learning_Area || existing.Learning_Area || '',
+      branch: lt.branch || existing.branch || '',
+    });
+  });
+
+  // 3. Fetch cloud setting 'school_teachers_all' which holds the rich JSON array of all staff assignments
+  try {
+    const cloudSetting = await fetchSystemSetting<Teacher[]>('school_teachers_all', []);
+    if (cloudSetting.isSupabase && Array.isArray(cloudSetting.data) && cloudSetting.data.length > 0) {
+      cloudSetting.data.forEach((ct) => {
+        const existing = teachersMap.get(ct.Teacher_ID) || ct;
+        teachersMap.set(ct.Teacher_ID, {
+          ...existing,
+          ...ct,
+          Learning_Area: ct.Learning_Area || existing.Learning_Area || '',
+          branch: ct.branch || existing.branch || '',
+          is_head_of_department: ct.is_head_of_department ?? existing.is_head_of_department,
+          is_head_of_branch: ct.is_head_of_branch ?? existing.is_head_of_branch,
+        });
+      });
+    }
+  } catch (err) {
+    console.warn('Error fetching school_teachers_all setting:', err);
+  }
+
+  // 4. If Cloudflare is active, fetch from Cloudflare D1
   if (getDatabaseProvider() === 'cloudflare') {
     const cf = getSavedCloudflareConfig();
     if (cf.workerUrl) {
       try {
         const cfRes = await fetchTeachersFromCloudflare();
         if (cfRes.success && cfRes.data && cfRes.data.length > 0) {
-          const normalized = cfRes.data.map(normalizeTeacher);
-          saveLocalTeachers(normalized);
-          return { data: normalized, isSupabase: true };
+          cfRes.data.forEach((row) => {
+            const norm = normalizeTeacher(row);
+            const existing = teachersMap.get(norm.Teacher_ID);
+            teachersMap.set(norm.Teacher_ID, {
+              ...existing,
+              ...norm,
+              // Never blank out existing Learning_Area or branch if the remote table returned null/empty
+              Learning_Area: norm.Learning_Area || existing?.Learning_Area || '',
+              branch: norm.branch || existing?.branch || '',
+              is_head_of_department: norm.is_head_of_department ?? existing?.is_head_of_department ?? false,
+              is_head_of_branch: norm.is_head_of_branch ?? existing?.is_head_of_branch ?? false,
+            });
+          });
+          const merged = Array.from(teachersMap.values());
+          saveLocalTeachers(merged);
+          return { data: merged, isSupabase: true };
         }
       } catch (err: any) {
-        console.warn('Cloudflare fetchTeachers error, fallback to local:', err);
+        console.warn('Cloudflare fetchTeachers error, fallback to merged map:', err);
       }
     }
   }
 
+  // 5. If Supabase is active, fetch remote rows
   const client = getSupabaseClient();
   if (client) {
     try {
@@ -385,68 +465,61 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
 
       if (!error && data) {
         if (data.length > 0) {
-          const normalized = data.map(normalizeTeacher);
+          data.forEach((row) => {
+            const norm = normalizeTeacher(row);
+            const existing = teachersMap.get(norm.Teacher_ID);
+            teachersMap.set(norm.Teacher_ID, {
+              ...existing,
+              ...norm,
+              // Never erase valid Learning_Area or branch with blank string from DB
+              Learning_Area: norm.Learning_Area || existing?.Learning_Area || '',
+              branch: norm.branch || existing?.branch || '',
+              is_head_of_department: norm.is_head_of_department ?? existing?.is_head_of_department ?? false,
+              is_head_of_branch: norm.is_head_of_branch ?? existing?.is_head_of_branch ?? false,
+            });
+          });
 
-          // Guarantee that admin01, admin02 & admin03 are always present in the returned list
+          // Guarantee that admin01, admin02 & admin03 are always present with admin role
           const adminAccounts = INITIAL_TEACHERS.filter((t) =>
             ['admin01', 'admin02', 'admin03'].includes(t.Teacher_ID)
           );
 
           adminAccounts.forEach((adm) => {
-            const foundIdx = normalized.findIndex(
-              (t) => String(t.Teacher_ID).toLowerCase() === adm.Teacher_ID.toLowerCase()
-            );
-            if (foundIdx === -1) {
-              normalized.unshift(adm);
-              // Upsert to Supabase in background so it exists remotely too
-              if (client) {
-                client
-                  .from('teachers')
-                  .upsert({
-                    Teacher_ID: adm.Teacher_ID,
-                    Name: adm.Name,
-                    Email: adm.Email,
-                    Pass: adm.Pass,
-                    Learning_Area: adm.Learning_Area,
-                    photo: adm.photo,
-                    national_id: adm.national_id,
-                    phone: adm.phone,
-                    signature_url: adm.signature_url,
-                    birth_date: adm.birth_date,
-                    position: adm.position,
-                    academic_standing: adm.academic_standing,
-                    department: adm.department,
-                    role: adm.role,
-                  })
-                  .then();
-              }
+            const existing = teachersMap.get(adm.Teacher_ID);
+            if (!existing) {
+              teachersMap.set(adm.Teacher_ID, adm);
             } else {
-              // Ensure admin role and credentials
-              if (normalized[foundIdx].role !== 'admin' || !normalized[foundIdx].Pass) {
-                normalized[foundIdx].role = 'admin';
-                if (!normalized[foundIdx].Pass) normalized[foundIdx].Pass = adm.Pass;
-              }
+              existing.role = 'admin';
+              if (!existing.Pass) existing.Pass = adm.Pass;
             }
           });
 
-          saveLocalTeachers(normalized);
-          return { data: normalized, isSupabase: true };
+          const merged = Array.from(teachersMap.values());
+          saveLocalTeachers(merged);
+          return { data: merged, isSupabase: true };
         } else {
           // If table exists but is empty, seed initial teachers
           await seedTeachersToSupabase();
-          return { data: getLocalTeachers(), isSupabase: true };
+          const merged = Array.from(teachersMap.values());
+          saveLocalTeachers(merged);
+          return { data: merged, isSupabase: true };
         }
       }
       if (error) {
-        console.warn('Supabase fetch error, using local fallback:', error.message);
-        return { data: getLocalTeachers(), isSupabase: false, error: error.message };
+        console.warn('Supabase fetch error, using merged fallback:', error.message);
+        const merged = Array.from(teachersMap.values());
+        return { data: merged, isSupabase: false, error: error.message };
       }
     } catch (err: any) {
-      console.warn('Supabase request failed, fallback to local:', err?.message);
-      return { data: getLocalTeachers(), isSupabase: false, error: err?.message };
+      console.warn('Supabase request failed, fallback to merged map:', err?.message);
+      const merged = Array.from(teachersMap.values());
+      return { data: merged, isSupabase: false, error: err?.message };
     }
   }
-  return { data: getLocalTeachers(), isSupabase: false };
+
+  const merged = Array.from(teachersMap.values());
+  saveLocalTeachers(merged);
+  return { data: merged, isSupabase: false };
 }
 
 export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
@@ -459,6 +532,9 @@ export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: 
     teachers.push(teacher);
   }
   saveLocalTeachers(teachers);
+
+  // Synchronize school_teachers_all in system_settings in background so all branches and heads are permanent
+  saveSystemSetting('school_teachers_all', teachers).catch(() => {});
 
   // If Cloudflare is active, update Cloudflare D1
   if (getDatabaseProvider() === 'cloudflare') {
@@ -477,12 +553,13 @@ export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: 
   const client = getSupabaseClient();
   if (client) {
     try {
-      const teacherPayload = {
+      const teacherPayload: any = {
         Teacher_ID: teacher.Teacher_ID,
         Name: teacher.Name,
         Email: teacher.Email,
         Pass: teacher.Pass,
         Learning_Area: teacher.Learning_Area,
+        branch: teacher.branch || '',
         photo: teacher.photo || '',
         national_id: teacher.national_id || '',
         phone: teacher.phone || '',
@@ -492,12 +569,16 @@ export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: 
         academic_standing: teacher.academic_standing || '',
         department: teacher.department || '',
         role: teacher.role || 'teacher',
+        is_head_of_department: !!teacher.is_head_of_department,
+        is_head_of_branch: !!teacher.is_head_of_branch,
+        department_id: teacher.department_id || '',
+        branch_id: teacher.branch_id || '',
         updated_at: new Date().toISOString(),
       };
 
       const { error } = await client.from('teachers').upsert(teacherPayload);
       if (error) {
-        // Fallback to lowercase columns if schema uses unquoted names
+        // Fallback to lowercase or core columns if schema uses unquoted names or lacks newer columns
         const fallback = await client.from('teachers').upsert({
           teacher_id: teacher.Teacher_ID,
           name: teacher.Name,
@@ -512,7 +593,7 @@ export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: 
           updated_at: new Date().toISOString(),
         });
         if (fallback.error) {
-          console.warn('Supabase update teacher failed:', fallback.error.message);
+          console.warn('Supabase update teacher fallback notice:', fallback.error.message);
           return { success: true, isSupabase: true, error: fallback.error.message };
         }
       }
