@@ -303,6 +303,7 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         evaluation_mode: 'approval_only', // 1. แบบกดอนุมัติ (Approve/Reject)
         reviewer_selection_type: 'role', // 2. ดึงจากตำแหน่ง
         assigned_role: 'submitter_branch_head', // หัวหน้ากลุ่มสาขาของผู้ส่ง
+        scope_mode: 'own_group_only', // ตรวจเฉพาะคนของตัวเอง
         auto_assign_enabled: false,
       },
     ],
@@ -324,6 +325,7 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         evaluation_mode: 'approval_only',
         reviewer_selection_type: 'role',
         assigned_role: 'submitter_branch_head', // หัวหน้ากลุ่มสาขาของผู้ส่ง
+        scope_mode: 'own_group_only', // ตรวจเฉพาะคนของตัวเอง
         auto_assign_enabled: false,
       },
       {
@@ -334,6 +336,7 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         evaluation_mode: 'approval_only',
         reviewer_selection_type: 'role',
         assigned_role: 'submitter_department_head', // หัวหน้ากลุ่มสาระของผู้ส่ง
+        scope_mode: 'own_group_only', // ตรวจเฉพาะคนของตัวเอง
         auto_assign_enabled: false,
       },
       {
@@ -344,6 +347,7 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         evaluation_mode: 'rubric_score',
         reviewer_selection_type: 'role',
         assigned_role: 'all_department_heads',
+        scope_mode: 'random_all', // ตรวจของทุกคนแบบสุ่มกระจายงานเท่ากัน
         auto_assign_enabled: true, // ระบบกระจายงานอัตโนมัติหารแบ่งเท่าๆ กัน
       },
       {
@@ -354,6 +358,7 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         evaluation_mode: 'approval_only',
         reviewer_selection_type: 'role',
         assigned_role: 'school_leadership',
+        scope_mode: 'own_group_only',
         auto_assign_enabled: false,
       },
     ],
@@ -375,6 +380,7 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         evaluation_mode: 'rubric_score',
         reviewer_selection_type: 'role',
         assigned_role: 'all_department_heads',
+        scope_mode: 'random_cross_only', // สุ่มตรวจทุกคนแต่ไม่ตรวจกลุ่มของตนเอง (Cross-check)
         auto_assign_enabled: true,
       },
       {
@@ -385,6 +391,7 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         evaluation_mode: 'approval_only',
         reviewer_selection_type: 'role',
         assigned_role: 'school_leadership',
+        scope_mode: 'own_group_only',
         auto_assign_enabled: false,
       },
     ],
@@ -406,6 +413,7 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
         evaluation_mode: 'approval_only',
         reviewer_selection_type: 'role',
         assigned_role: 'all_admins',
+        scope_mode: 'random_all',
         auto_assign_enabled: false,
       },
     ],
@@ -1006,7 +1014,10 @@ export function getWorkflowForPlan(
  */
 export function assignWorkflowToPlan(
   plan: LessonPlan,
-  workflows: ReviewWorkflowConfig[] = getLocalWorkflows()
+  workflows: ReviewWorkflowConfig[] = getLocalWorkflows(),
+  allTeachers?: Teacher[],
+  departments?: DepartmentConfig[],
+  branches: BranchConfig[] = getLocalBranches()
 ): LessonPlan {
   const targetWf = getWorkflowForPlan(plan, workflows);
   const totalStages = targetWf?.stages?.length || 1;
@@ -1015,11 +1026,28 @@ export function assignWorkflowToPlan(
       ? Math.min(plan.current_stage_order, totalStages)
       : 1;
 
+  let assignedReviewerId = plan.assigned_reviewer_id;
+  let assignedReviewerName = plan.assigned_reviewer_name;
+
+  // If first stage has own_group_only and candidates are available, resolve reviewer
+  if (!assignedReviewerId && allTeachers && departments) {
+    const stage1 = targetWf?.stages?.find((s) => s.order === currentStageOrder);
+    if (stage1 && (stage1.scope_mode === 'own_group_only' || !stage1.scope_mode)) {
+      const candidates = resolveReviewersForStage(stage1, plan, allTeachers, departments, branches);
+      if (candidates.length === 1) {
+        assignedReviewerId = candidates[0].Teacher_ID;
+        assignedReviewerName = candidates[0].Name;
+      }
+    }
+  }
+
   return {
     ...plan,
     workflow_id: targetWf.id,
     total_stages: totalStages,
     current_stage_order: currentStageOrder,
+    assigned_reviewer_id: assignedReviewerId,
+    assigned_reviewer_name: assignedReviewerName,
     stage_reviews: plan.stage_reviews || [],
   };
 }
@@ -1036,7 +1064,11 @@ export async function saveWorkflows(
 }
 
 /**
- * Resolves the eligible reviewer list for a specific plan at a specific stage
+ * Resolves the eligible reviewer list for a specific plan at a specific stage.
+ * Accurately honors stage.scope_mode:
+ *  - 'own_group_only': หัวหน้าสาขา/หัวหน้ากลุ่มสาระตรวจเฉพาะคนของตนเองเท่านั้น
+ *  - 'random_all': หัวหน้าสาขา/หัวหน้ากลุ่มสาระทุกคนมีสิทธิ์ตรวจ สุ่มกระจายงานเท่าๆ กัน
+ *  - 'random_cross_only': สุ่มตรวจทุกคนแต่คัดกรองไม่ให้ตรวจคนในกลุ่มสาระ/สาขาของตนเอง (Cross-check)
  */
 export function resolveReviewersForStage(
   stage: ReviewStageConfig,
@@ -1050,145 +1082,184 @@ export function resolveReviewersForStage(
   const submitterTeacher = allTeachers.find((t) => t.Teacher_ID === plan.teacher_id);
   const planBranch = (plan.branch || submitterTeacher?.branch || '').trim();
   const planLearningArea = (plan.learning_area || submitterTeacher?.Learning_Area || '').trim();
+  const scopeMode = stage.scope_mode || 'own_group_only';
+
+  // Helper: Submitter's Department and Branch objects
+  const submitterDept = departments.find(
+    (d) =>
+      d.name.trim().toLowerCase() === planLearningArea.toLowerCase() ||
+      planLearningArea.toLowerCase().includes(d.name.trim().toLowerCase()) ||
+      d.name.trim().toLowerCase().includes(planLearningArea.toLowerCase())
+  );
+  const submitterDeptHeadId = submitterDept?.head_teacher_id;
+
+  const submitterBranchObj = branches.find(
+    (b) =>
+      b.name.trim().toLowerCase() === planBranch.toLowerCase() ||
+      planBranch.toLowerCase().includes(b.name.trim().toLowerCase()) ||
+      b.name.trim().toLowerCase().includes(planBranch.toLowerCase())
+  );
+  const submitterBranchHeadId = submitterBranchObj?.head_teacher_id;
+
+  // Helper: All Department Heads
+  const deptHeadIds = new Set(
+    departments.map((d) => d.head_teacher_id).filter(Boolean) as string[]
+  );
+  const allDeptHeads = allTeachers.filter(
+    (t) => deptHeadIds.has(t.Teacher_ID) || isDepartmentHead(t)
+  );
+
+  // Helper: All Branch Heads
+  const branchHeadIds = new Set(
+    branches.map((b) => b.head_teacher_id).filter(Boolean) as string[]
+  );
+  const allBranchHeads = allTeachers.filter(
+    (t) => branchHeadIds.has(t.Teacher_ID) || isBranchHead(t)
+  );
+
+  let result: Teacher[] = [];
 
   // 1. ระบุชื่อรายบุคคล (Specific Teachers)
   if (stage.reviewer_selection_type === 'individual') {
     if (!stage.assigned_teacher_ids || stage.assigned_teacher_ids.length === 0) {
-      return [];
+      result = [];
+    } else {
+      const idSet = new Set(stage.assigned_teacher_ids);
+      result = allTeachers.filter((t) => idSet.has(t.Teacher_ID));
     }
-    const idSet = new Set(stage.assigned_teacher_ids);
-    return allTeachers.filter((t) => idSet.has(t.Teacher_ID));
   }
 
   // 2. เลือกยกทั้งกลุ่มสาระการเรียนรู้ (Entire Learning Area)
-  if (stage.reviewer_selection_type === 'department') {
-    if (!stage.assigned_departments || stage.assigned_departments.length === 0) {
-      return [];
-    }
-    const targetDepts = new Set(stage.assigned_departments);
+  else if (stage.reviewer_selection_type === 'department') {
+    const targetDepts = new Set(stage.assigned_departments || []);
     const isSubmitterDept = targetDepts.has('submitter_department');
 
-    return allTeachers.filter((t) => {
-      if (isSubmitterDept && t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()) {
-        return true;
-      }
-      return targetDepts.has(t.Learning_Area.trim());
-    });
+    if (scopeMode === 'own_group_only') {
+      result = allTeachers.filter(
+        (t) => t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()
+      );
+    } else if (scopeMode === 'random_cross_only') {
+      result = allTeachers.filter(
+        (t) => t.Learning_Area.trim().toLowerCase() !== planLearningArea.toLowerCase()
+      );
+    } else {
+      // random_all or custom department list
+      result = allTeachers.filter((t) => {
+        if (isSubmitterDept && t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()) {
+          return true;
+        }
+        return targetDepts.has(t.Learning_Area.trim());
+      });
+    }
   }
 
   // 3. เลือกยกทั้งสาขาวิชา (Entire Branch)
-  if (stage.reviewer_selection_type === 'branch') {
+  else if (stage.reviewer_selection_type === 'branch') {
     const assignedBranches = stage.assigned_branches || [];
-    if (assignedBranches.length === 0) {
-      return [];
-    }
     const targetBranches = new Set(assignedBranches);
     const isSubmitterBranch = targetBranches.has('submitter_branch');
 
-    return allTeachers.filter((t) => {
-      const teacherBranch = (t.branch || '').trim();
-      if (isSubmitterBranch && planBranch && teacherBranch.toLowerCase() === planBranch.toLowerCase()) {
-        return true;
-      }
-      return targetBranches.has(teacherBranch);
-    });
+    if (scopeMode === 'own_group_only') {
+      result = allTeachers.filter(
+        (t) => planBranch && (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase()
+      );
+    } else if (scopeMode === 'random_cross_only') {
+      result = allTeachers.filter(
+        (t) => !planBranch || (t.branch || '').trim().toLowerCase() !== planBranch.toLowerCase()
+      );
+    } else {
+      result = allTeachers.filter((t) => {
+        const teacherBranch = (t.branch || '').trim();
+        if (isSubmitterBranch && planBranch && teacherBranch.toLowerCase() === planBranch.toLowerCase()) {
+          return true;
+        }
+        return targetBranches.has(teacherBranch);
+      });
+    }
   }
 
   // 4. เลือกจากตำแหน่ง (Role / Position)
-  if (stage.reviewer_selection_type === 'role') {
+  else if (stage.reviewer_selection_type === 'role') {
     const role = stage.assigned_role;
 
-    // A. หัวหน้ากลุ่มสาขาประจำวิชาของผู้ส่ง (Submitter's Branch Head - เช่น หัวหน้าสาขาเทคโนโลยี, หัวหน้าสาขาฟิสิกส์, หัวหน้าสาขาเคมี)
-    if (role === 'submitter_branch_head') {
-      if (planBranch) {
-        const branchMatch = branches.find(
-          (b) =>
-            b.name.trim().toLowerCase() === planBranch.toLowerCase() ||
-            planBranch.toLowerCase().includes(b.name.trim().toLowerCase()) ||
-            b.name.trim().toLowerCase().includes(planBranch.toLowerCase())
+    // A. หัวหน้ากลุ่มสาขา (Branch Head)
+    if (role === 'submitter_branch_head' || role === 'all_branch_heads') {
+      if (scopeMode === 'random_all') {
+        // หัวหน้าสาขาทุกคนมีสิทธิ์ตรวจ สุ่มกระจายงานเท่ากัน
+        result = allBranchHeads.length > 0 ? allBranchHeads : allTeachers.filter((t) => isTeacherAdmin(t));
+      } else if (scopeMode === 'random_cross_only') {
+        // หัวหน้าสาขาทุกคน ยกเว้นสาขาของผู้ส่ง
+        const crossHeads = allBranchHeads.filter(
+          (t) =>
+            t.Teacher_ID !== submitterBranchHeadId &&
+            (!planBranch || (t.branch || '').trim().toLowerCase() !== planBranch.toLowerCase())
         );
-
-        if (branchMatch && branchMatch.head_teacher_id) {
-          const head = allTeachers.find((t) => t.Teacher_ID === branchMatch.head_teacher_id);
-          if (head) return [head];
+        result = crossHeads.length > 0 ? crossHeads : allBranchHeads;
+      } else {
+        // own_group_only: ตรวจเฉพาะคนในสาขาของตนเอง
+        if (submitterBranchHeadId) {
+          const head = allTeachers.find((t) => t.Teacher_ID === submitterBranchHeadId);
+          if (head) result = [head];
         }
 
-        // Fallback: look for teacher in same branch with role or flag
-        const fallbackBranchHead = allTeachers.find(
+        if (result.length === 0 && planBranch) {
+          const fallbackBranchHead = allTeachers.find(
+            (t) =>
+              (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase() &&
+              (isBranchHead(t) || t.role === 'head_of_branch')
+          );
+          if (fallbackBranchHead) result = [fallbackBranchHead];
+        }
+
+        // Fallback to department head if branch head not yet appointed
+        if (result.length === 0 && submitterDeptHeadId) {
+          const deptHead = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
+          if (deptHead) result = [deptHead];
+        }
+
+        if (result.length === 0) {
+          result = allTeachers.filter((t) => isTeacherAdmin(t));
+        }
+      }
+    }
+
+    // B. หัวหน้ากลุ่มสาระ (Department Head)
+    else if (role === 'submitter_department_head' || role === 'all_department_heads') {
+      if (scopeMode === 'random_all') {
+        // หัวหน้ากลุ่มสาระทุกคนมีสิทธิ์ตรวจ สุ่มกระจายงานเท่ากัน
+        result = allDeptHeads.length > 0 ? allDeptHeads : allTeachers.filter((t) => isTeacherAdmin(t));
+      } else if (scopeMode === 'random_cross_only') {
+        // หัวหน้ากลุ่มสาระทุกคน ยกเว้นกลุ่มสาระของผู้ส่ง (ประเมินข้ามกลุ่ม)
+        const crossHeads = allDeptHeads.filter(
           (t) =>
-            (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase() &&
-            (isBranchHead(t) || t.role === 'head_of_branch')
+            t.Teacher_ID !== submitterDeptHeadId &&
+            (!planLearningArea || t.Learning_Area.trim().toLowerCase() !== planLearningArea.toLowerCase())
         );
-        if (fallbackBranchHead) return [fallbackBranchHead];
+        result = crossHeads.length > 0 ? crossHeads : allDeptHeads;
+      } else {
+        // own_group_only: ตรวจเฉพาะคนในกลุ่มสาระของตนเอง
+        if (submitterDeptHeadId) {
+          const head = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
+          if (head) result = [head];
+        }
+
+        if (result.length === 0) {
+          const fallbackHead = allTeachers.find(
+            (t) =>
+              t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase() &&
+              (isDepartmentHead(t) || t.role === 'head_of_department')
+          );
+          if (fallbackHead) result = [fallbackHead];
+        }
+
+        if (result.length === 0) {
+          result = allTeachers.filter((t) => isTeacherAdmin(t));
+        }
       }
-
-      // If branch head not found, fallback to department head
-      const planDept = departments.find(
-        (d) =>
-          d.name.trim().toLowerCase() === planLearningArea.toLowerCase() ||
-          planLearningArea.toLowerCase().includes(d.name.trim().toLowerCase()) ||
-          d.name.trim().toLowerCase().includes(planLearningArea.toLowerCase())
-      );
-      if (planDept && planDept.head_teacher_id) {
-        const deptHead = allTeachers.find((t) => t.Teacher_ID === planDept.head_teacher_id);
-        if (deptHead) return [deptHead];
-      }
-
-      return allTeachers.filter((t) => isTeacherAdmin(t));
     }
 
-    // B. หัวหน้ากลุ่มสาระประจำวิชาของผู้ส่ง (Submitter's Department Head - เช่น หัวหน้ากลุ่มสาระวิทยาศาสตร์และเทคโนโลยี)
-    if (role === 'submitter_department_head') {
-      const planDept = departments.find(
-        (d) =>
-          d.name.trim().toLowerCase() === planLearningArea.toLowerCase() ||
-          planLearningArea.toLowerCase().includes(d.name.trim().toLowerCase()) ||
-          d.name.trim().toLowerCase().includes(planLearningArea.toLowerCase())
-      );
-
-      if (planDept && planDept.head_teacher_id) {
-        const head = allTeachers.find((t) => t.Teacher_ID === planDept.head_teacher_id);
-        if (head) return [head];
-      }
-
-      // Fallback: look for teacher in same area with role head_of_department
-      const fallbackHead = allTeachers.find(
-        (t) =>
-          t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase() &&
-          isDepartmentHead(t)
-      );
-      if (fallbackHead) return [fallbackHead];
-
-      // Fallback to academic admins if department head is not yet appointed
-      return allTeachers.filter((t) => isTeacherAdmin(t));
-    }
-
-    // C. หัวหน้ากลุ่มสาขาทุกคน (All Branch Heads)
-    if (role === 'all_branch_heads') {
-      const headIds = new Set(
-        branches.map((b) => b.head_teacher_id).filter(Boolean) as string[]
-      );
-      const heads = allTeachers.filter(
-        (t) => headIds.has(t.Teacher_ID) || isBranchHead(t)
-      );
-      if (heads.length > 0) return heads;
-      return allTeachers.filter((t) => isTeacherAdmin(t));
-    }
-
-    // D. หัวหน้ากลุ่มสาระทุกคน (All Department Heads)
-    if (role === 'all_department_heads') {
-      const headIds = new Set(
-        departments.map((d) => d.head_teacher_id).filter(Boolean) as string[]
-      );
-      const heads = allTeachers.filter(
-        (t) => headIds.has(t.Teacher_ID) || isDepartmentHead(t)
-      );
-      if (heads.length > 0) return heads;
-      return allTeachers.filter((t) => isTeacherAdmin(t));
-    }
-
-    // E. ฝ่ายบริหารสถานศึกษา (School Leadership / Director)
-    if (role === 'school_leadership') {
+    // C. ฝ่ายบริหารสถานศึกษา (School Leadership / Director)
+    else if (role === 'school_leadership') {
       const leaders = allTeachers.filter(
         (t) =>
           isTeacherExecutive(t) ||
@@ -1196,23 +1267,33 @@ export function resolveReviewersForStage(
           t.position?.includes('ผู้อำนวยการ') ||
           t.role === 'academic_director'
       );
-      if (leaders.length > 0) return leaders;
-      return allTeachers.filter((t) => isTeacherAdmin(t));
+      result = leaders.length > 0 ? leaders : allTeachers.filter((t) => isTeacherAdmin(t));
     }
 
-    // F. ผู้ดูแลระบบทุกคน (All Admins)
-    if (role === 'all_admins') {
-      return allTeachers.filter((t) => isTeacherAdmin(t));
+    // D. ผู้ดูแลระบบทุกคน (All Admins)
+    else if (role === 'all_admins') {
+      result = allTeachers.filter((t) => isTeacherAdmin(t));
     }
   }
 
-  // Default fallback
-  return allTeachers.filter((t) => isTeacherAdmin(t));
+  if (result.length === 0) {
+    result = allTeachers.filter((t) => isTeacherAdmin(t));
+  }
+
+  // Submitter should never evaluate their own plan (unless only 1 reviewer in system)
+  if (result.length > 1 && plan.teacher_id) {
+    const withoutSelf = result.filter((t) => t.Teacher_ID !== plan.teacher_id);
+    if (withoutSelf.length > 0) {
+      result = withoutSelf;
+    }
+  }
+
+  return result;
 }
 
 /**
  * 4. ระบบกระจายงานอัตโนมัติ (Auto-assign / Workload Balancer)
- * Distributes plans in the specified stage evenly among eligible reviewers.
+ * Distributes plans in the specified stage evenly among eligible reviewers based on scope_mode.
  */
 export function autoAssignPlansForStage(
   plans: LessonPlan[],
@@ -1240,7 +1321,7 @@ export function autoAssignPlansForStage(
   // Track distribution per reviewer
   const workload: Record<string, { teacher: Teacher; count: number }> = {};
 
-  // For each plan, find who is eligible
+  // For each plan, find who is eligible according to stage config and scope_mode
   const updatedPlans = plans.map((p) => {
     const planStage = p.current_stage_order || 1;
     if (planStage !== currentStageOrder || p.status === 'approved' || p.status === 'deleted') {
@@ -1259,10 +1340,12 @@ export function autoAssignPlansForStage(
     });
 
     // Select candidate with the MINIMUM currently assigned workload (balanced distribution)
+    // Randomize ties for true balanced distribution
     const sortedCandidates = [...candidates].sort((a, b) => {
       const countA = workload[a.Teacher_ID]?.count || 0;
       const countB = workload[b.Teacher_ID]?.count || 0;
-      return countA - countB;
+      if (countA !== countB) return countA - countB;
+      return Math.random() - 0.5;
     });
 
     const chosen = sortedCandidates[0];

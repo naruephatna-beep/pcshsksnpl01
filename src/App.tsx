@@ -574,7 +574,7 @@ export default function App() {
     // Automatically resolve and attach the document-specific workflow and total stages
     const plansList = rawList.map((p) => {
       if (!p.workflow_id || !p.total_stages) {
-        return assignWorkflowToPlan(p, workflows);
+        return assignWorkflowToPlan(p, workflows, teachers, departments, branches);
       }
       return p;
     });
@@ -991,17 +991,22 @@ export default function App() {
       teacher
     );
 
+    // If an assigned reviewer has been set specifically for this plan, only they should see it as pending
+    if (plan.assigned_reviewer_id) {
+      return isDirectlyAssigned;
+    }
+
     // Resolve the exact workflow specifically designated for THIS plan's document type
     const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
     const currentStageOrder = plan.current_stage_order || 1;
     const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
     const isEligible = stage
-      ? resolveReviewersForStage(stage, plan, allTeachers, depts).some((c) =>
+      ? resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
           isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
         )
       : false;
 
-    return isDirectlyAssigned || isEligible;
+    return isEligible;
   };
 
   // Helper to check if a plan was reviewed by this teacher or finished
@@ -1031,16 +1036,20 @@ export default function App() {
         plan.assigned_reviewer_name,
         teacher
       );
+      if (plan.assigned_reviewer_id) {
+        return isDirectlyAssigned;
+      }
+
       const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
       const currentStageOrder = plan.current_stage_order || 1;
       const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
       const isEligible = stage
-        ? resolveReviewersForStage(stage, plan, allTeachers, depts).some((c) =>
+        ? resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
             isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
           )
         : false;
 
-      if (isDirectlyAssigned || isEligible) {
+      if (isEligible) {
         return true;
       }
     }
@@ -1192,94 +1201,109 @@ export default function App() {
     };
   }, [contextPlansForCategoryCounts]);
 
-  // Filtered plans logic
-  const filteredPlans = plans.filter((plan) => {
-    if (plan.status === 'deleted') return false;
+  // Filtered plans logic (memoized to eliminate redundant computations on every keystroke/render)
+  const filteredPlans = useMemo(() => {
+    return plans.filter((plan) => {
+      if (plan.status === 'deleted') return false;
 
-    // 1. Tab-level filter
-    if (viewTab === 'assigned_to_me') {
-      if (!currentTeacher) return false;
+      // 1. Tab-level filter
+      if (viewTab === 'assigned_to_me') {
+        if (!currentTeacher) return false;
 
-      if (assignedReviewSubTab === 'pending') {
-        if (!isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments)) {
+        if (assignedReviewSubTab === 'pending') {
+          if (!isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments)) {
+            return false;
+          }
+        } else if (assignedReviewSubTab === 'completed') {
+          if (!isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments)) {
+            return false;
+          }
+        } else {
+          const isPending = isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments);
+          const isCompleted = isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments);
+          if (!isPending && !isCompleted) {
+            return false;
+          }
+        }
+      } else if (!isAdmin) {
+        // Regular teacher's personal view
+        const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, currentTeacher);
+        if (!isOwner) {
           return false;
         }
-      } else if (assignedReviewSubTab === 'completed') {
-        if (!isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments)) {
+
+        // Waiting for review tab: show unreviewed plans
+        if (viewTab === 'pending_review' && (plan.status === 'approved' || plan.status === 'needs_revision')) {
+          return false;
+        }
+        if (viewTab === 'approved' && plan.status !== 'approved') {
+          return false;
+        }
+        if (viewTab === 'needs_revision' && plan.status !== 'needs_revision') {
+          return false;
+        }
+        if ((viewTab as any) === 'late' && !plan.is_late) {
           return false;
         }
       } else {
-        const isPending = isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments);
-        const isCompleted = isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments);
-        if (!isPending && !isCompleted) {
+        // Admin filters
+        if (statusFilter !== 'all') {
+          if (statusFilter === 'late') {
+            if (!plan.is_late) return false;
+          } else if (plan.status !== statusFilter) {
+            return false;
+          }
+        }
+        if (areaFilter && plan.learning_area !== areaFilter) {
           return false;
         }
       }
-    } else if (!isAdmin) {
-      // Regular teacher's personal view
-      const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, currentTeacher);
-      if (!isOwner) {
+
+      // 2. Document Type Filter (แยกประเภทเอกสาร)
+      if (!matchesDocumentTypeFilter(plan, docTypeFilter)) {
         return false;
       }
 
-      // Waiting for review tab: show unreviewed plans
-      if (viewTab === 'pending_review' && (plan.status === 'approved' || plan.status === 'needs_revision')) {
-        return false;
-      }
-      if (viewTab === 'approved' && plan.status !== 'approved') {
-        return false;
-      }
-      if (viewTab === 'needs_revision' && plan.status !== 'needs_revision') {
-        return false;
-      }
-      if ((viewTab as any) === 'late' && !plan.is_late) {
-        return false;
-      }
-    } else {
-      // Admin filters
-      if (statusFilter !== 'all') {
-        if (statusFilter === 'late') {
-          if (!plan.is_late) return false;
-        } else if (plan.status !== statusFilter) {
-          return false;
+      // 3. Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchSubject =
+          (plan.subject_code || '').toLowerCase().includes(q) ||
+          (plan.subject_name || '').toLowerCase().includes(q);
+        const matchTitle = (plan.plan_title || '').toLowerCase().includes(q);
+        const matchTeacher =
+          (plan.teacher_name || '').toLowerCase().includes(q) ||
+          (plan.teacher_id || '').toLowerCase().includes(q);
+        const matchArea =
+          (plan.learning_area || '').toLowerCase().includes(q) ||
+          (plan.branch || '').toLowerCase().includes(q);
+        const matchNotes = (plan.notes || '').toLowerCase().includes(q);
+
+        if (!isAdmin && viewTab !== 'assigned_to_me') {
+          if (!matchSubject && !matchTitle && !matchNotes) return false;
+        } else {
+          if (!matchSubject && !matchTitle && !matchTeacher && !matchArea && !matchNotes) {
+            return false;
+          }
         }
       }
-      if (areaFilter && plan.learning_area !== areaFilter) {
-        return false;
-      }
-    }
 
-    // 2. Document Type Filter (แยกประเภทเอกสาร)
-    if (!matchesDocumentTypeFilter(plan, docTypeFilter)) {
-      return false;
-    }
-
-    // 3. Search query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchSubject =
-        (plan.subject_code || '').toLowerCase().includes(q) ||
-        (plan.subject_name || '').toLowerCase().includes(q);
-      const matchTitle = (plan.plan_title || '').toLowerCase().includes(q);
-      const matchTeacher =
-        (plan.teacher_name || '').toLowerCase().includes(q) ||
-        (plan.teacher_id || '').toLowerCase().includes(q);
-      const matchArea =
-        (plan.learning_area || '').toLowerCase().includes(q) ||
-        (plan.branch || '').toLowerCase().includes(q);
-      const matchNotes = (plan.notes || '').toLowerCase().includes(q);
-
-      if (!isAdmin && viewTab !== 'assigned_to_me') {
-        if (!matchSubject && !matchTitle && !matchNotes) return false;
-      } else {
-        if (!matchSubject && !matchTitle && !matchTeacher && !matchArea && !matchNotes) {
-          return false;
-        }
-      }
-    }
-
-    return true;
-  });
+      return true;
+    });
+  }, [
+    plans,
+    viewTab,
+    assignedReviewSubTab,
+    currentTeacher,
+    workflows,
+    teachers,
+    departments,
+    isAdmin,
+    statusFilter,
+    areaFilter,
+    docTypeFilter,
+    searchQuery,
+  ]);
 
   // If data is initializing, show full-page LoadingScreen with dancing dinosaur
   if (isLoading) {

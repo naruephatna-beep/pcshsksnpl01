@@ -56,6 +56,8 @@ export type ReviewerRoleType =
   | 'school_leadership' // ฝ่ายบริหารสถานศึกษา (ผู้อำนวยการ/รองฯ)
   | 'all_admins'; // ผู้ดูแลระบบทุกคน
 
+export type ReviewScopeMode = 'own_group_only' | 'random_all' | 'random_cross_only';
+
 export interface ReviewStageConfig {
   id: string;
   order: number; // 1, 2, 3...
@@ -67,6 +69,7 @@ export interface ReviewStageConfig {
   assigned_departments?: string[]; // กรณีเลือกกลุ่มสาระ
   assigned_branches?: string[]; // กรณีเลือกกลุ่มสาขา
   assigned_role?: ReviewerRoleType; // กรณีเลือกจากตำแหน่ง
+  scope_mode?: ReviewScopeMode; // แอดมินเลือก: 'own_group_only' ตรวจเฉพาะคนของตัวเอง, 'random_all' สุ่มตรวจของทุกคน, 'random_cross_only' สุ่มตรวจข้ามกลุ่ม
   auto_assign_enabled?: boolean; // ระบบกระจายงานอัตโนมัติเท่าๆ กัน
 }
 

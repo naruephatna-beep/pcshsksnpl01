@@ -4,6 +4,7 @@ import {
   ReviewStageConfig,
   ReviewerSelectionType,
   ReviewerRoleType,
+  ReviewScopeMode,
   Teacher,
   LessonPlan,
   DepartmentConfig,
@@ -47,6 +48,9 @@ import {
   FileText,
   Tag,
   GitFork,
+  Shuffle,
+  Scale,
+  Target,
 } from 'lucide-react';
 
 interface WorkflowManagerModalProps {
@@ -1290,31 +1294,220 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                         )}
                       </div>
 
-                      {/* 4. ระบบกระจายงานอัตโนมัติ (Auto-assign Workload Balancer) */}
-                      <div className="bg-gradient-to-br from-indigo-50/70 to-blue-50/40 border border-indigo-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Zap className="w-4 h-4 text-amber-500" />
-                            <h5 className="text-xs font-bold text-indigo-950">
-                              ระบบกระจายงานอัตโนมัติ (Auto-assign Balanced Workload)
-                            </h5>
-                          </div>
-                          <p className="text-[11px] text-indigo-900/80 max-w-xl leading-relaxed">
-                            เมื่อถึงวันครบกำหนดส่ง หรือกดปุ่มสั่งกระจายงาน ระบบจะนำไฟล์เอกสารทั้งหมดในขั้นนี้มาหารเฉลี่ยแบ่งให้ผู้ตรวจแต่ละคนในปริมาณที่เท่าๆ กัน (Round-robin)
-                          </p>
+                      {/* 4. ขอบเขตการตรวจของหัวหน้าสาขา / หัวหน้ากลุ่มสาระ (Admin Review Scope Setting) */}
+                      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3 shadow-2xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                            <Shuffle className="w-4 h-4 text-amber-600" />
+                            <span>ขอบเขตการตรวจของผู้ตรวจในขั้นนี้ (Review Scope & Distribution)</span>
+                            <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300 ml-1">
+                              แอดมินกำหนด
+                            </span>
+                          </label>
+                          <span className="text-[11px] text-slate-500">
+                            เลือกระหว่างตรวจเฉพาะคนในกลุ่มของตนเอง หรือสุ่มตรวจของทุกคน
+                          </span>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteAutoAssign(stage)}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all active:scale-95 cursor-pointer"
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                          {/* Option 1: ตรวจเฉพาะคนของตัวเอง */}
+                          <div
+                            onClick={() => handleUpdateStage(stage.id, { scope_mode: 'own_group_only' })}
+                            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                              (stage.scope_mode || 'own_group_only') === 'own_group_only'
+                                ? 'bg-amber-50/80 border-amber-500 shadow-xs ring-1 ring-amber-500/20'
+                                : 'bg-white border-slate-200 hover:border-slate-300'
+                            }`}
                           >
-                            <Zap className="w-3.5 h-3.5 text-amber-300" />
-                            <span>กระจายงานอัตโนมัติทันที</span>
-                          </button>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name={`scope_mode_${stage.id}`}
+                                    checked={(stage.scope_mode || 'own_group_only') === 'own_group_only'}
+                                    onChange={() => handleUpdateStage(stage.id, { scope_mode: 'own_group_only' })}
+                                    className="text-amber-600 focus:ring-amber-500"
+                                  />
+                                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                                    <Target className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>ตรวจเฉพาะคนของตัวเอง</span>
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 leading-relaxed pl-5">
+                                  หัวหน้ากลุ่มสาระหรือหัวหน้ากลุ่มสาขาจะตรวจเฉพาะครูในกลุ่มสาระ/สาขาวิชาของตนเองเท่านั้น (ตรงสายงาน)
+                                </p>
+                              </div>
+                              <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold shrink-0">
+                                ตรงสายงาน
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Option 2: ตรวจของทุกคนแบบสุ่มกระจายงานเท่ากัน */}
+                          <div
+                            onClick={() => handleUpdateStage(stage.id, { scope_mode: 'random_all' })}
+                            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                              stage.scope_mode === 'random_all'
+                                ? 'bg-indigo-50/80 border-indigo-600 shadow-xs ring-1 ring-indigo-600/20'
+                                : 'bg-white border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name={`scope_mode_${stage.id}`}
+                                    checked={stage.scope_mode === 'random_all'}
+                                    onChange={() => handleUpdateStage(stage.id, { scope_mode: 'random_all' })}
+                                    className="text-indigo-600 focus:ring-indigo-500"
+                                  />
+                                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                                    <Shuffle className="w-3.5 h-3.5 text-indigo-600" />
+                                    <span>ตรวจของทุกคนแบบสุ่ม</span>
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 leading-relaxed pl-5">
+                                  ระบบจะสุ่มกระจายเอกสารของครูทุกคนให้หัวหน้าทุกท่านช่วยกันตรวจในปริมาณที่เท่าๆ กัน (Round-robin) ไม่จำกัดกลุ่มสาระ
+                                </p>
+                              </div>
+                              <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[10px] font-bold shrink-0">
+                                สุ่มทุกคน
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Option 3: สุ่มตรวจทุกคนแต่ไม่เจอกลุ่มของตนเอง (Cross-check) */}
+                          <div
+                            onClick={() => handleUpdateStage(stage.id, { scope_mode: 'random_cross_only' })}
+                            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                              stage.scope_mode === 'random_cross_only'
+                                ? 'bg-purple-50/80 border-purple-600 shadow-xs ring-1 ring-purple-600/20'
+                                : 'bg-white border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name={`scope_mode_${stage.id}`}
+                                    checked={stage.scope_mode === 'random_cross_only'}
+                                    onChange={() => handleUpdateStage(stage.id, { scope_mode: 'random_cross_only' })}
+                                    className="text-purple-600 focus:ring-purple-500"
+                                  />
+                                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                                    <Scale className="w-3.5 h-3.5 text-purple-600" />
+                                    <span>สุ่มตรวจข้ามกลุ่ม</span>
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 leading-relaxed pl-5">
+                                  ระบบจะสุ่มกระจายเอกสารให้หัวหน้าทุกคนตรวจ แต่จะคัดกรองไม่ให้ตรวจคนในกลุ่มสาระ/สาขาของตนเอง เพื่อความเป็นกลาง
+                                </p>
+                              </div>
+                              <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold shrink-0">
+                                ประเมินข้ามกลุ่ม
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Current Mode Summary Pill */}
+                        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 text-slate-700">
+                            <Info className="w-4 h-4 text-slate-500 shrink-0" />
+                            <span>
+                              สถานะการตั้งค่าปัจจุบัน:{' '}
+                              <strong className="text-slate-900">
+                                {stage.scope_mode === 'random_all'
+                                  ? 'สุ่มตรวจของทุกคนแบบเฉลี่ยภาระงานเท่ากัน'
+                                  : stage.scope_mode === 'random_cross_only'
+                                  ? 'สุ่มตรวจทุกคนแต่ไม่ตรวจกลุ่มของตนเอง (Cross-check)'
+                                  : 'ตรวจเฉพาะคนในกลุ่มสาระ / สาขาวิชาของตนเองเท่านั้น'}
+                              </strong>
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 hidden sm:inline">
+                            มีผลทันทีเมื่อกดบันทึก
+                          </span>
                         </div>
                       </div>
+
+                      {/* 5. ระบบกระจายงานอัตโนมัติ (Auto-assign Workload Balancer) */}
+                      {(() => {
+                        const stageWaitingPlans = plans.filter((p) => {
+                          const planStage = p.current_stage_order || 1;
+                          const isMatch = planStage === stage.order && p.status !== 'approved' && p.status !== 'deleted';
+                          if (!isMatch) return false;
+                          if (p.workflow_id === currentWorkflow.id) return true;
+                          const type = (p.plan_type || '').toLowerCase();
+                          if (currentWorkflow.target_plan_types?.some((t) => type.includes(t.toLowerCase()))) return true;
+                          if (currentWorkflow.plan_type && type.includes(currentWorkflow.plan_type.toLowerCase())) return true;
+                          return false;
+                        });
+
+                        return (
+                          <div className="bg-gradient-to-br from-indigo-50/70 to-blue-50/40 border border-indigo-200 rounded-2xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div className="space-y-1.5 flex-1">
+                              <div className="flex items-center gap-2">
+                                <Zap className="w-4 h-4 text-amber-500" />
+                                <h5 className="text-xs font-bold text-indigo-950">
+                                  ระบบกระจายงานอัตโนมัติ (Auto-assign Balanced Workload)
+                                </h5>
+                                <span className="px-2 py-0.5 rounded-full bg-white border border-indigo-200 text-indigo-900 text-[10px] font-black">
+                                  รอตรวจในขั้นนี้: {stageWaitingPlans.length} รายการ
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-indigo-900/80 max-w-2xl leading-relaxed">
+                                เมื่อถึงวันครบกำหนดส่ง หรือแอดมินกดปุ่มสั่งกระจายงาน ระบบจะนำไฟล์เอกสารทั้งหมดในขั้นนี้มาจัดสรรให้ผู้ตรวจตามโหมด{' '}
+                                <strong className="text-indigo-950 font-bold">
+                                  {stage.scope_mode === 'random_all'
+                                    ? 'สุ่มตรวจทุกคนแบบกระจายงานเท่ากัน'
+                                    : stage.scope_mode === 'random_cross_only'
+                                    ? 'สุ่มตรวจข้ามกลุ่ม'
+                                    : 'ตรวจเฉพาะคนของตัวเอง'}
+                                </strong>{' '}
+                                โดยอัตโนมัติ
+                              </p>
+
+                              <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={stage.auto_assign_enabled ?? false}
+                                  onChange={(e) =>
+                                    handleUpdateStage(stage.id, { auto_assign_enabled: e.target.checked })
+                                  }
+                                  className="rounded text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span className="text-xs font-semibold text-indigo-950">
+                                  เปิดใช้งานระบบกระจายงานอัตโนมัติสำหรับขั้นนี้เมื่อถึงกำหนดส่ง
+                                </span>
+                              </label>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleExecuteAutoAssign(stage)}
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer"
+                              >
+                                <Shuffle className="w-3.5 h-3.5 text-amber-300" />
+                                <span>
+                                  {stage.scope_mode === 'random_all' || stage.scope_mode === 'random_cross_only'
+                                    ? 'สุ่มจัดสรรผู้ตรวจเดี๋ยวนี้'
+                                    : 'จัดสรรผู้ตรวจตามสายงานเดี๋ยวนี้'}
+                                </span>
+                                {stageWaitingPlans.length > 0 && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[10px] font-black">
+                                    {stageWaitingPlans.length}
+                                  </span>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
