@@ -2119,6 +2119,103 @@ export default function App() {
           </div>
         ) : (
           <>
+            {/* Role-Based Smart Overview Banner for Teachers */}
+            {!isAdmin && currentTeacher && (
+              <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 rounded-3xl p-4 sm:p-6 text-white border border-indigo-900/60 shadow-xl relative overflow-hidden mb-5">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  {/* Teacher Info */}
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                      {currentTeacher.photo ? (
+                        <img src={currentTeacher.photo} alt={currentTeacher.Name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-amber-400 font-bold text-lg">{currentTeacher.Name.substring(0, 2)}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
+                          สวัสดีครับ/ค่ะ, {currentTeacher.Name}
+                        </h2>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30 font-mono">
+                          {currentTeacher.Teacher_ID}
+                        </span>
+                      </div>
+                      <p className="text-xs text-indigo-200 mt-0.5 truncate">
+                        {currentTeacher.position} · กลุ่มสาระ{currentTeacher.Learning_Area} {currentTeacher.branch ? `(สาขา${currentTeacher.branch})` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Primary Call to Action Buttons */}
+                  <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubmitModalInitialType(undefined);
+                        setIsSubmitModalOpen(true);
+                      }}
+                      className="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                    >
+                      <PlusCircle className="w-4 h-4 stroke-[2.5]" />
+                      <span>+ ส่งแผนการสอน / ภาระงาน</span>
+                    </button>
+                    {assignedToMeCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setViewTab('assigned_to_me')}
+                        className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                      >
+                        <UserCheck className="w-4 h-4 text-amber-300" />
+                        <span>งานตรวจที่มอบหมาย ({assignedToMeCount})</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3 Quick Status Indicators */}
+                <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 mt-4 pt-4 border-t border-white/10 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setViewTab('approved')}
+                    className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+                      viewTab === 'approved' ? 'bg-emerald-500/25 ring-2 ring-emerald-400' : 'bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-[10px] sm:text-xs text-emerald-300 font-semibold block">อนุมัติแล้ว</span>
+                    <span className="text-base sm:text-xl font-black text-white font-mono">
+                      {plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID && (p.status === 'approved' || p.status === 'passed')).length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewTab('pending_review')}
+                    className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+                      viewTab === 'pending_review' ? 'bg-amber-500/25 ring-2 ring-amber-400' : 'bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-[10px] sm:text-xs text-amber-300 font-semibold block">กำลังรอตรวจ</span>
+                    <span className="text-base sm:text-xl font-black text-white font-mono">
+                      {plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID && p.status === 'submitted' && !p.reviewed_by).length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewTab('needs_revision')}
+                    className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+                      viewTab === 'needs_revision' ? 'bg-rose-500/25 ring-2 ring-rose-400' : 'bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-[10px] sm:text-xs text-rose-300 font-semibold block">ส่งกลับแก้ไข</span>
+                    <span className="text-base sm:text-xl font-black text-white font-mono">
+                      {plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID && p.status === 'needs_revision').length}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* For regular users: Show assigned documents notification & deadline alert */}
             {!isAdmin && currentTeacher && (
               <TeacherAssignmentNotification
@@ -2917,92 +3014,79 @@ export default function App() {
           className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-2 pt-1 pb-safe flex items-center justify-around text-[10px] font-bold text-slate-600 transition-all select-none"
         >
           {/* Button 1: แผนงาน */}
+          {/* Button 1: หน้าหลัก / แผนทั้งหมด */}
           <button
             onClick={() => {
               window.scrollTo({ top: 0, behavior: 'smooth' });
               setMainView('plans');
               setViewTab('all');
             }}
-            className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 ${
-              mainView === 'plans' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            className={`flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 ${
+              mainView === 'plans' && viewTab === 'all' ? 'text-indigo-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-5 h-5" />
+            <span className="text-[10px]">หน้าหลัก</span>
+          </button>
+
+          {/* Button 2: งานของฉัน */}
+          <button
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              setMainView('plans');
+              setViewTab('my');
+            }}
+            className={`flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 ${
+              mainView === 'plans' && viewTab === 'my' ? 'text-indigo-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             <FileText className="w-5 h-5" />
-            <span>แผนงาน</span>
+            <span className="text-[10px]">งานของฉัน</span>
           </button>
-
-          {/* Button 2: ภาระงาน หรือ แดชบอร์ด */}
-          {isAdmin ? (
-            <button
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                setMainView('executive');
-              }}
-              className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 ${
-                mainView === 'executive' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <BarChart3 className="w-5 h-5" />
-              <span>แดชบอร์ด</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleScrollToAssignments}
-              className="relative flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
-            >
-              <div className="relative">
-                <Bell className="w-5 h-5 text-amber-500" />
-                {pendingAssignmentsCount !== undefined && pendingAssignmentsCount > 0 ? (
-                  <span className="absolute -top-1 -right-1.5 min-w-[15px] h-[15px] px-0.5 bg-amber-500 text-slate-950 rounded-full text-[9px] font-black flex items-center justify-center">
-                    {pendingAssignmentsCount}
-                  </span>
-                ) : (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full"></span>
-                )}
-              </div>
-              <span>ภาระงาน</span>
-            </button>
-          )}
 
           {/* Button 3: ส่งเอกสาร (Large Center Action: สีแสดทอง #F59E0B โดดเด่น) */}
-          {!isAdmin ? (
-            <button
-              onClick={() => {
-                setSubmitModalInitialType(undefined);
-                setIsSubmitModalOpen(true);
-              }}
-              className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 text-slate-950 shadow-lg shadow-amber-500/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
-              title="ส่งเอกสารแผนการสอน"
-            >
-              <PlusCircle className="w-6 h-6 text-slate-950" />
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsAdminTrackerModalOpen(true)}
-              className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-[#0B1329] text-amber-400 shadow-lg shadow-slate-950/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
-              title="ติดตามงานรายบุคคล"
-            >
-              <ClipboardList className="w-6 h-6 text-amber-400" />
-            </button>
-          )}
-
-          {/* Button 4: บุคลากร */}
           <button
-            onClick={() => setIsDirectoryModalOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
+            onClick={() => {
+              setSubmitModalInitialType(undefined);
+              setIsSubmitModalOpen(true);
+            }}
+            className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-lg shadow-amber-500/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
+            title="ส่งแผนการสอนหรือภาระงานใหม่"
           >
-            <Users className="w-5 h-5 text-slate-600" />
-            <span>บุคลากร</span>
+            <PlusCircle className="w-6 h-6 text-slate-950 stroke-[2.5]" />
           </button>
 
-          {/* Button 5: เมนูแผงควบคุม (เปิด Sidebar Drawer สีกรมท่า #0B1329) */}
+          {/* Button 4: งานตรวจที่มอบหมาย (พร้อม Badge แจ้งเตือน) */}
           <button
-            onClick={() => setIsMobileSidebarOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
-            title="เปิดเมนูเพิ่มเติม"
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              setMainView('plans');
+              setViewTab('assigned_to_me');
+            }}
+            className={`relative flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 ${
+              mainView === 'plans' && viewTab === 'assigned_to_me' ? 'text-indigo-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+            title="งานตรวจที่ได้รับมอบหมาย"
           >
-            <Menu className="w-5 h-5 text-slate-700" />
-            <span>เมนู</span>
+            <div className="relative">
+              <UserCheck className="w-5 h-5" />
+              {assignedToMeCount > 0 && (
+                <span className="absolute -top-1 -right-2 min-w-[15px] h-[15px] px-1 bg-amber-500 text-slate-950 rounded-full text-[9px] font-black flex items-center justify-center shadow-xs">
+                  {assignedToMeCount > 99 ? '99+' : assignedToMeCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px]">งานตรวจ</span>
+          </button>
+
+          {/* Button 5: โปรไฟล์ */}
+          <button
+            onClick={() => setIsProfileOpen(true)}
+            className="flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
+            title="ข้อมูลโปรไฟล์ของฉัน"
+          >
+            <User className="w-5 h-5 text-slate-600" />
+            <span className="text-[10px]">โปรไฟล์</span>
           </button>
         </nav>
       )}

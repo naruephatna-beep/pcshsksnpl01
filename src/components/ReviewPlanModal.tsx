@@ -99,6 +99,47 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   const [isSendingDirectEmail, setIsSendingDirectEmail] = useState(false);
   const [directMailStatus, setDirectMailStatus] = useState<string | null>(null);
 
+  // User-Friendly: Side-by-Side Split View (PDF preview alongside review criteria)
+  const embedPreviewUrl = React.useMemo(() => {
+    if (!plan.file_url || plan.file_url === '#') return null;
+    const url = plan.file_url.trim();
+    if (url.includes('drive.google.com/file/d/')) {
+      const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        return `https://drive.google.com/file/d/${match[1]}/preview`;
+      }
+    }
+    if (url.includes('drive.google.com/open?id=')) {
+      const match = url.match(/id=([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        return `https://drive.google.com/file/d/${match[1]}/preview`;
+      }
+    }
+    if (url.endsWith('.pdf')) {
+      return url;
+    }
+    return null;
+  }, [plan.file_url]);
+
+  const [isSplitView, setIsSplitView] = useState<boolean>(Boolean(embedPreviewUrl));
+
+  // Quick feedback presets to save teachers typing time
+  const QUICK_FEEDBACK_PRESETS = [
+    '✓ ผ่านเกณฑ์การประเมิน แผนการจัดการเรียนรู้มีความละเอียด ครบถ้วนตามมาตรฐาน',
+    '✓ กิจกรรมการเรียนรู้และการวัดประเมินผลสอดคล้องกับตัวชี้วัดเป็นอย่างดี',
+    '✓ สื่อ นวัตกรรม และแหล่งเรียนรู้มีความหลากหลาย น่าสนใจ ส่งเสริมผู้เรียน',
+    '⚠️ ขอให้ปรับปรุงเกณฑ์การวัดและประเมินผลรูบริกให้ชัดเจนยิ่งขึ้น',
+    '⚠️ ขอให้ระบุระยะเวลาในแต่ละกิจกรรมให้สอดคล้องกับคาบเรียน',
+  ];
+
+  const handleAppendPreset = (presetText: string) => {
+    setComment((prev) => {
+      if (!prev.trim()) return presetText;
+      if (prev.includes(presetText)) return prev;
+      return `${prev}\n${presetText}`;
+    });
+  };
+
   const targetTeacher = React.useMemo(() => {
     return teachers?.find((t) => t.Teacher_ID === plan.teacher_id);
   }, [teachers, plan.teacher_id]);
@@ -138,6 +179,61 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
         25) *
         100
     );
+
+  const handleQuickApprove = async () => {
+    setStatus('approved');
+    const autoNote = comment.trim() || 'อนุมัติการใช้แผนการจัดการเรียนรู้ ผ่านตามเกณฑ์มาตรฐานเรียบร้อยแล้ว';
+    setComment(autoNote);
+    setIsSubmitting(true);
+
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const reviewRecord: StageReviewRecord = {
+      stage_id: currentStage?.id || `stage_${currentStageOrder}`,
+      stage_order: currentStageOrder,
+      stage_title: currentStage?.title || `ขั้นที่ ${currentStageOrder}`,
+      evaluation_mode: isApprovalOnly ? 'approval_only' : 'rubric_score',
+      reviewer_id: reviewer.Teacher_ID,
+      reviewer_name: `${reviewer.Name} (${reviewer.position})`,
+      reviewed_at: dateStr,
+      status: 'approved',
+      comment: autoNote,
+      rubric_scores: isApprovalOnly ? undefined : rubrics,
+      total_score: isApprovalOnly ? undefined : totalRubricScore,
+    };
+
+    let updated: LessonPlan;
+    if (activeWorkflow && activeWorkflow.stages.length > 0) {
+      updated = advancePlanStage(plan, activeWorkflow, reviewRecord, reviewer);
+    } else {
+      const existingReviews = plan.stage_reviews || [];
+      updated = {
+        ...plan,
+        status: 'approved',
+        reviewed_by: reviewer.Teacher_ID,
+        reviewer_name: `${reviewer.Name} (${reviewer.position})`,
+        reviewed_at: dateStr,
+        review_comment: autoNote,
+        rubric_scores: isApprovalOnly ? undefined : rubrics,
+        total_score: isApprovalOnly ? undefined : totalRubricScore,
+        evaluation_type: isApprovalOnly ? 'approval_only' : 'rubric_score',
+        stage_reviews: [
+          ...existingReviews.filter((r) => r.stage_id !== reviewRecord.stage_id),
+          reviewRecord,
+        ],
+      };
+    }
+
+    try {
+      await onSaveReview(updated);
+      onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,16 +319,35 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4">
-      <div className="w-full max-w-2xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[88vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className={`w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in zoom-in-95 ${
+        isSplitView && embedPreviewUrl ? 'max-w-6xl w-full h-[92vh]' : 'max-w-2xl max-h-[92vh] sm:max-h-[88vh]'
+      }`}>
         {/* Pinned Header */}
         <div className="relative bg-gradient-to-r from-purple-700 via-indigo-700 to-indigo-800 p-4 sm:p-5 text-white shrink-0 shadow-xs">
-          <button
-            onClick={onClose}
-            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer"
-            aria-label="ปิดหน้าต่าง"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 flex items-center gap-2">
+            {embedPreviewUrl && (
+              <button
+                type="button"
+                onClick={() => setIsSplitView(!isSplitView)}
+                className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  isSplitView
+                    ? 'bg-amber-400 text-slate-950 shadow-xs ring-2 ring-white/30'
+                    : 'bg-white/15 text-white hover:bg-white/25'
+                }`}
+                title="สลับมุมมอง: ดูเอกสาร PDF คู่กับแบบตรวจข้างๆ กัน"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>{isSplitView ? '🖥️ โหมดแยกจอคู่' : '📄 แยกจอเปิด PDF'}</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer"
+              aria-label="ปิดหน้าต่าง"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25 shrink-0">
@@ -259,10 +374,66 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
           </div>
         </div>
 
-        {/* Scrollable Modal Body (Contains Plan Details + Review Controls) */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 sm:space-y-5 bg-white">
-          {/* Multi-Stage Approval Pipeline Breadcrumbs */}
-          {activeWorkflow && activeWorkflow.stages.length > 0 && (
+        {/* Main Body with Split View option */}
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden bg-white">
+          {/* Left Panel: Embedded PDF / Google Drive Viewer (Desktop Split View) */}
+          {isSplitView && embedPreviewUrl && (
+            <div className="hidden lg:flex lg:w-1/2 flex-col border-r border-slate-200 bg-slate-900 shrink-0 h-full relative">
+              <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-950 text-white text-xs border-b border-slate-800 shrink-0">
+                <div className="flex items-center gap-2 truncate">
+                  <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="font-bold truncate text-slate-200">{plan.file_name || 'ไฟล์เอกสาร'}</span>
+                </div>
+                <a
+                  href={plan.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0"
+                >
+                  <span>เปิดเต็มจอ</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+              <div className="flex-1 w-full h-full relative bg-slate-950">
+                <iframe
+                  src={embedPreviewUrl}
+                  title="PDF Preview"
+                  className="w-full h-full border-0"
+                  allow="autoplay"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Right/Main Panel: Scrollable Review Controls */}
+          <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 sm:space-y-5 bg-white">
+            {/* 1-Click Quick Approve Banner */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 flex items-center justify-between gap-3 shadow-2xs">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <h4 className="text-xs sm:text-sm font-bold text-emerald-950">
+                    อนุมัติทันทีใน 1 คลิก (Quick Approve)
+                  </h4>
+                </div>
+                <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">
+                  หากตรวจดูแล้วว่าเอกสารถูกต้องตามเกณฑ์ สามารถกดอนุมัติได้ทันที
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleQuickApprove}
+                disabled={isSubmitting}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer shrink-0 flex items-center gap-1.5"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>อนุมัติทันที</span>
+              </button>
+            </div>
+
+            {/* Multi-Stage Approval Pipeline Breadcrumbs */}
+            {activeWorkflow && activeWorkflow.stages.length > 0 && (
             <div className="bg-[#0B1329] text-white p-4 rounded-2xl border border-slate-800 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
@@ -681,6 +852,22 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Quick Feedback Presets for Fast 1-Click Commenting */}
+            <div className="flex items-center gap-1.5 flex-wrap mb-2">
+              <span className="text-[10px] text-slate-400 font-semibold shrink-0">ข้อความแนะนำ:</span>
+              {QUICK_FEEDBACK_PRESETS.map((pst, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleAppendPreset(pst)}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-900 border border-slate-200/80 hover:border-purple-300 transition-colors cursor-pointer text-left truncate max-w-[220px]"
+                  title={pst}
+                >
+                  {pst}
+                </button>
+              ))}
+            </div>
             <textarea
               rows={3}
               value={comment}
@@ -789,6 +976,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
           </div>
         </form>
       </div>
+    </div>
 
       {/* Pinned Sticky Footer - Always visible on screen */}
       <div className="shrink-0 border-t border-slate-200 bg-slate-50/95 backdrop-blur-xs px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 z-10">
