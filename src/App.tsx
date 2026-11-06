@@ -40,6 +40,7 @@ import {
   getPlanStatusInfo,
   getSavedSubmissions,
   classifyDocumentType,
+  isPlanMatchingAssignment,
   DEFAULT_DEADLINE_CONFIGS,
   DEFAULT_STATUS_CONFIGS,
 } from './utils/deadlineUtils';
@@ -1335,8 +1336,25 @@ export default function App() {
     const lowerType = rawType.toLowerCase();
     const lowerFilter = filter.trim().toLowerCase();
 
-    // 1. Direct match with exact filter string
+    // 1. Direct match with exact filter string or plan type
     if (lowerType === lowerFilter) return true;
+    if (plan.plan_type === filter) return true;
+
+    // Check if filter matches a deadlineConfig
+    const matchingConfig = deadlineConfigs.find(
+      (c) => c.id === filter || c.name.toLowerCase() === lowerFilter
+    );
+    if (matchingConfig && isPlanMatchingAssignment(plan, matchingConfig)) {
+      return true;
+    }
+
+    // Check custom prefix match
+    if (filter.startsWith('custom_')) {
+      const customName = filter.replace('custom_', '').trim().toLowerCase();
+      if (lowerType === customName || (plan.plan_title || '').toLowerCase().includes(customName)) {
+        return true;
+      }
+    }
 
     // 2. Classify plan into canonical category
     const meta = classifyDocumentType(plan.plan_type || plan.plan_title);
@@ -1466,6 +1484,73 @@ export default function App() {
     currentTeacher,
   ]);
 
+  // Dynamic list of custom document categories from deadlineConfigs and existing plans
+  const customFilterCategories = useMemo(() => {
+    interface FilterCat {
+      id: string;
+      label: string;
+      short: string;
+      count: number;
+    }
+    const list: FilterCat[] = [];
+
+    // Custom assignments from deadlineConfigs
+    if (deadlineConfigs && deadlineConfigs.length > 0) {
+      deadlineConfigs.forEach((cfg) => {
+        const lowerId = (cfg.id || '').toLowerCase();
+        const lowerName = (cfg.name || '').toLowerCase();
+        if (
+          lowerId === 'type_summary' ||
+          lowerId === 'type_full' ||
+          lowerId.includes('classroom_research') ||
+          lowerName.includes('ฉบับย่อ') ||
+          lowerName.includes('ฉบับสมบูรณ์') ||
+          lowerName.includes('วิจัยในชั้นเรียน')
+        ) {
+          return;
+        }
+
+        const count = contextPlansForCategoryCounts.filter((p) => isPlanMatchingAssignment(p, cfg)).length;
+        list.push({
+          id: cfg.id,
+          label: cfg.name,
+          short: `📑 ${cfg.name.length > 18 ? cfg.name.slice(0, 16) + '...' : cfg.name}`,
+          count,
+        });
+      });
+    }
+
+    // Custom distinct plan types from existing plans
+    const customTypes = new Set<string>();
+    contextPlansForCategoryCounts.forEach((p) => {
+      const pType = (p.plan_type || '').trim();
+      if (!pType) return;
+      const meta = classifyDocumentType(pType);
+      if (meta.key === 'summary_plan' || meta.key === 'full_plan' || meta.key === 'classroom_research') {
+        return;
+      }
+      const matched = list.some((c) => {
+        const cfg = deadlineConfigs.find((dc) => dc.id === c.id);
+        return cfg && isPlanMatchingAssignment(p, cfg);
+      });
+      if (!matched) {
+        customTypes.add(pType);
+      }
+    });
+
+    customTypes.forEach((pType) => {
+      const count = contextPlansForCategoryCounts.filter((p) => (p.plan_type || '').trim() === pType).length;
+      list.push({
+        id: `custom_${pType}`,
+        label: pType,
+        short: `📋 ${pType.length > 18 ? pType.slice(0, 16) + '...' : pType}`,
+        count,
+      });
+    });
+
+    return list;
+  }, [deadlineConfigs, contextPlansForCategoryCounts]);
+
   const docCategoryCounts = useMemo(() => {
     let summary = 0;
     let full = 0;
@@ -1476,7 +1561,19 @@ export default function App() {
       if (meta.key === 'summary_plan') summary++;
       else if (meta.key === 'full_plan') full++;
       else if (meta.key === 'classroom_research') research++;
-      else general++;
+      else {
+        const matchedCustom = customFilterCategories.some((c) => {
+          const cfg = deadlineConfigs.find((dc) => dc.id === c.id);
+          if (cfg) return isPlanMatchingAssignment(p, cfg);
+          if (c.id.startsWith('custom_')) {
+            return (p.plan_type || '').trim() === c.label;
+          }
+          return false;
+        });
+        if (!matchedCustom) {
+          general++;
+        }
+      }
     }
     return {
       all: contextPlansForCategoryCounts.length,
@@ -1485,7 +1582,7 @@ export default function App() {
       research,
       general,
     };
-  }, [contextPlansForCategoryCounts]);
+  }, [contextPlansForCategoryCounts, customFilterCategories, deadlineConfigs]);
 
   // Filtered plans logic (memoized to eliminate redundant computations on every keystroke/render)
   const filteredPlans = useMemo(() => {
@@ -2238,6 +2335,7 @@ export default function App() {
                 onSelectArea={(area) => setAreaFilter(area)}
                 selectedDocType={docTypeFilter}
                 onSelectDocType={(dt) => setDocTypeFilter(dt)}
+                deadlineConfigs={deadlineConfigs}
               />
             </div>
 
@@ -2448,23 +2546,51 @@ export default function App() {
                 {docCategoryCounts.research}
               </span>
             </button>
-            <button
-              onClick={() => setDocTypeFilter((prev) => (prev === 'general_academic' ? 'all' : 'general_academic'))}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                docTypeFilter === 'general_academic'
-                  ? 'bg-indigo-600 text-white shadow-xs font-bold'
-                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80'
-              }`}
-            >
-              <span>📑 เอกสารอื่นๆ</span>
-              <span
-                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                  docTypeFilter === 'general_academic' ? 'bg-white/20 text-white' : 'bg-indigo-200/80 text-indigo-900'
+            {/* Custom dynamically added document types from deadlineConfigs and custom plan types */}
+            {customFilterCategories.map((cat) => {
+              const isSelected = docTypeFilter === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setDocTypeFilter((prev) => (prev === cat.id ? 'all' : cat.id))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-amber-500 text-slate-950 shadow-xs font-bold ring-1 ring-amber-600'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80'
+                  }`}
+                  title={cat.label}
+                >
+                  <span className="truncate max-w-[160px]">{cat.short}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
+                      isSelected ? 'bg-black/20 text-slate-950 font-bold' : 'bg-amber-200/80 text-amber-950'
+                    }`}
+                  >
+                    {cat.count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {docCategoryCounts.general > 0 && (
+              <button
+                onClick={() => setDocTypeFilter((prev) => (prev === 'general_academic' ? 'all' : 'general_academic'))}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  docTypeFilter === 'general_academic'
+                    ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80'
                 }`}
               >
-                {docCategoryCounts.general}
-              </span>
-            </button>
+                <span>📑 เอกสารอื่นๆ</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
+                    docTypeFilter === 'general_academic' ? 'bg-white/20 text-white' : 'bg-indigo-200/80 text-indigo-900'
+                  }`}
+                >
+                  {docCategoryCounts.general}
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Search bar & Active filter indicators */}
@@ -2484,15 +2610,18 @@ export default function App() {
               <div className="flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 border border-purple-200">
                 <span>
                   ประเภท:{' '}
-                  {docTypeFilter === 'summary_plan'
-                    ? 'แผนฯ ฉบับย่อ'
-                    : docTypeFilter === 'full_plan'
-                    ? 'แผนฯ ฉบับสมบูรณ์'
-                    : docTypeFilter === 'classroom_research'
-                    ? 'วิจัยในชั้นเรียน'
-                    : docTypeFilter === 'general_academic'
-                    ? 'เอกสารวิชาการอื่นๆ'
-                    : docTypeFilter}
+                  {(() => {
+                    if (docTypeFilter === 'summary_plan') return 'แผนฯ ฉบับย่อ';
+                    if (docTypeFilter === 'full_plan') return 'แผนฯ ฉบับสมบูรณ์';
+                    if (docTypeFilter === 'classroom_research') return 'วิจัยในชั้นเรียน';
+                    if (docTypeFilter === 'general_academic') return 'เอกสารวิชาการอื่นๆ';
+                    const customCat = customFilterCategories.find((c) => c.id === docTypeFilter);
+                    if (customCat) return customCat.label;
+                    const cfg = deadlineConfigs.find((c) => c.id === docTypeFilter);
+                    if (cfg) return cfg.name;
+                    if (docTypeFilter.startsWith('custom_')) return docTypeFilter.replace('custom_', '');
+                    return docTypeFilter;
+                  })()}
                 </span>
                 <button
                   onClick={() => setDocTypeFilter('all')}
