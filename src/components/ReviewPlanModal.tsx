@@ -99,10 +99,50 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   const [isSendingDirectEmail, setIsSendingDirectEmail] = useState(false);
   const [directMailStatus, setDirectMailStatus] = useState<string | null>(null);
 
+  const parsedFormFields = React.useMemo(() => {
+    if (!plan.notes) return null;
+    try {
+      const parsed = JSON.parse(plan.notes);
+      if (typeof parsed === 'object' && parsed !== null && Object.keys(parsed).length > 0) {
+        return parsed as Record<string, any>;
+      }
+    } catch {
+      // not json
+    }
+    return null;
+  }, [plan.notes]);
+
+  // Extract all attached files (single file from plan.file_url or multi-files from parsedFormFields._attachments)
+  const attachedFiles = React.useMemo(() => {
+    const list: { file_name: string; file_url: string; file_size?: string }[] = [];
+    if (parsedFormFields && Array.isArray(parsedFormFields._attachments) && parsedFormFields._attachments.length > 0) {
+      parsedFormFields._attachments.forEach((att: any, idx: number) => {
+        if (att && att.file_url && att.file_url !== '#') {
+          list.push({
+            file_name: att.file_name || `ไฟล์แนบที่ ${idx + 1}`,
+            file_url: att.file_url,
+            file_size: att.file_size,
+          });
+        }
+      });
+    }
+    if (list.length === 0 && plan.file_url && plan.file_url !== '#') {
+      list.push({
+        file_name: plan.file_name || 'ไฟล์เอกสารหลัก',
+        file_url: plan.file_url,
+      });
+    }
+    return list;
+  }, [parsedFormFields, plan.file_url, plan.file_name]);
+
+  const [activeFileIndex, setActiveFileIndex] = useState(0);
+  const currentPreviewFile = attachedFiles[activeFileIndex] || attachedFiles[0] || null;
+
   // User-Friendly: Side-by-Side Split View (PDF preview alongside review criteria)
   const embedPreviewUrl = React.useMemo(() => {
-    if (!plan.file_url || plan.file_url === '#') return null;
-    const url = plan.file_url.trim();
+    const rawUrl = currentPreviewFile?.file_url || plan.file_url;
+    if (!rawUrl || rawUrl === '#') return null;
+    const url = rawUrl.trim();
     if (url.includes('drive.google.com/file/d/')) {
       const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
       if (match && match[1]) {
@@ -119,7 +159,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
       return url;
     }
     return null;
-  }, [plan.file_url]);
+  }, [currentPreviewFile, plan.file_url]);
 
   const [isSplitView, setIsSplitView] = useState<boolean>(Boolean(embedPreviewUrl));
 
@@ -153,19 +193,6 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   const isApprovalOnly = evaluationType === 'approval_only';
   const docMeta = classifyDocumentType(plan.plan_type);
   const isResearch = docMeta.key === 'classroom_research' || (plan.plan_type || '').includes('วิจัย');
-
-  const parsedFormFields = React.useMemo(() => {
-    if (!plan.notes) return null;
-    try {
-      const parsed = JSON.parse(plan.notes);
-      if (typeof parsed === 'object' && parsed !== null && Object.keys(parsed).length > 0) {
-        return parsed as Record<string, any>;
-      }
-    } catch {
-      // not json
-    }
-    return null;
-  }, [plan.notes]);
 
   if (!isOpen) return null;
 
@@ -379,23 +406,56 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
           {/* Left Panel: Embedded PDF / Google Drive Viewer (Desktop Split View) */}
           {isSplitView && embedPreviewUrl && (
             <div className="hidden lg:flex lg:w-1/2 flex-col border-r border-slate-200 bg-slate-900 shrink-0 h-full relative">
-              <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-950 text-white text-xs border-b border-slate-800 shrink-0">
-                <div className="flex items-center gap-2 truncate">
-                  <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="font-bold truncate text-slate-200">{plan.file_name || 'ไฟล์เอกสาร'}</span>
+              <div className="flex flex-col bg-slate-950 text-white text-xs border-b border-slate-800 shrink-0">
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <div className="flex items-center gap-2 truncate">
+                    <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="font-bold truncate text-slate-200">
+                      {currentPreviewFile?.file_name || plan.file_name || 'ไฟล์เอกสาร'}
+                    </span>
+                    {attachedFiles.length > 1 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-600 text-white shrink-0">
+                        {activeFileIndex + 1}/{attachedFiles.length}
+                      </span>
+                    )}
+                  </div>
+                  <a
+                    href={currentPreviewFile?.file_url || plan.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0"
+                  >
+                    <span>เปิดเต็มจอ</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
-                <a
-                  href={plan.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0"
-                >
-                  <span>เปิดเต็มจอ</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+
+                {/* Multi-file preview tabs if > 1 attachment */}
+                {attachedFiles.length > 1 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 overflow-x-auto scrollbar-none border-t border-slate-800/80 bg-slate-900/90">
+                    <span className="text-[10px] text-slate-400 font-semibold shrink-0">เลือกไฟล์ดู:</span>
+                    {attachedFiles.map((file, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveFileIndex(idx)}
+                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all shrink-0 flex items-center gap-1 cursor-pointer ${
+                          activeFileIndex === idx
+                            ? 'bg-amber-400 text-slate-950 shadow-xs ring-1 ring-white/20'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                        }`}
+                        title={file.file_name}
+                      >
+                        <FileText className="w-2.5 h-2.5" />
+                        <span className="max-w-[110px] truncate">{idx + 1}. {file.file_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex-1 w-full h-full relative bg-slate-950">
                 <iframe
+                  key={embedPreviewUrl}
                   src={embedPreviewUrl}
                   title="PDF Preview"
                   className="w-full h-full border-0"
@@ -525,22 +585,61 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                 </p>
               </div>
               <div className="flex flex-col items-end shrink-0">
-                <a
-                  href={plan.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors active:scale-95 cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>เปิดดูไฟล์</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                {attachedFiles.length <= 1 ? (
+                  <a
+                    href={attachedFiles[0]?.file_url || plan.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors active:scale-95 cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>เปิดดูไฟล์</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : (
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
+                      แนบทั้งหมด {attachedFiles.length} ไฟล์
+                    </span>
+                    <div className="flex items-center gap-1 flex-wrap justify-end max-w-xs">
+                      {attachedFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveFileIndex(idx);
+                              setIsSplitView(true);
+                            }}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                              activeFileIndex === idx
+                                ? 'bg-amber-400 text-slate-950 ring-1 ring-amber-500 shadow-2xs'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            }`}
+                            title={`คลิกเพื่อดูไฟล์ที่ ${idx + 1}: ${file.file_name}`}
+                          >
+                            <FileText className="w-2.5 h-2.5" />
+                            <span>ไฟล์ {idx + 1}</span>
+                          </button>
+                          <a
+                            href={file.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded transition-colors"
+                            title={`เปิดแท็บใหม่: ${file.file_name}`}
+                          >
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <span className="text-[10px] text-slate-400 mt-1">สิทธิ์: ทุกคนที่มีลิงก์</span>
               </div>
             </div>
 
             {/* Dynamic Form Details (Collapsible & Scrollable if long) */}
-            {parsedFormFields && Object.keys(parsedFormFields).length > 0 && (
+            {parsedFormFields && Object.keys(parsedFormFields).filter((k) => k !== '_attachments').length > 0 && (
               <div className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
                 <button
                   type="button"
@@ -549,7 +648,9 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                 >
                   <span className="flex items-center gap-1.5">
                     <span className="w-1.5 h-3 rounded-full bg-purple-600"></span>
-                    <span>รายละเอียดข้อมูลที่ครูกรอกส่ง ({Object.keys(parsedFormFields).length} รายการ)</span>
+                    <span>
+                      รายละเอียดข้อมูลที่ครูกรอกส่ง ({Object.keys(parsedFormFields).filter((k) => k !== '_attachments').length} รายการ)
+                    </span>
                   </span>
                   <span className="flex items-center gap-1 text-[11px] text-indigo-600 font-semibold">
                     <span>{showSubmittedDetails ? 'ย่อข้อมูล' : 'แสดงรายละเอียด'}</span>
@@ -560,6 +661,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                   <div className="p-3 border-t border-slate-100 max-h-56 overflow-y-auto space-y-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600 text-[11px]">
                       {Object.entries(parsedFormFields).map(([key, value]) => {
+                        if (key === '_attachments') return null;
                         if (typeof value !== 'string' && typeof value !== 'number') return null;
                         const labelMap: Record<string, string> = {
                           fld_teacher_name: 'ครูผู้สอน',

@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Edit,
   Award,
+  ChevronDown,
 } from 'lucide-react';
 
 interface LessonPlanCardProps {
@@ -67,6 +68,35 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
         plan.assigned_reviewer_name === currentTeacher.Name)
   );
   const canReview = canReviewProp !== undefined ? canReviewProp : (isAdmin || isDirectlyAssigned);
+  const [showFileList, setShowFileList] = React.useState(false);
+
+  // Extract all attached files if available in plan.notes
+  const allAttachments = React.useMemo(() => {
+    const list: { file_name: string; file_url: string; file_size?: string }[] = [];
+    if (plan.notes) {
+      try {
+        const parsed = JSON.parse(plan.notes);
+        if (parsed && Array.isArray(parsed._attachments) && parsed._attachments.length > 0) {
+          parsed._attachments.forEach((att: any, idx: number) => {
+            if (att && att.file_url && att.file_url !== '#') {
+              list.push({
+                file_name: att.file_name || `ไฟล์แนบ ${idx + 1}`,
+                file_url: att.file_url,
+                file_size: att.file_size,
+              });
+            }
+          });
+        }
+      } catch {}
+    }
+    if (list.length === 0 && plan.file_url && plan.file_url !== '#') {
+      list.push({
+        file_name: plan.file_name || 'ดูไฟล์',
+        file_url: plan.file_url,
+      });
+    }
+    return list;
+  }, [plan.notes, plan.file_url, plan.file_name]);
 
   // Timeliness & Late Status calculation
   const timeliness = checkSubmissionTimeliness(plan.plan_type, plan.submitted_at, deadlineConfigs);
@@ -293,17 +323,61 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
       {/* Action Footer (Standardized button heights, padding, and visual hierarchy) */}
       <div className="mt-3.5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          {/* File link */}
-          <a
-            href={plan.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5 text-slate-600" />
-            <span>ดูไฟล์</span>
-            <ExternalLink className="w-3 h-3 text-slate-400" />
-          </a>
+          {/* File link(s) */}
+          {allAttachments.length <= 1 ? (
+            <a
+              href={allAttachments[0]?.file_url || plan.file_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-600" />
+              <span>ดูไฟล์</span>
+              <ExternalLink className="w-3 h-3 text-slate-400" />
+            </a>
+          ) : (
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={() => setShowFileList(!showFileList)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-200/80 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                title="คลิกเพื่อดูไฟล์แนบทั้งหมด"
+              >
+                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                <span>ดูไฟล์ ({allAttachments.length})</span>
+                <ChevronDown className={`w-3 h-3 text-indigo-500 transition-transform ${showFileList ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showFileList && (
+                <div className="absolute left-0 bottom-full mb-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in zoom-in-95">
+                  <div className="px-3 py-1.5 border-b border-slate-100 text-[11px] font-bold text-slate-500 flex items-center justify-between">
+                    <span>ไฟล์แนบทั้งหมด ({allAttachments.length})</span>
+                    <span className="text-[10px] text-indigo-600 font-semibold">คลิกเพื่อเปิด</span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto py-1">
+                    {allAttachments.map((file, idx) => (
+                      <a
+                        key={idx}
+                        href={file.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setShowFileList(false)}
+                        className="px-3 py-1.5 hover:bg-indigo-50 flex items-center justify-between gap-2 text-xs text-slate-700 hover:text-indigo-950 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <span className="truncate font-medium">{file.file_name}</span>
+                        </div>
+                        <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Receipt button */}
           <button

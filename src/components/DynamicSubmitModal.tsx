@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Teacher,
   PlanTypeDeadlineConfig,
@@ -29,16 +29,37 @@ import {
   Trash2,
   Link as LinkIcon,
   Cloud,
+  Plus,
+  Copy,
+  Layers,
+  Files,
+  Info,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { PdfPermissionNotice } from './PdfPermissionNotice';
+
+export interface DynamicAttachment {
+  field_id: string;
+  file_name: string;
+  file_url: string;
+  file_size?: string;
+}
+
+export interface DynamicSubmissionItem {
+  id: string;
+  formValues: Record<string, any>;
+  attachments: DynamicAttachment[];
+  isPermissionConfirmed?: boolean;
+}
 
 interface DynamicSubmitModalProps {
   currentTeacher: Teacher;
   config: PlanTypeDeadlineConfig;
   isOpen: boolean;
   onClose: () => void;
-  onSubmitted?: (submission: AssignmentSubmission, correspondingPlan?: LessonPlan) => void;
+  onSubmitted?: (
+    submission: AssignmentSubmission | AssignmentSubmission[],
+    correspondingPlan?: LessonPlan | LessonPlan[]
+  ) => void;
   existingSubmission?: AssignmentSubmission | null;
 }
 
@@ -51,102 +72,157 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   existingSubmission,
 }) => {
   const fields: DynamicFormField[] = config.fields || [];
+  const formRef = useRef<HTMLDivElement>(null);
 
-  // Form values state: maps field.id -> value
-  const [formValues, setFormValues] = useState<Record<string, any>>({});
-  // File uploads state: maps field.id -> array of attachments
-  const [attachments, setAttachments] = useState<
-    Array<{
-      field_id: string;
-      file_name: string;
-      file_url: string;
-      file_size?: string;
-    }>
-  >([]);
+  // Helper to create a pristine item with teacher profile defaults
+  const createNewItem = (inheritFrom?: Partial<DynamicSubmissionItem>): DynamicSubmissionItem => {
+    const initialValues: Record<string, any> = {};
+    fields.forEach((f) => {
+      if (f.type === 'user_profile') {
+        if (f.profile_key === 'learning_area') {
+          initialValues[f.id] = currentTeacher.Learning_Area || '';
+        } else if (f.profile_key === 'teacher_id') {
+          initialValues[f.id] = currentTeacher.Teacher_ID || '';
+        } else if (f.profile_key === 'position') {
+          initialValues[f.id] = currentTeacher.position || '';
+        } else {
+          initialValues[f.id] = currentTeacher.Name || '';
+        }
+      } else if (f.type === 'checkbox') {
+        initialValues[f.id] = inheritFrom?.formValues?.[f.id] ? [...inheritFrom.formValues[f.id]] : [];
+      } else {
+        initialValues[f.id] = inheritFrom?.formValues?.[f.id] || '';
+      }
+    });
+
+    return {
+      id: Math.random().toString(36).substring(2, 9),
+      formValues: initialValues,
+      attachments: inheritFrom?.attachments ? [...inheritFrom.attachments] : [],
+      isPermissionConfirmed: inheritFrom?.isPermissionConfirmed || false,
+    };
+  };
+
+  // State: Multiple items (supports submitting multiple subjects/projects at once)
+  const [items, setItems] = useState<DynamicSubmissionItem[]>([createNewItem()]);
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
+
+  // Per-field active link text input (fieldId -> string)
+  const [activeLinkInputs, setActiveLinkInputs] = useState<Record<string, string>>({});
+
   const [uploadingFieldId, setUploadingFieldId] = useState<string | null>(null);
-  const [fileInputModes, setFileInputModes] = useState<Record<string, 'upload' | 'link'>>({});
+  const [uploadProgressText, setUploadProgressText] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isPermissionConfirmed, setIsPermissionConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
-  // Initialize or reset form values
+  // Initialize form state
   useEffect(() => {
     if (!isOpen) return;
 
     setError('');
     setSuccessNotice(null);
+    setActiveLinkInputs({});
 
-    // If teacher profile is incomplete
     if (!currentTeacher.Name || !currentTeacher.Teacher_ID) {
-      setError('ข้อมูลบัญชีครูยังไม่สมบูรณ์ (ไม่พบชื่อ-นามสกุล) กรุณาแก้ไขโปรไฟล์ก่อนส่งงาน');
+      setError('ข้อมูลบัญชีครูยังไม่สมบูรณ์ กรุณาแก้ไขโปรไฟล์ก่อนส่งงาน');
     }
 
     if (existingSubmission) {
-      setFormValues(existingSubmission.answers || {});
-      setAttachments(existingSubmission.attachments || []);
+      setItems([
+        {
+          id: existingSubmission.id,
+          formValues: existingSubmission.answers || {},
+          attachments: existingSubmission.attachments || [],
+          isPermissionConfirmed: true,
+        },
+      ]);
+      setActiveItemIndex(0);
     } else {
-      const initial: Record<string, any> = {};
-      fields.forEach((f) => {
-        if (f.type === 'user_profile') {
-          if (f.profile_key === 'learning_area') {
-            initial[f.id] = currentTeacher.Learning_Area || '';
-          } else if (f.profile_key === 'teacher_id') {
-            initial[f.id] = currentTeacher.Teacher_ID || '';
-          } else if (f.profile_key === 'position') {
-            initial[f.id] = currentTeacher.position || '';
-          } else {
-            initial[f.id] = currentTeacher.Name || '';
-          }
-        } else if (f.type === 'checkbox') {
-          initial[f.id] = [];
-        } else {
-          initial[f.id] = '';
-        }
-      });
-
-      const initialModes: Record<string, 'upload' | 'link'> = {};
-      fields.forEach((f) => {
-        if (f.type === 'file') {
-          if (f.file_config?.submission_mode === 'link_only' || f.file_config?.require_link_only) {
-            initialModes[f.id] = 'link';
-          } else {
-            initialModes[f.id] = 'upload';
-          }
-        }
-      });
-      setFileInputModes(initialModes);
-      setFormValues(initial);
-      setAttachments([]);
+      setItems([createNewItem()]);
+      setActiveItemIndex(0);
     }
   }, [isOpen, config.id, existingSubmission, currentTeacher]);
 
   if (!isOpen) return null;
 
+  const currentItem = items[activeItemIndex] || items[0];
   const timeliness = checkSubmissionTimeliness(config.name, new Date(), [config]);
 
-  // Handle single file upload
+  // Update a form field value for current item
+  const handleUpdateFieldValue = (fieldId: string, value: any) => {
+    setItems((prev) =>
+      prev.map((it, idx) =>
+        idx === activeItemIndex
+          ? { ...it, formValues: { ...it.formValues, [fieldId]: value } }
+          : it
+      )
+    );
+  };
+
+  // Add attachments to current item
+  const handleAddAttachments = (fieldId: string, newAttachments: DynamicAttachment[]) => {
+    setItems((prev) =>
+      prev.map((it, idx) => {
+        if (idx !== activeItemIndex) return it;
+        const updated = [...it.attachments, ...newAttachments];
+        return {
+          ...it,
+          attachments: updated,
+          formValues: {
+            ...it.formValues,
+            [fieldId]: updated.filter((a) => a.field_id === fieldId)[0]?.file_url || it.formValues[fieldId],
+          },
+          isPermissionConfirmed: true,
+        };
+      })
+    );
+  };
+
+  // Remove a specific attachment
+  const handleRemoveAttachment = (attachmentToRemove: DynamicAttachment) => {
+    setItems((prev) =>
+      prev.map((it, idx) => {
+        if (idx !== activeItemIndex) return it;
+        const updated = it.attachments.filter(
+          (a) => !(a.field_id === attachmentToRemove.field_id && a.file_url === attachmentToRemove.file_url)
+        );
+        const remainingFieldAtts = updated.filter((a) => a.field_id === attachmentToRemove.field_id);
+        return {
+          ...it,
+          attachments: updated,
+          formValues: {
+            ...it.formValues,
+            [attachmentToRemove.field_id]: remainingFieldAtts[0]?.file_url || '',
+          },
+        };
+      })
+    );
+  };
+
+  // Handle multi-file upload from device
   const handleFileChange = async (field: DynamicFormField, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const fileList = Array.from(e.target.files || []);
+    if (fileList.length === 0) return;
 
-    // Check size limit
+    // Check size limit & extensions for all files
     const maxSizeMb = field.file_config?.max_size_mb || 25;
-    if (file.size > maxSizeMb * 1024 * 1024) {
-      setError(`ไฟล์ "${file.name}" มีขนาดเกิน ${maxSizeMb} MB กรุณาเลือกไฟล์ใหม่`);
-      e.target.value = '';
-      return;
-    }
-
-    // Check extension if restricted
-    const allowed = field.file_config?.allowed_types || [];
-    if (allowed.length > 0) {
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-      const isAllowed = allowed.some((a) => a.toLowerCase().trim() === ext);
-      if (!isAllowed) {
-        setError(`ประเภทไฟล์ไม่ถูกต้อง! อนุญาตเฉพาะ: ${allowed.join(', ')}`);
+    for (const f of fileList) {
+      if (f.size > maxSizeMb * 1024 * 1024) {
+        setError(`ไฟล์ "${f.name}" มีขนาดเกิน ${maxSizeMb} MB กรุณาเลือกไฟล์ใหม่`);
         e.target.value = '';
         return;
+      }
+
+      const allowed = field.file_config?.allowed_types || [];
+      if (allowed.length > 0) {
+        const ext = '.' + f.name.split('.').pop()?.toLowerCase();
+        const isAllowed = allowed.some((a) => a.toLowerCase().trim() === ext);
+        if (!isAllowed) {
+          setError(`ไฟล์ "${f.name}" ประเภทไม่ถูกต้อง! อนุญาตเฉพาะ: ${allowed.join(', ')}`);
+          e.target.value = '';
+          return;
+        }
       }
     }
 
@@ -154,63 +230,77 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
     setUploadingFieldId(field.id);
 
     try {
-      const uploadRes = await uploadAssignmentAttachmentFile(
-        file,
-        currentTeacher.Teacher_ID,
-        config.name || config.id,
-        currentTeacher.Name
-      );
+      const uploaded: DynamicAttachment[] = [];
+      for (let i = 0; i < fileList.length; i++) {
+        const f = fileList[i];
+        setUploadProgressText(
+          fileList.length > 1
+            ? `กำลังนำไฟล์ ${i + 1}/${fileList.length} (${f.name}) เข้า Google Drive...`
+            : `กำลังนำไฟล์ "${f.name}" เข้าสู่ Google Drive...`
+        );
 
-      if (uploadRes.success) {
-        // Remove existing attachment for this field if single file
-        const filtered = attachments.filter((a) => a.field_id !== field.id);
-        const newAtt = {
-          field_id: field.id,
-          file_name: uploadRes.fileName,
-          file_url: uploadRes.url,
-          file_size: uploadRes.fileSize,
-        };
-        setAttachments([...filtered, newAtt]);
-        setFormValues((prev) => ({ ...prev, [field.id]: uploadRes.url }));
-        setIsPermissionConfirmed(true);
-      } else {
-        setError(`อัปโหลดไฟล์ไม่สำเร็จ: ${uploadRes.error || 'โปรดลองใหม่อีกครั้ง'}`);
+        const uploadRes = await uploadAssignmentAttachmentFile(
+          f,
+          currentTeacher.Teacher_ID,
+          config.name || config.id,
+          currentTeacher.Name
+        );
+
+        if (uploadRes.success) {
+          uploaded.push({
+            field_id: field.id,
+            file_name: uploadRes.fileName || f.name,
+            file_url: uploadRes.url,
+            file_size: uploadRes.fileSize,
+          });
+        } else {
+          setError(`อัปโหลดไฟล์ "${f.name}" ไม่สำเร็จ: ${uploadRes.error || 'โปรดลองใหม่อีกครั้ง'}`);
+        }
+      }
+
+      if (uploaded.length > 0) {
+        handleAddAttachments(field.id, uploaded);
       }
     } catch (err: any) {
       setError(`เกิดข้อผิดพลาดในการอัปโหลด: ${err?.message || 'ข้อผิดพลาดระบบ'}`);
     } finally {
       setUploadingFieldId(null);
+      setUploadProgressText('');
       e.target.value = '';
     }
   };
 
-  // Remove uploaded attachment
-  const handleRemoveAttachment = (fieldId: string) => {
-    setAttachments((prev) => prev.filter((a) => a.field_id !== fieldId));
-    setFormValues((prev) => ({ ...prev, [fieldId]: '' }));
-  };
-
-  // Set PDF link directly from Google Drive / Cloud
-  const handleSetPdfLink = (field: DynamicFormField, rawUrl: string) => {
-    const cleanUrl = rawUrl.trim();
-    setFormValues((prev) => ({ ...prev, [field.id]: cleanUrl }));
-
-    if (cleanUrl) {
-      let finalUrl = cleanUrl;
-      if (!/^https?:\/\//i.test(finalUrl)) {
-        finalUrl = 'https://' + finalUrl;
-      }
-      const filtered = attachments.filter((a) => a.field_id !== field.id);
-      const newAtt = {
-        field_id: field.id,
-        file_name: `${field.label || 'เอกสาร'}.pdf (ลิงก์ PDF)`,
-        file_url: finalUrl,
-        file_size: 'PDF Cloud Link',
-      };
-      setAttachments([...filtered, newAtt]);
-    } else {
-      setAttachments((prev) => prev.filter((a) => a.field_id !== field.id));
+  // Handle adding direct link attachment
+  const handleAddLinkAttachment = (field: DynamicFormField) => {
+    const rawUrl = (activeLinkInputs[field.id] || '').trim();
+    if (!rawUrl) {
+      setError('กรุณากรอกลิงก์ไฟล์ PDF ก่อนกดเพิ่มลิงก์');
+      return;
     }
+
+    let finalUrl = rawUrl;
+    if (!/^https?:\/\//i.test(finalUrl)) {
+      finalUrl = 'https://' + finalUrl;
+    }
+
+    try {
+      new URL(finalUrl);
+    } catch {
+      setError('รูปแบบลิงก์ไม่ถูกต้อง กรุณากรอก URL เช่น https://drive.google.com/...');
+      return;
+    }
+
+    const currentFieldAtts = (currentItem.attachments || []).filter((a) => a.field_id === field.id);
+    const newAtt: DynamicAttachment = {
+      field_id: field.id,
+      file_name: `${field.label || 'เอกสาร'} (ไฟล์ที่ ${currentFieldAtts.length + 1})`,
+      file_url: finalUrl,
+      file_size: 'PDF Cloud Link',
+    };
+
+    handleAddAttachments(field.id, [newAtt]);
+    setActiveLinkInputs((prev) => ({ ...prev, [field.id]: '' }));
+    setError('');
   };
 
   // Helper to test opening link
@@ -223,74 +313,91 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
     window.open(cleanUrl, '_blank', 'noopener,noreferrer');
   };
 
-  // Form Submit Handler
+  // Add new item (subject/class)
+  const handleAddItem = () => {
+    const newItem = createNewItem(currentItem);
+    setItems((prev) => [...prev, newItem]);
+    setActiveItemIndex(items.length);
+    setTimeout(() => {
+      formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
+  // Duplicate current item
+  const handleDuplicateItem = () => {
+    const duplicated = createNewItem(currentItem);
+    setItems((prev) => [...prev, duplicated]);
+    setActiveItemIndex(items.length);
+  };
+
+  // Remove an item
+  const handleRemoveItem = (idxToRemove: number) => {
+    if (items.length <= 1) return;
+    setItems((prev) => prev.filter((_, i) => i !== idxToRemove));
+    setActiveItemIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  // Helper to generate label for tab pills
+  const getItemTabLabel = (item: DynamicSubmissionItem, index: number) => {
+    const code =
+      item.formValues['fld_subject_code'] ||
+      item.formValues['fld_subject'] ||
+      item.formValues['fld_code'];
+    const title =
+      item.formValues['fld_title'] ||
+      item.formValues['fld_research_topic'] ||
+      item.formValues['fld_topic'] ||
+      item.formValues['fld_grade_level'];
+
+    if (code && title) return `${code}: ${String(title).substring(0, 16)}`;
+    if (code) return String(code);
+    if (title) return String(title).substring(0, 20);
+    return `รายการที่ ${index + 1}`;
+  };
+
+  // Form Submit Handler (Submits all items)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // 1. Validate required fields
-    for (const f of fields) {
-      if (f.type === 'file') {
-        const rawVal = String(formValues[f.id] || '').trim();
-        if (f.required && !rawVal) {
-          setError(`[${f.label}] กรุณาระบุลิงก์ไฟล์ PDF (เช่น ลิงก์ Google Drive หรือลิงก์ที่ลงท้ายด้วย .pdf)`);
-          return;
-        }
+    // 1. Validation across all items
+    for (let itemIdx = 0; itemIdx < items.length; itemIdx++) {
+      const it = items[itemIdx];
+      const itPrefix = items.length > 1 ? `[รายการที่ ${itemIdx + 1}] ` : '';
 
-        if (rawVal) {
-          let finalUrl = rawVal;
-          if (!/^https?:\/\//i.test(finalUrl)) {
-            finalUrl = 'https://' + finalUrl;
-          }
+      for (const f of fields) {
+        if (f.type === 'file') {
+          const fieldAtts = (it.attachments || []).filter((a) => a.field_id === f.id);
+          const rawVal = String(it.formValues[f.id] || '').trim();
 
-          try {
-            new URL(finalUrl);
-          } catch {
-            setError(`[${f.label}] รูปแบบลิงก์ไม่ถูกต้อง กรุณากรอก URL เช่น https://drive.google.com/...`);
+          if (f.required && fieldAtts.length === 0 && !rawVal) {
+            setActiveItemIndex(itemIdx);
+            setError(`${itPrefix}กรุณาอัปโหลดไฟล์หรือระบุลิงก์ในช่อง: "${f.label}"`);
             return;
           }
 
-          const isGoogleDrive = /drive\.google\.com|docs\.google\.com/i.test(finalUrl);
-          const isGoogleDriveFolder = isGoogleDrive && /\/folders\/|\/drive\/folders\//i.test(finalUrl);
-          const isCloudDoc =
-            /onedrive|1drv\.ms|dropbox\.com|sharepoint\.com|supabase\.co|storage\.googleapis\.com|canva\.com|icloud\.com/i.test(
-              finalUrl
-            );
-          const isPdfExt = /\.pdf(\?|$|#)/i.test(finalUrl);
-
-          if (isGoogleDriveFolder) {
+          if (f.required && !it.isPermissionConfirmed && fieldAtts.length === 0) {
+            setActiveItemIndex(itemIdx);
             setError(
-              `[${f.label}] ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร PDF! กรุณาคัดลอกลิงก์ของตัวไฟล์ PDF โดยตรง`
+              `${itPrefix}กรุณาตรวจสอบสิทธิ์ไฟล์ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และกดยืนยันก่อนส่ง`
             );
             return;
           }
-
-          if (!isPdfExt && !isGoogleDrive && !isCloudDoc) {
-            setError(
-              `[${f.label}] บังคับส่งเฉพาะลิงก์ไฟล์ PDF เท่านั้น! (เช่น ลิงก์ไฟล์ PDF บน Google Drive หรือลิงก์ที่ลงท้ายด้วย .pdf)`
-            );
-            return;
-          }
-
-          if (f.required && !isPermissionConfirmed) {
-            setError(
-              `[${f.label}] กรุณาตรวจสอบสิทธิ์ไฟล์ PDF ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และทำเครื่องหมายยืนยันก่อนกดส่ง`
-            );
-            return;
-          }
-        }
-      } else if (f.required) {
-        if (f.type === 'checkbox') {
-          const val = formValues[f.id];
-          if (!Array.isArray(val) || val.length === 0) {
-            setError(`กรุณาเลือกตัวเลือกอย่างน้อย 1 ข้อในช่อง: "${f.label}"`);
-            return;
-          }
-        } else {
-          const val = String(formValues[f.id] || '').trim();
-          if (!val) {
-            setError(`กรุณากรอกข้อมูลในช่อง: "${f.label}"`);
-            return;
+        } else if (f.required) {
+          if (f.type === 'checkbox') {
+            const val = it.formValues[f.id];
+            if (!Array.isArray(val) || val.length === 0) {
+              setActiveItemIndex(itemIdx);
+              setError(`${itPrefix}กรุณาเลือกตัวเลือกอย่างน้อย 1 ข้อในช่อง: "${f.label}"`);
+              return;
+            }
+          } else {
+            const val = String(it.formValues[f.id] || '').trim();
+            if (!val) {
+              setActiveItemIndex(itemIdx);
+              setError(`${itPrefix}กรุณากรอกข้อมูลในช่อง: "${f.label}"`);
+              return;
+            }
           }
         }
       }
@@ -299,82 +406,107 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      const submissionId = existingSubmission?.id || `SUB-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const createdSubmissions: AssignmentSubmission[] = [];
+      const createdPlans: LessonPlan[] = [];
 
-      const newRecord: AssignmentSubmission = {
-        id: submissionId,
-        assignment_id: config.id,
-        assignment_name: config.name,
-        teacher_id: currentTeacher.Teacher_ID,
-        teacher_name: currentTeacher.Name,
-        learning_area: currentTeacher.Learning_Area || '',
-        submitted_at: new Date().toISOString(),
-        status: timeliness.isLate ? 'late' : 'submitted',
-        answers: formValues,
-        attachments: attachments,
-        is_late: timeliness.isLate,
-        submission_delay_text: timeliness.delayText,
-      };
+      for (let itemIdx = 0; itemIdx < items.length; itemIdx++) {
+        const it = items[itemIdx];
+        const submissionId =
+          existingSubmission?.id && items.length === 1
+            ? existingSubmission.id
+            : `SUB-${Date.now()}-${itemIdx}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      const res = await saveAssignmentSubmissionRecord(newRecord);
+        const newRecord: AssignmentSubmission = {
+          id: submissionId,
+          assignment_id: config.id,
+          assignment_name: config.name,
+          teacher_id: currentTeacher.Teacher_ID,
+          teacher_name: currentTeacher.Name,
+          learning_area: currentTeacher.Learning_Area || '',
+          submitted_at: new Date().toISOString(),
+          status: timeliness.isLate ? 'late' : 'submitted',
+          answers: it.formValues,
+          attachments: it.attachments,
+          is_late: timeliness.isLate,
+          submission_delay_text: timeliness.delayText,
+        };
 
-      // Create and save corresponding LessonPlan record so it integrates with all existing tracking & receipt
-      const firstAttachment = attachments[0];
-      const titleCandidate =
-        formValues['fld_title'] ||
-        formValues['fld_research_topic'] ||
-        formValues['fld_topic'] ||
-        formValues[fields.find((f) => f.type === 'textarea')?.id || ''] ||
-        formValues[fields.find((f) => f.type === 'text')?.id || ''] ||
-        config.name;
+        await saveAssignmentSubmissionRecord(newRecord);
+        createdSubmissions.push(newRecord);
 
-      const subjectCodeCandidate =
-        formValues['fld_subject_code'] ||
-        formValues[fields.find((f) => f.label.includes('รหัสวิชา'))?.id || ''] ||
-        'ภาระงาน';
+        // Map to corresponding LessonPlan for complete cross-feature tracking
+        const firstAttachment = it.attachments[0];
+        const titleCandidate =
+          it.formValues['fld_title'] ||
+          it.formValues['fld_research_topic'] ||
+          it.formValues['fld_topic'] ||
+          it.formValues[fields.find((f) => f.type === 'textarea')?.id || ''] ||
+          it.formValues[fields.find((f) => f.type === 'text')?.id || ''] ||
+          config.name;
 
-      const subjectNameCandidate =
-        formValues['fld_subject_name'] ||
-        formValues[fields.find((f) => f.label.includes('วิชา') || f.label.includes('ชื่อ'))?.id || ''] ||
-        config.name;
+        const subjectCodeCandidate =
+          it.formValues['fld_subject_code'] ||
+          it.formValues[fields.find((f) => f.label.includes('รหัสวิชา'))?.id || ''] ||
+          'ภาระงาน';
 
-      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+        const subjectNameCandidate =
+          it.formValues['fld_subject_name'] ||
+          it.formValues[fields.find((f) => f.label.includes('วิชา') || f.label.includes('ชื่อ'))?.id || ''] ||
+          config.name;
 
-      const correspondingPlan: LessonPlan = {
-        id: submissionId,
-        teacher_id: currentTeacher.Teacher_ID,
-        teacher_name: currentTeacher.Name,
-        teacher_photo: currentTeacher.photo,
-        learning_area: currentTeacher.Learning_Area || '',
-        branch: currentTeacher.branch || '',
-        subject_code: String(subjectCodeCandidate),
-        subject_name: String(subjectNameCandidate),
-        grade_level: String(formValues['fld_grade_level'] || 'มัธยมศึกษา'),
-        semester: config.semester,
-        academic_year: config.academic_year,
-        plan_title: String(titleCandidate).substring(0, 120),
-        plan_type: config.name,
-        total_hours: Number(formValues['fld_hours']) || 1,
-        file_url: firstAttachment?.file_url || (formValues[fields.find((f) => f.type === 'file')?.id || ''] || '#'),
-        file_name: firstAttachment?.file_name || 'เอกสารภาระงาน',
-        submitted_at: nowStr,
-        status: timeliness.isLate ? 'late' : 'submitted',
-        is_late: timeliness.isLate,
-        submission_delay_text: timeliness.delayText,
-        evaluation_type: config.evaluation_type || 'approval_only',
-        notes: JSON.stringify(formValues),
-      };
+        const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
-      const finalPlan = assignWorkflowToPlan(correspondingPlan);
-      await savePlanRecord(finalPlan);
+        const correspondingPlan: LessonPlan = {
+          id: submissionId,
+          teacher_id: currentTeacher.Teacher_ID,
+          teacher_name: currentTeacher.Name,
+          teacher_photo: currentTeacher.photo,
+          learning_area: currentTeacher.Learning_Area || '',
+          branch: currentTeacher.branch || '',
+          subject_code: String(subjectCodeCandidate),
+          subject_name: String(subjectNameCandidate),
+          grade_level: String(it.formValues['fld_grade_level'] || 'มัธยมศึกษา'),
+          semester: config.semester,
+          academic_year: config.academic_year,
+          plan_title: String(titleCandidate).substring(0, 120),
+          plan_type: config.name,
+          total_hours: Number(it.formValues['fld_hours']) || 1,
+          file_url: firstAttachment?.file_url || (it.formValues[fields.find((f) => f.type === 'file')?.id || ''] || '#'),
+          file_name:
+            it.attachments.length > 1
+              ? `${firstAttachment?.file_name || 'เอกสาร'} (+อีก ${it.attachments.length - 1} ไฟล์)`
+              : firstAttachment?.file_name || 'เอกสารภาระงาน',
+          submitted_at: nowStr,
+          status: timeliness.isLate ? 'late' : 'submitted',
+          is_late: timeliness.isLate,
+          submission_delay_text: timeliness.delayText,
+          evaluation_type: config.evaluation_type || 'approval_only',
+          notes: JSON.stringify({
+            ...it.formValues,
+            _attachments: it.attachments,
+          }),
+        };
+
+        const finalPlan = assignWorkflowToPlan(correspondingPlan);
+        await savePlanRecord(finalPlan);
+        createdPlans.push(finalPlan);
+      }
 
       triggerSchoolCelebration('full');
 
       if (onSubmitted) {
-        onSubmitted(newRecord, finalPlan);
+        onSubmitted(
+          createdSubmissions.length === 1 ? createdSubmissions[0] : (createdSubmissions as any),
+          createdPlans.length === 1 ? createdPlans[0] : (createdPlans as any)
+        );
       }
 
-      setSuccessNotice('ส่งภาระงานสำเร็จเรียบร้อยแล้ว!');
+      setSuccessNotice(
+        createdPlans.length > 1
+          ? `ส่งภาระงานสำเร็จทั้งหมด ${createdPlans.length} รายการแล้ว!`
+          : 'ส่งภาระงานสำเร็จเรียบร้อยแล้ว!'
+      );
+
       setTimeout(() => {
         onClose();
       }, 1200);
@@ -387,9 +519,9 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 p-4 sm:p-6 text-white shrink-0">
+        <div className="relative bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 p-4 sm:p-5 text-white shrink-0">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer"
@@ -403,14 +535,19 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
               <Upload className="w-6 h-6 text-white" />
             </div>
             <div className="min-w-0 pr-8">
-              <span className="text-[11px] uppercase tracking-wider font-semibold text-blue-200 block truncate">
-                Assignment Submission Form
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider font-semibold text-blue-200">
+                  แบบฟอร์มส่งภาระงานวิชาการ
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
+                  รองรับหลายไฟล์ & หลายวิชา
+                </span>
+              </div>
               <h2 className="text-base sm:text-lg font-bold line-clamp-1">{config.name}</h2>
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-2 sm:gap-3 text-xs bg-white/10 backdrop-blur-sm px-3.5 py-2 rounded-xl border border-white/15 flex-wrap">
+          <div className="mt-3 flex items-center gap-2 sm:gap-3 text-xs bg-white/10 backdrop-blur-sm px-3.5 py-1.5 rounded-xl border border-white/15 flex-wrap">
             <span className="font-semibold text-sky-200">ผู้ส่งงาน:</span>
             <span className="font-bold truncate max-w-[150px]">{currentTeacher.Name}</span>
             <span className="font-mono bg-white/20 px-1.5 py-0.2 rounded text-[10px]">
@@ -446,190 +583,142 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
           </span>
         </div>
 
+        {/* Multi-Item / Multi-Subject Selector Tabs Bar (เหมือนแผนฉบับย่อ) */}
+        <div className="bg-slate-100/90 border-b border-slate-200 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 shrink-0 overflow-x-auto">
+          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-0.5">
+            <span className="text-[11px] font-bold text-slate-600 mr-1 flex items-center gap-1 shrink-0">
+              <Layers className="w-3.5 h-3.5 text-indigo-600" />
+              <span>รายการที่ส่ง:</span>
+            </span>
+
+            {items.map((it, idx) => (
+              <button
+                key={it.id}
+                type="button"
+                onClick={() => setActiveItemIndex(idx)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  activeItemIndex === idx
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+                }`}
+              >
+                <span>{getItemTabLabel(it, idx)}</span>
+                {it.attachments && it.attachments.length > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                      activeItemIndex === idx
+                        ? 'bg-amber-400 text-slate-950'
+                        : 'bg-indigo-100 text-indigo-900'
+                    }`}
+                  >
+                    {it.attachments.length} ไฟล์
+                  </span>
+                )}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={handleAddItem}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-all shrink-0 flex items-center gap-1 cursor-pointer shadow-xs active:scale-95 ml-1"
+              title="เพิ่มวิชาหรือรายการอื่นที่ต้องส่งสำหรับภาระงานนี้"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ เพิ่มวิชา/รายการ</span>
+            </button>
+          </div>
+
+          {items.length > 1 && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleDuplicateItem}
+                className="p-1.5 bg-white hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold border border-slate-300 transition-colors cursor-pointer"
+                title="คัดลอกข้อมูลรายการปัจจุบัน"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRemoveItem(activeItemIndex)}
+                className="p-1.5 bg-white hover:bg-rose-50 text-rose-600 rounded-lg text-xs font-semibold border border-rose-200 transition-colors cursor-pointer"
+                title="ลบรายการนี้"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 touch-scroll">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 touch-scroll">
           {error && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm whitespace-pre-line leading-relaxed">
-              {error}
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 shadow-2xs">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <span className="font-bold block">แจ้งเตือน:</span>
+                <span className="leading-relaxed">{error}</span>
+              </div>
             </div>
           )}
 
           {successNotice && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{successNotice}</span>
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 shadow-2xs">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span className="font-bold text-sm">{successNotice}</span>
             </div>
           )}
 
-          {config.description && (
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-600 leading-relaxed">
-              <strong className="text-slate-800 block mb-0.5">คำชี้แจงจากฝ่ายบริหาร:</strong>
-              {config.description}
-            </div>
-          )}
-
-          {/* Sample Documents / Templates for this Assignment */}
-          {(config.sample_url || (config.example_documents && config.example_documents.length > 0)) && (
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 to-blue-50/80 border-2 border-sky-200 text-sky-950 space-y-2.5 shadow-2xs">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-xl bg-sky-200/80 text-sky-800 shrink-0">
-                    <LinkIcon className="w-4 h-4" />
-                  </span>
-                  <div>
-                    <h4 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
-                      <span>เอกสารตัวอย่าง & แบบฟอร์มต้นแบบสำหรับงานนี้</span>
-                      <span className="text-[10px] bg-sky-200 text-sky-900 px-2 py-0.2 rounded-full font-bold">
-                        ตัวอย่างสำหรับครู
-                      </span>
-                    </h4>
-                    <p className="text-[11px] text-sky-800">
-                      คลิกเพื่อเปิดดูแนวทางการจัดทำ หรือคัดลอกแบบฟอร์มต้นแบบไปใช้งาน
-                    </p>
-                  </div>
-                </div>
+          {/* Item Index Banner if multiple items */}
+          {items.length > 1 && (
+            <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200 flex items-center justify-between text-xs text-indigo-950 font-bold">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-mono text-[11px]">
+                  {activeItemIndex + 1}
+                </span>
+                <span>
+                  กำลังกรอก: {getItemTabLabel(currentItem, activeItemIndex)} (รายการที่ {activeItemIndex + 1} จาก {items.length})
+                </span>
               </div>
-
-              <div className="flex flex-wrap gap-2 pt-1">
-                {config.sample_url && (
-                  <a
-                    href={/^https?:\/\//i.test(config.sample_url) ? config.sample_url : `https://${config.sample_url}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>{config.sample_title || 'เปิดดูตัวอย่างเอกสารหลัก'}</span>
-                  </a>
-                )}
-                {(config.example_documents || [])
-                  .filter((d) => d.url)
-                  .map((doc, dIdx) => (
-                    <a
-                      key={dIdx}
-                      href={/^https?:\/\//i.test(doc.url) ? doc.url : `https://${doc.url}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold shadow-2xs transition-colors"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 text-sky-600" />
-                      <span>{doc.title || `เอกสารตัวอย่าง ${dIdx + 2}`}</span>
-                    </a>
-                  ))}
-              </div>
+              <button
+                type="button"
+                onClick={handleDuplicateItem}
+                className="text-indigo-700 hover:text-indigo-900 underline text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Copy className="w-3 h-3" />
+                <span>คัดลอกข้อมูลรายการนี้</span>
+              </button>
             </div>
           )}
 
-          {/* DYNAMIC FIELDS RENDERER */}
+          {/* Dynamic Fields List for current item */}
           <div className="space-y-4">
-            {fields.map((field, index) => {
-              const val = formValues[field.id];
+            {fields.map((field) => {
+              const val = currentItem.formValues[field.id];
+              const fieldAttachments = (currentItem.attachments || []).filter((a) => a.field_id === field.id);
 
               return (
                 <div
                   key={field.id}
-                  className="bg-slate-50/60 border border-slate-200/90 rounded-2xl p-4 space-y-1.5 hover:border-indigo-300 transition-colors"
+                  className="p-4 rounded-2xl border border-slate-200 bg-white space-y-2 shadow-2xs transition-all hover:border-slate-300"
                 >
+                  {/* Field Header */}
                   <div className="flex items-center justify-between gap-2">
-                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-5 h-5 rounded-md bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                        {index + 1}
-                      </span>
+                    <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1">
                       <span>{field.label}</span>
-                      {field.required && <span className="text-rose-500">*</span>}
+                      {field.required && <span className="text-rose-500 font-bold">*</span>}
                     </label>
 
-                    {field.type === 'user_profile' && (
-                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 flex items-center gap-1">
-                        <Lock className="w-3 h-3" />
-                        <span>ดึงจากโปรไฟล์ครูอัตโนมัติ</span>
-                      </span>
-                    )}
-
-                    {field.type === 'link_reference' && (
-                      <span className="text-[10px] font-bold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-200 flex items-center gap-1">
-                        <ExternalLink className="w-3 h-3" />
-                        <span>เอกสารอ้างอิง / ตัวอย่าง</span>
+                    {field.type === 'file' && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                        <Files className="w-3 h-3 text-indigo-600" />
+                        <span>แนบได้หลายไฟล์</span>
                       </span>
                     )}
                   </div>
 
                   {field.description && (
-                    <p className="text-[11px] text-slate-500">{field.description}</p>
-                  )}
-
-                  {/* Sample links attached to this field */}
-                  {(field.example_url || (field.example_links && field.example_links.length > 0)) && (
-                    <div className="flex flex-wrap items-center gap-1.5 py-1">
-                      <span className="text-[11px] font-bold text-sky-900 flex items-center gap-1">
-                        <LinkIcon className="w-3 h-3 text-sky-600" />
-                        <span>ตัวอย่าง:</span>
-                      </span>
-                      {field.example_url && (
-                        <a
-                          href={/^https?:\/\//i.test(field.example_url) ? field.example_url : `https://${field.example_url}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3 text-sky-700" />
-                          <span>{field.example_title || 'ดูตัวอย่างเอกสาร'}</span>
-                        </a>
-                      )}
-                      {(field.example_links || []).filter((l) => l.url).map((link, lIdx) => (
-                        <a
-                          key={lIdx}
-                          href={/^https?:\/\//i.test(link.url) ? link.url : `https://${link.url}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3 text-sky-600" />
-                          <span>{link.title || `เอกสารตัวอย่าง ${lIdx + 2}`}</span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* FIELD TYPE: LINK REFERENCE (READ-ONLY SAMPLE/TEMPLATE) */}
-                  {field.type === 'link_reference' && (
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50/60 border border-sky-200 text-sky-950 space-y-2">
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {field.example_url && (
-                          <a
-                            href={/^https?:\/\//i.test(field.example_url) ? field.example_url : `https://${field.example_url}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>{field.example_title || 'เปิดดูตัวอย่างเอกสารนี้'}</span>
-                          </a>
-                        )}
-                        {(field.example_links || [])
-                          .filter((l) => l.url)
-                          .map((link, lIdx) => (
-                            <a
-                              key={lIdx}
-                              href={/^https?:\/\//i.test(link.url) ? link.url : `https://${link.url}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 transition-colors"
-                            >
-                              <ExternalLink className="w-3 h-3 text-sky-600" />
-                              <span>{link.title || `เอกสาร ${lIdx + 2}`}</span>
-                            </a>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* FIELD TYPE: USER PROFILE (READ-ONLY) */}
-                  {field.type === 'user_profile' && (
-                    <div className="px-3.5 py-2.5 bg-slate-100 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 flex items-center justify-between">
-                      <span>{val || currentTeacher.Name}</span>
-                      <Lock className="w-4 h-4 text-slate-400" />
-                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">{field.description}</p>
                   )}
 
                   {/* FIELD TYPE: TEXT */}
@@ -639,8 +728,8 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                       required={field.required}
                       placeholder={field.placeholder || `กรอก${field.label}`}
                       value={val || ''}
-                      onChange={(e) => setFormValues({ ...formValues, [field.id]: e.target.value })}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                      onChange={(e) => handleUpdateFieldValue(field.id, e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-2xs"
                     />
                   )}
 
@@ -649,10 +738,10 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                     <textarea
                       rows={3}
                       required={field.required}
-                      placeholder={field.placeholder || `ระบุรายละเอียด${field.label}...`}
+                      placeholder={field.placeholder || `กรอกรายละเอียด${field.label}`}
                       value={val || ''}
-                      onChange={(e) => setFormValues({ ...formValues, [field.id]: e.target.value })}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 leading-relaxed"
+                      onChange={(e) => handleUpdateFieldValue(field.id, e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-2xs"
                     />
                   )}
 
@@ -663,8 +752,8 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                       required={field.required}
                       placeholder={field.placeholder || '0'}
                       value={val || ''}
-                      onChange={(e) => setFormValues({ ...formValues, [field.id]: e.target.value })}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white font-mono"
+                      onChange={(e) => handleUpdateFieldValue(field.id, e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-2xs"
                     />
                   )}
 
@@ -674,8 +763,8 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                       type="date"
                       required={field.required}
                       value={val || ''}
-                      onChange={(e) => setFormValues({ ...formValues, [field.id]: e.target.value })}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white font-mono"
+                      onChange={(e) => handleUpdateFieldValue(field.id, e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-2xs"
                     />
                   )}
 
@@ -684,10 +773,10 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                     <select
                       required={field.required}
                       value={val || ''}
-                      onChange={(e) => setFormValues({ ...formValues, [field.id]: e.target.value })}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white font-medium focus:ring-2 focus:ring-indigo-500/20"
+                      onChange={(e) => handleUpdateFieldValue(field.id, e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-2xs bg-white cursor-pointer"
                     >
-                      <option value="">-- โปรดคลิกเพื่อเลือก {field.label} --</option>
+                      <option value="">-- โปรดเลือก {field.label} --</option>
                       {(field.options || []).map((opt) => (
                         <option key={opt} value={opt}>
                           {opt}
@@ -702,21 +791,17 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                       {(field.options || []).map((opt) => (
                         <label
                           key={opt}
-                          className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                            val === opt
-                              ? 'bg-indigo-50/80 border-indigo-400 text-indigo-950 font-bold'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                          }`}
+                          className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-200 transition-colors"
                         >
                           <input
                             type="radio"
-                            name={`sub_${field.id}`}
-                            value={opt}
+                            name={`radio_${currentItem.id}_${field.id}`}
+                            required={field.required && !val}
                             checked={val === opt}
-                            onChange={() => setFormValues({ ...formValues, [field.id]: opt })}
+                            onChange={() => handleUpdateFieldValue(field.id, opt)}
                             className="text-indigo-600 focus:ring-indigo-500"
                           />
-                          <span className="text-xs sm:text-sm">{opt}</span>
+                          <span className="text-xs text-slate-700 font-medium">{opt}</span>
                         </label>
                       ))}
                     </div>
@@ -726,112 +811,150 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                   {field.type === 'checkbox' && (
                     <div className="space-y-1.5 pt-1">
                       {(field.options || []).map((opt) => {
-                        const currentArr: string[] = Array.isArray(val) ? val : [];
-                        const isChecked = currentArr.includes(opt);
+                        const checkedList = Array.isArray(val) ? val : [];
+                        const isChecked = checkedList.includes(opt);
                         return (
                           <label
                             key={opt}
-                            className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                              isChecked
-                                ? 'bg-indigo-50/80 border-indigo-400 text-indigo-950 font-bold'
-                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                            }`}
+                            className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-200 transition-colors"
                           >
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={() => {
-                                const next = isChecked
-                                  ? currentArr.filter((x) => x !== opt)
-                                  : [...currentArr, opt];
-                                setFormValues({ ...formValues, [field.id]: next });
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  handleUpdateFieldValue(field.id, [...checkedList, opt]);
+                                } else {
+                                  handleUpdateFieldValue(
+                                    field.id,
+                                    checkedList.filter((x: string) => x !== opt)
+                                  );
+                                }
                               }}
-                              className="rounded text-indigo-600 focus:ring-indigo-500"
+                              className="text-indigo-600 focus:ring-indigo-500 rounded"
                             />
-                            <span className="text-xs sm:text-sm">{opt}</span>
+                            <span className="text-xs text-slate-700 font-medium">{opt}</span>
                           </label>
                         );
                       })}
                     </div>
                   )}
 
-                  {/* FIELD TYPE: FILE UPLOAD & PDF LINK */}
+                  {/* FIELD TYPE: USER_PROFILE (Read-only / Prefilled) */}
+                  {field.type === 'user_profile' && (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        readOnly
+                        value={val || ''}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs sm:text-sm text-slate-700 font-medium cursor-not-allowed select-none"
+                      />
+                      <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded">
+                        อัตโนมัติ
+                      </span>
+                    </div>
+                  )}
+
+                  {/* FIELD TYPE: FILE UPLOAD & MULTI-FILE ATTACHMENTS */}
                   {field.type === 'file' && (
                     <div className="space-y-3 pt-1">
-                      {/* Attached file/link badge if uploaded or linked */}
-                      {attachments
-                        .filter((a) => a.field_id === field.id)
-                        .map((att) => (
-                          <div
-                            key={att.file_url}
-                            className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-between gap-3 text-xs shadow-2xs"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <FileCheck2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                              <div className="min-w-0">
-                                <span className="font-bold text-emerald-950 truncate block">
-                                  {att.file_name}
-                                </span>
-                                <span className="text-[10px] text-emerald-700 flex items-center gap-1">
-                                  <span>{att.file_size || 'แนบเรียบร้อย'}</span>
-                                  <span aria-hidden="true">·</span>
-                                  <span className="truncate max-w-[200px] font-mono">{att.file_url}</span>
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <a
-                                href={att.file_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg font-semibold border border-emerald-300 flex items-center gap-1 text-[11px] transition-colors"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                <span>เปิดไฟล์</span>
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveAttachment(field.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer transition-colors"
-                                title="ลบไฟล์และเลือกใหม่"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                      {/* List of currently attached files for this field */}
+                      {fieldAttachments.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs text-emerald-800 font-bold px-1">
+                            <span className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              <span>เอกสารที่แนบแล้ว ({fieldAttachments.length} ไฟล์):</span>
+                            </span>
+                            <span className="text-[10px] font-normal text-slate-500">
+                              สามารถเพิ่มไฟล์ต่อได้ด้านล่าง
+                            </span>
                           </div>
-                        ))}
 
-                      {/* Google Drive Automated Uploader & PDF Link Interface */}
+                          <div className="grid grid-cols-1 gap-2">
+                            {fieldAttachments.map((att, attIdx) => (
+                              <div
+                                key={`${att.file_url}_${attIdx}`}
+                                className="p-3 bg-emerald-50/90 border border-emerald-300 rounded-xl flex items-center justify-between gap-3 text-xs shadow-2xs hover:bg-emerald-100/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-[11px] shrink-0 font-mono shadow-xs">
+                                    {attIdx + 1}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-emerald-950 truncate block">
+                                      {att.file_name}
+                                    </span>
+                                    <span className="text-[10px] text-emerald-700 flex items-center gap-1">
+                                      <span>{att.file_size || 'แนบเรียบร้อย'}</span>
+                                      <span aria-hidden="true">·</span>
+                                      <span className="truncate max-w-[220px] font-mono opacity-80">
+                                        {att.file_url}
+                                      </span>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <a
+                                    href={att.file_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-2.5 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg font-semibold border border-emerald-300 flex items-center gap-1 text-[11px] transition-colors"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    <span>เปิดดู</span>
+                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveAttachment(att)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer transition-colors"
+                                    title="ลบไฟล์นี้"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Google Drive Multi-Uploader & Link Box */}
                       <div className="space-y-3 p-4 bg-slate-50/90 rounded-2xl border-2 border-indigo-100 shadow-2xs">
-                        {/* Option A: Direct File Upload to Google Drive */}
+                        {/* Option 1: Multi-file Upload from Device */}
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                               <Cloud className="w-4 h-4 text-emerald-600" />
-                              <span>1. อัปโหลดไฟล์ PDF จากเครื่อง (เข้า Google Drive โรงเรียนอัตโนมัติ)</span>
+                              <span>
+                                {fieldAttachments.length > 0
+                                  ? '+ เพิ่มไฟล์ PDF อีก (เลือกได้หลายไฟล์พร้อมกัน)'
+                                  : '1. อัปโหลดไฟล์ PDF จากเครื่อง (เลือกได้หลายไฟล์พร้อมกัน)'}
+                              </span>
                             </label>
                             <span className="text-[10px] text-emerald-800 bg-emerald-100/80 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-                              ระบบสร้างลิงก์ให้อัตโนมัติ
+                              ระบบสร้างลิงก์เข้าไดรฟ์ให้อัตโนมัติ
                             </span>
                           </div>
 
                           <div className="relative">
-                            <label className={`w-full flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all cursor-pointer ${
-                              uploadingFieldId === field.id
-                                ? 'bg-amber-50/80 border-amber-400 text-amber-900 pointer-events-none'
-                                : 'bg-white hover:bg-emerald-50/40 border-slate-300 hover:border-emerald-400 text-slate-700'
-                            }`}>
+                            <label
+                              className={`w-full flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all cursor-pointer ${
+                                uploadingFieldId === field.id
+                                  ? 'bg-amber-50/80 border-amber-400 text-amber-900 pointer-events-none'
+                                  : 'bg-white hover:bg-emerald-50/40 border-slate-300 hover:border-emerald-400 text-slate-700'
+                              }`}
+                            >
                               {uploadingFieldId === field.id ? (
-                                <div className="flex flex-col items-center gap-2 py-1">
+                                <div className="flex flex-col items-center gap-2 py-1 text-center">
                                   <div className="w-7 h-7 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-                                  <div className="text-center">
-                                    <p className="font-bold text-xs text-emerald-900">
-                                      กำลังนำไฟล์เข้าสู่ Google Drive ของโรงเรียน...
-                                    </p>
-                                    <p className="text-[10px] text-emerald-700">
-                                      ระบบกำลังเปิดสิทธิ์และสร้างลิงก์สำหรับบันทึกลงฐานข้อมูล
-                                    </p>
-                                  </div>
+                                  <p className="font-bold text-xs text-emerald-900">
+                                    {uploadProgressText || 'กำลังนำไฟล์เข้าสู่ Google Drive ของโรงเรียน...'}
+                                  </p>
+                                  <p className="text-[10px] text-emerald-700">
+                                    ระบบกำลังเปิดสิทธิ์และเชื่อมโยงไฟล์ทั้งหมดเข้าฐานข้อมูล
+                                  </p>
                                 </div>
                               ) : (
                                 <div className="flex flex-col items-center gap-1.5 py-1 text-center">
@@ -840,16 +963,17 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                                   </div>
                                   <div>
                                     <span className="font-bold text-xs text-slate-800 hover:text-emerald-700">
-                                      คลิกเพื่อเลือกไฟล์ PDF จากเครื่องคอมพิวเตอร์ / มือถือ
+                                      คลิกเพื่อเลือกไฟล์ PDF จากเครื่อง (เลือกทีละไฟล์ หรือหลายไฟล์พร้อมกัน)
                                     </span>
                                     <p className="text-[10px] text-slate-500 mt-0.5">
-                                      รองรับไฟล์ .pdf (ไม่เกิน 25 MB) · ระบบจะนำไฟล์เข้า Drive และดึงลิงก์ให้ทันที
+                                      รองรับไฟล์ .pdf (ไม่เกิน 25 MB/ไฟล์) · ระบบจะนำไฟล์เข้า Google Drive และบันทึกให้ครบทุกไฟล์
                                     </p>
                                   </div>
                                 </div>
                               )}
                               <input
                                 type="file"
+                                multiple
                                 accept=".pdf,application/pdf"
                                 disabled={uploadingFieldId === field.id}
                                 onChange={(e) => handleFileChange(field, e)}
@@ -862,49 +986,60 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                         {/* Divider */}
                         <div className="flex items-center gap-2 pt-1">
                           <div className="flex-1 border-t border-slate-200"></div>
-                          <span className="text-[10px] text-slate-400 font-medium">หรือ 2. กรอกลิงก์ Google Drive ด้วยตนเอง</span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            หรือ 2. กรอกลิงก์ Google Drive ด้วยตนเอง (แนบได้หลายลิงก์)
+                          </span>
                           <div className="flex-1 border-t border-slate-200"></div>
                         </div>
 
-                        {/* Option B: Direct URL Input */}
+                        {/* Option 2: Add Link Input */}
                         <div className="space-y-1.5">
                           <div className="flex gap-2">
                             <div className="relative flex-1">
                               <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                               <input
                                 type="url"
-                                required={field.required && !val}
-                                value={val || ''}
-                                onChange={(e) => handleSetPdfLink(field, e.target.value)}
-                                placeholder="https://drive.google.com/file/d/... หรือ ลิงก์ตรงที่ลงท้ายด้วย .pdf"
+                                value={activeLinkInputs[field.id] || ''}
+                                onChange={(e) =>
+                                  setActiveLinkInputs((prev) => ({ ...prev, [field.id]: e.target.value }))
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddLinkAttachment(field);
+                                  }
+                                }}
+                                placeholder="https://drive.google.com/file/d/... วางลิงก์แล้วกด 'เพิ่มลิงก์นี้'"
                                 className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 shadow-2xs transition-all"
                               />
                             </div>
                             <button
                               type="button"
-                              onClick={() => handleTestOpenLink(val)}
-                              disabled={!val}
-                              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold shrink-0 disabled:opacity-40 transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
-                              title="ทดสอบเปิดลิงก์ PDF นี้ในแท็บใหม่"
+                              onClick={() => handleAddLinkAttachment(field)}
+                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                              title="เพิ่มลิงก์นี้ลงในรายการเอกสารแนบ"
                             >
-                              <span>ทดสอบเปิด</span>
-                              <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>เพิ่มลิงก์นี้</span>
                             </button>
                           </div>
 
-                          {val && (
-                            <div className="flex items-center gap-1.5 text-[11px] text-emerald-800 font-bold bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                              <span className="truncate">ลิงก์ Google Drive พร้อมบันทึกลง Database: {val}</span>
-                            </div>
-                          )}
+                          <p className="text-[10px] text-slate-500">
+                            * สามารถวางลิงก์แล้วกดปุ่ม "เพิ่มลิงก์นี้" เพื่อแนบหลายๆ ลิงก์ต่อ 1 ช่องข้อมูลได้
+                          </p>
                         </div>
 
                         {/* PDF Permission Notice & Confirmation */}
                         <PdfPermissionNotice
-                          url={val}
-                          isConfirmed={isPermissionConfirmed}
-                          onConfirmChange={setIsPermissionConfirmed}
+                          url={fieldAttachments[0]?.file_url || activeLinkInputs[field.id]}
+                          isConfirmed={currentItem.isPermissionConfirmed ?? false}
+                          onConfirmChange={(confirmed) => {
+                            setItems((prev) =>
+                              prev.map((it, idx) =>
+                                idx === activeItemIndex ? { ...it, isPermissionConfirmed: confirmed } : it
+                              )
+                            );
+                          }}
                           required={field.required}
                           showStepByStep={false}
                         />
@@ -914,6 +1049,27 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                 </div>
               );
             })}
+          </div>
+
+          {/* Bottom Add-Item Button (เหมือนแผนย่อ) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50/80 via-indigo-50/50 to-blue-50/80 border-2 border-dashed border-amber-300/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="space-y-0.5 text-center sm:text-left">
+              <span className="text-xs sm:text-sm font-bold text-slate-900 flex items-center justify-center sm:justify-start gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>ต้องการส่งภาระงานนี้สำหรับหลายวิชา / หลายเรื่องพร้อมกันหรือไม่?</span>
+              </span>
+              <p className="text-[11px] text-slate-600">
+                คุณครูสามารถกดปุ่ม "+ เพิ่มวิชา/รายการ" เพื่อส่งหลายงานได้ในรอบเดียวเหมือนหน้าส่งแผนการสอน
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddItem}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>+ เพิ่มวิชา / รายการที่ต้องส่งอีก</span>
+            </button>
           </div>
 
           {/* Action buttons */}
@@ -939,7 +1095,11 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
               ) : (
                 <>
                   <FileCheck2 className="w-4 h-4" />
-                  <span>ยืนยันการส่งงานนี้</span>
+                  <span>
+                    {items.length > 1
+                      ? `ยืนยันการส่งภาระงานทั้งหมด (${items.length} รายการ)`
+                      : 'ยืนยันการส่งงานนี้'}
+                  </span>
                 </>
               )}
             </button>

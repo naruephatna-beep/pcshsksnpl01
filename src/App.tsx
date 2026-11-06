@@ -2939,11 +2939,17 @@ export default function App() {
           }}
           onSubmitted={async (submission, correspondingPlan) => {
             if (correspondingPlan) {
-              setPlans((prev) => [correspondingPlan, ...prev]);
+              const plansToAdd = Array.isArray(correspondingPlan) ? correspondingPlan : [correspondingPlan];
+              setPlans((prev) => [...plansToAdd, ...prev]);
             }
+            const count = Array.isArray(correspondingPlan)
+              ? correspondingPlan.length
+              : (Array.isArray(submission) ? submission.length : 1);
             setToastNotice({
               type: 'success',
-              message: `ส่งภาระงาน "${selectedDynamicConfig.name}" เรียบร้อยแล้ว!`,
+              message: count > 1
+                ? `ส่งภาระงาน "${selectedDynamicConfig.name}" สำเร็จทั้งหมด ${count} รายการแล้ว!`
+                : `ส่งภาระงาน "${selectedDynamicConfig.name}" เรียบร้อยแล้ว!`,
               details: 'บันทึกข้อมูลและส่งเข้าระบบ Cloudflare D1 เรียบร้อยแล้ว',
             });
           }}
@@ -3081,7 +3087,7 @@ export default function App() {
 
           {/* Button 5: โปรไฟล์ */}
           <button
-            onClick={() => setIsProfileOpen(true)}
+            onClick={() => setIsProfileModalOpen(true)}
             className="flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
             title="ข้อมูลโปรไฟล์ของฉัน"
           >
