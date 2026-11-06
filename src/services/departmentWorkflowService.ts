@@ -1441,6 +1441,7 @@ export function advancePlanStage(
 
   const totalStages = workflow.stages.length;
   const currentStageOrder = plan.current_stage_order || 1;
+  const reviewedAtStr = reviewRecord.reviewed_at || new Date().toISOString();
 
   // Case 1: Revision requested or rejected
   if (reviewRecord.status === 'needs_revision' || reviewRecord.status === 'rejected') {
@@ -1449,24 +1450,34 @@ export function advancePlanStage(
       status: 'needs_revision',
       reviewed_by: reviewer.Teacher_ID,
       reviewer_name: reviewer.Name,
-      reviewed_at: reviewRecord.reviewed_at || new Date().toISOString(),
+      reviewed_at: reviewedAtStr,
       review_comment: reviewRecord.comment || plan.review_comment,
       rubric_scores: reviewRecord.rubric_scores || plan.rubric_scores,
       total_score: reviewRecord.total_score ?? plan.total_score,
       stage_reviews: updatedReviews,
+      admin_notes: `ส่งกลับแก้ไข: ${reviewRecord.comment || 'กรุณาปรับปรุงตามข้อเสนอแนะ'}`,
     };
   }
 
   // Case 2: Approved / Passed
-  const hasNextStage = currentStageOrder < totalStages;
+  const isAdminReviewer = isTeacherAdmin(reviewer);
+  // If final stage OR reviewer is an Admin with direct approval authority, grant final approval immediately
+  const isFinalStage = currentStageOrder >= totalStages;
+  const shouldFinalizeApproval = isFinalStage || isAdminReviewer || reviewRecord.status === 'approved';
 
-  if (hasNextStage) {
+  if (!shouldFinalizeApproval && currentStageOrder < totalStages) {
     const nextStage = workflow.stages.find((s) => s.order === currentStageOrder + 1);
     return {
       ...plan,
-      status: 'submitted', // Still pending in next stage
+      status: 'submitted', // Still pending in next stage for other reviewers
       current_stage_order: currentStageOrder + 1,
       total_stages: totalStages,
+      reviewed_by: reviewer.Teacher_ID,
+      reviewer_name: reviewer.Name,
+      reviewed_at: reviewedAtStr,
+      review_comment: reviewRecord.comment || plan.review_comment,
+      rubric_scores: reviewRecord.rubric_scores || plan.rubric_scores,
+      total_score: reviewRecord.total_score ?? plan.total_score,
       stage_reviews: updatedReviews,
       admin_notes: `ผ่านขั้นที่ ${currentStageOrder} (${reviewRecord.stage_title}) เรียบร้อยแล้ว กำลังรอ ${nextStage?.title || 'ขั้นถัดไป'}`,
       assigned_reviewer_id: undefined,
@@ -1474,18 +1485,19 @@ export function advancePlanStage(
     };
   }
 
-  // Case 3: Final stage approved!
+  // Case 3: Final stage approved or direct approval!
   return {
     ...plan,
     status: 'approved',
-    current_stage_order: totalStages,
+    current_stage_order: Math.max(currentStageOrder, totalStages),
     total_stages: totalStages,
     reviewed_by: reviewer.Teacher_ID,
     reviewer_name: reviewer.Name,
-    reviewed_at: reviewRecord.reviewed_at || new Date().toISOString(),
+    reviewed_at: reviewedAtStr,
     review_comment: reviewRecord.comment || plan.review_comment,
     rubric_scores: reviewRecord.rubric_scores || plan.rubric_scores,
     total_score: reviewRecord.total_score ?? plan.total_score,
     stage_reviews: updatedReviews,
+    admin_notes: `ผ่านการอนุมัติเรียบร้อยแล้ว (${reviewRecord.stage_title})`,
   };
 }

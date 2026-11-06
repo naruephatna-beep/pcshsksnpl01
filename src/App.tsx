@@ -29,6 +29,7 @@ import {
   getDeletedPlanIds,
   recordDeletedPlanId,
   syncDeletedPlanIdsWithCloud,
+  saveAssignmentSubmissionRecord,
 } from './services/supabaseClient';
 import {
   getSavedDeadlineConfigs,
@@ -54,7 +55,7 @@ import { ForcePasswordModal } from './components/ForcePasswordModal';
 import { LoginModal } from './components/LoginModal';
 import { LoginScreen } from './components/LoginScreen';
 import { SubmissionReceiptModal } from './components/SubmissionReceiptModal';
-import { getDatabaseProvider } from './services/cloudflareClient';
+import { getDatabaseProvider, savePlanToCloudflare } from './services/cloudflareClient';
 import { TeacherDirectoryModal } from './components/TeacherDirectoryModal';
 import { FileStorageInfoModal } from './components/FileStorageInfoModal';
 import { AdminTrackerModal } from './components/AdminTrackerModal';
@@ -153,6 +154,13 @@ export default function App() {
       setMainView('executive');
     }
   }, [currentTeacher]);
+
+  // Ensure assigned review queue always opens on 'pending' (รอตรวจ) where reviewed plans are cleared
+  useEffect(() => {
+    if (viewTab === 'assigned_to_me') {
+      setAssignedReviewSubTab('pending');
+    }
+  }, [viewTab]);
 
   // Modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -307,10 +315,75 @@ export default function App() {
 
       // 2. Also keep local storage plans that haven't been pushed or were saved recently (filtered strictly)
       const localPlans = getLocalPlans().filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
-      const knownIds = new Set([...remotePlans.map((p) => p.id), ...convertedDynamicPlans.map((p) => p.id)]);
+      const localPlanMap = new Map(localPlans.map((lp) => [lp.id, lp]));
+
+      // CRITICAL FIX: Smart merge conflict resolution
+      // If a local plan has been reviewed (e.g. status is approved, passed, needs_revision, or has reviewer info)
+      // but remote plan is still in unreviewed/submitted status, the local review MUST take precedence!
+      // This prevents the reviewed work from bouncing back to "waiting" when remote database update was delayed.
+      const resolvedRemotePlans = remotePlans.map((rp) => {
+        const lp = localPlanMap.get(rp.id);
+        if (!lp) return rp;
+
+        const isLocalReviewed =
+          lp.status === 'approved' ||
+          lp.status === 'passed' ||
+          lp.status === 'needs_revision' ||
+          lp.status === 'rejected' ||
+          Boolean(lp.reviewed_by) ||
+          Boolean(lp.reviewed_at) ||
+          (lp.stage_reviews && lp.stage_reviews.length > 0);
+
+        const isRemoteUnreviewed = rp.status === 'submitted' || !rp.reviewed_by;
+
+        if (isLocalReviewed && isRemoteUnreviewed) {
+          // Local review is more current; preserve local review and re-sync to Cloudflare D1
+          savePlanToCloudflare(lp).catch(() => {});
+          return {
+            ...rp,
+            ...lp,
+            status: lp.status,
+            reviewed_by: lp.reviewed_by,
+            reviewer_name: lp.reviewer_name,
+            reviewed_at: lp.reviewed_at,
+            review_comment: lp.review_comment,
+            rubric_scores: lp.rubric_scores,
+            total_score: lp.total_score,
+            stage_reviews: lp.stage_reviews,
+            current_stage_order: lp.current_stage_order,
+          };
+        }
+        return rp;
+      });
+
+      const resolvedDynamicPlans = convertedDynamicPlans.map((dp) => {
+        const lp = localPlanMap.get(dp.id);
+        if (lp) {
+          const isLocalReviewed =
+            lp.status === 'approved' ||
+            lp.status === 'passed' ||
+            lp.status === 'needs_revision' ||
+            lp.status === 'rejected' ||
+            Boolean(lp.reviewed_by);
+          if (isLocalReviewed && dp.status === 'submitted') {
+            return {
+              ...dp,
+              ...lp,
+              status: lp.status,
+              reviewed_by: lp.reviewed_by,
+              reviewer_name: lp.reviewer_name,
+              reviewed_at: lp.reviewed_at,
+              review_comment: lp.review_comment,
+            };
+          }
+        }
+        return dp;
+      });
+
+      const knownIds = new Set([...resolvedRemotePlans.map((p) => p.id), ...resolvedDynamicPlans.map((p) => p.id)]);
       const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
 
-      const mergedPlans = [...remotePlans, ...convertedDynamicPlans, ...missingLocals].filter(
+      const mergedPlans = [...resolvedRemotePlans, ...resolvedDynamicPlans, ...missingLocals].filter(
         (p) => !deletedIds.has(p.id) && p.status !== 'deleted'
       );
       saveLocalPlans(mergedPlans);
@@ -426,11 +499,72 @@ export default function App() {
               };
             });
           const localPlans = getLocalPlans().filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
-          const knownIds = new Set([...remotePlans.map((p) => p.id), ...convertedDynamicPlans.map((p) => p.id)]);
+          const localPlanMap = new Map(localPlans.map((lp) => [lp.id, lp]));
+
+          const resolvedRemotePlans = remotePlans.map((rp) => {
+            const lp = localPlanMap.get(rp.id);
+            if (!lp) return rp;
+
+            const isLocalReviewed =
+              lp.status === 'approved' ||
+              lp.status === 'passed' ||
+              lp.status === 'needs_revision' ||
+              lp.status === 'rejected' ||
+              Boolean(lp.reviewed_by) ||
+              Boolean(lp.reviewed_at) ||
+              (lp.stage_reviews && lp.stage_reviews.length > 0);
+
+            const isRemoteUnreviewed = rp.status === 'submitted' || !rp.reviewed_by;
+
+            if (isLocalReviewed && isRemoteUnreviewed) {
+              savePlanToCloudflare(lp).catch(() => {});
+              return {
+                ...rp,
+                ...lp,
+                status: lp.status,
+                reviewed_by: lp.reviewed_by,
+                reviewer_name: lp.reviewer_name,
+                reviewed_at: lp.reviewed_at,
+                review_comment: lp.review_comment,
+                rubric_scores: lp.rubric_scores,
+                total_score: lp.total_score,
+                stage_reviews: lp.stage_reviews,
+                current_stage_order: lp.current_stage_order,
+              };
+            }
+            return rp;
+          });
+
+          const resolvedDynamicPlans = convertedDynamicPlans.map((dp) => {
+            const lp = localPlanMap.get(dp.id);
+            if (lp) {
+              const isLocalReviewed =
+                lp.status === 'approved' ||
+                lp.status === 'passed' ||
+                lp.status === 'needs_revision' ||
+                lp.status === 'rejected' ||
+                Boolean(lp.reviewed_by);
+              if (isLocalReviewed && dp.status === 'submitted') {
+                return {
+                  ...dp,
+                  ...lp,
+                  status: lp.status,
+                  reviewed_by: lp.reviewed_by,
+                  reviewer_name: lp.reviewer_name,
+                  reviewed_at: lp.reviewed_at,
+                  review_comment: lp.review_comment,
+                };
+              }
+            }
+            return dp;
+          });
+
+          const knownIds = new Set([...resolvedRemotePlans.map((p) => p.id), ...resolvedDynamicPlans.map((p) => p.id)]);
           const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
-          const merged = [...remotePlans, ...convertedDynamicPlans, ...missingLocals].filter(
+          const merged = [...resolvedRemotePlans, ...resolvedDynamicPlans, ...missingLocals].filter(
             (p) => !deletedIds.has(p.id) && p.status !== 'deleted'
           );
+          saveLocalPlans(merged);
           setPlans(merged);
         }
       } else if (table === 'teachers') {
@@ -636,12 +770,31 @@ export default function App() {
     return lastRes;
   };
 
-  // Plan review update (auto-updates in DB)
   const handleSaveReview = async (updatedPlan: LessonPlan) => {
     const res = await savePlanRecord(updatedPlan);
     setPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
+
+    // Sync AssignmentSubmission if this plan originated from dynamic assignment submission
+    try {
+      const savedSubs = getSavedSubmissions();
+      const targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+      if (targetSub) {
+        const updatedSub: AssignmentSubmission = {
+          ...targetSub,
+          status: updatedPlan.status,
+          reviewed_by: updatedPlan.reviewed_by || currentTeacher?.Teacher_ID || null,
+          reviewer_name: updatedPlan.reviewer_name || currentTeacher?.Name || null,
+          reviewed_at: updatedPlan.reviewed_at || new Date().toISOString(),
+          review_comment: updatedPlan.review_comment || null,
+          admin_notes: updatedPlan.admin_notes || null,
+        };
+        await saveAssignmentSubmissionRecord(updatedSub);
+      }
+    } catch (e) {
+      console.warn('[Sync Assignment Submission Error]', e);
+    }
 
     // If plan was approved or has top score, fire a subtle celebration
     if (updatedPlan.status === 'approved' || updatedPlan.status === 'passed' || (typeof updatedPlan.total_score === 'number' && updatedPlan.total_score >= 90)) {
@@ -833,15 +986,70 @@ export default function App() {
     const targetPlan = plans.find((p) => p.id === planId);
     if (!targetPlan) return;
 
+    const isNowApproved = newStatus === 'approved' || newStatus === 'passed';
+    const nowIso = new Date().toISOString();
+
     const updatedPlan: LessonPlan = {
       ...targetPlan,
       status: newStatus,
       is_late: isLateOverride !== undefined ? isLateOverride : targetPlan.is_late,
       admin_notes: adminNotes !== undefined ? adminNotes : targetPlan.admin_notes,
+      reviewed_by: isNowApproved ? (targetPlan.reviewed_by || currentTeacher?.Teacher_ID || 'admin') : targetPlan.reviewed_by,
+      reviewer_name: isNowApproved ? (targetPlan.reviewer_name || currentTeacher?.Name || 'ผู้ดูแลระบบ') : targetPlan.reviewer_name,
+      reviewed_at: isNowApproved ? (targetPlan.reviewed_at || nowIso) : targetPlan.reviewed_at,
     };
 
     setPlans((prev) => prev.map((p) => (p.id === planId ? updatedPlan : p)));
     await savePlanRecord(updatedPlan);
+
+    // Also update dynamic assignment submission if applicable
+    try {
+      const savedSubs = getSavedSubmissions();
+      const targetSub = savedSubs.find((s) => s.id === planId);
+      if (targetSub) {
+        const updatedSub: AssignmentSubmission = {
+          ...targetSub,
+          status: newStatus,
+          is_late: isLateOverride !== undefined ? isLateOverride : targetSub.is_late,
+          admin_notes: adminNotes !== undefined ? adminNotes : targetSub.admin_notes,
+          reviewed_by: isNowApproved ? (targetSub.reviewed_by || currentTeacher?.Teacher_ID || 'admin') : targetSub.reviewed_by,
+          reviewer_name: isNowApproved ? (targetSub.reviewer_name || currentTeacher?.Name || 'ผู้ดูแลระบบ') : targetSub.reviewer_name,
+          reviewed_at: isNowApproved ? (targetSub.reviewed_at || nowIso) : targetSub.reviewed_at,
+        };
+        await saveAssignmentSubmissionRecord(updatedSub);
+      }
+    } catch {
+      // ignore
+    }
+
+    if (isNowApproved) {
+      triggerSchoolCelebration('light');
+
+      // Auto archive copy into Google Drive
+      const planTeacher = teachers.find((t) => t.Teacher_ID === updatedPlan.teacher_id);
+      const teacherBranch =
+        updatedPlan.branch ||
+        planTeacher?.branch ||
+        planTeacher?.Learning_Area ||
+        updatedPlan.learning_area ||
+        'ทั่วไป';
+
+      archiveReviewedPlanToGoogleDrive({
+        planId: updatedPlan.id,
+        planTitle: updatedPlan.plan_title || updatedPlan.subject_name || 'เอกสารวิชาการ',
+        planType: updatedPlan.plan_type,
+        branch: teacherBranch,
+        learningArea: updatedPlan.learning_area || planTeacher?.Learning_Area,
+        teacherName: updatedPlan.teacher_name || planTeacher?.Name || 'คุณครู',
+        teacherId: updatedPlan.teacher_id,
+        fileUrl: updatedPlan.file_url,
+        fileName: updatedPlan.file_name,
+        reviewerName: currentTeacher?.Name,
+        reviewerId: currentTeacher?.Teacher_ID,
+      }).catch((err) => {
+        console.warn('[Quick Status GoogleDrive Archive Error]', err);
+      });
+    }
 
     const stInfo = getPlanStatusInfo(newStatus, statusConfigs);
     setToastNotice({
@@ -927,9 +1135,32 @@ export default function App() {
     const myEmail = String(teacher.Email || (teacher as any).email || '').trim().toLowerCase();
     const myName = String(teacher.Name || (teacher as any).name || '').trim().toLowerCase();
 
-    if (targetId && (targetId === myId || targetId === myEmail)) return true;
-    if (targetName && myName && (targetName === myName || targetName.includes(myName) || myName.includes(targetName))) {
+    // 1. Direct ID match
+    if (targetId && myId && targetId === myId) return true;
+
+    // 2. Email match
+    if (targetId && myEmail && (targetId === myEmail || targetId.includes(myEmail) || myEmail.includes(targetId))) {
       return true;
+    }
+
+    // 3. Name match with title & position cleanup
+    if (targetName && myName) {
+      if (targetName === myName) return true;
+      if (targetName.includes(myName) || myName.includes(targetName)) return true;
+
+      // Clean prefix (นาย, นางสาว, นาง, ดร., ครู) and parenthesized positions/notes
+      const cleanTarget = targetName
+        .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
+        .replace(/\s*\(.*?\)/g, '')
+        .trim();
+      const cleanMine = myName
+        .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
+        .replace(/\s*\(.*?\)/g, '')
+        .trim();
+
+      if (cleanTarget && cleanMine && (cleanTarget === cleanMine || cleanTarget.includes(cleanMine) || cleanMine.includes(cleanTarget))) {
+        return true;
+      }
     }
     return false;
   };
@@ -937,9 +1168,11 @@ export default function App() {
   // Helper to check if a teacher has already reviewed this plan
   const hasTeacherReviewedPlan = (plan: LessonPlan, teacher: Teacher | null): boolean => {
     if (!teacher) return false;
+    // 1. Directly recorded reviewer on the plan
     if (isSameTeacherIdOrName(plan.reviewed_by, plan.reviewer_name, teacher)) {
       return true;
     }
+    // 2. Any stage review submitted by this teacher
     if (
       plan.stage_reviews &&
       plan.stage_reviews.some((r) => isSameTeacherIdOrName(r.reviewer_id, r.reviewer_name, teacher))
@@ -971,11 +1204,19 @@ export default function App() {
   ): boolean => {
     if (!teacher || plan.status === 'deleted') return false;
 
-    // Check if this is the teacher's own plan
+    // 1. If the plan has already completed review or returned for revision, it MUST NOT appear as pending!
+    if (isPlanReviewCompleted(plan)) {
+      return false;
+    }
+
+    // 2. If this teacher has already submitted a review for this plan, they are done with this review!
+    if (hasTeacherReviewedPlan(plan, teacher)) {
+      return false;
+    }
+
+    // 3. Check if this is the teacher's own plan
     const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
     if (isOwner) {
-      // Allow reviewing own plan if the teacher is the appointed Branch Head of the plan's branch,
-      // Department Head of the plan's learning area, directly assigned, or an Admin.
       const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
       const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
       const isAdm = isTeacherAdmin(teacher);
@@ -990,17 +1231,7 @@ export default function App() {
       }
     }
 
-    // If the plan has already completed review or returned for revision, it is NOT pending review!
-    if (isPlanReviewCompleted(plan)) {
-      return false;
-    }
-
-    // If this teacher has already submitted a review for this plan, they are done with this review!
-    if (hasTeacherReviewedPlan(plan, teacher)) {
-      return false;
-    }
-
-    // Check direct assignment
+    // 4. Check direct assignment
     const isDirectlyAssigned = isSameTeacherIdOrName(
       plan.assigned_reviewer_id,
       plan.assigned_reviewer_name,
@@ -1012,7 +1243,7 @@ export default function App() {
       return isDirectlyAssigned;
     }
 
-    // Resolve the exact workflow specifically designated for THIS plan's document type
+    // 5. Resolve the exact workflow specifically designated for THIS plan's document type
     const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
     const currentStageOrder = plan.current_stage_order || 1;
     const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
@@ -1054,28 +1285,16 @@ export default function App() {
   ): boolean => {
     if (!teacher || plan.status === 'deleted') return false;
 
-    const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
-    if (isOwner) {
-      const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
-      const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
-      const isAdm = isTeacherAdmin(teacher);
-      const isDirectlyAssigned = isSameTeacherIdOrName(
-        plan.assigned_reviewer_id,
-        plan.assigned_reviewer_name,
-        teacher
-      );
-      if (!isBranchHead && !isDeptHead && !isAdm && !isDirectlyAssigned) {
-        return false;
-      }
-    }
-
-    // If this teacher has personally reviewed this plan
+    // 1. If this teacher personally reviewed this plan
     if (hasTeacherReviewedPlan(plan, teacher)) {
       return true;
     }
 
-    // If this plan was assigned/eligible for this teacher and has reached completed review
+    // 2. If this plan has completed review and this teacher is an admin or reviewer
     if (isPlanReviewCompleted(plan)) {
+      if (isTeacherAdmin(teacher)) {
+        return true;
+      }
       const isDirectlyAssigned = isSameTeacherIdOrName(
         plan.assigned_reviewer_id,
         plan.assigned_reviewer_name,
@@ -1086,18 +1305,16 @@ export default function App() {
       }
 
       const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
-      const currentStageOrder = plan.current_stage_order || 1;
-      const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
-      const isEligible = stage
-        ? resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
-            isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
-          )
-        : false;
-
-      if (isEligible) {
+      const isEligibleAnyStage = (planWorkflow?.stages || []).some((stg) =>
+        resolveReviewersForStage(stg, plan, allTeachers, depts, branches).some((c) =>
+          isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
+        )
+      );
+      if (isEligibleAnyStage) {
         return true;
       }
 
+      const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
       if (isOwner) {
         if (isTeacherBranchHeadOfPlan(teacher, plan, branches) || isTeacherDeptHeadOfPlan(teacher, plan, depts)) {
           return true;
@@ -1112,60 +1329,78 @@ export default function App() {
   const matchesDocumentTypeFilter = (plan: LessonPlan, filter: string): boolean => {
     if (!filter || filter === 'all') return true;
 
-    const rawType = String(plan.plan_type || '').trim();
+    const rawType = String(plan.plan_type || plan.plan_title || '').trim();
+    if (!rawType) return false;
+
     const lowerType = rawType.toLowerCase();
     const lowerFilter = filter.trim().toLowerCase();
 
-    // Direct exact or substring match
-    if (lowerType === lowerFilter || lowerType.includes(lowerFilter) || lowerFilter.includes(lowerType)) {
-      return true;
-    }
+    // 1. Direct match with exact filter string
+    if (lowerType === lowerFilter) return true;
 
-    const meta = classifyDocumentType(plan.plan_type);
+    // 2. Classify plan into canonical category
+    const meta = classifyDocumentType(plan.plan_type || plan.plan_title);
+    const planCatKey = meta.key;
 
-    if (filter === 'summary_plan') {
-      return meta.key === 'summary_plan' || lowerType.includes('ย่อ') || lowerType.includes('summary');
-    }
-    if (filter === 'full_plan') {
+    // Filter by canonical category key or Thai keyword
+    if (filter === 'summary_plan' || filter === 'type_summary' || lowerFilter.includes('ย่อ')) {
       return (
-        meta.key === 'full_plan' ||
+        planCatKey === 'summary_plan' ||
+        lowerType.includes('ย่อ') ||
+        lowerType.includes('summary')
+      );
+    }
+    if (filter === 'full_plan' || filter === 'type_full' || lowerFilter.includes('สมบูรณ์')) {
+      return (
+        planCatKey === 'full_plan' ||
         lowerType.includes('สมบูรณ์') ||
         lowerType.includes('full') ||
         lowerType.includes('active learning')
       );
     }
-    if (filter === 'classroom_research') {
+    if (
+      filter === 'classroom_research' ||
+      filter.includes('research') ||
+      lowerFilter.includes('วิจัย')
+    ) {
       return (
-        meta.key === 'classroom_research' ||
+        planCatKey === 'classroom_research' ||
         lowerType.includes('วิจัย') ||
-        lowerType.includes('research')
+        lowerType.includes('research') ||
+        lowerType.includes('car')
       );
     }
-    if (filter === 'syllabus') {
+    if (filter === 'syllabus' || lowerFilter.includes('กำหนดการ') || lowerFilter.includes('โครงการสอน')) {
       return (
-        meta.key === 'syllabus' ||
+        planCatKey === 'syllabus' ||
         lowerType.includes('กำหนดการ') ||
         lowerType.includes('โครงการสอน') ||
         lowerType.includes('syllabus')
       );
     }
-    if (filter === 'post_teaching') {
+    if (filter === 'post_teaching' || lowerFilter.includes('บันทึกหลังสอน')) {
       return (
-        meta.key === 'post_teaching' ||
+        planCatKey === 'post_teaching' ||
         lowerType.includes('บันทึกหลังสอน') ||
         lowerType.includes('บันทึกหลังการสอน')
       );
     }
-    if (filter === 'general_academic') {
+    if (filter === 'general_academic' || lowerFilter.includes('ทั่วไป') || lowerFilter.includes('วิชาการ')) {
       return (
-        meta.key === 'general_academic' ||
-        (!lowerType.includes('ย่อ') &&
-          !lowerType.includes('สมบูรณ์') &&
-          !lowerType.includes('วิจัย'))
+        planCatKey === 'general_academic' ||
+        (planCatKey !== 'summary_plan' &&
+          planCatKey !== 'full_plan' &&
+          planCatKey !== 'classroom_research')
       );
     }
 
-    return meta.key === filter;
+    // Direct metadata key match
+    if (planCatKey === lowerFilter) return true;
+
+    // Substring match only if filter is descriptive
+    if (lowerType.includes(lowerFilter)) return true;
+
+    return false;
   };
 
   // Review queues memoization
@@ -1237,7 +1472,7 @@ export default function App() {
     let research = 0;
     let general = 0;
     for (const p of contextPlansForCategoryCounts) {
-      const meta = classifyDocumentType(p.plan_type);
+      const meta = classifyDocumentType(p.plan_type || p.plan_title);
       if (meta.key === 'summary_plan') summary++;
       else if (meta.key === 'full_plan') full++;
       else if (meta.key === 'classroom_research') research++;
@@ -1284,10 +1519,10 @@ export default function App() {
         }
 
         // Waiting for review tab: show unreviewed plans
-        if (viewTab === 'pending_review' && (plan.status === 'approved' || plan.status === 'needs_revision')) {
+        if (viewTab === 'pending_review' && isPlanReviewCompleted(plan)) {
           return false;
         }
-        if (viewTab === 'approved' && plan.status !== 'approved') {
+        if (viewTab === 'approved' && plan.status !== 'approved' && plan.status !== 'passed') {
           return false;
         }
         if (viewTab === 'needs_revision' && plan.status !== 'needs_revision') {
@@ -2116,25 +2351,23 @@ export default function App() {
                 {docCategoryCounts.research}
               </span>
             </button>
-            {docCategoryCounts.general > 0 && (
-              <button
-                onClick={() => setDocTypeFilter((prev) => (prev === 'general_academic' ? 'all' : 'general_academic'))}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  docTypeFilter === 'general_academic'
-                    ? 'bg-indigo-600 text-white shadow-xs font-bold'
-                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80'
+            <button
+              onClick={() => setDocTypeFilter((prev) => (prev === 'general_academic' ? 'all' : 'general_academic'))}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                docTypeFilter === 'general_academic'
+                  ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80'
+              }`}
+            >
+              <span>📑 เอกสารอื่นๆ</span>
+              <span
+                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
+                  docTypeFilter === 'general_academic' ? 'bg-white/20 text-white' : 'bg-indigo-200/80 text-indigo-900'
                 }`}
               >
-                <span>📑 เอกสารวิชาการอื่นๆ</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                    docTypeFilter === 'general_academic' ? 'bg-white/20 text-white' : 'bg-indigo-200/80 text-indigo-900'
-                  }`}
-                >
-                  {docCategoryCounts.general}
-                </span>
-              </button>
-            )}
+                {docCategoryCounts.general}
+              </span>
+            </button>
           </div>
 
           {/* Search bar & Active filter indicators */}
