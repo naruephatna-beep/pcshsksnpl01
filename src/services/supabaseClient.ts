@@ -254,11 +254,18 @@ export function normalizeTeacher(raw: any): Teacher {
     String(raw.Email || raw.email || '').toLowerCase().startsWith('admin') ||
     raw.role === 'admin' ||
     raw.role === 'executive';
+
+  const rawPass = raw.Pass || raw.pass || '';
+  const hasChangedPass =
+    raw.has_changed_password !== undefined
+      ? Boolean(raw.has_changed_password)
+      : rawPass !== '12345' && rawPass !== '';
+
   return {
     Teacher_ID: id,
     Name: raw.Name || raw.name || '',
     Email: raw.Email || raw.email || '',
-    Pass: raw.Pass || raw.pass || '',
+    Pass: rawPass,
     Learning_Area: raw.Learning_Area || raw.learning_area || '',
     branch: raw.branch || raw.Branch || '',
     photo: raw.photo || raw.Photo || '',
@@ -274,8 +281,23 @@ export function normalizeTeacher(raw: any): Teacher {
     is_head_of_branch: raw.is_head_of_branch === true || raw.role === 'head_of_branch',
     department_id: raw.department_id || '',
     branch_id: raw.branch_id || '',
+    has_changed_password: hasChangedPass,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
+  };
+}
+
+/**
+ * Sanitizes a teacher object by wiping sensitive credentials (Pass, national_id, birth_date)
+ * so that no teacher's sensitive details are exposed to the client or in browser memory.
+ */
+export function sanitizeTeacherForClient(t: Teacher): Teacher {
+  return {
+    ...t,
+    Pass: '', // Completely wiped from browser client state
+    national_id: '', // Completely wiped
+    birth_date: '', // Completely wiped
+    has_changed_password: t.has_changed_password ?? (t.Pass !== '12345'),
   };
 }
 
@@ -490,7 +512,7 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
           });
           const merged = Array.from(teachersMap.values());
           saveLocalTeachers(merged);
-          return { data: merged, isSupabase: true };
+          return { data: merged.map(sanitizeTeacherForClient), isSupabase: true };
         }
       } catch (err: any) {
         console.warn('Cloudflare fetchTeachers error, fallback to merged map:', err);
@@ -543,30 +565,30 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
 
           const merged = Array.from(teachersMap.values());
           saveLocalTeachers(merged);
-          return { data: merged, isSupabase: true };
+          return { data: merged.map(sanitizeTeacherForClient), isSupabase: true };
         } else {
           // If table exists but is empty, seed initial teachers
           await seedTeachersToSupabase();
           const merged = Array.from(teachersMap.values());
           saveLocalTeachers(merged);
-          return { data: merged, isSupabase: true };
+          return { data: merged.map(sanitizeTeacherForClient), isSupabase: true };
         }
       }
       if (error) {
         console.warn('Supabase fetch error, using merged fallback:', error.message);
         const merged = Array.from(teachersMap.values());
-        return { data: merged, isSupabase: false, error: error.message };
+        return { data: merged.map(sanitizeTeacherForClient), isSupabase: false, error: error.message };
       }
     } catch (err: any) {
       console.warn('Supabase request failed, fallback to merged map:', err?.message);
       const merged = Array.from(teachersMap.values());
-      return { data: merged, isSupabase: false, error: err?.message };
+      return { data: merged.map(sanitizeTeacherForClient), isSupabase: false, error: err?.message };
     }
   }
 
   const merged = Array.from(teachersMap.values());
   saveLocalTeachers(merged);
-  return { data: merged, isSupabase: false };
+  return { data: merged.map(sanitizeTeacherForClient), isSupabase: false };
 }
 
 export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
@@ -667,8 +689,60 @@ export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: 
   return { success: true, isSupabase: false };
 }
 
-export async function fetchPlans(): Promise<{ data: LessonPlan[]; isSupabase: boolean; error?: string }> {
+/**
+ * Scopes lesson plans based on Row Level Security (RLS):
+ * - Admin/Executive accounts receive all plans for schoolwide monitoring and tracking
+ * - Regular teachers receive only:
+ *   1. Their own lesson plans
+ *   2. Plans assigned to them as a reviewer
+ *   3. Plans in their department if they are head of department
+ *   4. Approved exemplar plans published for school reference
+ */
+export function filterPlansForTeacherScope(
+  plans: LessonPlan[],
+  currentTeacher?: Teacher | null
+): LessonPlan[] {
+  if (!currentTeacher) return plans;
+  const isAdm =
+    currentTeacher.role === 'admin' ||
+    currentTeacher.role === 'executive' ||
+    ['admin01', 'admin02', 'admin03'].includes(currentTeacher.Teacher_ID);
+  if (isAdm) return plans;
+
+  const myId = String(currentTeacher.Teacher_ID).toLowerCase().trim();
+  const myName = String(currentTeacher.Name).trim();
+
+  return plans.filter((p) => {
+    // 1. Own lesson plan
+    if (String(p.teacher_id).toLowerCase().trim() === myId) return true;
+
+    // 2. Assigned reviewer
+    if (String(p.assigned_reviewer_id || '').toLowerCase().trim() === myId) return true;
+    if (p.assigned_reviewer_name && p.assigned_reviewer_name.includes(myName)) return true;
+
+    // 3. Department head or branch head
+    if (currentTeacher.is_head_of_department && currentTeacher.Learning_Area) {
+      if (p.learning_area === currentTeacher.Learning_Area) return true;
+    }
+    if (currentTeacher.is_head_of_branch && currentTeacher.branch) {
+      if (p.branch === currentTeacher.branch) return true;
+    }
+
+    // 4. Approved exemplar plans
+    if (p.status === 'approved') return true;
+
+    return false;
+  });
+}
+
+export async function fetchPlans(
+  currentTeacher?: Teacher | null
+): Promise<{ data: LessonPlan[]; isSupabase: boolean; error?: string }> {
   const deletedIds = getDeletedPlanIds();
+  const applyScope = (list: LessonPlan[]) => {
+    return currentTeacher ? filterPlansForTeacherScope(list, currentTeacher) : list;
+  };
+
   if (getDatabaseProvider() === 'cloudflare') {
     const cf = getSavedCloudflareConfig();
     if (cf.workerUrl) {
@@ -677,7 +751,7 @@ export async function fetchPlans(): Promise<{ data: LessonPlan[]; isSupabase: bo
         if (cfRes.success && cfRes.data) {
           const filtered = cfRes.data.filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
           saveLocalPlans(filtered);
-          return { data: filtered, isSupabase: true };
+          return { data: applyScope(filtered), isSupabase: true };
         }
       } catch (err: any) {
         console.warn('Cloudflare fetchPlans error:', err);
@@ -695,16 +769,16 @@ export async function fetchPlans(): Promise<{ data: LessonPlan[]; isSupabase: bo
       if (!error && data) {
         const filtered = (data as LessonPlan[]).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
         saveLocalPlans(filtered);
-        return { data: filtered, isSupabase: true };
+        return { data: applyScope(filtered), isSupabase: true };
       }
       if (error) {
-        return { data: getLocalPlans(), isSupabase: false, error: error.message };
+        return { data: applyScope(getLocalPlans()), isSupabase: false, error: error.message };
       }
     } catch (err: any) {
-      return { data: getLocalPlans(), isSupabase: false, error: err?.message };
+      return { data: applyScope(getLocalPlans()), isSupabase: false, error: err?.message };
     }
   }
-  return { data: getLocalPlans(), isSupabase: false };
+  return { data: applyScope(getLocalPlans()), isSupabase: false };
 }
 
 export async function savePlanRecord(

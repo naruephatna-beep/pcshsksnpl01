@@ -31,6 +31,7 @@ import {
   syncDeletedPlanIdsWithCloud,
   saveAssignmentSubmissionRecord,
 } from './services/supabaseClient';
+import { updateServerTeacherPassword } from './services/authService';
 import {
   getSavedDeadlineConfigs,
   saveDeadlineConfigs,
@@ -214,7 +215,7 @@ export default function App() {
       // Execute all database fetches and cloud deleted IDs sync concurrently in a single parallel batch
       const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes] = await Promise.all([
         fetchTeachers(),
-        fetchPlans(),
+        fetchPlans(currentTeacher),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
         fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
         fetchAssignmentSubmissionsList(),
@@ -442,7 +443,17 @@ export default function App() {
             t.Teacher_ID.toLowerCase() === savedUserEmail.toLowerCase()
         );
         if (found) {
-          setCurrentTeacher(found);
+          const sanitizedFound: Teacher = {
+            ...found,
+            Pass: '',
+            national_id: '',
+            birth_date: '',
+          };
+          setCurrentTeacher(sanitizedFound);
+          const scopedPlansRes = await fetchPlans(sanitizedFound);
+          if (scopedPlansRes.data) {
+            setPlans(scopedPlansRes.data);
+          }
         }
       }
     } catch (e) {
@@ -457,7 +468,7 @@ export default function App() {
     try {
       if (table === 'lesson_plans') {
         const deletedIds = getDeletedPlanIds();
-        const plansRes = await fetchPlans();
+        const plansRes = await fetchPlans(currentTeacher);
         if (plansRes.data) {
           const effectiveDl = deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
           const remotePlans = (plansRes.data || []).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
@@ -628,7 +639,18 @@ export default function App() {
   // Update current user in storage when changed
   const handleSetCurrentUser = (teacher: Teacher) => {
     setIsLoading(true);
-    setCurrentTeacher(teacher);
+    const sanitized: Teacher = {
+      ...teacher,
+      Pass: '',
+      national_id: '',
+      birth_date: '',
+    };
+    setCurrentTeacher(sanitized);
+    fetchPlans(sanitized).then((plansRes) => {
+      if (plansRes.data) {
+        setPlans(plansRes.data);
+      }
+    });
     if (isTeacherExecutive(teacher)) {
       setMainView('executive');
     } else {
@@ -645,6 +667,7 @@ export default function App() {
     setIsLoading(true);
     localStorage.removeItem('lp_current_user_email');
     setCurrentTeacher(null);
+    setPlans([]);
     setTimeout(() => {
       setIsLoading(false);
     }, 500);
@@ -652,11 +675,19 @@ export default function App() {
 
   // Password update enforcement (auto-updates in DB)
   const handlePasswordChanged = async (updated: Teacher) => {
+    if (updated.Pass) {
+      updateServerTeacherPassword(updated.Teacher_ID, updated.Pass).catch(() => {});
+    }
     const res = await updateTeacherRecord(updated);
+    const sanitizedUpdated: Teacher = {
+      ...updated,
+      Pass: '',
+      has_changed_password: true,
+    };
     setTeachers((prev) =>
-      prev.map((t) => (t.Teacher_ID === updated.Teacher_ID ? updated : t))
+      prev.map((t) => (t.Teacher_ID === updated.Teacher_ID ? sanitizedUpdated : t))
     );
-    setCurrentTeacher(updated);
+    setCurrentTeacher(sanitizedUpdated);
 
     setToastNotice({
       type: 'success',
@@ -1077,8 +1108,12 @@ export default function App() {
     });
   };
 
-  // Must force password change if current logged-in teacher has Pass === '12345'
-  const mustForceChangePassword = currentTeacher && currentTeacher.Pass === '12345';
+  // Must force password change if current logged-in teacher has default password
+  const mustForceChangePassword = Boolean(
+    currentTeacher &&
+      !isTeacherAdmin(currentTeacher) &&
+      (currentTeacher.Pass === '12345' || currentTeacher.has_changed_password === false)
+  );
   const isAdmin = isTeacherAdmin(currentTeacher);
 
   const handleOpenSubmitForType = (planType: string) => {

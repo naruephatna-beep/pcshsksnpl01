@@ -173,7 +173,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
           {filtered.map((t) => {
             const photoUrl = formatGoogleDriveImageUrl(t.photo);
             const isMe = t.Teacher_ID === currentTeacher.Teacher_ID;
-            const hasDefaultPass = t.Pass === '12345';
+            const hasDefaultPass = t.has_changed_password === false || t.Pass === '12345';
             const isDeptH = isDepartmentHead(t);
             const isBranchH = isBranchHead(t);
 

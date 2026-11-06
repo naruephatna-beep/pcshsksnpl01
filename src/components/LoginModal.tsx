@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Teacher } from '../types';
-import { INITIAL_TEACHERS } from '../data/initialTeachers';
-import { updateTeacherRecord } from '../services/supabaseClient';
+import { verifyTeacherCredentials } from '../services/authService';
 import {
   Lock,
   Mail,
@@ -9,6 +8,8 @@ import {
   Sparkles,
   Info,
   X,
+  Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 import { GoogleSchoolSignInModal } from './GoogleSchoolSignInModal';
 
@@ -28,41 +29,28 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
-
-  const allAvailableTeachers: Teacher[] = React.useMemo(() => {
-    const map = new Map<string, Teacher>();
-    INITIAL_TEACHERS.forEach((t) => map.set(t.Teacher_ID.toLowerCase(), t));
-    teachers.forEach((t) => map.set(t.Teacher_ID.toLowerCase(), t));
-    return Array.from(map.values());
-  }, [teachers]);
 
   if (!isOpen) return null;
 
-  const handleFormLogin = (e: React.FormEvent) => {
+  const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsVerifying(true);
 
-    const trimmedEmail = email.trim().toLowerCase();
-    const found = allAvailableTeachers.find(
-      (t) =>
-        t.Email.toLowerCase() === trimmedEmail ||
-        t.Teacher_ID.toLowerCase() === trimmedEmail ||
-        t.national_id === trimmedEmail
-    );
-
-    if (!found) {
-      setError('ไม่พบบัญชีผู้ใช้นี้ในระบบ กรุณาตรวจสอบอีเมลหรือรหัสครู');
-      return;
+    try {
+      const res = await verifyTeacherCredentials(email, password);
+      if (res.success && res.teacher) {
+        onLogin(res.teacher);
+      } else {
+        setError(res.error || 'รหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์');
+    } finally {
+      setIsVerifying(false);
     }
-
-    if (found.Pass !== password.trim()) {
-      setError('รหัสผ่านไม่ถูกต้อง');
-      return;
-    }
-
-    updateTeacherRecord(found);
-    onLogin(found);
   };
 
   return (
@@ -189,10 +177,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-black rounded-xl shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer"
+                disabled={isVerifying}
+                className="w-full py-2.5 bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 disabled:opacity-60 text-slate-950 font-black rounded-xl shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer disabled:cursor-not-allowed"
               >
-                <LogIn className="w-4 h-4 text-slate-950" />
-                <span>เข้าสู่ระบบ</span>
+                {isVerifying ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                    <span>กำลังตรวจสอบสิทธิ์...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4 text-slate-950" />
+                    <span>เข้าสู่ระบบ</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -201,7 +199,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         <GoogleSchoolSignInModal
           isOpen={isGoogleModalOpen}
           onClose={() => setIsGoogleModalOpen(false)}
-          teachers={allAvailableTeachers}
+          teachers={teachers}
           onLogin={onLogin}
         />
       </div>

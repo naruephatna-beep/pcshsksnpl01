@@ -2,14 +2,14 @@ export interface Teacher {
   Teacher_ID: string;
   Name: string;
   Email: string;
-  Pass: string;
+  Pass?: string; // Masked on client for security
   Learning_Area: string; // กลุ่มสาระการเรียนรู้ เช่น วิทยาศาสตร์และเทคโนโลยี, คณิตศาสตร์
   branch?: string; // สาขาวิชา / สาขา เช่น สาขาเทคโนโลยี, สาขาเคมี, สาขาฟิสิกส์, สาขาชีววิทยา
   photo: string;
-  national_id: string;
+  national_id?: string; // Masked on client for security
   phone: string;
   signature_url: string;
-  birth_date: string;
+  birth_date?: string; // Masked on client for security
   position: string;
   academic_standing: string;
   department: string; // ฝ่ายบริหารงาน เช่น กลุ่มบริหารวิชาการ
@@ -18,6 +18,7 @@ export interface Teacher {
   is_head_of_branch?: boolean; // หัวหน้ากลุ่มสาขา
   department_id?: string;
   branch_id?: string;
+  has_changed_password?: boolean; // Indicates if password has been changed from default '12345'
   created_at?: string;
   updated_at?: string;
 }
