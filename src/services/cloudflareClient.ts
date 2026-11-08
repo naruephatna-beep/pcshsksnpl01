@@ -251,12 +251,28 @@ export function sanitizeSubmissionForCloudflare(sub: AssignmentSubmission): Reco
 }
 
 export function sanitizeTeacherForCloudflare(t: Teacher): Record<string, any> {
+  // CRITICAL: Preserve existing password if t.Pass is sanitized (empty string)
+  let effectivePass = t.Pass && String(t.Pass).trim() ? String(t.Pass).trim() : '';
+  if (!effectivePass) {
+    try {
+      const local = JSON.parse(localStorage.getItem('lp_local_teachers') || '[]');
+      const found = local.find((item: any) => item.Teacher_ID === t.Teacher_ID);
+      if (found?.Pass && String(found.Pass).trim()) {
+        effectivePass = String(found.Pass).trim();
+      }
+    } catch {}
+  }
+  if (!effectivePass) {
+    effectivePass = '12345';
+  }
+
   return {
     Teacher_ID: String(t.Teacher_ID || ''),
     Name: String(t.Name || ''),
     Email: String(t.Email || ''),
-    Pass: t.Pass ? String(t.Pass) : '12345',
+    Pass: effectivePass,
     Learning_Area: String(t.Learning_Area || ''),
+    branch: String(t.branch || ''),
     photo: t.photo ? String(t.photo) : '',
     national_id: t.national_id ? String(t.national_id) : '',
     phone: t.phone ? String(t.phone) : '',

@@ -64,7 +64,26 @@ function emailApiPlugin(): Plugin {
                 return;
               }
 
-              const expectedPass = serverCredentialsStore.get(found.Teacher_ID.toLowerCase()) || found.Pass || '12345';
+              let expectedPass = serverCredentialsStore.get(found.Teacher_ID.toLowerCase()) || found.Pass || '12345';
+              if (expectedPass !== p) {
+                // If in-memory store doesn't match, verify against persistent Cloudflare D1
+                try {
+                  const cfRes = await fetch('https://pcshs-eduplan-db.naruephat-na.workers.dev/api/teachers');
+                  if (cfRes.ok) {
+                    const cfData: any = await cfRes.json();
+                    const list = Array.isArray(cfData) ? cfData : (cfData.data || []);
+                    const cfTeacher = list.find((t: any) =>
+                      t.Teacher_ID?.toLowerCase() === found.Teacher_ID.toLowerCase()
+                    );
+                    if (cfTeacher && cfTeacher.Pass) {
+                      expectedPass = cfTeacher.Pass;
+                      serverCredentialsStore.set(found.Teacher_ID.toLowerCase(), cfTeacher.Pass);
+                      if (found.Email) serverCredentialsStore.set(found.Email.toLowerCase(), cfTeacher.Pass);
+                    }
+                  }
+                } catch {}
+              }
+
               if (expectedPass !== p) {
                 res.statusCode = 401;
                 res.setHeader('Content-Type', 'application/json');
@@ -109,6 +128,20 @@ function emailApiPlugin(): Plugin {
               if (found && found.Email) {
                 serverCredentialsStore.set(found.Email.toLowerCase(), cleanPass);
               }
+
+              // Persist permanently to Cloudflare D1
+              try {
+                await fetch('https://pcshs-eduplan-db.naruephat-na.workers.dev/api/teachers', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    Teacher_ID: found?.Teacher_ID || id,
+                    Name: found?.Name || '',
+                    Email: found?.Email || '',
+                    Pass: cleanPass,
+                  }),
+                });
+              } catch {}
 
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');

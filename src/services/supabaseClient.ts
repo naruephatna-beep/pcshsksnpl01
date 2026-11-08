@@ -595,22 +595,41 @@ export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: 
   // Update local storage first
   const teachers = getLocalTeachers();
   const idx = teachers.findIndex((t) => t.Teacher_ID === teacher.Teacher_ID);
+
+  // CRITICAL: Preserve existing password if teacher.Pass is sanitized (empty string)
+  let effectivePass = teacher.Pass && String(teacher.Pass).trim() ? String(teacher.Pass).trim() : '';
+  if (!effectivePass && idx !== -1 && teachers[idx]?.Pass && String(teachers[idx].Pass).trim()) {
+    effectivePass = String(teachers[idx].Pass).trim();
+  }
+  if (!effectivePass) {
+    const init = INITIAL_TEACHERS.find((t) => t.Teacher_ID === teacher.Teacher_ID);
+    effectivePass = init?.Pass || '12345';
+  }
+
+  const mergedTeacher: Teacher = {
+    ...(idx !== -1 ? teachers[idx] : {}),
+    ...teacher,
+    Pass: effectivePass,
+    has_changed_password: effectivePass !== '12345',
+    updated_at: new Date().toISOString(),
+  };
+
   if (idx !== -1) {
-    teachers[idx] = { ...teacher, updated_at: new Date().toISOString() };
+    teachers[idx] = mergedTeacher;
   } else {
-    teachers.push(teacher);
+    teachers.push(mergedTeacher);
   }
   saveLocalTeachers(teachers);
 
   // Synchronize school_teachers_all in system_settings in background so all branches and heads are permanent
   saveSystemSetting('school_teachers_all', teachers).catch(() => {});
 
-  // If Cloudflare is active, update Cloudflare D1
+  // If Cloudflare is active, update Cloudflare D1 with mergedTeacher preserving effectivePass
   if (getDatabaseProvider() === 'cloudflare') {
     const cf = getSavedCloudflareConfig();
     if (cf.workerUrl) {
       try {
-        const cfRes = await saveTeacherToCloudflare(teacher);
+        const cfRes = await saveTeacherToCloudflare(mergedTeacher);
         return { success: cfRes.success, isSupabase: true, error: cfRes.error };
       } catch (err: any) {
         return { success: false, isSupabase: true, error: err?.message };

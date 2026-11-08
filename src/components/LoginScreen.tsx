@@ -38,7 +38,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     try {
       const res = await verifyTeacherCredentials(email, password);
       if (res.success && res.teacher) {
-        updateTeacherRecord(res.teacher).catch(() => {});
         onLogin(res.teacher);
       } else {
         setError(res.error || 'รหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้');
