@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Teacher } from '../types';
-import { INITIAL_TEACHERS } from '../data/initialTeachers';
+import { verifyTeacherCredentials } from '../services/authService';
 import { updateTeacherRecord } from '../services/supabaseClient';
+import { GoogleSchoolSignInModal } from './GoogleSchoolSignInModal';
 import {
   Lock,
   Mail,
@@ -10,9 +11,8 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  ShieldCheck,
-  Database,
-  Cloud,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -30,39 +30,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 
-  // Merge passed teachers with INITIAL_TEACHERS
-  const allAvailableTeachers: Teacher[] = React.useMemo(() => {
-    const map = new Map<string, Teacher>();
-    INITIAL_TEACHERS.forEach((t) => map.set(t.Teacher_ID.toLowerCase(), t));
-    teachers.forEach((t) => map.set(t.Teacher_ID.toLowerCase(), t));
-    return Array.from(map.values());
-  }, [teachers]);
-
-  const handleFormLogin = (e: React.FormEvent) => {
+  const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsVerifying(true);
 
-    const trimmedInput = email.trim().toLowerCase();
-    const found = allAvailableTeachers.find(
-      (t) =>
-        t.Email.toLowerCase() === trimmedInput ||
-        t.Teacher_ID.toLowerCase() === trimmedInput ||
-        t.national_id === trimmedInput
-    );
-
-    if (!found) {
-      setError('ไม่พบบัญชีผู้ใช้นี้ในระบบ กรุณาตรวจสอบอีเมลหรือรหัสครู (Teacher_ID)');
-      return;
+    try {
+      const res = await verifyTeacherCredentials(email, password);
+      if (res.success && res.teacher) {
+        updateTeacherRecord(res.teacher).catch(() => {});
+        onLogin(res.teacher);
+      } else {
+        setError(res.error || 'รหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์การเข้าสู่ระบบ');
+    } finally {
+      setIsVerifying(false);
     }
-
-    if (found.Pass !== password.trim()) {
-      setError('รหัสผ่านไม่ถูกต้อง (ค่าเริ่มต้นของครูคือ 12345)');
-      return;
-    }
-
-    updateTeacherRecord(found);
-    onLogin(found);
   };
 
   return (
@@ -150,10 +138,44 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
               </div>
 
+              {/* Google Workspace Button */}
+              <button
+                type="button"
+                onClick={() => setIsGoogleModalOpen(true)}
+                className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-800 border-2 border-slate-200 hover:border-slate-300 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer active:scale-[0.99] mb-4"
+              >
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <span>เข้าสู่ระบบด้วย Google โรงเรียน (@pcshsksn.ac.th)</span>
+              </button>
+
+              <div className="relative flex items-center justify-center my-3">
+                <div className="border-t border-slate-200 w-full"></div>
+                <span className="bg-white px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider shrink-0">
+                  หรือระบุรหัสผ่าน
+                </span>
+              </div>
+
               {/* Form Login */}
               <form onSubmit={handleFormLogin} className="space-y-3.5">
                 {error && (
-                  <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2">
+                  <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                     {error}
                   </div>
@@ -170,7 +192,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="เช่น te001 หรืออีเมลโรงเรียน"
+                      placeholder="เช่น te028 หรือ naruephat.na@pcshsksn.ac.th"
                       className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm sm:text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white transition-all"
                     />
                   </div>
@@ -192,13 +214,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="กรอกรหัสผ่าน"
+                      placeholder="กรอกรหัสผ่าน (ค่าเริ่มต้น 12345)"
                       className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm sm:text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white transition-all font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-1"
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                       aria-label="แสดงรหัสผ่าน"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -209,11 +231,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer"
+                    disabled={isVerifying}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-70 text-slate-950 font-bold rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer"
                   >
-                    <LogIn className="w-4 h-4" />
-                    <span>เข้าสู่ระบบส่งเอกสารวิชาการ</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {isVerifying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                        <span>กำลังตรวจสอบข้อมูล...</span>
+                      </>
+                    ) : (
+                      <>
+                        <LogIn className="w-4 h-4" />
+                        <span>เข้าสู่ระบบส่งเอกสารวิชาการ</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -229,6 +261,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
         </div>
       </main>
+
+      {/* Google School Sign-In Modal */}
+      <GoogleSchoolSignInModal
+        isOpen={isGoogleModalOpen}
+        onClose={() => setIsGoogleModalOpen(false)}
+        teachers={teachers}
+        onLogin={onLogin}
+      />
 
       {/* Page Footer */}
       <footer className="relative z-10 py-3 text-center text-xs text-slate-500">

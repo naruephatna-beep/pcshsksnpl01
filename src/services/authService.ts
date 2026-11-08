@@ -65,16 +65,33 @@ export async function verifyTeacherCredentials(
 
   // 2. Fallback: Local authoritative matching (only checks the single target account)
   const q = cleanId.toLowerCase();
-  const found = INITIAL_TEACHERS.find(
-    (t) => t.Teacher_ID.toLowerCase() === q || t.Email.toLowerCase() === q
-  );
+  let localTeachers: Teacher[] = [];
+  try {
+    const raw = localStorage.getItem('lp_local_teachers');
+    if (raw) localTeachers = JSON.parse(raw);
+  } catch {}
+
+  const found =
+    localTeachers.find(
+      (t) =>
+        t.Teacher_ID?.toLowerCase() === q ||
+        t.Email?.toLowerCase() === q ||
+        t.national_id === cleanId
+    ) ||
+    INITIAL_TEACHERS.find(
+      (t) =>
+        t.Teacher_ID?.toLowerCase() === q ||
+        t.Email?.toLowerCase() === q ||
+        t.national_id === cleanId
+    );
 
   if (!found) {
-    return { success: false, error: 'ไม่พบบัญชีผู้ใช้นี้ในระบบโรงเรียน' };
+    return { success: false, error: 'ไม่พบบัญชีผู้ใช้นี้ในระบบโรงเรียน กรุณาตรวจสอบอีเมลหรือรหัสครู (Teacher_ID)' };
   }
 
-  if (found.Pass !== cleanPass) {
-    return { success: false, error: 'รหัสผ่านไม่ถูกต้อง' };
+  const expectedPass = found.Pass || '12345';
+  if (expectedPass !== cleanPass) {
+    return { success: false, error: 'รหัสผ่านไม่ถูกต้อง (ค่าเริ่มต้นของครูคือ 12345)' };
   }
 
   return {

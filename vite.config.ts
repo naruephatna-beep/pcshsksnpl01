@@ -51,13 +51,16 @@ function emailApiPlugin(): Plugin {
               const p = String(password).trim();
 
               const found = INITIAL_TEACHERS.find(
-                (t) => t.Teacher_ID.toLowerCase() === q || t.Email.toLowerCase() === q
+                (t) =>
+                  t.Teacher_ID.toLowerCase() === q ||
+                  t.Email.toLowerCase() === q ||
+                  (t.national_id && t.national_id.toLowerCase() === q)
               );
 
               if (!found) {
                 res.statusCode = 401;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: false, error: 'ไม่พบบัญชีผู้ใช้นี้ในระบบ' }));
+                res.end(JSON.stringify({ success: false, error: 'ไม่พบบัญชีผู้ใช้นี้ในระบบโรงเรียน กรุณาตรวจสอบอีเมลหรือรหัสครู (Teacher_ID)' }));
                 return;
               }
 
@@ -65,7 +68,7 @@ function emailApiPlugin(): Plugin {
               if (expectedPass !== p) {
                 res.statusCode = 401;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: false, error: 'รหัสผ่านไม่ถูกต้อง' }));
+                res.end(JSON.stringify({ success: false, error: 'รหัสผ่านไม่ถูกต้อง (ค่าเริ่มต้นคือ 12345)' }));
                 return;
               }
 
