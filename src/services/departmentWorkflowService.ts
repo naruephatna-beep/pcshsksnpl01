@@ -1016,18 +1016,36 @@ export function getWorkflowForPlan(
 
   const pType = (plan.plan_type || plan.plan_title || '').trim().toLowerCase();
 
-  // 2. Exact match in plan_type or target_plan_types
+  // 2. Exact match in plan_type or target_plan_types (First priority for actual document types)
   for (const wf of currentWorkflows) {
     if (wf.plan_type && wf.plan_type !== 'all') {
       const wfType = wf.plan_type.trim().toLowerCase();
-      if (pType === wfType || pType.includes(wfType) || wfType.includes(pType)) {
+      if (pType === wfType) {
         return wf;
       }
     }
     if (Array.isArray(wf.target_plan_types)) {
       for (const t of wf.target_plan_types) {
         const lowerT = t.trim().toLowerCase();
-        if (pType === lowerT || pType.includes(lowerT) || lowerT.includes(pType)) {
+        if (pType === lowerT) {
+          return wf;
+        }
+      }
+    }
+  }
+
+  // 3. Substring match if no exact match found
+  for (const wf of currentWorkflows) {
+    if (wf.plan_type && wf.plan_type !== 'all') {
+      const wfType = wf.plan_type.trim().toLowerCase();
+      if (pType.includes(wfType) || wfType.includes(pType)) {
+        return wf;
+      }
+    }
+    if (Array.isArray(wf.target_plan_types)) {
+      for (const t of wf.target_plan_types) {
+        const lowerT = t.trim().toLowerCase();
+        if (pType.includes(lowerT) || lowerT.includes(pType)) {
           return wf;
         }
       }
@@ -1459,13 +1477,10 @@ export function advancePlanStage(
     };
   }
 
-  // Case 2: Approved / Passed
-  const isAdminReviewer = isTeacherAdmin(reviewer);
-  // If final stage OR reviewer is an Admin with direct approval authority, grant final approval immediately
+  // Case 2: Advance to Next Stage if more stages remain
   const isFinalStage = currentStageOrder >= totalStages;
-  const shouldFinalizeApproval = isFinalStage || isAdminReviewer || reviewRecord.status === 'approved';
 
-  if (!shouldFinalizeApproval && currentStageOrder < totalStages) {
+  if (!isFinalStage) {
     const nextStage = workflow.stages.find((s) => s.order === currentStageOrder + 1);
     return {
       ...plan,
@@ -1485,11 +1500,11 @@ export function advancePlanStage(
     };
   }
 
-  // Case 3: Final stage approved or direct approval!
+  // Case 3: Final stage approved!
   return {
     ...plan,
     status: 'approved',
-    current_stage_order: Math.max(currentStageOrder, totalStages),
+    current_stage_order: totalStages,
     total_stages: totalStages,
     reviewed_by: reviewer.Teacher_ID,
     reviewer_name: reviewer.Name,
