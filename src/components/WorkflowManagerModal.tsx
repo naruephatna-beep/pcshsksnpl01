@@ -18,6 +18,7 @@ import {
   autoAssignPlansForStage,
   resolveReviewersForStage,
 } from '../services/departmentWorkflowService';
+import { savePlanRecord } from '../services/supabaseClient';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   X,
@@ -74,6 +75,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
   departments,
   branches = DEFAULT_BRANCHES,
   plans,
+  onUpdatePlans,
   deadlineConfigs,
 }) => {
   // 1. Gather all ACTUAL document types registered in the school system
@@ -385,6 +387,26 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
       return;
     }
 
+    // 1. Merge updated plans back into full plans array
+    const updatedMap = new Map<string, LessonPlan>();
+    res.updatedPlans.forEach((p) => updatedMap.set(p.id, p));
+    const allUpdatedPlans = plans.map((p) => updatedMap.get(p.id) || p);
+
+    // 2. Update React state in App.tsx
+    onUpdatePlans(allUpdatedPlans);
+
+    // 3. Persist modified plans to database and local storage
+    const modifiedList = res.updatedPlans.filter((p) => {
+      const original = plans.find((orig) => orig.id === p.id);
+      return original?.assigned_reviewer_id !== p.assigned_reviewer_id;
+    });
+
+    if (modifiedList.length > 0) {
+      Promise.all(modifiedList.map((p) => savePlanRecord(p))).catch((err) => {
+        console.warn('Error persisting auto-assigned plans to cloud:', err);
+      });
+    }
+
     const dist: Record<string, { name: string; count: number }> = {};
     if (res.reviewerWorkload) {
       Object.entries(res.reviewerWorkload).forEach(([tId, info]) => {
@@ -398,7 +420,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
       distribution: dist,
     });
 
-    showToast(`กระจายงานสำเร็จ! แบ่งเอกสาร ${res.assignedCount} รายการให้ผู้ตรวจเท่าๆ กันเรียบร้อย`);
+    showToast(`สุ่มกระจายงานสำเร็จ! แบ่งเอกสาร ${res.assignedCount} รายการให้ผู้ตรวจเท่าๆ กันเรียบร้อย`);
   };
 
   // Simulate routing for sample submitter teacher

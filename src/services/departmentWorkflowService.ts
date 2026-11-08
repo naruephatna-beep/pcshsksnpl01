@@ -1409,10 +1409,16 @@ export function autoAssignPlansForStage(
     const candidates = resolveReviewersForStage(stage, p, allTeachers, departments, branches);
     if (candidates.length === 0) return p;
 
-    // Initialize workload tracking for newly discovered candidates
+    // Initialize workload tracking for newly discovered candidates with their existing pending assignments
     candidates.forEach((c) => {
       if (!workload[c.Teacher_ID]) {
-        workload[c.Teacher_ID] = { teacher: c, count: 0 };
+        const existingCount = plans.filter(
+          (other) =>
+            other.assigned_reviewer_id === c.Teacher_ID &&
+            other.status !== 'approved' &&
+            other.status !== 'deleted'
+        ).length;
+        workload[c.Teacher_ID] = { teacher: c, count: existingCount };
       }
     });
 
