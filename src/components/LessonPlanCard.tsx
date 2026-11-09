@@ -249,11 +249,11 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
               {(isAdmin || isOwner) && onResubmitPlan && (
                 <button
                   onClick={() => onResubmitPlan(plan)}
-                  className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-md font-bold text-[11px] shadow-2xs flex items-center gap-1 transition-all cursor-pointer"
-                  title="ส่งแผนที่ปรับปรุงแล้วเพื่อขอรับการตรวจอีกครั้ง"
+                  className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-lg font-bold text-[11px] shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="แก้ไขข้อเสนอแนะและส่งแผนที่ปรับปรุงแล้วเพื่อขอรับการตรวจอีกครั้ง"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>ส่งใหม่</span>
+                  <span>แก้ไขและส่งตรวจใหม่</span>
                 </button>
               )}
             </div>
@@ -403,27 +403,28 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Resubmit button */}
-          {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan && (
+          {/* If plan needs revision, show single prominent 'แก้ไขและส่งตรวจใหม่' button */}
+          {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan ? (
             <button
               onClick={() => onResubmitPlan(plan)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-xl text-xs font-bold shadow-md shadow-amber-500/20 transition-all cursor-pointer active:scale-95"
+              title="ดูข้อเสนอแนะ แก้ไขไฟล์ และส่งตรวจใหม่อีกครั้ง"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>ส่งใหม่</span>
+              <span>แก้ไขและส่งตรวจใหม่</span>
             </button>
-          )}
-
-          {/* Edit plan button */}
-          {(isAdmin || isOwner) && onEditPlan && (
-            <button
-              onClick={() => onEditPlan(plan)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
-              title="แก้ไขข้อมูลแผน"
-            >
-              <Edit className="w-3.5 h-3.5 text-slate-500" />
-              <span>แก้ไข</span>
-            </button>
+          ) : (
+            /* Standard Edit button for normal non-revision states */
+            (isAdmin || isOwner) && onEditPlan && (
+              <button
+                onClick={() => onEditPlan(plan)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
+                title="แก้ไขข้อมูลเอกสาร"
+              >
+                <Edit className="w-3.5 h-3.5 text-slate-500" />
+                <span>แก้ไข</span>
+              </button>
+            )
           )}
 
           {/* Review button */}

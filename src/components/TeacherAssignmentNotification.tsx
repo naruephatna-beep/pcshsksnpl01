@@ -205,7 +205,7 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                 )}
               </div>
               <h3 className="text-base sm:text-lg font-bold tracking-tight text-white mt-1">
-                รายการเอกสารที่ต้องจัดส่ง (ภาระงานครู)
+                งานที่ฉันต้องส่ง (กำหนดส่งเอกสารวิชาการ)
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 ตรวจสอบวันเวลาคงเหลือและสถานะการส่งเอกสารของท่าน

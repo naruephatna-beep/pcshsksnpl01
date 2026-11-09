@@ -196,27 +196,27 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
             </button>
           )}
 
-          {/* Resubmit if needs revision */}
-          {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan && (
+          {/* If plan needs revision, show single prominent 'แก้ไขและส่งตรวจใหม่' button */}
+          {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan ? (
             <button
               onClick={() => onResubmitPlan(plan)}
-              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-              title="ส่งแผนใหม่อีกครั้ง"
+              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              title="ดูข้อเสนอแนะ แก้ไขไฟล์ และส่งตรวจใหม่อีกครั้ง"
             >
-              <RotateCcw className="w-3 h-3" />
-              <span>ส่งใหม่</span>
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>แก้ไขและส่งตรวจใหม่</span>
             </button>
-          )}
-
-          {/* Edit */}
-          {(isAdmin || isOwner) && onEditPlan && (
-            <button
-              onClick={() => onEditPlan(plan)}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-              title="แก้ไขข้อมูลแผน"
-            >
-              <Edit className="w-3.5 h-3.5" />
-            </button>
+          ) : (
+            /* Edit standard button */
+            (isAdmin || isOwner) && onEditPlan && (
+              <button
+                onClick={() => onEditPlan(plan)}
+                className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                title="แก้ไขข้อมูลเอกสาร"
+              >
+                <Edit className="w-3.5 h-3.5" />
+              </button>
+            )
           )}
 
           {/* Review (Admin) */}

@@ -61,6 +61,7 @@ interface DynamicSubmitModalProps {
     correspondingPlan?: LessonPlan | LessonPlan[]
   ) => void;
   existingSubmission?: AssignmentSubmission | null;
+  onSwitchToStandard?: (typeName: string) => void;
 }
 
 export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
@@ -70,6 +71,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   onClose,
   onSubmitted,
   existingSubmission,
+  onSwitchToStandard,
 }) => {
   const fields: DynamicFormField[] = config.fields || [];
   const formRef = useRef<HTMLDivElement>(null);
@@ -542,6 +544,16 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
                   รองรับหลายไฟล์ & หลายวิชา
                 </span>
+                {onSwitchToStandard && (
+                  <button
+                    type="button"
+                    onClick={() => onSwitchToStandard(config.name)}
+                    className="text-[10px] text-sky-200 hover:text-white underline font-medium ml-1 transition-colors cursor-pointer"
+                    title="สลับไปยังแบบฟอร์มส่งแผนการสอนทั่วไป"
+                  >
+                    สลับไปฟอร์มทั่วไป
+                  </button>
+                )}
               </div>
               <h2 className="text-base sm:text-lg font-bold line-clamp-1">{config.name}</h2>
             </div>
@@ -963,10 +975,10 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                                   </div>
                                   <div>
                                     <span className="font-bold text-xs text-slate-800 hover:text-emerald-700">
-                                      คลิกเพื่อเลือกไฟล์ PDF จากเครื่อง (เลือกทีละไฟล์ หรือหลายไฟล์พร้อมกัน)
+                                      คลิกเพื่อเลือกไฟล์เอกสาร (PDF หรือ Excel) จากเครื่องเพื่อนำเข้า Google Drive อัตโนมัติ
                                     </span>
                                     <p className="text-[10px] text-slate-500 mt-0.5">
-                                      รองรับไฟล์ .pdf (ไม่เกิน 25 MB/ไฟล์) · ระบบจะนำไฟล์เข้า Google Drive และบันทึกให้ครบทุกไฟล์
+                                      รองรับไฟล์ .pdf, .xlsx, .xls, .csv (ไม่เกิน 25 MB/ไฟล์) · ระบบจะนำไฟล์เข้า Google Drive และบันทึกให้ครบทุกไฟล์
                                     </p>
                                   </div>
                                 </div>
@@ -974,7 +986,11 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                               <input
                                 type="file"
                                 multiple
-                                accept=".pdf,application/pdf"
+                                accept={
+                                  field.file_config?.allowed_types && field.file_config.allowed_types.length > 0
+                                    ? field.file_config.allowed_types.join(',')
+                                    : ".pdf,application/pdf,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                }
                                 disabled={uploadingFieldId === field.id}
                                 onChange={(e) => handleFileChange(field, e)}
                                 className="hidden"

@@ -16,6 +16,7 @@ import {
   Crown,
   Award,
   GitFork,
+  Building2,
 } from 'lucide-react';
 
 import { AcademicEmailModal } from './AcademicEmailModal';
@@ -29,6 +30,7 @@ interface TeacherDirectoryModalProps {
   onClose: () => void;
   onSwitchUser?: (teacher: Teacher) => void;
   onEditTeacher: (teacher: Teacher) => void;
+  onOpenStaffStructure?: () => void;
 }
 
 export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
@@ -39,6 +41,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
   isOpen,
   onClose,
   onEditTeacher,
+  onOpenStaffStructure,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedArea, setSelectedArea] = useState('ทั้งหมด');
@@ -109,13 +112,29 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer shrink-0"
-            aria-label="ปิดหน้าต่าง"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {isAdmin && onOpenStaffStructure && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenStaffStructure();
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-semibold border border-white/20 transition-all cursor-pointer active:scale-95"
+                title="เปิดจัดการโครงสร้างสาขา และแต่งตั้งหัวหน้าสาระ/สาขา"
+              >
+                <Building2 className="w-3.5 h-3.5 text-amber-300" />
+                <span>โครงสร้างสาขา & หัวหน้าสาระ</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer shrink-0"
+              aria-label="ปิดหน้าต่าง"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Filter bar */}

@@ -2300,7 +2300,7 @@ export default function App() {
                         className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
                       >
                         <UserCheck className="w-4 h-4 text-amber-300" />
-                        <span>งานตรวจที่มอบหมาย ({assignedToMeCount})</span>
+                        <span>เอกสารที่รอฉันตรวจ ({assignedToMeCount})</span>
                       </button>
                     )}
                   </div>
@@ -2443,10 +2443,10 @@ export default function App() {
                       ? 'bg-indigo-600 text-white shadow-xs font-bold'
                       : 'text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 font-semibold'
                   }`}
-                  title="งานตรวจที่ได้รับมอบหมายให้ฉันตรวจ"
+                  title="เอกสารของคณะครูที่มอบหมายให้ฉันเป็นผู้ตรวจ / ประเมิน"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>งานตรวจที่มอบหมาย</span>
+                  <span>เอกสารที่รอฉันตรวจ</span>
                   {assignedToMeCount > 0 ? (
                     <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
                       {assignedToMeCount}
@@ -2694,7 +2694,7 @@ export default function App() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-sm sm:text-base font-bold text-white">
-                      งานตรวจที่ได้รับมอบหมาย (Review Tasks)
+                      เอกสารที่รอฉันตรวจ (Review Queue)
                     </h3>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
                       {assignedReviewSubTab === 'pending' ? 'เอกสารที่ตรวจแล้วจะหายไปอัตโนมัติ' : 'ประวัติงานตรวจ'}
@@ -2930,6 +2930,12 @@ export default function App() {
           isSupabaseConnected={isSupabaseConnected}
           deadlineConfigs={deadlineConfigs}
           initialPlanType={submitModalInitialType}
+          onSwitchToDynamic={(cfg) => {
+            setIsSubmitModalOpen(false);
+            setSubmitModalInitialType(undefined);
+            setSelectedDynamicConfig(cfg);
+            setIsDynamicSubmitModalOpen(true);
+          }}
         />
       )}
 
@@ -3025,6 +3031,7 @@ export default function App() {
             setTeacherToEdit(t);
             setIsProfileModalOpen(true);
           }}
+          onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
         />
       )}
 
@@ -3100,6 +3107,12 @@ export default function App() {
           onClose={() => {
             setIsDynamicSubmitModalOpen(false);
             setSelectedDynamicConfig(null);
+          }}
+          onSwitchToStandard={(typeName) => {
+            setIsDynamicSubmitModalOpen(false);
+            setSelectedDynamicConfig(null);
+            setSubmitModalInitialType(typeName);
+            setIsSubmitModalOpen(true);
           }}
           onSubmitted={async (submission, correspondingPlan) => {
             if (correspondingPlan) {
@@ -3236,7 +3249,7 @@ export default function App() {
             className={`relative flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 ${
               mainView === 'plans' && viewTab === 'assigned_to_me' ? 'text-indigo-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
             }`}
-            title="งานตรวจที่ได้รับมอบหมาย"
+            title="เอกสารที่รอฉันตรวจ"
           >
             <div className="relative">
               <UserCheck className="w-5 h-5" />

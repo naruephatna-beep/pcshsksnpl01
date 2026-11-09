@@ -217,18 +217,30 @@ export async function uploadPdfFileToGoogleDrive(
   try {
     const base64Data = await fileToBase64(file);
 
-    // สร้างชื่อไฟล์อัตโนมัติอย่างเป็นระเบียบใน Google Drive
+    // ตรวจสอบนามสกุลไฟล์จริง (.pdf, .xlsx, .xls, .csv, .docx ฯลฯ)
+    const rawExt = file.name.includes('.') ? '.' + file.name.split('.').pop()!.toLowerCase() : '.pdf';
     const cleanTeacherName = (meta.teacherName || 'ครูผู้สอน').replace(/[\/\\:*?"<>|]/g, '_');
     const cleanAssignName = (meta.assignmentName || 'เอกสาร').replace(/[\/\\:*?"<>|]/g, '_');
     const timestamp = new Date().toISOString().slice(0, 10);
-    const generatedFileName = `[${meta.teacherId}]_${cleanTeacherName}_${cleanAssignName}_${timestamp}.pdf`;
+    const generatedFileName = `[${meta.teacherId}]_${cleanTeacherName}_${cleanAssignName}_${timestamp}${rawExt}`;
+
+    // กำหนด MIME type ให้ถูกต้องสำหรับ Google Drive
+    let mimeType = file.type;
+    if (!mimeType || mimeType === 'application/octet-stream') {
+      if (rawExt === '.xlsx') mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      else if (rawExt === '.xls') mimeType = 'application/vnd.ms-excel';
+      else if (rawExt === '.csv') mimeType = 'text/csv';
+      else if (rawExt === '.docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      else if (rawExt === '.doc') mimeType = 'application/msword';
+      else mimeType = 'application/pdf';
+    }
 
     const payload = {
       action: 'upload',
       fileName: generatedFileName,
       originalFileName: file.name,
       base64Data: base64Data,
-      mimeType: file.type || 'application/pdf',
+      mimeType: mimeType,
       teacherId: meta.teacherId,
       teacherName: meta.teacherName,
       assignmentName: meta.assignmentName,
