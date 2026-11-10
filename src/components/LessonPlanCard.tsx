@@ -25,7 +25,6 @@ import {
   ShieldCheck,
   Edit,
   Award,
-  ChevronDown,
 } from 'lucide-react';
 
 interface LessonPlanCardProps {
@@ -68,35 +67,6 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
         plan.assigned_reviewer_name === currentTeacher.Name)
   );
   const canReview = canReviewProp !== undefined ? canReviewProp : (isAdmin || isDirectlyAssigned);
-  const [showFileList, setShowFileList] = React.useState(false);
-
-  // Extract all attached files if available in plan.notes
-  const allAttachments = React.useMemo(() => {
-    const list: { file_name: string; file_url: string; file_size?: string }[] = [];
-    if (plan.notes) {
-      try {
-        const parsed = JSON.parse(plan.notes);
-        if (parsed && Array.isArray(parsed._attachments) && parsed._attachments.length > 0) {
-          parsed._attachments.forEach((att: any, idx: number) => {
-            if (att && att.file_url && att.file_url !== '#') {
-              list.push({
-                file_name: att.file_name || `ไฟล์แนบ ${idx + 1}`,
-                file_url: att.file_url,
-                file_size: att.file_size,
-              });
-            }
-          });
-        }
-      } catch {}
-    }
-    if (list.length === 0 && plan.file_url && plan.file_url !== '#') {
-      list.push({
-        file_name: plan.file_name || 'ดูไฟล์',
-        file_url: plan.file_url,
-      });
-    }
-    return list;
-  }, [plan.notes, plan.file_url, plan.file_name]);
 
   // Timeliness & Late Status calculation
   const timeliness = checkSubmissionTimeliness(plan.plan_type, plan.submitted_at, deadlineConfigs);
@@ -189,86 +159,6 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           </span>
         </div>
 
-        {/* Visual Workflow Timeline Progress Stepper */}
-        {(() => {
-          const hasBranch = Boolean(plan.branch);
-          const steps = hasBranch
-            ? [
-                { id: 1, label: 'หน.สาขาวิชา' },
-                { id: 2, label: 'หน.กลุ่มสาระ' },
-                { id: 3, label: 'ผอ.อนุมัติ' },
-              ]
-            : [
-                { id: 1, label: 'หน.กลุ่มสาระ' },
-                { id: 2, label: 'ผอ.อนุมัติ' },
-              ];
-
-          const isApproved = plan.status === 'approved';
-          const isNeedsRevision = plan.status === 'needs_revision';
-          const currentStage = isApproved ? 99 : (plan.current_stage_order || 1);
-
-          return (
-            <div className="mt-2.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200/90 rounded-xl">
-              <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold mb-1.5">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-slate-400" />
-                  <span>ไทม์ไลน์ลำดับขั้น:</span>
-                </span>
-                {isApproved ? (
-                  <span className="text-emerald-700 font-black">อนุมัติครบทุกระดับ ✓</span>
-                ) : isNeedsRevision ? (
-                  <span className="text-rose-600 font-bold">รอการปรับปรุง</span>
-                ) : (
-                  <span className="text-amber-700 font-bold truncate max-w-[150px]">
-                    {plan.assigned_reviewer_name ? `รอ: ${plan.assigned_reviewer_name}` : 'กำลังรอตรวจ'}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1">
-                {steps.map((st, idx) => {
-                  const isDone = isApproved || currentStage > st.id;
-                  const isCurrent = !isApproved && currentStage === st.id;
-
-                  return (
-                    <React.Fragment key={st.id}>
-                      <div
-                        className={`flex-1 flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-bold border transition-colors ${
-                          isDone
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                            : isCurrent
-                            ? isNeedsRevision
-                              ? 'bg-rose-50 border-rose-300 text-rose-800'
-                              : 'bg-amber-50 border-amber-300 text-amber-900 ring-1 ring-amber-300'
-                            : 'bg-white border-slate-200 text-slate-400'
-                        }`}
-                      >
-                        <span
-                          className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] shrink-0 font-mono ${
-                            isDone
-                              ? 'bg-emerald-600 text-white'
-                              : isCurrent
-                              ? isNeedsRevision
-                                ? 'bg-rose-600 text-white'
-                                : 'bg-amber-500 text-slate-950 font-black animate-pulse'
-                              : 'bg-slate-200 text-slate-500'
-                          }`}
-                        >
-                          {isDone ? '✓' : st.id}
-                        </span>
-                        <span className="truncate">{st.label}</span>
-                      </div>
-                      {idx < steps.length - 1 && (
-                        <span className="text-slate-300 text-[10px] shrink-0">➔</span>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
         {/* Teacher details */}
         <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -329,11 +219,11 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
               {(isAdmin || isOwner) && onResubmitPlan && (
                 <button
                   onClick={() => onResubmitPlan(plan)}
-                  className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-lg font-bold text-[11px] shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer"
-                  title="แก้ไขข้อเสนอแนะและส่งแผนที่ปรับปรุงแล้วเพื่อขอรับการตรวจอีกครั้ง"
+                  className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-md font-bold text-[11px] shadow-2xs flex items-center gap-1 transition-all cursor-pointer"
+                  title="ส่งแผนที่ปรับปรุงแล้วเพื่อขอรับการตรวจอีกครั้ง"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>แก้ไขและส่งตรวจใหม่</span>
+                  <span>ส่งใหม่</span>
                 </button>
               )}
             </div>
@@ -403,61 +293,17 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
       {/* Action Footer (Standardized button heights, padding, and visual hierarchy) */}
       <div className="mt-3.5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          {/* File link(s) */}
-          {allAttachments.length <= 1 ? (
-            <a
-              href={allAttachments[0]?.file_url || plan.file_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5 text-slate-600" />
-              <span>ดูไฟล์</span>
-              <ExternalLink className="w-3 h-3 text-slate-400" />
-            </a>
-          ) : (
-            <div className="relative inline-block">
-              <button
-                type="button"
-                onClick={() => setShowFileList(!showFileList)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-200/80 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                title="คลิกเพื่อดูไฟล์แนบทั้งหมด"
-              >
-                <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                <span>ดูไฟล์ ({allAttachments.length})</span>
-                <ChevronDown className={`w-3 h-3 text-indigo-500 transition-transform ${showFileList ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showFileList && (
-                <div className="absolute left-0 bottom-full mb-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in zoom-in-95">
-                  <div className="px-3 py-1.5 border-b border-slate-100 text-[11px] font-bold text-slate-500 flex items-center justify-between">
-                    <span>ไฟล์แนบทั้งหมด ({allAttachments.length})</span>
-                    <span className="text-[10px] text-indigo-600 font-semibold">คลิกเพื่อเปิด</span>
-                  </div>
-                  <div className="max-h-48 overflow-y-auto py-1">
-                    {allAttachments.map((file, idx) => (
-                      <a
-                        key={idx}
-                        href={file.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => setShowFileList(false)}
-                        className="px-3 py-1.5 hover:bg-indigo-50 flex items-center justify-between gap-2 text-xs text-slate-700 hover:text-indigo-950 transition-colors"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center justify-center shrink-0">
-                            {idx + 1}
-                          </span>
-                          <span className="truncate font-medium">{file.file_name}</span>
-                        </div>
-                        <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* File link */}
+          <a
+            href={plan.file_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <FileText className="w-3.5 h-3.5 text-slate-600" />
+            <span>ดูไฟล์</span>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
+          </a>
 
           {/* Receipt button */}
           <button
@@ -483,28 +329,27 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* If plan needs revision, show single prominent 'แก้ไขและส่งตรวจใหม่' button */}
-          {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan ? (
+          {/* Resubmit button */}
+          {plan.status === 'needs_revision' && (isAdmin || isOwner) && onResubmitPlan && (
             <button
               onClick={() => onResubmitPlan(plan)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-xl text-xs font-bold shadow-md shadow-amber-500/20 transition-all cursor-pointer active:scale-95"
-              title="ดูข้อเสนอแนะ แก้ไขไฟล์ และส่งตรวจใหม่อีกครั้ง"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>แก้ไขและส่งตรวจใหม่</span>
+              <span>ส่งใหม่</span>
             </button>
-          ) : (
-            /* Standard Edit button for normal non-revision states */
-            (isAdmin || isOwner) && onEditPlan && (
-              <button
-                onClick={() => onEditPlan(plan)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
-                title="แก้ไขข้อมูลเอกสาร"
-              >
-                <Edit className="w-3.5 h-3.5 text-slate-500" />
-                <span>แก้ไข</span>
-              </button>
-            )
+          )}
+
+          {/* Edit plan button */}
+          {(isAdmin || isOwner) && onEditPlan && (
+            <button
+              onClick={() => onEditPlan(plan)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
+              title="แก้ไขข้อมูลแผน"
+            >
+              <Edit className="w-3.5 h-3.5 text-slate-500" />
+              <span>แก้ไข</span>
+            </button>
           )}
 
           {/* Review button */}

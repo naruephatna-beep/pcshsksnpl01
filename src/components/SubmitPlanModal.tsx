@@ -34,7 +34,6 @@ interface SubmitPlanModalProps {
   isSupabaseConnected?: boolean;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
   initialPlanType?: string;
-  onSwitchToDynamic?: (config: PlanTypeDeadlineConfig) => void;
 }
 
 const DEFAULT_PLAN_TYPES: PlanType[] = [
@@ -75,7 +74,6 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
   isSupabaseConnected = false,
   deadlineConfigs,
   initialPlanType,
-  onSwitchToDynamic,
 }) => {
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -132,17 +130,8 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
 
   const handleFileUploadToDrive = async (itemId: string, file: File, item: SubmissionItem) => {
     if (!file) return;
-    const lowerName = file.name.toLowerCase();
-    const isAllowedExt =
-      lowerName.endsWith('.pdf') ||
-      lowerName.endsWith('.xlsx') ||
-      lowerName.endsWith('.xls') ||
-      lowerName.endsWith('.csv') ||
-      lowerName.endsWith('.docx') ||
-      lowerName.endsWith('.doc');
-
-    if (!isAllowedExt) {
-      setError('อนุญาตเฉพาะไฟล์เอกสาร .pdf, .xlsx, .xls, .csv, .docx เท่านั้น');
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setError('อนุญาตเฉพาะไฟล์นามสกุล .pdf เท่านั้น');
       return;
     }
     if (file.size > 25 * 1024 * 1024) {
@@ -298,25 +287,25 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
         /onedrive|1drv\.ms|dropbox\.com|sharepoint\.com|supabase\.co|storage\.googleapis\.com/i.test(
           finalUrl
         );
-      const isDocExt = /\.(pdf|xlsx|xls|csv|docx|doc)(\?|$|#)/i.test(finalUrl);
+      const isPdfExt = /\.pdf(\?|$|#)/i.test(finalUrl);
 
       if (isGoogleDriveFolder) {
         setError(
-          `[${itemLabel}] ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร! กรุณาคัดลอกลิงก์ของตัวไฟล์โดยตรง`
+          `[${itemLabel}] ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร PDF! กรุณาคัดลอกลิงก์ของตัวไฟล์ PDF โดยตรง`
         );
         return;
       }
 
-      if (!isDocExt && !isGoogleDrive && !isCloudDoc) {
+      if (!isPdfExt && !isGoogleDrive && !isCloudDoc) {
         setError(
-          `[${itemLabel}] บังคับส่งเฉพาะไฟล์เอกสาร (เช่น PDF, Excel .xlsx/.xls หรือ ลิงก์ Google Drive / Sheets)`
+          `[${itemLabel}] บังคับส่งเฉพาะลิงก์ไฟล์ PDF เท่านั้น! (เช่น ลิงก์ไฟล์ PDF บน Google Drive หรือลิงก์ที่ลงท้ายด้วย .pdf)`
         );
         return;
       }
 
       if (!item.isPermissionConfirmed) {
         setError(
-          `[${itemLabel}] กรุณาตรวจสอบสิทธิ์ไฟล์ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และกดยืนยันในช่องสี่เหลี่ยมก่อนกดส่ง`
+          `[${itemLabel}] กรุณาตรวจสอบสิทธิ์ไฟล์ PDF ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และกดยืนยันในช่องสี่เหลี่ยมก่อนกดส่ง`
         );
         return;
       }
@@ -331,11 +320,11 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
           1000 + Math.random() * 9000
         )}-${index + 1}`;
         const safeCode = item.subjectCode.trim().toUpperCase();
-        const fileExtMatch = item.fileName.match(/\.(pdf|xlsx|xls|csv|docx|doc)$/i) || item.fileUrl.match(/\.(pdf|xlsx|xls|csv|docx|doc)(\?|$|#)/i);
-        const fileExt = fileExtMatch ? `.${fileExtMatch[1].toLowerCase()}` : '.pdf';
         const generatedFileName = item.fileName.trim()
-          ? (item.fileName.includes('.') ? item.fileName : `${item.fileName}${fileExt}`)
-          : `${safeCode}_${item.planTitle.trim().slice(0, 25)}${fileExt}`;
+          ? item.fileName.endsWith('.pdf')
+            ? item.fileName
+            : `${item.fileName}.pdf`
+          : `${safeCode}_${item.planTitle.trim().slice(0, 25)}.pdf`;
 
         const submissionTimeliness = checkSubmissionTimeliness(
           item.planType,
@@ -707,31 +696,6 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                       ))}
                     </select>
 
-                    {/* Notice if this document type has dynamic form fields */}
-                    {(() => {
-                      const matchingTypeConfig = (deadlineConfigs || []).find((c) => c.name === item.planType);
-                      if (matchingTypeConfig?.fields && matchingTypeConfig.fields.length > 0 && onSwitchToDynamic) {
-                        return (
-                          <div className="mt-2.5 p-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 text-slate-800 flex items-center justify-between gap-3 text-xs shadow-2xs animate-in fade-in">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                              <span className="truncate">
-                                ประเภท <strong>&ldquo;{item.planType}&rdquo;</strong> มีแบบฟอร์มเฉพาะที่กำหนดไว้
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => onSwitchToDynamic(matchingTypeConfig)}
-                              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold rounded-lg text-xs shrink-0 transition-all cursor-pointer shadow-xs active:scale-95"
-                            >
-                              เปิดแบบฟอร์มเฉพาะ
-                            </button>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-
                     {/* Sample Documents for this Plan Type */}
                     {(() => {
                       const matchingTypeConfig = (deadlineConfigs || []).find((c) => c.name === item.planType);
@@ -855,7 +819,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                         <div className="flex flex-col items-center gap-1.5 py-1">
                           <div className="w-6 h-6 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
                           <p className="font-bold text-xs text-emerald-900">
-                            กำลังนำไฟล์เอกสารเข้าสู่ Google Drive ของโรงเรียน...
+                            กำลังนำไฟล์ PDF เข้าสู่ Google Drive ของโรงเรียน...
                           </p>
                           <p className="text-[10px] text-emerald-700">
                             กำลังเปิดสิทธิ์และสร้างลิงก์สำหรับบันทึก
@@ -868,7 +832,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                           </div>
                           <div className="text-left">
                             <span className="font-bold text-xs text-slate-800 hover:text-emerald-700 block">
-                              คลิกเลือกไฟล์ PDF หรือ Excel (.xlsx, .xls) เพื่อส่งเข้า Google Drive อัตโนมัติ
+                              คลิกเลือกไฟล์ PDF จากเครื่องเพื่อส่งเข้า Google Drive อัตโนมัติ
                             </span>
                             <span className="text-[10px] text-slate-500">
                               ระบบจะนำไฟล์เข้า Google Drive ฝ่ายวิชาการและดึงลิงก์มาบันทึกทันที
@@ -878,7 +842,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                       )}
                       <input
                         type="file"
-                        accept=".pdf,application/pdf,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        accept=".pdf,application/pdf"
                         disabled={uploadingItemId === item.id}
                         onChange={(e) => {
                           const file = e.target.files?.[0];
@@ -915,7 +879,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                               );
                             }
                           }}
-                          placeholder="https://drive.google.com/file/d/... หรือ ลิงก์ตรง .pdf, .xlsx, .csv"
+                          placeholder="https://drive.google.com/file/d/... หรือ ลิงก์ตรงที่ลงท้ายด้วย .pdf"
                           className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-600 font-mono text-slate-800"
                         />
                       </div>

@@ -15,7 +15,6 @@ import {
   removeTeacherFromDepartment,
   removeTeacherFromBranch,
 } from '../services/departmentWorkflowService';
-import { saveAllTeachers } from '../services/supabaseClient';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   X,
@@ -41,7 +40,6 @@ import {
   UserMinus,
   Filter,
   CheckCircle2,
-  Save,
 } from 'lucide-react';
 
 interface StaffStructureManagerModalProps {
@@ -66,16 +64,7 @@ export const isTeacherInBranch = (teacherBranch?: string | null, branchName?: st
   const t = (teacherBranch || '').trim().toLowerCase();
   const b = (branchName || '').trim().toLowerCase();
   if (!t || !b) return false;
-  if (t === b) return true;
-
-  // Clean common prefixes ("สาขาวิชา", "สาขา")
-  const cleanT = t.replace(/^สาขาวิชา|^สาขา/, '').trim();
-  const cleanB = b.replace(/^สาขาวิชา|^สาขา/, '').trim();
-
-  if (cleanT && cleanB && cleanT === cleanB) return true;
-  if (cleanT && cleanB && (cleanT.includes(cleanB) || cleanB.includes(cleanT))) return true;
-
-  return t.includes(b) || b.includes(t);
+  return t === b || t.includes(b) || b.includes(t);
 };
 
 export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProps> = ({
@@ -134,38 +123,10 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
 
   // Toast notice
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [isSavingAll, setIsSavingAll] = useState(false);
-  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setNotice({ type, message });
     setTimeout(() => setNotice(null), 3500);
-  };
-
-  // Explicit Full Structure & Members Save Handler
-  const handleSaveAllStructure = async () => {
-    setIsSavingAll(true);
-    try {
-      await saveDepartments(departments);
-      if (onUpdateBranches) {
-        await saveBranches(branches);
-      }
-      await saveAllTeachers(teachers);
-      const timeStr = new Date().toLocaleTimeString('th-TH', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
-      setLastSavedTime(timeStr);
-      showToast(
-        `✓ บันทึกโครงสร้างกลุ่มสาระ (${departments.length}) สาขาวิชา (${branches.length}) และสมาชิกครู (${teachers.length} ท่าน) สำเร็จเรียบร้อย!`,
-        'success'
-      );
-    } catch (err: any) {
-      showToast(`เกิดข้อผิดพลาดในการบันทึก: ${err?.message || 'โปรดลองอีกครั้ง'}`, 'error');
-    } finally {
-      setIsSavingAll(false);
-    }
   };
 
   const selectedDepartment = useMemo(() => {
@@ -281,58 +242,31 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
       return;
     }
 
-    const newName = deptFormName.trim();
     let updated: DepartmentConfig[];
-
     if (editingDeptId) {
-      const oldDept = departments.find((d) => d.id === editingDeptId);
-      const oldName = oldDept?.name || '';
-
       updated = departments.map((d) =>
         d.id === editingDeptId
           ? {
               ...d,
-              name: newName,
+              name: deptFormName.trim(),
               code: deptFormCode.trim().toUpperCase() || 'DEPT',
               color: deptFormColor,
               description: deptFormDesc.trim(),
             }
           : d
       );
-
-      // If department name was changed, migrate all teachers and branches from oldName to newName!
-      if (oldName && oldName !== newName) {
-        const migratedTeachers = teachers.map((t) =>
-          isTeacherInDept(t.Learning_Area, oldName)
-            ? { ...t, Learning_Area: newName, department: newName }
-            : t
-        );
-        onUpdateTeachers(migratedTeachers);
-        await saveAllTeachers(migratedTeachers);
-
-        if (onUpdateBranches) {
-          const migratedBranches = branches.map((b) =>
-            isTeacherInDept(b.learning_area_name, oldName)
-              ? { ...b, learning_area_name: newName }
-              : b
-          );
-          onUpdateBranches(migratedBranches);
-          await saveBranches(migratedBranches);
-        }
-      }
-
-      showToast(`บันทึกการแก้ไขกลุ่มสาระ "${newName}" สำเร็จ`);
+      showToast(`บันทึกการแก้ไขกลุ่มสาระ "${deptFormName.trim()}" สำเร็จ`);
     } else {
       const newDept: DepartmentConfig = {
         id: `dept_${Date.now()}`,
-        name: newName,
+        name: deptFormName.trim(),
         code: deptFormCode.trim().toUpperCase() || 'NEW',
         color: deptFormColor,
         description: deptFormDesc.trim(),
         created_at: new Date().toISOString(),
       };
       updated = [...departments, newDept];
-      showToast(`เพิ่มกลุ่มสาระ "${newName}" เรียบร้อยแล้ว`);
+      showToast(`เพิ่มกลุ่มสาระ "${deptFormName.trim()}" เรียบร้อยแล้ว`);
     }
 
     onUpdateDepartments(updated);
@@ -406,18 +340,13 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
       return;
     }
 
-    const newName = branchFormName.trim();
     let updated: BranchConfig[];
-
     if (editingBranchId) {
-      const oldBranch = branches.find((b) => b.id === editingBranchId);
-      const oldName = oldBranch?.name || '';
-
       updated = branches.map((b) =>
         b.id === editingBranchId
           ? {
               ...b,
-              name: newName,
+              name: branchFormName.trim(),
               code: branchFormCode.trim().toUpperCase() || 'BRANCH',
               color: branchFormColor,
               learning_area_name: branchFormLearningArea,
@@ -425,23 +354,11 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
             }
           : b
       );
-
-      // If branch name was changed, migrate all teachers from oldName to newName!
-      if (oldName && oldName !== newName) {
-        const migratedTeachers = teachers.map((t) =>
-          isTeacherInBranch(t.branch, oldName)
-            ? { ...t, branch: newName }
-            : t
-        );
-        onUpdateTeachers(migratedTeachers);
-        await saveAllTeachers(migratedTeachers);
-      }
-
-      showToast(`บันทึกการแก้ไขกลุ่มสาขาวิชา "${newName}" สำเร็จ`);
+      showToast(`บันทึกการแก้ไขกลุ่มสาขาวิชา "${branchFormName.trim()}" สำเร็จ`);
     } else {
       const newBranch: BranchConfig = {
         id: `branch_${Date.now()}`,
-        name: newName,
+        name: branchFormName.trim(),
         code: branchFormCode.trim().toUpperCase() || 'BR',
         color: branchFormColor,
         learning_area_name: branchFormLearningArea,
@@ -449,7 +366,7 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
         created_at: new Date().toISOString(),
       };
       updated = [...branches, newBranch];
-      showToast(`เพิ่มกลุ่มสาขาวิชา "${newName}" เรียบร้อยแล้ว`);
+      showToast(`เพิ่มกลุ่มสาขาวิชา "${branchFormName.trim()}" เรียบร้อยแล้ว`);
     }
 
     if (onUpdateBranches) {
@@ -593,36 +510,13 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleSaveAllStructure}
-              disabled={isSavingAll}
-              className="px-3.5 sm:px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md hover:shadow-lg cursor-pointer transition-all active:scale-95 disabled:opacity-50"
-              title="กดเพื่อบันทึกโครงสร้างกลุ่มสาระ สาขาวิชา และการจัดสังกัดครูทั้งหมดลงระบบ"
-            >
-              {isSavingAll ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                  <span>กำลังบันทึก...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  <span className="hidden sm:inline">บันทึกข้อมูลโครงสร้างทั้งหมด</span>
-                  <span className="sm:hidden">บันทึก</span>
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              aria-label="ปิดหน้าต่าง"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            aria-label="ปิดหน้าต่าง"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Notice Banner */}
@@ -1979,44 +1873,17 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
         )}
 
         {/* Modal Footer */}
-        <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 shrink-0">
+        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
-              ระบบบันทึกสังกัดสมาชิกและการแต่งตั้งแบบ Realtime อัตโนมัติ{' '}
-              {lastSavedTime ? (
-                <strong className="text-emerald-700 font-semibold">(ซิงค์สำเร็จล่าสุดเมื่อ {lastSavedTime})</strong>
-              ) : (
-                <span className="text-slate-400 font-mono">(พร้อมบันทึกอัตโนมัติ)</span>
-              )}
-            </span>
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <span>แอดมินสามารถเพิ่ม-ลดและย้ายสังกัดสมาชิกในกลุ่มสาระและสาขาวิชาได้แบบเรียลไทม์</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSaveAllStructure}
-              disabled={isSavingAll}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-            >
-              {isSavingAll ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>กำลังบันทึกข้อมูล...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  <span>บันทึกการเปลี่ยนแปลงทั้งหมด</span>
-                </>
-              )}
-            </button>
-            <button
-              onClick={onClose}
-              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-xs cursor-pointer active:scale-95"
-            >
-              เสร็จสิ้น
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-xs cursor-pointer"
+          >
+            เสร็จสิ้น
+          </button>
         </div>
       </div>
     </div>

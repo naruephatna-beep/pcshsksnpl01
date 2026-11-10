@@ -61,20 +61,20 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
     const isGoogleDrive = /drive\.google\.com|docs\.google\.com/i.test(finalUrl);
     const isGoogleDriveFolder = isGoogleDrive && /\/folders\/|\/drive\/folders\//i.test(finalUrl);
     const isCloudDoc = /onedrive|1drv\.ms|dropbox\.com|sharepoint\.com|supabase\.co|storage\.googleapis\.com/i.test(finalUrl);
-    const isDocExt = /\.(pdf|xlsx|xls|csv|docx|doc)(\?|$|#)/i.test(finalUrl);
+    const isPdfExt = /\.pdf(\?|$|#)/i.test(finalUrl);
 
     if (isGoogleDriveFolder) {
-      setError('ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร! กรุณาคัดลอกลิงก์ของตัวไฟล์โดยตรง');
+      setError('ลิงก์ที่ระบุเป็น "โฟลเดอร์" ไม่ใช่ไฟล์เอกสาร PDF! กรุณาคัดลอกลิงก์ของตัวไฟล์ PDF โดยตรง');
       return;
     }
 
-    if (!isDocExt && !isGoogleDrive && !isCloudDoc) {
-      setError('บังคับส่งเฉพาะไฟล์เอกสาร (เช่น PDF หรือ Excel .xlsx/.xls หรือ Google Drive/Sheets)');
+    if (!isPdfExt && !isGoogleDrive && !isCloudDoc) {
+      setError('บังคับส่งเฉพาะลิงก์ไฟล์ PDF เท่านั้น! (เช่น Google Drive PDF หรือลิงก์ที่ลงท้ายด้วย .pdf)');
       return;
     }
 
     if (!isPermissionConfirmed) {
-      setError('กรุณาตรวจสอบสิทธิ์ไฟล์ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และทำเครื่องหมายยืนยันก่อนกดส่ง');
+      setError('กรุณาตรวจสอบสิทธิ์ไฟล์ PDF ใน Google Drive ให้เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู" และทำเครื่องหมายยืนยันก่อนกดส่ง');
       return;
     }
 
@@ -189,7 +189,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
           {/* New File Link */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              ลิงก์ไฟล์เอกสารฉบับแก้ไข (PDF หรือ Excel) <span className="text-rose-500">*</span>
+              ลิงก์ไฟล์แผนการสอนฉบับแก้ไข (URL PDF บังคับ) <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -197,7 +197,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
                 required
                 value={fileUrl}
                 onChange={(e) => setFileUrl(e.target.value)}
-                placeholder="https://drive.google.com/... หรือ ลิงก์ตรง .pdf, .xlsx"
+                placeholder="https://drive.google.com/... หรือ .pdf"
                 className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
               />
             </div>

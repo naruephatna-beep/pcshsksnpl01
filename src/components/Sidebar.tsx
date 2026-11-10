@@ -55,12 +55,9 @@ interface SidebarProps {
   onOpenGoogleDriveConfig?: () => void;
   onOpenStaffStructure?: () => void;
   onOpenWorkflowManager?: () => void;
-  onOpenReviewerWorkload?: () => void;
   assignedToMeCount?: number;
   onScrollToAssignments: () => void;
   onLogout: () => void;
-  canViewAllDocs?: boolean;
-  onOpenAllDocsPermission?: () => void;
   lastSyncTime?: string;
   isSyncing?: boolean;
   onManualSync?: () => void;
@@ -88,12 +85,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenGoogleDriveConfig,
   onOpenStaffStructure,
   onOpenWorkflowManager,
-  onOpenReviewerWorkload,
   assignedToMeCount = 0,
   onScrollToAssignments,
   onLogout,
-  canViewAllDocs = false,
-  onOpenAllDocsPermission,
   lastSyncTime,
   isSyncing,
   onManualSync,
@@ -209,18 +203,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <div className="space-y-1">
-            {/* งานที่ฉันต้องส่ง (แจ้งเตือนส่งงานจาก Admin / กำหนดส่ง) */}
+            {/* ภาระงานมอบหมาย (แจ้งเตือนส่งงานจาก Admin) */}
             <button
               onClick={() => {
                 setMainView('plans');
                 handleNavClick(onScrollToAssignments, 'assigned-documents-section');
               }}
-              title="รายการเอกสารและแผนการสอนที่ฉันต้องจัดส่งตามกำหนดของโรงเรียน"
               className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all group cursor-pointer"
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <Bell className="w-4 h-4 text-amber-400 shrink-0 group-hover:scale-105 transition-transform" />
-                <span className="truncate font-medium text-xs">งานที่ฉันต้องส่ง</span>
+                <span className="truncate font-medium text-xs">ภาระงานมอบหมาย</span>
               </div>
               {pendingAssignmentsCount > 0 ? (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 shrink-0">
@@ -234,7 +227,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
 
-            {/* เอกสารทั้งหมด / เอกสารของฉัน */}
+            {/* เอกสารทั้งหมด */}
             <button
               onClick={() =>
                 handleNavClick(() => {
@@ -259,33 +252,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
             </button>
 
-            {/* สำหรับครูทั่วไป: ดูเอกสารทั้งโรงเรียน (เฉพาะผู้ที่ได้รับอนุญาตจากแอดมิน) */}
-            {!isAdmin && canViewAllDocs && (
-              <button
-                onClick={() =>
-                  handleNavClick(() => {
-                    setMainView('plans');
-                    setViewTab('school_all');
-                  }, 'lesson-plans-section')
-                }
-                title="ดูเอกสารแผนการสอนและงานวิจัยของทั้งโรงเรียนแยกตามกลุ่มสาระ (ได้รับสิทธิ์)"
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
-                  mainView === 'plans' && viewTab === 'school_all'
-                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Layers className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0" />
-                  <span className="truncate text-xs">เอกสารทั้งโรงเรียน</span>
-                </div>
-                <span className="text-[11px] font-mono text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded shrink-0 border border-slate-700/60">
-                  {totalPlansCount}
-                </span>
-              </button>
-            )}
-
-            {/* เอกสารที่รอฉันตรวจ (Assigned for Review) */}
+            {/* งานที่มอบหมายให้ฉันตรวจ (Assigned for Review) */}
             <button
               onClick={() =>
                 handleNavClick(() => {
@@ -293,7 +260,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setViewTab('assigned_to_me');
                 }, 'lesson-plans-section')
               }
-              title="เอกสารของคณะครูที่ระบบหรือหัวหน้ามอบหมายให้ฉันเป็นผู้ตรวจ / ประเมิน"
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
                 mainView === 'plans' && viewTab === 'assigned_to_me'
                   ? 'bg-indigo-600/20 text-indigo-300 font-semibold border-l-2 border-indigo-400 shadow-2xs'
@@ -302,7 +268,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <UserCheck className="w-4 h-4 text-indigo-400 shrink-0" />
-                <span className="truncate text-xs">เอกสารที่รอฉันตรวจ</span>
+                <span className="truncate text-xs">งานที่มอบหมายให้ฉันตรวจ</span>
               </div>
               {assignedToMeCount > 0 ? (
                 <span className="text-[11px] font-mono font-bold text-slate-950 bg-amber-400 px-2 py-0.5 rounded-full shrink-0 shadow-xs">
@@ -379,14 +345,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Section 2: ฝ่ายบริหาร & การติดตาม (Analytics & Tracking) */}
+        {/* Section 2: ฝ่ายบริหาร & ผู้ดูแลระบบ (Admin Hub) */}
         {isAdmin && (
           <div>
-            <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span>การติดตาม & สถิติ (Analytics)</span>
+            <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-400/90 flex items-center gap-1.5">
+              <span>การบริหาร & ตรวจสอบ</span>
             </div>
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {/* แดชบอร์ดภาพรวมผู้บริหาร */}
               <button
                 onClick={() =>
@@ -395,38 +361,71 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     if (setExecutiveMode) setExecutiveMode('standard');
                   }, 'executive-dashboard-section')
                 }
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'standard'
                     ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <BarChart3 className="w-4 h-4 text-amber-400 shrink-0" />
                   <span className="truncate text-xs">แดชบอร์ดภาพรวมผู้บริหาร</span>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
+                  Stats
+                </span>
               </button>
 
-              {/* ภาระงานผู้ตรวจ (ใครตรวจกี่อัน) */}
-              {onOpenReviewerWorkload && (
-                <button
-                  onClick={() => handleNavClick(onOpenReviewerWorkload)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
-                  title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน: ใครตรวจไปกี่อัน และเหลืองานค้างกี่อัน"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate text-xs">ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
-                </button>
-              )}
+              {/* จัดอันดับกลุ่มสาระ (Leaderboard) */}
+              <button
+                onClick={() =>
+                  handleNavClick(() => {
+                    setMainView('executive');
+                    if (setExecutiveMode) setExecutiveMode('ranking');
+                  }, 'executive-dashboard-section')
+                }
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                  mainView === 'executive' && executiveMode === 'ranking'
+                    ? 'bg-amber-400/20 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="truncate text-xs">จัดอันดับกลุ่มสาระ</span>
+                </div>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
+                  Rank #1
+                </span>
+              </button>
 
-              {/* ติดตามงานรายบุคคล */}
+              {/* วิเคราะห์ Data-Driven Org (DDO) */}
+              <button
+                onClick={() =>
+                  handleNavClick(() => {
+                    setMainView('executive');
+                    if (setExecutiveMode) setExecutiveMode('ddo');
+                  }, 'executive-dashboard-section')
+                }
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                  mainView === 'executive' && executiveMode === 'ddo'
+                    ? 'bg-indigo-500/20 text-indigo-300 font-semibold border-l-2 border-indigo-400 shadow-2xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <BrainCircuit className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span className="truncate text-xs">วิเคราะห์ Data-Driven Org</span>
+                </div>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500 text-white shadow-2xs">
+                  DDO
+                </span>
+              </button>
+
+              {/* ศูนย์ติดตามงานรายบุคคล */}
               <button
                 onClick={() => handleNavClick(() => onOpenAdminTrackerModal('table'))}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <ClipboardList className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
@@ -435,90 +434,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
 
-              {/* สรุปจำแนกประเภทเอกสาร */}
+              {/* จำแนกประเภทเอกสารรายคน */}
               <button
                 onClick={() => handleNavClick(() => onOpenAdminTrackerModal('breakdown'))}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Layers className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
-                  <span className="truncate text-xs">สรุปจำแนกประเภทเอกสาร</span>
+                  <Layers className="w-4 h-4 text-amber-400 shrink-0 transition-colors" />
+                  <span className="truncate text-xs">สรุปประเภทเอกสารรายคน</span>
+                </div>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  Breakdown
+                </span>
+              </button>
+
+              {/* กำหนดส่ง & จัดการสถานะ */}
+              <button
+                onClick={() => handleNavClick(onOpenDeadlineManager)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Calendar className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
+                  <span className="truncate text-xs">กำหนดส่ง & จัดการสถานะ</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
 
-              {/* จัดอันดับกลุ่มสาระ */}
-              <button
-                onClick={() =>
-                  handleNavClick(() => {
-                    setMainView('executive');
-                    if (setExecutiveMode) setExecutiveMode('ranking');
-                  }, 'executive-dashboard-section')
-                }
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
-                  mainView === 'executive' && executiveMode === 'ranking'
-                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Trophy className="w-4 h-4 text-amber-400/80 shrink-0" />
-                  <span className="truncate text-xs">จัดอันดับกลุ่มสาระ</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
-              </button>
-
-              {/* วิเคราะห์ Data-Driven Org */}
-              <button
-                onClick={() =>
-                  handleNavClick(() => {
-                    setMainView('executive');
-                    if (setExecutiveMode) setExecutiveMode('ddo');
-                  }, 'executive-dashboard-section')
-                }
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
-                  mainView === 'executive' && executiveMode === 'ddo'
-                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <BrainCircuit className="w-4 h-4 text-indigo-400 shrink-0" />
-                  <span className="truncate text-xs">วิเคราะห์ Data-Driven Org</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Section 3: การตั้งค่าระบบ (System Configuration) */}
-        {isAdmin && (
-          <div>
-            <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span>การตั้งค่าระบบ (Settings)</span>
-            </div>
-
-            <div className="space-y-0.5">
-              {/* สายงานอนุมัติ & ผู้ตรวจ */}
-              {onOpenWorkflowManager && (
-                <button
-                  onClick={() => handleNavClick(onOpenWorkflowManager)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Workflow className="w-4 h-4 text-indigo-400 shrink-0" />
-                    <span className="truncate text-xs">สายงานอนุมัติ & ผู้ตรวจ</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
-                </button>
-              )}
-
-              {/* โครงสร้างสาขา & กลุ่มสาระ */}
+              {/* โครงสร้างสาขา & หัวหน้าสาขา */}
               {onOpenStaffStructure && (
                 <button
                   onClick={() => handleNavClick(onOpenStaffStructure)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
@@ -528,22 +474,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               )}
 
-              {/* กำหนดส่ง & จัดการสถานะ */}
-              <button
-                onClick={() => handleNavClick(onOpenDeadlineManager)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Calendar className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
-                  <span className="truncate text-xs">กำหนดส่ง & จัดการสถานะ</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
-              </button>
+              {/* สายงานอนุมัติ & ผู้ตรวจ */}
+              {onOpenWorkflowManager && (
+                <button
+                  onClick={() => handleNavClick(onOpenWorkflowManager)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Workflow className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span className="truncate text-xs">สายงานอนุมัติ & ผู้ตรวจ (Stages)</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                    Workflow
+                  </span>
+                </button>
+              )}
 
-              {/* ทำเนียบบุคลากร */}
+              {/* สมุดรายชื่อบุคลากร */}
               <button
                 onClick={() => handleNavClick(onOpenDirectoryModal)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Users className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
@@ -552,31 +502,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
 
-              {/* สิทธิ์ดูเอกสารทั้งหมด */}
-              {onOpenAllDocsPermission && (
-                <button
-                  onClick={() => handleNavClick(onOpenAllDocsPermission)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate text-xs">สิทธิ์ดูเอกสารทั้งโรงเรียน</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
-                </button>
-              )}
-
               {/* ตั้งค่า Google Drive อัตโนมัติ */}
               {onOpenGoogleDriveConfig && (
                 <button
                   onClick={() => handleNavClick(onOpenGoogleDriveConfig)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-emerald-300 hover:text-white bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all cursor-pointer group font-medium"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate text-xs">ตั้งค่า Google Drive</span>
+                    <span className="truncate text-xs">ตั้งค่า Google Drive (Auto)</span>
                   </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-mono">
+                    Drive
+                  </span>
                 </button>
               )}
             </div>

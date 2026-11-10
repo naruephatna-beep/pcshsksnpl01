@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   PlanTypeDeadlineConfig,
   PlanStatusConfig,
@@ -7,12 +7,8 @@ import {
   Teacher,
   DynamicFormField,
   isTeacherAdmin,
-  ReviewWorkflowConfig,
-  DepartmentConfig,
-  BranchConfig,
 } from '../types';
 import { DynamicFormBuilder } from './DynamicFormBuilder';
-import { WorkflowManagerModal } from './WorkflowManagerModal';
 import {
   formatThaiDateTime,
   formatDeadlineRange,
@@ -64,9 +60,6 @@ import {
   UserCheck,
   ChevronDown,
   ChevronUp,
-  Workflow,
-  ClipboardList,
-  Table as TableIcon,
 } from 'lucide-react';
 import {
   sendAcademicEmailOneClick,
@@ -87,13 +80,6 @@ interface DeadlineManagerModalProps {
   isSupabaseConnected?: boolean;
   currentTeacher?: Teacher | null;
   teachers?: Teacher[];
-  workflows?: ReviewWorkflowConfig[];
-  onUpdateWorkflows?: (workflows: ReviewWorkflowConfig[]) => void;
-  departments?: DepartmentConfig[];
-  branches?: BranchConfig[];
-  onUpdatePlans?: (plans: LessonPlan[]) => void;
-  onOpenAdminTrackerModal?: (mode: 'table' | 'breakdown') => void;
-  initialTab?: 'deadlines' | 'workflows' | 'plans' | 'statuses';
 }
 
 const COLOR_OPTIONS: { id: StatusColor; name: string; bg: string }[] = [
@@ -139,37 +125,23 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   isSupabaseConnected,
   currentTeacher,
   teachers = [],
-  workflows = [],
-  onUpdateWorkflows,
-  departments = [],
-  branches = [],
-  onUpdatePlans,
-  onOpenAdminTrackerModal,
-  initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<'deadlines' | 'workflows' | 'plans' | 'statuses'>(
-    initialTab || 'deadlines'
-  );
-
-  useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
-    }
-  }, [initialTab, isOpen]);
+  const [activeTab, setActiveTab] = useState<'deadlines' | 'statuses' | 'plans'>('deadlines');
 
   // Broadcast email state
   const [broadcastConfig, setBroadcastConfig] = useState<PlanTypeDeadlineConfig | null>(null);
+  const [broadcastCopied, setBroadcastCopied] = useState<boolean>(false);
   const [isBroadcastingEmail, setIsBroadcastingEmail] = useState<boolean>(false);
   const [broadcastSuccessMsg, setBroadcastSuccessMsg] = useState<string | null>(null);
-  const [broadcastProgress, setBroadcastProgress] = useState<{ sent: number; total: number } | null>(null);
 
-  // Teaching staff for email notifications (deduplicated with valid email addresses)
-  const teacherEmails = React.useMemo(() => {
-    const list = (teachers || [])
-      .map((t) => (t.Email || '').trim())
-      .filter((e) => e && e.includes('@'));
-    return Array.from(new Set(list));
+  // Teaching staff for email notifications
+  const teachingStaff = React.useMemo(() => {
+    return (teachers || []).filter((t) => !isTeacherAdmin(t));
   }, [teachers]);
+
+  const teacherEmails = React.useMemo(() => {
+    return teachingStaff.map((t) => t.Email).filter(Boolean);
+  }, [teachingStaff]);
 
   // Deadlines state
   const [deadlines, setDeadlines] = useState<PlanTypeDeadlineConfig[]>([...deadlineConfigs]);
@@ -496,8 +468,6 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       const nextList = [...deadlines, newItem];
       setTaskModal(null);
       await handleSaveDeadlines(nextList);
-      setBroadcastSuccessMsg(null);
-      setBroadcastProgress(null);
       setBroadcastConfig(newItem);
     } else {
       const nextList = deadlines.map((dl) => {
@@ -662,62 +632,51 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
             <div className="min-w-0">
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-white/20 backdrop-blur-md text-amber-100 border border-white/20 mb-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-200" />
-                <span>Admin Academic Hub</span>
+                <span>Admin Control</span>
               </div>
               <h2 className="text-base sm:text-xl font-bold tracking-tight text-white truncate">
-                ศูนย์จัดการภาระงาน & ตรวจเอกสาร
+                กำหนดช่วงเวลาส่ง & จัดการสถานะ
               </h2>
               <p className="text-[11px] sm:text-xs text-amber-100/90 mt-0.5 line-clamp-1">
-                กำหนดเวลาส่ง สายงานอนุมัติผู้ตรวจ ติดตามการส่งงาน และจัดการสถานะครบวงจร
+                กำหนดเวลาส่งของแต่ละประเภทเอกสาร และปรับแต่งสถานะทั้งหมดในระบบ
               </p>
             </div>
           </div>
 
-          {/* Navigation Tabs - 4 Core Categories */}
+          {/* Navigation Tabs */}
           <div className="flex items-center gap-1.5 sm:gap-2 mt-3 sm:mt-5 border-t border-white/20 pt-2.5 sm:pt-3 overflow-x-auto touch-scroll max-w-full">
             <button
               onClick={() => setActiveTab('deadlines')}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
                 activeTab === 'deadlines'
-                  ? 'bg-white text-slate-900 shadow-md ring-2 ring-white/40'
+                  ? 'bg-white text-slate-900 shadow-md'
                   : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>1. ภาระงาน & กำหนดส่ง ({deadlines.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('workflows')}
-              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
-                activeTab === 'workflows'
-                  ? 'bg-white text-slate-900 shadow-md ring-2 ring-white/40'
-                  : 'bg-white/15 text-white hover:bg-white/25'
-              }`}
-            >
-              <Workflow className="w-3.5 h-3.5" />
-              <span>2. สายงานอนุมัติ & ผู้ตรวจ</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('plans')}
-              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
-                activeTab === 'plans'
-                  ? 'bg-white text-slate-900 shadow-md ring-2 ring-white/40'
-                  : 'bg-white/15 text-white hover:bg-white/25'
-              }`}
-            >
-              <ClipboardList className="w-3.5 h-3.5" />
-              <span>3. ติดตามการส่งงาน & ปรับสถานะ ({plans.length})</span>
+              <span>1. กำหนดช่วงเวลาส่ง ({deadlines.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('statuses')}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
                 activeTab === 'statuses'
-                  ? 'bg-white text-slate-900 shadow-md ring-2 ring-white/40'
+                  ? 'bg-white text-slate-900 shadow-md'
                   : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
               <Tag className="w-3.5 h-3.5" />
-              <span>4. จัดการสถานะทั้งหมด ({statuses.length})</span>
+              <span>2. สถานะทั้งหมด ({statuses.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('plans')}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer ${
+                activeTab === 'plans'
+                  ? 'bg-white text-slate-900 shadow-md'
+                  : 'bg-white/15 text-white hover:bg-white/25'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>3. ปรับสถานะแผน ({plans.length})</span>
             </button>
           </div>
         </div>
@@ -1246,26 +1205,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: REVIEW WORKFLOWS & REVIEWERS */}
-          {activeTab === 'workflows' && (
-            <div className="space-y-4 animate-in fade-in duration-150">
-              <WorkflowManagerModal
-                isOpen={true}
-                onClose={() => {}}
-                workflows={workflows || []}
-                onUpdateWorkflows={onUpdateWorkflows || (() => {})}
-                teachers={teachers}
-                departments={departments || []}
-                branches={branches || []}
-                plans={plans}
-                onUpdatePlans={onUpdatePlans || (() => {})}
-                deadlineConfigs={deadlines}
-                embedded={true}
-              />
-            </div>
-          )}
-
-          {/* TAB 4: STATUS CUSTOMIZATION */}
+          {/* TAB 2: STATUS CUSTOMIZATION */}
           {activeTab === 'statuses' && (
             <div className="space-y-6">
               <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1498,47 +1438,9 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: TRACKING & QUICK PLAN STATUS ADJUSTMENT */}
+          {/* TAB 3: QUICK PLAN STATUS ADJUSTMENT */}
           {activeTab === 'plans' && (
             <div className="space-y-4">
-              {/* Tracker Shortcuts Banner */}
-              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-4 sm:p-5 rounded-2xl text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md border border-slate-800">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
-                      <ClipboardList className="w-4 h-4 text-amber-400" />
-                      <span>ติดตามการส่งงาน & ปรับสถานะเอกสาร ({plans.length} ฉบับ)</span>
-                    </h4>
-                  </div>
-                  <p className="text-xs text-slate-300">
-                    ตรวจสอบความคืบหน้ารายบุคคล ปรับเปลี่ยนสถานะส่งช้า/อนุมัติ หรือเปิดตารางติดตามงานภาพรวมทั้งโรงเรียน
-                  </p>
-                </div>
-                {onOpenAdminTrackerModal && (
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => onOpenAdminTrackerModal('table')}
-                      className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
-                      title="เปิดตารางติดตามดูว่าใครยังไม่ส่งงานไหน"
-                    >
-                      <TableIcon className="w-3.5 h-3.5 text-amber-400" />
-                      <span>ตารางติดตามรายบุคคล</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenAdminTrackerModal('breakdown')}
-                      className="px-3.5 py-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
-                      title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสาร"
-                    >
-                      <Layers className="w-3.5 h-3.5 text-slate-950" />
-                      <span>สรุปแยกประเภทเอกสาร</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
                 {/* Search */}
                 <div className="relative flex-1">
@@ -1790,201 +1692,180 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
         </div>
       )}
 
-      {/* Notification Prompt Modal (Centered Pop-up) */}
+      {/* Broadcast Email Modal */}
       {broadcastConfig && (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 p-5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-400/20 flex items-center justify-center text-amber-400 border border-amber-400/30 shrink-0">
-                  <Mail className="w-6 h-6" />
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/75 p-3 sm:p-4 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
+            <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 p-4 sm:p-5 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400/20 flex items-center justify-center text-amber-400 border border-amber-400/30 shrink-0">
+                  <Mail className="w-5 h-5" />
                 </div>
-                <div>
-                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-[10px] font-bold tracking-wider uppercase">
-                    ✨ บันทึกภาระงานสำเร็จแล้ว
-                  </div>
-                  <h3 className="font-extrabold text-lg text-white mt-0.5 leading-tight">
-                    แจ้งเตือนครูในระบบหรือไม่?
+                <div className="min-w-0">
+                  <span className="text-[10px] uppercase font-bold text-amber-300 tracking-wider block">
+                    Email Broadcast Announcement
+                  </span>
+                  <h3 className="font-extrabold text-base truncate">
+                    ส่งอีเมลแจ้งเตือนภาระงานใหม่ให้ครูทุกคน
                   </h3>
                 </div>
               </div>
-              {!isBroadcastingEmail && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBroadcastConfig(null);
-                    setBroadcastSuccessMsg(null);
-                    setBroadcastProgress(null);
-                  }}
-                  className="p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 rounded-xl cursor-pointer transition-colors"
-                  title="ปิดหน้าต่าง (ไม่ส่งอีเมล)"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setBroadcastConfig(null)}
+                className="p-1.5 text-white/80 hover:text-white bg-white/10 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-5 sm:p-6 space-y-4">
-              <div className="text-center sm:text-left">
-                <p className="text-sm font-bold text-slate-800">
-                  ต้องการส่งอีเมลแจ้งเตือนภาระงานใหม่นี้ไปยังครูในระบบ (@pcshsksn.ac.th) หรือไม่?
-                </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  หากกด <span className="font-bold text-emerald-700">"ใช่, ส่งอีเมลแจ้งเตือนทันที"</span> ระบบจะส่งอีเมลแจ้งหัวข้อ กำหนดส่ง และลิงก์เข้าระบบไปยังครูทุกคน หากกด <span className="font-bold text-slate-700">"ไม่ต้องส่งอีเมล"</span> จะไม่มีการส่งอีเมลใดๆ
-                </p>
-              </div>
-
-              {/* Task Summary Card */}
-              <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl space-y-2 text-xs">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-amber-950 font-black text-sm">
-                    📌 {broadcastConfig.name}
-                  </span>
-                  <span className="font-mono bg-amber-200 text-amber-950 px-2 py-0.5 rounded text-[11px] font-bold shrink-0">
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
+              {/* Task summary */}
+              <div className="p-3.5 bg-amber-50/70 border border-amber-300 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-amber-900 font-bold text-sm">{broadcastConfig.name}</span>
+                  <span className="font-mono bg-amber-200 px-2 py-0.5 rounded text-[10px] font-bold text-amber-950">
                     ภาค {broadcastConfig.semester}/{broadcastConfig.academic_year}
                   </span>
                 </div>
-                <div className="text-slate-700 flex items-center gap-1.5 font-medium">
-                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>
-                    กำหนดส่ง: <strong className="text-slate-900 font-bold">{formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`)}</strong>
-                  </span>
-                </div>
-                {broadcastConfig.description && (
-                  <div className="text-slate-600 bg-white/70 p-2.5 rounded-xl text-[11px] border border-amber-100">
-                    <span className="font-bold text-slate-700">รายละเอียด:</span> {broadcastConfig.description}
-                  </div>
-                )}
-                <div className="text-slate-700 flex items-center gap-1.5 pt-1 border-t border-amber-200/60 text-[11px]">
-                  <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>
-                    ผู้รับแจ้งเตือน: <strong className="text-emerald-700 font-bold">{teacherEmails.length} ท่าน</strong> ในระบบ
-                  </span>
+                <div className="text-slate-600 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>กำหนดส่ง: <strong className="text-slate-800">{formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`)}</strong></span>
                 </div>
               </div>
 
-              {/* Progress while sending */}
-              {isBroadcastingEmail && (
-                <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-center text-xs animate-in fade-in">
-                  <Loader2 className="w-6 h-6 animate-spin text-sky-600" />
-                  <span className="font-bold text-sky-950 text-sm">
-                    กำลังจัดส่งอีเมลแจ้งเตือนคุณครู {broadcastProgress ? `(${broadcastProgress.sent}/${broadcastProgress.total} ท่าน)` : ''}...
-                  </span>
-                  <p className="text-[11px] text-sky-700">กำลังส่งผ่านบัญชีทางการฝ่ายบริหารวิชาการ โปรดรอสักครู่</p>
+              {/* Recipients info */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-slate-700 block">ผู้รับอีเมล:</span>
+                  <span className="text-slate-500 text-[11px]">ครูผู้สอนทั้งหมด {teacherEmails.length} ท่าน (@pcshsksn.ac.th)</span>
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(teacherEmails.join(', '));
+                    setBroadcastCopied(true);
+                    setTimeout(() => setBroadcastCopied(false), 2000);
+                  }}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  {broadcastCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                  <span>คัดลอกอีเมล {teacherEmails.length} รายการ</span>
+                </button>
+              </div>
 
-              {/* Success Banner */}
-              {broadcastSuccessMsg && (
-                <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl flex items-center gap-3 text-emerald-900 text-xs font-bold animate-in fade-in">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
-                  <div>
-                    <div>{broadcastSuccessMsg}</div>
-                    <div className="text-[11px] text-emerald-700 font-normal mt-0.5">หน้าต่างจะปิดลงอัตโนมัติ</div>
+              {/* Message preview */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  ตัวอย่างข้อความแจ้งเตือนทางอีเมล:
+                </label>
+                <div className="bg-slate-900 text-slate-100 p-3.5 rounded-2xl font-sans text-xs leading-relaxed space-y-2 select-all border border-slate-800">
+                  <div className="text-amber-300 font-bold border-b border-slate-800 pb-1">
+                    หัวข้อ: [แจ้งภาระงานใหม่] {broadcastConfig.name} - กำหนดส่ง {formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`)} (จ.ภ. กาฬสินธุ์)
                   </div>
+                  <p>เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
+                  <p>ฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งเอกสารวิชาการออนไลน์:</p>
+                  <p className="text-amber-200">
+                    📌 ภาระงาน: {broadcastConfig.name}<br />
+                    📅 ภาคเรียนที่ {broadcastConfig.semester} ปีการศึกษา {broadcastConfig.academic_year}<br />
+                    ⏰ กำหนดส่ง: {formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`)}
+                    {broadcastConfig.description ? <><br />📝 รายละเอียด: {broadcastConfig.description}</> : null}
+                    {broadcastConfig.sample_url ? <><br />📎 เอกสารตัวอย่าง: {broadcastConfig.sample_url}</> : null}
+                  </p>
+                  <p>🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: {typeof window !== 'undefined' ? window.location.origin : ''}</p>
+                  <p className="text-slate-400 text-[11px] pt-1 border-t border-slate-800">
+                    จึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา<br />
+                    กลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+                  </p>
+                </div>
+              </div>
+
+              {broadcastSuccessMsg && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-900 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>{broadcastSuccessMsg}</span>
                 </div>
               )}
             </div>
 
-            {/* Modal Actions */}
-            <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5">
-              {!broadcastSuccessMsg ? (
-                <>
-                  {/* ปุ่ม "ไม่ต้องส่งอีเมล" */}
-                  <button
-                    type="button"
-                    disabled={isBroadcastingEmail}
-                    onClick={() => {
-                      setBroadcastConfig(null);
-                      setBroadcastSuccessMsg(null);
-                      setBroadcastProgress(null);
-                    }}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    ✕ ไม่ต้องส่งอีเมล
-                  </button>
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setBroadcastConfig(null)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-bold cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
 
-                  {/* ปุ่ม "ใช่, ส่งอีเมลแจ้งเตือนทันที" */}
-                  <button
-                    type="button"
-                    disabled={isBroadcastingEmail || teacherEmails.length === 0}
-                    onClick={async () => {
-                      if (!broadcastConfig) return;
-                      setIsBroadcastingEmail(true);
-                      setBroadcastSuccessMsg(null);
-                      setBroadcastProgress({ sent: 0, total: teacherEmails.length });
-
-                      const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
-                      const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
-                      const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งเอกสารวิชาการออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${typeof window !== 'undefined' ? window.location.origin : ''}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
-                      const html = `<!DOCTYPE html><html><body><div style="font-family: sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;"><h2 style="color: #0b1329; border-bottom: 2px solid #f59e0b; padding-bottom: 8px;">📢 มอบหมายภาระงานใหม่ ฝ่ายวิชาการ จ.ภ. กาฬสินธุ์</h2><p>เรียน คุณครูทุกท่าน</p><p>ฝ่ายบริหารวิชาการขอแจ้งมอบหมายภาระงานในระบบส่งเอกสารวิชาการออนไลน์ ดังนี้:</p><div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 15px 0;"><strong>📌 ภาระงาน:</strong> ${broadcastConfig.name}<br/><strong>📅 ภาคเรียน/ปีการศึกษา:</strong> ภาคเรียนที่ ${broadcastConfig.semester}/${broadcastConfig.academic_year}<br/><strong>⏰ กำหนดส่ง:</strong> <span style="color: #dc2626; font-weight: bold;">${deadlineFormatted}</span><br/>${broadcastConfig.description ? `<strong>📝 รายละเอียด:</strong> ${broadcastConfig.description}<br/>` : ''}${broadcastConfig.sample_url ? `<a href="${broadcastConfig.sample_url}" style="color: #2563eb;">📎 ดูตัวอย่างเอกสาร</a>` : ''}</div><p><a href="${typeof window !== 'undefined' ? window.location.origin : ''}" style="display: inline-block; background-color: #0b1329; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold;">🔗 เข้าสู่ระบบส่งงานวิชาการ</a></p><hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;"/><p style="font-size: 12px; color: #64748b;">กลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p></div></body></html>`;
-
-                      let sentCount = 0;
-                      const chunkSize = 4;
-                      for (let i = 0; i < teacherEmails.length; i += chunkSize) {
-                        const chunk = teacherEmails.slice(i, i + chunkSize);
-                        const results = await Promise.allSettled(
-                          chunk.map((email) =>
-                            sendAcademicEmailOneClick({
-                              to: email,
-                              subject,
-                              htmlBody: html,
-                              body,
-                              senderName: ACADEMIC_SENDER_NAME,
-                            })
-                          )
-                        );
-                        for (const r of results) {
-                          if (r.status === 'fulfilled' && r.value.success) {
-                            sentCount++;
-                          }
-                        }
-                        setBroadcastProgress({ sent: Math.min(i + chunkSize, teacherEmails.length), total: teacherEmails.length });
-                      }
-
-                      setIsBroadcastingEmail(false);
-                      if (sentCount > 0) {
-                        setBroadcastSuccessMsg(`⚡ ส่งอีเมลแจ้งเตือนถึงคุณครูสำเร็จ ${sentCount} จาก ${teacherEmails.length} ท่านเรียบร้อยแล้ว`);
-                      } else {
-                        setBroadcastSuccessMsg(`⚠️ บันทึกภาระงานสำเร็จ แต่ไม่สามารถส่งอีเมลได้ (โปรดตรวจสอบการเชื่อมต่อ Webhook)`);
-                      }
-
-                      setTimeout(() => {
-                        setBroadcastSuccessMsg(null);
-                        setBroadcastConfig(null);
-                        setBroadcastProgress(null);
-                      }, 2500);
-                    }}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {isBroadcastingEmail ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>กำลังส่งอีเมลแจ้งเตือน...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 text-white" />
-                        <span>ใช่, ส่งอีเมลแจ้งเตือนทันที ({teacherEmails.length} ท่าน)</span>
-                      </>
-                    )}
-                  </button>
-                </>
-              ) : (
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
-                    setBroadcastConfig(null);
-                    setBroadcastSuccessMsg(null);
-                    setBroadcastProgress(null);
+                    const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
+                    const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
+                    const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งเอกสารวิชาการออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+                    navigator.clipboard.writeText(body);
+                    setBroadcastCopied(true);
+                    setTimeout(() => setBroadcastCopied(false), 2000);
                   }}
-                  className="px-5 py-2.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl font-bold text-xs cursor-pointer"
+                  className="px-3 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-xs"
                 >
-                  ปิดหน้าต่าง
+                  <Copy className="w-3.5 h-3.5 text-slate-500" />
+                  <span>คัดลอกข้อความ</span>
                 </button>
-              )}
+
+                {/* 1-Click Direct Academic Broadcast Button */}
+                <button
+                  type="button"
+                  disabled={isBroadcastingEmail}
+                  onClick={async () => {
+                    if (!broadcastConfig) return;
+                    setIsBroadcastingEmail(true);
+                    setBroadcastSuccessMsg(null);
+                    const deadlineFormatted = formatThaiDateTime(`${broadcastConfig.end_date} ${broadcastConfig.end_time || '23:59'}`);
+                    const subject = `[แจ้งภาระงานใหม่] ${broadcastConfig.name} - กำหนดส่ง ${deadlineFormatted} (จ.ภ. กาฬสินธุ์)`;
+                    const body = `เรียน คุณครูทุกท่าน โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์\n\nฝ่ายบริหารงานวิชาการขอแจ้งมอบหมายภาระงานและกำหนดส่งเอกสารใหม่ในระบบส่งเอกสารวิชาการออนไลน์:\n\n📌 ภาระงาน: ${broadcastConfig.name}\n📅 ภาคเรียนที่ ${broadcastConfig.semester} ปีการศึกษา ${broadcastConfig.academic_year}\n⏰ กำหนดส่ง: ${deadlineFormatted}\n${broadcastConfig.description ? `📝 รายละเอียด: ${broadcastConfig.description}\n` : ''}${broadcastConfig.sample_url ? `📎 เอกสารตัวอย่าง: ${broadcastConfig.sample_url}\n` : ''}\n🔗 เข้าสู่ระบบเพื่อดำเนินการส่งเอกสาร: ${window.location.origin}\n\nจึงเรียนมาเพื่อโปรดทราบและดำเนินการตามกำหนดเวลา\nกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์`;
+                    const html = `<!DOCTYPE html><html><body><div style="font-family: sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;"><h2 style="color: #0b1329; border-bottom: 2px solid #f59e0b; padding-bottom: 8px;">📢 มอบหมายภาระงานใหม่ ฝ่ายวิชาการ จ.ภ. กาฬสินธุ์</h2><p>เรียน คุณครูทุกท่าน</p><p>ฝ่ายบริหารวิชาการขอแจ้งมอบหมายภาระงานในระบบส่งเอกสารวิชาการออนไลน์ ดังนี้:</p><div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 15px 0;"><strong>📌 ภาระงาน:</strong> ${broadcastConfig.name}<br/><strong>📅 ภาคเรียน/ปีการศึกษา:</strong> ภาคเรียนที่ ${broadcastConfig.semester}/${broadcastConfig.academic_year}<br/><strong>⏰ กำหนดส่ง:</strong> <span style="color: #dc2626; font-weight: bold;">${deadlineFormatted}</span><br/>${broadcastConfig.description ? `<strong>📝 รายละเอียด:</strong> ${broadcastConfig.description}<br/>` : ''}${broadcastConfig.sample_url ? `<a href="${broadcastConfig.sample_url}" style="color: #2563eb;">📎 ดูตัวอย่างเอกสาร</a>` : ''}</div><p><a href="${window.location.origin}" style="display: inline-block; background-color: #0b1329; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold;">🔗 เข้าสู่ระบบส่งงานวิชาการ</a></p><hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;"/><p style="font-size: 12px; color: #64748b;">กลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p></div></body></html>`;
+
+                    let sentCount = 0;
+                    for (const email of teacherEmails) {
+                      try {
+                        const res = await sendAcademicEmailOneClick({
+                          to: email,
+                          subject,
+                          htmlBody: html,
+                          body,
+                          senderName: ACADEMIC_SENDER_NAME,
+                        });
+                        if (res.success) sentCount++;
+                      } catch {
+                        // continue
+                      }
+                    }
+
+                    setIsBroadcastingEmail(false);
+                    if (sentCount > 0) {
+                      setBroadcastSuccessMsg(`⚡ ส่งอีเมลแจ้งเตือนถึงครูสำเร็จ ${sentCount} จาก ${teacherEmails.length} ท่านจาก ${ACADEMIC_SENDER_EMAIL} (1 คลิก)!`);
+                    } else {
+                      setBroadcastSuccessMsg(`⚠️ ไม่สามารถส่งอีเมลได้ โปรดตรวจสอบการเชื่อมต่อ Webhook ของโรงเรียน`);
+                    }
+
+                    setTimeout(() => {
+                      setBroadcastSuccessMsg(null);
+                      setBroadcastConfig(null);
+                    }, 4000);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer text-xs disabled:opacity-50"
+                >
+                  {isBroadcastingEmail ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  ) : (
+                    <Zap className="w-4 h-4 text-slate-950" />
+                  )}
+                  <span>{isBroadcastingEmail ? 'กำลังส่งเมลถึงทุกคน...' : `⚡ ส่งอีเมลแจ้งครูทุกคนทันที (${teacherEmails.length} ท่าน - 1 คลิก)`}</span>
+                </button>
+
+              </div>
             </div>
           </div>
         </div>

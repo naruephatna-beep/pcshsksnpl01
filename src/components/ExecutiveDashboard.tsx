@@ -60,7 +60,6 @@ interface ExecutiveDashboardProps {
   onOpenPlan?: (plan: LessonPlan) => void;
   onOpenDeadlineManager?: () => void;
   onOpenDirectoryModal?: () => void;
-  onOpenReviewerWorkload?: () => void;
 }
 
 export interface DocTypeColorConfig {
@@ -170,7 +169,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   onOpenPlan,
   onOpenDeadlineManager,
   onOpenDirectoryModal,
-  onOpenReviewerWorkload,
 }) => {
   // Mode switcher: standard overview vs ranking vs DDO
   const [currentMode, setCurrentMode] = useState<'standard' | 'ranking' | 'ddo'>(executiveMode);
@@ -609,19 +607,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <span>พิมพ์สรุปรายบุคคล</span>
             </button>
 
-            {/* Primary Action 3: Reviewer Workload Audit */}
-            {onOpenReviewerWorkload && (
-              <button
-                type="button"
-                onClick={onOpenReviewerWorkload}
-                className="h-8.5 px-3 bg-indigo-500/30 hover:bg-indigo-500/40 text-white rounded-xl text-xs font-bold border border-indigo-400/40 shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0 backdrop-blur-xs"
-                title="ตรวจสอบว่าใครตรวจงานไปกี่ฉบับ และมีงานรอตรวจกี่รายการ"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span>👥 ภาระงานผู้ตรวจ</span>
-              </button>
-            )}
-
             {/* Secondary Actions Dropdown */}
             <div className="relative">
               <button
@@ -691,23 +676,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                         <div>
                           <div className="font-bold text-xs text-slate-900">ทำเนียบบุคลากร ({totalTeachersCount} ท่าน)</div>
                           <div className="text-[10px] text-slate-400">รายชื่อครูและกลุ่มสาระทั้งหมด</div>
-                        </div>
-                      </button>
-                    )}
-
-                    {onOpenReviewerWorkload && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenReviewerWorkload();
-                          setIsSecondaryMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-slate-900"
-                      >
-                        <UserCheck className="w-4 h-4 text-indigo-600 shrink-0" />
-                        <div>
-                          <div className="font-bold text-xs text-slate-900">ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</div>
-                          <div className="text-[10px] text-slate-400">ตรวจสอบยอดตรวจจริงและคิวงานค้าง</div>
                         </div>
                       </button>
                     )}
