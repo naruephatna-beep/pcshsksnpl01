@@ -3958,6 +3958,12 @@ export default function App() {
           isSupabaseConnected={isSupabaseConnected}
           currentTeacher={currentTeacher}
           teachers={teachers}
+          workflows={workflows}
+          onUpdateWorkflows={(updated) => setWorkflows(updated)}
+          departments={departments}
+          branches={branches}
+          onUpdatePlans={(updated) => setPlans(updated)}
+          onOpenAdminTrackerModal={handleOpenAdminTracker}
         />
       )}
 

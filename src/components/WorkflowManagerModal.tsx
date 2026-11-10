@@ -64,6 +64,7 @@ interface WorkflowManagerModalProps {
   plans: LessonPlan[];
   onUpdatePlans: (plans: LessonPlan[]) => void;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
+  embedded?: boolean;
 }
 
 export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
@@ -77,32 +78,42 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
   plans,
   onUpdatePlans,
   deadlineConfigs,
+  embedded = false,
 }) => {
   // 1. Gather all ACTUAL document types registered in the school system
   const actualDocumentTypes = useMemo(() => {
     const list: string[] = [];
     const addIfNew = (name?: string) => {
       const clean = name?.trim();
-      if (clean && !list.includes(clean)) {
+      if (!clean) return;
+      // Do not include generic placeholder 'เอกสารทั่วไป' (ไม่ใช่ประเภทเอกสารจริงของโรงเรียน)
+      if (clean === 'เอกสารทั่วไป' || clean.toLowerCase() === 'general') return;
+      if (!list.includes(clean)) {
         list.push(clean);
       }
     };
 
-    // Standard school core document types
-    addIfNew('แผนการจัดการเรียนรู้ฉบับย่อ');
-    addIfNew('แผนการจัดการเรียนรู้ฉบับสมบูรณ์');
-    addIfNew('รายงานการวิจัยในชั้นเรียน (CAR)');
-    addIfNew('เอกสารทั่วไป');
-
-    // From active/registered deadline configs in school database
+    // 1. Prioritize active tasks from school deadline configurations (ภาระงานจริงที่โรงเรียนตั้งค่าไว้)
     if (deadlineConfigs && deadlineConfigs.length > 0) {
-      deadlineConfigs.forEach((d) => addIfNew(d.name));
+      deadlineConfigs
+        .filter((d) => d.is_active !== false)
+        .forEach((d) => addIfNew(d.name));
     }
 
-    // From actual submitted plans in system
+    // 2. Ensure core academic categories exist only if not already represented in active deadlines
+    const hasSummary = list.some((t) => t.includes('ย่อ'));
+    if (!hasSummary) addIfNew('แผนการจัดการเรียนรู้ฉบับย่อ');
+
+    const hasFull = list.some((t) => t.includes('สมบูรณ์'));
+    if (!hasFull) addIfNew('แผนการจัดการเรียนรู้ฉบับสมบูรณ์');
+
+    const hasResearch = list.some((t) => t.includes('วิจัย') || t.includes('CAR'));
+    if (!hasResearch) addIfNew('รายงานการวิจัยในชั้นเรียน (CAR)');
+
+    // 3. Add any other custom document types with actual teacher submissions
     if (plans && plans.length > 0) {
       plans.forEach((p) => {
-        if (p.plan_type && p.plan_type !== 'เอกสารทั่วไป') {
+        if (p.plan_type && p.plan_type !== 'เอกสารทั่วไป' && p.plan_type.toLowerCase() !== 'general') {
           addIfNew(p.plan_type);
         }
       });
@@ -113,8 +124,13 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
 
   // 2. Initialize workflows guaranteeing that EVERY actual document type has a dedicated workflow
   const initialWorkflows = useMemo(() => {
-    const baseList: ReviewWorkflowConfig[] =
+    const rawList: ReviewWorkflowConfig[] =
       workflows && workflows.length > 0 ? [...workflows] : [...DEFAULT_WORKFLOWS];
+
+    // Filter out dummy 'wf_general_plan' and 'เอกสารทั่วไป'
+    const baseList = rawList.filter(
+      (w) => w.id !== 'wf_general_plan' && w.plan_type !== 'เอกสารทั่วไป'
+    );
 
     actualDocumentTypes.forEach((docType) => {
       const exists = baseList.some(
@@ -211,10 +227,11 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
   const [isAddDocTypeModalOpen, setIsAddDocTypeModalOpen] = useState(false);
   const [newDocTypeName, setNewDocTypeName] = useState('');
 
-  // Simulation test: sample submitter
+  // Simulation test: sample submitter & collapsible toggle
   const [sampleSubmitterId, setSampleSubmitterId] = useState<string>(
     teachers[0]?.Teacher_ID || 'te028'
   );
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState<boolean>(false);
 
   // Auto-assign simulation / execution notice
   const [autoAssignResult, setAutoAssignResult] = useState<{
@@ -461,10 +478,10 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Header */}
+  const innerContent = (
+    <div className={`w-full bg-white flex flex-col ${embedded ? 'rounded-2xl border border-slate-200 shadow-2xs' : 'max-w-5xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh]'}`}>
+      {/* Header - Only when not embedded */}
+      {!embedded && (
         <div className="bg-[#0B1329] text-white p-5 sm:p-6 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-amber-400/20 shrink-0">
@@ -492,6 +509,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+      )}
 
         {/* Notice toast */}
         {toastNotice && (
@@ -507,133 +525,119 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
           </div>
         )}
 
-        {/* Primary Actual Document Types Navigation Bar (อิงตามประเภทเอกสารจริง) */}
-        <div className="bg-slate-100/90 border-b border-slate-200 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 overflow-x-auto shrink-0 select-none">
-          <div className="flex items-center gap-2 min-w-max">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1.5 shrink-0">
-              <FileCheck2 className="w-3.5 h-3.5 text-amber-600" />
-              <span>ประเภทเอกสารจริง:</span>
+        {/* Primary Actual Document Types Dropdown Bar (เลือกประเภทเอกสารแบบ Dropdown คลีน สบายตา) */}
+        <div className="bg-slate-100/90 border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 select-none">
+          <div className="flex items-center gap-3 flex-1 min-w-[280px] max-w-xl">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+              <FileCheck2 className="w-4 h-4 text-amber-600" />
+              <span>ประเภทเอกสาร:</span>
             </span>
 
-            {actualDocumentTypes.map((docType) => {
-              const isSelected = selectedDocType === docType;
-              const matchingWf = allWorkflows.find(
-                (w) =>
-                  w.plan_type === docType ||
-                  w.target_plan_types?.includes(docType) ||
-                  (docType.includes('ย่อ') && (w.id === 'wf_summary_plan' || w.plan_type?.includes('ย่อ'))) ||
-                  (docType.includes('สมบูรณ์') && (w.id === 'wf_full_plan' || w.plan_type?.includes('สมบูรณ์'))) ||
-                  ((docType.includes('วิจัย') || docType.includes('CAR')) && (w.id === 'wf_research_plan' || w.plan_type?.includes('วิจัย')))
-              );
-              const stageCount = matchingWf?.stages?.length || 2;
-              const docPlansCount = plans.filter((p) => (p.plan_type || '').trim() === docType).length;
+            {/* Dropdown Select */}
+            <div className="relative flex-1 min-w-0">
+              <select
+                value={selectedDocType}
+                onChange={(e) => {
+                  const docType = e.target.value;
+                  setSelectedDocType(docType);
+                  const matchingWf = allWorkflows.find(
+                    (w) =>
+                      w.plan_type === docType ||
+                      w.target_plan_types?.includes(docType) ||
+                      (docType.includes('ย่อ') && (w.id === 'wf_summary_plan' || w.plan_type?.includes('ย่อ'))) ||
+                      (docType.includes('สมบูรณ์') && (w.id === 'wf_full_plan' || w.plan_type?.includes('สมบูรณ์'))) ||
+                      ((docType.includes('วิจัย') || docType.includes('CAR')) && (w.id === 'wf_research_plan' || w.plan_type?.includes('วิจัย')))
+                  );
+                  setExpandedStageId(matchingWf?.stages?.[0]?.id || null);
+                }}
+                className="w-full pl-3.5 pr-9 py-2 bg-white border-2 border-slate-300 hover:border-amber-500 focus:border-amber-500 rounded-xl text-xs sm:text-sm font-extrabold text-slate-900 shadow-2xs focus:outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer appearance-none transition-colors truncate"
+              >
+                {actualDocumentTypes.map((docType) => {
+                  const matchingWf = allWorkflows.find(
+                    (w) =>
+                      w.plan_type === docType ||
+                      w.target_plan_types?.includes(docType) ||
+                      (docType.includes('ย่อ') && (w.id === 'wf_summary_plan' || w.plan_type?.includes('ย่อ'))) ||
+                      (docType.includes('สมบูรณ์') && (w.id === 'wf_full_plan' || w.plan_type?.includes('สมบูรณ์'))) ||
+                      ((docType.includes('วิจัย') || docType.includes('CAR')) && (w.id === 'wf_research_plan' || w.plan_type?.includes('วิจัย')))
+                  );
+                  const stageCount = matchingWf?.stages?.length || 2;
+                  const docPlansCount = plans.filter((p) => (p.plan_type || '').trim() === docType).length;
+                  const icon = docType.includes('ย่อ')
+                    ? '📘'
+                    : docType.includes('สมบูรณ์')
+                    ? '📗'
+                    : docType.includes('วิจัย') || docType.includes('CAR')
+                    ? '🔬'
+                    : '📄';
 
-              const isSummary = docType.includes('ย่อ');
-              const isFull = docType.includes('สมบูรณ์');
-              const isResearch = docType.includes('วิจัย') || docType.includes('CAR');
+                  return (
+                    <option key={docType} value={docType} className="py-1 text-slate-900">
+                      {icon} {docType} ({stageCount} ลำดับขั้น{docPlansCount > 0 ? ` • ส่งแล้ว ${docPlansCount} รายการ` : ''})
+                    </option>
+                  );
+                })}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
 
-              return (
-                <button
-                  key={docType}
-                  type="button"
-                  onClick={() => {
-                    setSelectedDocType(docType);
-                    setExpandedStageId(matchingWf?.stages?.[0]?.id || null);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs ${
-                    isSelected
-                      ? 'bg-[#0B1329] text-white shadow-sm ring-2 ring-amber-400/30'
-                      : 'bg-white text-slate-700 hover:bg-slate-200/80 border border-slate-200'
-                  }`}
-                >
-                  <span className="text-sm">
-                    {isSummary ? '📘' : isFull ? '📗' : isResearch ? '🔬' : '📄'}
-                  </span>
-                  <span>{docType}</span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
-                      isSelected ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    {stageCount} ขั้น
-                  </span>
-                  {docPlansCount > 0 && (
-                    <span
-                      className={`text-[9px] px-1 rounded ${
-                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                      }`}
-                      title={`มีเอกสารจริงในระบบ ${docPlansCount} รายการ`}
-                    >
-                      {docPlansCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setIsAddDocTypeModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-200 text-indigo-700 border border-indigo-200 flex items-center gap-1 transition-all cursor-pointer shrink-0"
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-200 text-indigo-700 border border-indigo-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95"
               title="เพิ่มประเภทเอกสารใหม่ของโรงเรียน"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>เพิ่มประเภทเอกสาร</span>
             </button>
-          </div>
 
-          <button
-            type="button"
-            onClick={handleResetToDefaults}
-            className="text-[11px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1 px-2.5 py-1 rounded-lg hover:bg-slate-200 transition-colors shrink-0 cursor-pointer"
-            title="รีเซ็ตสายงานเป็นค่ามาตรฐาน"
-          >
-            <RotateCcw className="w-3 h-3 text-slate-500" />
-            <span className="hidden sm:inline">รีเซ็ตค่ามาตรฐาน</span>
-          </button>
+            <button
+              type="button"
+              onClick={handleResetToDefaults}
+              className="text-[11px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1.5 px-2.5 py-2 rounded-xl hover:bg-slate-200 transition-colors shrink-0 cursor-pointer"
+              title="รีเซ็ตสายงานเป็นค่ามาตรฐาน"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline">รีเซ็ตค่ามาตรฐาน</span>
+            </button>
+          </div>
         </div>
 
-        {/* Active Document Type Overview Header */}
-        <div className="px-5 sm:px-6 py-3.5 bg-slate-50 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700 shrink-0">
-                สายงานสำหรับ: <strong className="text-amber-800">{selectedDocType}</strong>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 flex-1 max-w-md">
+        {/* Active Document Type Overview Header (กระชับ คลีน ไม่ซ้ำซ้อน) */}
+        <div className="px-5 sm:px-6 py-3 bg-white border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 min-w-0 flex-1">
+            <span className="text-xs font-bold text-slate-500 shrink-0">ชื่อสายงาน:</span>
+            <div className="flex-1 min-w-[200px] max-w-md">
               <input
                 type="text"
                 value={currentWorkflow.name}
                 onChange={(e) => updateCurrentWorkflow({ name: e.target.value })}
-                className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 w-full"
+                className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 w-full"
                 placeholder="ชื่อสายงานอนุมัติ"
               />
             </div>
-
-            <span className="text-xs text-slate-500 shrink-0">
-              (กำหนดตรวจ <strong>{stages.length}</strong> ลำดับขั้น)
-            </span>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-[11px]">
+                {stages.length} ลำดับขั้น
+              </span>
+              {plans.filter((p) => (p.plan_type || '').trim() === selectedDocType).length > 0 && (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 font-bold text-[11px]">
+                  เอกสารจริง {plans.filter((p) => (p.plan_type || '').trim() === selectedDocType).length} ฉบับ
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={handleAddStage}
-              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+              className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
             >
               <Plus className="w-4 h-4 text-amber-600" />
               <span>เพิ่มลำดับขั้นใหม่</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSaveAll}
-              className="px-4 py-1.5 bg-[#0B1329] hover:bg-slate-900 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-            >
-              <Check className="w-4 h-4" />
-              <span>บันทึกการตั้งค่า</span>
             </button>
           </div>
         </div>
@@ -699,79 +703,110 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
             </div>
           </div>
 
-          {/* 2. Live Routing Simulator Card (ทดสอบจำลองเส้นทางจริง) */}
-          <div className="bg-gradient-to-r from-amber-50/50 via-white to-amber-50/30 rounded-2xl p-4 sm:p-5 border border-amber-200/80 shadow-2xs space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-amber-600" />
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  จำลองเส้นทางตรวจจริง (Live Route Simulator)
-                </h4>
+          {/* 2. Collapsible Live Routing Simulator (พับเก็บได้ ไม่เกะกะสายตา) */}
+          <div className="bg-gradient-to-r from-amber-50/70 via-white to-amber-50/40 rounded-2xl border border-amber-200/90 shadow-2xs overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setIsSimulatorOpen(!isSimulatorOpen)}
+              className="w-full p-3 sm:p-4 flex items-center justify-between text-left hover:bg-amber-100/40 transition-colors cursor-pointer select-none"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0">
+                  <Target className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-slate-900 block">
+                    🧪 ทดสอบจำลองเส้นทางตรวจจริง (Live Route Simulator)
+                  </span>
+                  <span className="text-[11px] text-slate-500 block">
+                    คลิกเพื่อดูตัวอย่างว่าครูส่งงานแล้วจะถูกส่งไปยังผู้ตรวจท่านใด
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-semibold text-slate-600">สมมติครูผู้ส่งงาน:</label>
-                <select
-                  value={sampleSubmitterId}
-                  onChange={(e) => setSampleSubmitterId(e.target.value)}
-                  className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                >
-                  {teachers.map((t) => (
-                    <option key={t.Teacher_ID} value={t.Teacher_ID}>
-                      {t.Name} ({t.branch || t.Learning_Area || 'ไม่ระบุสาขา'})
-                    </option>
-                  ))}
-                </select>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-bold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg hidden sm:inline">
+                  {isSimulatorOpen ? '▲ ซ่อนการทดสอบ' : '▼ คลิกเพื่อทดสอบผู้ตรวจ'}
+                </span>
+                {isSimulatorOpen ? (
+                  <ChevronUp className="w-4 h-4 text-slate-600 sm:hidden" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-600 sm:hidden" />
+                )}
               </div>
-            </div>
+            </button>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-              {simulatedRoute.map((sim) => (
-                <div
-                  key={`sim-${sim.stageOrder}`}
-                  className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-1.5"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                      <span className="w-4 h-4 rounded-full bg-[#0B1329] text-amber-400 text-[10px] font-black flex items-center justify-center">
-                        {sim.stageOrder}
-                      </span>
-                      <span>ขั้นที่ {sim.stageOrder}</span>
-                    </span>
-                    <span
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-black ${
-                        sim.evaluationMode === 'approval_only'
-                          ? 'bg-sky-50 text-sky-800 border border-sky-200'
-                          : 'bg-purple-50 text-purple-800 border border-purple-200'
-                      }`}
+            {isSimulatorOpen && (
+              <div className="p-4 sm:p-5 border-t border-amber-200/80 bg-white/80 space-y-3 animate-in fade-in duration-150">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-700">
+                    เลือกจำลองครูผู้ส่งงานเพื่อดูเส้นทางผู้ตรวจ:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-slate-600">สมมติครูผู้ส่งงาน:</label>
+                    <select
+                      value={sampleSubmitterId}
+                      onChange={(e) => setSampleSubmitterId(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
                     >
-                      {sim.evaluationMode === 'approval_only' ? 'แบบกดอนุมัติ' : 'แบบเกณฑ์รูบริก'}
-                    </span>
-                  </div>
-
-                  <div className="text-xs text-slate-600 font-medium">
-                    {sim.candidates.length === 0 ? (
-                      <span className="text-rose-600 text-[11px] font-bold">
-                        ⚠️ ไม่พบผู้ตรวจที่ตรงเงื่อนไข (กรุณาตรวจสอบการแต่งตั้งหัวหน้า)
-                      </span>
-                    ) : (
-                      <div className="space-y-1">
-                        <span className="text-[11px] text-slate-500 block">ผู้รับเอกสารไปตรวจ:</span>
-                        {sim.candidates.map((c) => (
-                          <div
-                            key={c.Teacher_ID}
-                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-950 font-bold text-[11px] mr-1.5 mb-1 border border-amber-200/80"
-                          >
-                            <UserCheck className="w-3 h-3 text-amber-600" />
-                            <span>{c.Name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                      {teachers.map((t) => (
+                        <option key={t.Teacher_ID} value={t.Teacher_ID}>
+                          {t.Name} ({t.branch || t.Learning_Area || 'ไม่ระบุสาขา'})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                  {simulatedRoute.map((sim) => (
+                    <div
+                      key={`sim-${sim.stageOrder}`}
+                      className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-[#0B1329] text-amber-400 text-[10px] font-black flex items-center justify-center">
+                            {sim.stageOrder}
+                          </span>
+                          <span>ขั้นที่ {sim.stageOrder}</span>
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-black ${
+                            sim.evaluationMode === 'approval_only'
+                              ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                              : 'bg-purple-50 text-purple-800 border border-purple-200'
+                          }`}
+                        >
+                          {sim.evaluationMode === 'approval_only' ? 'แบบกดอนุมัติ' : 'แบบเกณฑ์รูบริก'}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-slate-600 font-medium">
+                        {sim.candidates.length === 0 ? (
+                          <span className="text-rose-600 text-[11px] font-bold">
+                            ⚠️ ไม่พบผู้ตรวจที่ตรงเงื่อนไข (กรุณาตรวจสอบการแต่งตั้งหัวหน้า)
+                          </span>
+                        ) : (
+                          <div className="space-y-1">
+                            <span className="text-[11px] text-slate-500 block">ผู้รับเอกสารไปตรวจ:</span>
+                            {sim.candidates.map((c) => (
+                              <div
+                                key={c.Teacher_ID}
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-950 font-bold text-[11px] mr-1.5 mb-1 border border-amber-200/80"
+                              >
+                                <UserCheck className="w-3 h-3 text-amber-600" />
+                                <span>{c.Name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Auto-assign distribution notification */}
@@ -1425,22 +1460,24 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
+        <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 shrink-0">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
               สายงานที่กำหนดจะถูกผูกเข้ากับเอกสารประเภท <strong>{selectedDocType}</strong> โดยอัตโนมัติทันทีเมื่อบันทึก
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              ปิดหน้าต่าง
-            </button>
+            {!embedded && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            )}
             <button
               type="button"
               onClick={handleSaveAll}
@@ -1451,6 +1488,17 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
           </div>
         </div>
       </div>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        innerContent
+      ) : (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-200">
+          {innerContent}
+        </div>
+      )}
 
       {/* Modal: Add New Actual Document Type */}
       {isAddDocTypeModalOpen && (
@@ -1469,7 +1517,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsAddDocTypeModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1495,7 +1543,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddDocTypeModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
                 >
                   ยกเลิก
                 </button>
@@ -1510,6 +1558,6 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
