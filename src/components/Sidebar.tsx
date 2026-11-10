@@ -58,6 +58,8 @@ interface SidebarProps {
   assignedToMeCount?: number;
   onScrollToAssignments: () => void;
   onLogout: () => void;
+  canViewAllDocs?: boolean;
+  onOpenAllDocsPermission?: () => void;
   lastSyncTime?: string;
   isSyncing?: boolean;
   onManualSync?: () => void;
@@ -88,6 +90,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   assignedToMeCount = 0,
   onScrollToAssignments,
   onLogout,
+  canViewAllDocs = false,
+  onOpenAllDocsPermission,
   lastSyncTime,
   isSyncing,
   onManualSync,
@@ -228,7 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
 
-            {/* เอกสารทั้งหมด */}
+            {/* เอกสารทั้งหมด / เอกสารของฉัน */}
             <button
               onClick={() =>
                 handleNavClick(() => {
@@ -252,6 +256,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {isAdmin ? totalPlansCount : myPlansCount}
               </span>
             </button>
+
+            {/* สำหรับครูทั่วไป: ดูเอกสารทั้งโรงเรียน (เฉพาะผู้ที่ได้รับอนุญาตจากแอดมิน) */}
+            {!isAdmin && canViewAllDocs && (
+              <button
+                onClick={() =>
+                  handleNavClick(() => {
+                    setMainView('plans');
+                    setViewTab('school_all');
+                  }, 'lesson-plans-section')
+                }
+                title="ดูเอกสารแผนการสอนและงานวิจัยของทั้งโรงเรียนแยกตามกลุ่มสาระ (ได้รับสิทธิ์)"
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                  mainView === 'plans' && viewTab === 'school_all'
+                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Layers className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0" />
+                  <span className="truncate text-xs">เอกสารทั้งโรงเรียน</span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded shrink-0 border border-slate-700/60">
+                  {totalPlansCount}
+                </span>
+              </button>
+            )}
 
             {/* เอกสารที่รอฉันตรวจ (Assigned for Review) */}
             <button
@@ -488,6 +518,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
                     Workflow
+                  </span>
+                </button>
+              )}
+
+              {/* สิทธิ์ดูเอกสารทั้งหมด */}
+              {onOpenAllDocsPermission && (
+                <button
+                  onClick={() => handleNavClick(onOpenAllDocsPermission)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="truncate text-xs">สิทธิ์ดูเอกสารทั้งหมด</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    Security
                   </span>
                 </button>
               )}

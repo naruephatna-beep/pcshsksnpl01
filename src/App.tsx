@@ -11,6 +11,9 @@ import {
   DepartmentConfig,
   BranchConfig,
   ReviewWorkflowConfig,
+  AllDocumentsAccessConfig,
+  DEFAULT_ALL_DOCS_ACCESS_CONFIG,
+  canTeacherViewAllDocuments,
 } from './types';
 import {
   fetchTeachers,
@@ -88,9 +91,11 @@ import {
   resolveReviewersForStage,
   isTeacherBranchHeadOfPlan,
   isTeacherDeptHeadOfPlan,
+  isTeacherInDept,
 } from './services/departmentWorkflowService';
 import { StaffStructureManagerModal } from './components/StaffStructureManagerModal';
 import { WorkflowManagerModal } from './components/WorkflowManagerModal';
+import { AllDocumentsPermissionModal } from './components/AllDocumentsPermissionModal';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
@@ -141,7 +146,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Filters & Views
-  const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision' | 'assigned_to_me'>('all');
+  const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision' | 'assigned_to_me' | 'school_all'>('all');
   const [mainView, setMainView] = useState<'plans' | 'executive'>('plans');
   const [executiveMode, setExecutiveMode] = useState<'standard' | 'ranking' | 'ddo'>('standard');
   const [planDisplayMode, setPlanDisplayMode] = useState<'board' | 'table'>('board');
@@ -152,6 +157,9 @@ export default function App() {
   const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
   const [assignedReviewSubTab, setAssignedReviewSubTab] = useState<'pending' | 'completed' | 'all'>('pending');
   const [isTeacherStatsOpen, setIsTeacherStatsOpen] = useState<boolean>(false);
+  const [groupByLearningArea, setGroupByLearningArea] = useState<boolean>(true);
+  const [collapsedAreas, setCollapsedAreas] = useState<Record<string, boolean>>({});
+  const [areaTypeFilters, setAreaTypeFilters] = useState<Record<string, string>>({});
 
   // Auto-switch to executive dashboard for leadership accounts
   useEffect(() => {
@@ -191,6 +199,28 @@ export default function App() {
   const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState(false);
   const [isStaffStructureModalOpen, setIsStaffStructureModalOpen] = useState(false);
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [isAllDocsPermissionModalOpen, setIsAllDocsPermissionModalOpen] = useState(false);
+  const [allDocsAccessConfig, setAllDocsAccessConfig] = useState<AllDocumentsAccessConfig>(() => {
+    try {
+      const raw = localStorage.getItem('school_all_docs_access_config');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return {
+            allow_all_teachers: Boolean(parsed.allow_all_teachers),
+            allow_dept_heads: Boolean(parsed.allow_dept_heads),
+            allow_branch_heads: Boolean(parsed.allow_branch_heads),
+            allowed_teacher_ids: Array.isArray(parsed.allowed_teacher_ids) ? parsed.allowed_teacher_ids : [],
+          };
+        }
+      }
+    } catch {}
+    return DEFAULT_ALL_DOCS_ACCESS_CONFIG;
+  });
+
+  const canViewAllDocs = useMemo(() => {
+    return canTeacherViewAllDocuments(currentTeacher, allDocsAccessConfig);
+  }, [currentTeacher, allDocsAccessConfig]);
   const [departments, setDepartments] = useState<DepartmentConfig[]>(() => getLocalDepartments());
   const [branches, setBranches] = useState<BranchConfig[]>(() => getLocalBranches());
   const [workflows, setWorkflows] = useState<ReviewWorkflowConfig[]>(() => getLocalWorkflows());
@@ -216,7 +246,7 @@ export default function App() {
     setIsSyncing(true);
     try {
       // Execute all database fetches and cloud deleted IDs sync concurrently in a single parallel batch
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes] = await Promise.all([
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes, allDocsAccessRes] = await Promise.all([
         fetchTeachers(),
         fetchPlans(currentTeacher),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
@@ -227,9 +257,17 @@ export default function App() {
         fetchSystemSetting<DepartmentConfig[]>('school_departments', getLocalDepartments()),
         fetchSystemSetting<BranchConfig[]>('school_branches', getLocalBranches()),
         fetchSystemSetting<ReviewWorkflowConfig[]>('review_workflows', getLocalWorkflows()),
+        fetchSystemSetting<AllDocumentsAccessConfig>('school_all_docs_access_config', DEFAULT_ALL_DOCS_ACCESS_CONFIG),
       ]);
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
+
+      if (allDocsAccessRes?.data && typeof allDocsAccessRes.data === 'object') {
+        setAllDocsAccessConfig(allDocsAccessRes.data);
+        try {
+          localStorage.setItem('school_all_docs_access_config', JSON.stringify(allDocsAccessRes.data));
+        } catch {}
+      }
 
       if (deptRes?.data && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
         setDepartments(deptRes.data);
@@ -1010,6 +1048,32 @@ export default function App() {
     }
   };
 
+  // Save All Documents access permissions (Admin)
+  const handleSaveAllDocsAccessConfig = async (newConfig: AllDocumentsAccessConfig) => {
+    setAllDocsAccessConfig(newConfig);
+    try {
+      localStorage.setItem('school_all_docs_access_config', JSON.stringify(newConfig));
+    } catch {}
+    const dbRes = await saveSystemSetting('school_all_docs_access_config', newConfig);
+    if (dbRes.success && dbRes.isSupabase) {
+      setToastNotice({
+        type: 'success',
+        message: 'บันทึกสิทธิ์การดูเอกสารทั้งหมดสำเร็จ!',
+        details: newConfig.allow_all_teachers
+          ? 'เปิดให้ครูทุกคนในโรงเรียนดูเอกสารทั้งหมดได้'
+          : `จำกัดสิทธิ์เฉพาะครู ${newConfig.allowed_teacher_ids.length} ท่าน (และผู้ดูแลระบบ)`,
+      });
+    } else {
+      setToastNotice({
+        type: 'success',
+        message: 'บันทึกการตั้งค่าสิทธิ์เรียบร้อยแล้ว',
+        details: newConfig.allow_all_teachers
+          ? 'เปิดให้ครูทุกคนดูเอกสารทั้งหมดในระบบได้'
+          : `อนุญาตเฉพาะครู ${newConfig.allowed_teacher_ids.length} ท่าน`,
+      });
+    }
+  };
+
   // Quick Change Plan Status (Admin)
   const handleQuickChangePlanStatus = async (
     planOrId: LessonPlan | string,
@@ -1118,6 +1182,13 @@ export default function App() {
       (currentTeacher.Pass === '12345' || currentTeacher.has_changed_password === false)
   );
   const isAdmin = isTeacherAdmin(currentTeacher);
+
+  // Prevent unauthorized teachers from accessing all school documents
+  useEffect(() => {
+    if (!isAdmin && !canViewAllDocs && viewTab === 'school_all') {
+      setViewTab('all');
+    }
+  }, [isAdmin, canViewAllDocs, viewTab]);
 
   const handleOpenSubmitForType = (planType: string) => {
     const targetConfig = (deadlineConfigs || []).find(
@@ -1503,7 +1574,7 @@ export default function App() {
       if (assignedReviewSubTab === 'completed') return assignedCompletedPlans;
       return allAssignedReviewPlans;
     }
-    if (isAdmin) {
+    if (isAdmin || (canViewAllDocs && viewTab === 'school_all')) {
       if (areaFilter) return plans.filter((p) => p.learning_area === areaFilter && p.status !== 'deleted');
       return plans.filter((p) => p.status !== 'deleted');
     }
@@ -1517,6 +1588,7 @@ export default function App() {
     assignedCompletedPlans,
     allAssignedReviewPlans,
     isAdmin,
+    canViewAllDocs,
     areaFilter,
     plans,
     currentTeacher,
@@ -1646,7 +1718,7 @@ export default function App() {
             return false;
           }
         }
-      } else if (!isAdmin) {
+      } else if (!isAdmin && (!canViewAllDocs || viewTab !== 'school_all')) {
         // Regular teacher's personal view
         const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, currentTeacher);
         if (!isOwner) {
@@ -1720,11 +1792,247 @@ export default function App() {
     teachers,
     departments,
     isAdmin,
+    canViewAllDocs,
     statusFilter,
     areaFilter,
     docTypeFilter,
     searchQuery,
   ]);
+
+  // Check if a plan can be reviewed by current teacher
+  const checkCanReviewPlan = (plan: LessonPlan): boolean => {
+    return (
+      isAdmin ||
+      viewTab === 'assigned_to_me' ||
+      isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
+      isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
+      (Boolean(currentTeacher) &&
+        (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
+          plan.assigned_reviewer_name === currentTeacher?.Name) &&
+        (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches) ||
+          isTeacherDeptHeadOfPlan(currentTeacher, plan, departments) ||
+          plan.teacher_id !== currentTeacher?.Teacher_ID))
+    );
+  };
+
+  // Visual Theme helper for each Learning Area
+  const getDeptTheme = (deptCode?: string, deptName?: string) => {
+    const name = (deptName || '').toLowerCase();
+    const code = (deptCode || '').toUpperCase();
+
+    if (code === 'SCI' || name.includes('วิทยาศาสตร์') || name.includes('เทคโนโลยี')) {
+      return {
+        bg: 'bg-sky-50 text-sky-900 border-sky-200',
+        badge: 'bg-sky-600 text-white',
+        border: 'border-sky-300',
+        accentBar: 'bg-sky-500',
+        gradient: 'from-sky-500/10 via-sky-50/40 to-white',
+        icon: '🧪',
+      };
+    }
+    if (code === 'MATH' || name.includes('คณิต')) {
+      return {
+        bg: 'bg-amber-50 text-amber-900 border-amber-200',
+        badge: 'bg-amber-600 text-white',
+        border: 'border-amber-300',
+        accentBar: 'bg-amber-500',
+        gradient: 'from-amber-500/10 via-amber-50/40 to-white',
+        icon: '📐',
+      };
+    }
+    if (code === 'THA' || name.includes('ไทย')) {
+      return {
+        bg: 'bg-rose-50 text-rose-900 border-rose-200',
+        badge: 'bg-rose-600 text-white',
+        border: 'border-rose-300',
+        accentBar: 'bg-rose-500',
+        gradient: 'from-rose-500/10 via-rose-50/40 to-white',
+        icon: '📖',
+      };
+    }
+    if (code === 'ENG' || name.includes('ต่างประเทศ') || name.includes('อังกฤษ')) {
+      return {
+        bg: 'bg-indigo-50 text-indigo-900 border-indigo-200',
+        badge: 'bg-indigo-600 text-white',
+        border: 'border-indigo-300',
+        accentBar: 'bg-indigo-500',
+        gradient: 'from-indigo-500/10 via-indigo-50/40 to-white',
+        icon: '🌐',
+      };
+    }
+    if (code === 'SOC' || name.includes('สังคม')) {
+      return {
+        bg: 'bg-emerald-50 text-emerald-900 border-emerald-200',
+        badge: 'bg-emerald-600 text-white',
+        border: 'border-emerald-300',
+        accentBar: 'bg-emerald-500',
+        gradient: 'from-emerald-500/10 via-emerald-50/40 to-white',
+        icon: '🏛️',
+      };
+    }
+    if (code === 'HPE' || name.includes('สุขศึกษา') || name.includes('พลศึกษา')) {
+      return {
+        bg: 'bg-orange-50 text-orange-900 border-orange-200',
+        badge: 'bg-orange-600 text-white',
+        border: 'border-orange-300',
+        accentBar: 'bg-orange-500',
+        gradient: 'from-orange-500/10 via-orange-50/40 to-white',
+        icon: '⚽',
+      };
+    }
+    if (code === 'ART' || name.includes('ศิลปะ')) {
+      return {
+        bg: 'bg-fuchsia-50 text-fuchsia-900 border-fuchsia-200',
+        badge: 'bg-fuchsia-600 text-white',
+        border: 'border-fuchsia-300',
+        accentBar: 'bg-fuchsia-500',
+        gradient: 'from-fuchsia-500/10 via-fuchsia-50/40 to-white',
+        icon: '🎨',
+      };
+    }
+    if (code === 'OCC' || name.includes('การงานอาชีพ')) {
+      return {
+        bg: 'bg-teal-50 text-teal-900 border-teal-200',
+        badge: 'bg-teal-600 text-white',
+        border: 'border-teal-300',
+        accentBar: 'bg-teal-500',
+        gradient: 'from-teal-500/10 via-teal-50/40 to-white',
+        icon: '🛠️',
+      };
+    }
+    if (code === 'ACT' || name.includes('กิจกรรม') || name.includes('แนะแนว')) {
+      return {
+        bg: 'bg-violet-50 text-violet-900 border-violet-200',
+        badge: 'bg-violet-600 text-white',
+        border: 'border-violet-300',
+        accentBar: 'bg-violet-500',
+        gradient: 'from-violet-500/10 via-violet-50/40 to-white',
+        icon: '🧭',
+      };
+    }
+    return {
+      bg: 'bg-slate-50 text-slate-900 border-slate-200',
+      badge: 'bg-slate-700 text-white',
+      border: 'border-slate-300',
+      accentBar: 'bg-slate-500',
+      gradient: 'from-slate-500/10 via-slate-50/40 to-white',
+      icon: '📁',
+    };
+  };
+
+  // Groups filtered plans by Learning Area with type counts breakdown
+  interface AreaGroup {
+    id: string;
+    name: string;
+    code: string;
+    color: string;
+    headName?: string;
+    plans: LessonPlan[];
+    typeCounts: {
+      all: number;
+      summary: number;
+      full: number;
+      research: number;
+      other: number;
+    };
+  }
+
+  const plansGroupedByArea = useMemo(() => {
+    const groups: AreaGroup[] = [];
+    const assignedPlanIds = new Set<string>();
+
+    departments.forEach((dept) => {
+      const deptPlans = filteredPlans.filter((p) => {
+        const pArea = (p.learning_area || '').trim();
+        if (pArea && isTeacherInDept(pArea, dept.name)) return true;
+        const planTeacher = teachers.find((t) => isSameTeacherIdOrName(p.teacher_id, p.teacher_name, t));
+        if (planTeacher?.Learning_Area && isTeacherInDept(planTeacher.Learning_Area, dept.name)) return true;
+        return false;
+      });
+
+      deptPlans.forEach((p) => assignedPlanIds.add(p.id));
+
+      if (deptPlans.length > 0) {
+        let summary = 0;
+        let full = 0;
+        let research = 0;
+        let other = 0;
+
+        deptPlans.forEach((p) => {
+          const typeMeta = classifyDocumentType(p.plan_type);
+          if (typeMeta.key === 'summary_plan') summary++;
+          else if (typeMeta.key === 'full_plan') full++;
+          else if (typeMeta.key === 'classroom_research') research++;
+          else other++;
+        });
+
+        groups.push({
+          id: dept.id,
+          name: dept.name,
+          code: dept.code || dept.name.slice(0, 3).toUpperCase(),
+          color: dept.color || '#4F46E5',
+          headName: dept.head_teacher_name,
+          plans: deptPlans,
+          typeCounts: {
+            all: deptPlans.length,
+            summary,
+            full,
+            research,
+            other,
+          },
+        });
+      }
+    });
+
+    // Unassigned / General plans
+    const unassignedPlans = filteredPlans.filter((p) => !assignedPlanIds.has(p.id));
+    if (unassignedPlans.length > 0) {
+      let summary = 0;
+      let full = 0;
+      let research = 0;
+      let other = 0;
+
+      unassignedPlans.forEach((p) => {
+        const typeMeta = classifyDocumentType(p.plan_type);
+        if (typeMeta.key === 'summary_plan') summary++;
+        else if (typeMeta.key === 'full_plan') full++;
+        else if (typeMeta.key === 'classroom_research') research++;
+        else other++;
+      });
+
+      groups.push({
+        id: 'dept_other',
+        name: 'กลุ่มสาระอื่นๆ / ไม่ระบุกลุ่มสาระ',
+        code: 'GEN',
+        color: '#64748B',
+        headName: 'งานวิชาการ',
+        plans: unassignedPlans,
+        typeCounts: {
+          all: unassignedPlans.length,
+          summary,
+          full,
+          research,
+          other,
+        },
+      });
+    }
+
+    return groups;
+  }, [departments, filteredPlans, teachers]);
+
+  const toggleAreaCollapse = (areaId: string) => {
+    setCollapsedAreas((prev) => ({
+      ...prev,
+      [areaId]: !prev[areaId],
+    }));
+  };
+
+  const handleSetAreaTypeFilter = (areaId: string, filterType: string) => {
+    setAreaTypeFilters((prev) => ({
+      ...prev,
+      [areaId]: filterType,
+    }));
+  };
 
   // If data is initializing, show full-page LoadingScreen with dancing dinosaur
   if (isLoading) {
@@ -1778,6 +2086,8 @@ export default function App() {
           onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
           onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
           onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+          canViewAllDocs={canViewAllDocs}
+          onOpenAllDocsPermission={() => setIsAllDocsPermissionModalOpen(true)}
           assignedToMeCount={assignedToMeCount}
           onScrollToAssignments={handleScrollToAssignments}
           onLogout={handleLogout}
@@ -1823,6 +2133,8 @@ export default function App() {
               onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
               onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
               onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+              canViewAllDocs={canViewAllDocs}
+              onOpenAllDocsPermission={() => setIsAllDocsPermissionModalOpen(true)}
               assignedToMeCount={assignedToMeCount}
               onScrollToAssignments={handleScrollToAssignments}
               onLogout={handleLogout}
@@ -2385,8 +2697,25 @@ export default function App() {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  เอกสารของฉันทั้งหมด ({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
+                  เอกสารของฉัน ({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
                 </button>
+                {canViewAllDocs && (
+                  <button
+                    onClick={() => setViewTab('school_all')}
+                    className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                      viewTab === 'school_all'
+                        ? 'bg-white text-indigo-950 shadow-xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="ดูเอกสารทั้งหมดของโรงเรียน แยกตามกลุ่มสาระการเรียนรู้ (ได้รับสิทธิ์)"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>เอกสารทั้งโรงเรียน</span>
+                    <span className="text-slate-500 font-mono text-xs">
+                      ({plans.filter((p) => p.status !== 'deleted').length})
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={() => setViewTab('pending_review')}
                   className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
@@ -2754,40 +3083,146 @@ export default function App() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="text-sm sm:text-base font-semibold text-slate-900 flex items-center gap-2">
               <FileCheck2 className="w-4 h-4 text-amber-500" />
-              <span>{viewTab === 'assigned_to_me' ? 'รายการเอกสารที่ได้รับมอบหมายให้ตรวจ' : 'รายการเอกสารวิชาการ / แผนการจัดการเรียนรู้'}</span>
+              <span>
+                {viewTab === 'assigned_to_me'
+                  ? 'รายการเอกสารที่ได้รับมอบหมายให้ตรวจ'
+                  : viewTab === 'school_all' || isAdmin
+                  ? 'เอกสารทั้งหมดในระบบ (แยกตามกลุ่มสาระการเรียนรู้)'
+                  : 'รายการเอกสารวิชาการ / แผนการจัดการเรียนรู้ของฉัน'}
+              </span>
               <span className="text-xs text-slate-500 font-normal">
-                (พบ {filteredPlans.length} รายการ)
+                (พบ {filteredPlans.length} รายการ{plansGroupedByArea.length > 0 && groupByLearningArea ? ` • ${plansGroupedByArea.length} กลุ่มสาระ` : ''})
               </span>
             </h3>
 
-            {/* View Switcher: บอร์ดการ์ด vs ตารางแถวสรุป */}
-            <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/90 self-start sm:self-auto shrink-0 shadow-2xs">
+            {/* Controls: Grouping Toggle + Expand/Collapse + View Switcher */}
+            <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+              {/* Admin Button: Configure Permissions for viewing All Documents */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setIsAllDocsPermissionModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/90 shadow-2xs cursor-pointer"
+                  title="ตั้งค่าว่าครูท่านใดมีสิทธิ์เข้าถึงและดูเอกสารทั้งหมดในระบบได้บ้าง (ตามคำสั่ง: ค่าเริ่มต้นไม่แสดงให้ครูเห็น)"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                  <span>
+                    สิทธิ์ดูเอกสาร (
+                    {allDocsAccessConfig.allow_all_teachers
+                      ? 'ครูทุกคน'
+                      : allDocsAccessConfig.allow_dept_heads
+                      ? 'หัวหน้าสาระ+'
+                      : allDocsAccessConfig.allowed_teacher_ids.length > 0
+                      ? `${allDocsAccessConfig.allowed_teacher_ids.length} ท่าน`
+                      : 'เฉพาะแอดมิน'}
+                    )
+                  </span>
+                </button>
+              )}
+
+              {/* Group By Learning Area Toggle Button */}
               <button
-                onClick={() => setPlanDisplayMode('board')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  planDisplayMode === 'board'
-                    ? 'bg-white text-slate-900 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                type="button"
+                onClick={() => setGroupByLearningArea((prev) => !prev)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer ${
+                  groupByLearningArea
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-2xs'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
-                title="ดูแบบบอร์ดการ์ด"
+                title="สลับการจัดกลุ่มตามกลุ่มสาระการเรียนรู้"
               >
-                <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
-                <span>บอร์ดการ์ด</span>
+                <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{groupByLearningArea ? 'แยกตามกลุ่มสาระ' : 'แสดงรวมทั้งหมด'}</span>
               </button>
-              <button
-                onClick={() => setPlanDisplayMode('table')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  planDisplayMode === 'table'
-                    ? 'bg-white text-slate-900 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="ดูแบบตารางแถวสรุป"
-              >
-                <TableIcon className="w-3.5 h-3.5 text-amber-500" />
-                <span>ตารางแถวสรุป</span>
-              </button>
+
+              {groupByLearningArea && plansGroupedByArea.length > 0 && (
+                <div className="hidden sm:inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/90 text-xs shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsedAreas({})}
+                    className="px-2 py-1 rounded-lg hover:bg-white text-slate-700 font-medium transition-all cursor-pointer"
+                    title="ขยายทุกกลุ่มสาระ"
+                  >
+                    ขยายหมด
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const all: Record<string, boolean> = {};
+                      plansGroupedByArea.forEach((g) => {
+                        all[g.id] = true;
+                      });
+                      setCollapsedAreas(all);
+                    }}
+                    className="px-2 py-1 rounded-lg hover:bg-white text-slate-700 font-medium transition-all cursor-pointer"
+                    title="ย่อทุกกลุ่มสาระ"
+                  >
+                    ย่อหมด
+                  </button>
+                </div>
+              )}
+
+              {/* View Switcher: บอร์ดการ์ด vs ตารางแถวสรุป */}
+              <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/90 shrink-0 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setPlanDisplayMode('board')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    planDisplayMode === 'board'
+                      ? 'bg-white text-slate-900 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="ดูแบบบอร์ดการ์ด"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
+                  <span>บอร์ดการ์ด</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlanDisplayMode('table')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    planDisplayMode === 'table'
+                      ? 'bg-white text-slate-900 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="ดูแบบตารางแถวสรุป"
+                >
+                  <TableIcon className="w-3.5 h-3.5 text-amber-500" />
+                  <span>ตารางแถวสรุป</span>
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Department Quick Jump Toolbar */}
+          {groupByLearningArea && plansGroupedByArea.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto touch-scroll py-2.5 px-3 mb-5 bg-gradient-to-r from-slate-50 via-slate-100/60 to-slate-50 rounded-2xl border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                <span>⚡ ทางลัดกลุ่มสาระ:</span>
+              </span>
+              {plansGroupedByArea.map((group) => {
+                const theme = getDeptTheme(group.code, group.name);
+                return (
+                  <button
+                    key={`jump-${group.id}`}
+                    type="button"
+                    onClick={() => {
+                      setCollapsedAreas((prev) => ({ ...prev, [group.id]: false }));
+                      const el = document.getElementById(`area-section-${group.id}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold whitespace-nowrap shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
+                  >
+                    <span>{theme.icon}</span>
+                    <span>{group.name}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full font-mono text-[10px] ${theme.badge}`}>
+                      {group.plans.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {filteredPlans.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-3">
@@ -2813,21 +3248,211 @@ export default function App() {
               )}
             </div>
           ) : planDisplayMode === 'board' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredPlans.map((plan) => {
-                const canReviewThisPlan =
-                  isAdmin ||
-                  viewTab === 'assigned_to_me' ||
-                  isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
-                  isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
-                  (Boolean(currentTeacher) &&
-                    (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
-                      plan.assigned_reviewer_name === currentTeacher?.Name) &&
-                    (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches) ||
-                      isTeacherDeptHeadOfPlan(currentTeacher, plan, departments) ||
-                      plan.teacher_id !== currentTeacher?.Teacher_ID));
+            groupByLearningArea && plansGroupedByArea.length > 0 ? (
+              <div className="space-y-6">
+                {plansGroupedByArea.map((group) => {
+                  const isCollapsed = Boolean(collapsedAreas[group.id]);
+                  const theme = getDeptTheme(group.code, group.name);
+                  const activeTypeFilter = areaTypeFilters[group.id] || 'all';
+                  const displayedPlans = group.plans.filter((p) => {
+                    if (activeTypeFilter === 'all') return true;
+                    const meta = classifyDocumentType(p.plan_type);
+                    if (activeTypeFilter === 'summary') return meta.key === 'summary_plan';
+                    if (activeTypeFilter === 'full') return meta.key === 'full_plan';
+                    if (activeTypeFilter === 'research') return meta.key === 'classroom_research';
+                    if (activeTypeFilter === 'other') {
+                      return meta.key !== 'summary_plan' && meta.key !== 'full_plan' && meta.key !== 'classroom_research';
+                    }
+                    return true;
+                  });
 
-                return (
+                  return (
+                    <div
+                      key={group.id}
+                      id={`area-section-${group.id}`}
+                      className={`scroll-mt-24 bg-white rounded-3xl border ${theme.border} shadow-xs overflow-hidden transition-all`}
+                    >
+                      {/* Department Header Banner */}
+                      <div className={`p-4 sm:p-5 bg-gradient-to-r ${theme.gradient} border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3.5`}>
+                        <div className="flex items-start sm:items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-xs shrink-0 bg-white border border-slate-200/90">
+                            {theme.icon}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-black ${theme.badge}`}>
+                                {group.code}
+                              </span>
+                              <h4 className="text-base sm:text-lg font-bold text-slate-900">
+                                {group.name}
+                              </h4>
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-900 text-white shadow-2xs">
+                                {group.plans.length} รายการ
+                              </span>
+                            </div>
+                            {group.headName && (
+                              <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5">
+                                <span className="text-slate-400 font-medium">หัวหน้ากลุ่มสาระ:</span>
+                                <span className="font-semibold text-slate-800">{group.headName}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Breakdown pills & Collapse button */}
+                        <div className="flex items-center gap-2 flex-wrap self-end md:self-center">
+                          {/* Document Type breakdown chips */}
+                          <div className="flex items-center gap-1.5 text-[11px] bg-white/90 p-1 rounded-xl border border-slate-200/80 shadow-2xs">
+                            {group.typeCounts.summary > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 font-semibold border border-sky-200/60 flex items-center gap-1">
+                                <span>📄 ย่อ:</span>
+                                <span className="font-bold">{group.typeCounts.summary}</span>
+                              </span>
+                            )}
+                            {group.typeCounts.full > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200/60 flex items-center gap-1">
+                                <span>📘 สมบูรณ์:</span>
+                                <span className="font-bold">{group.typeCounts.full}</span>
+                              </span>
+                            )}
+                            {group.typeCounts.research > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg bg-purple-50 text-purple-800 font-semibold border border-purple-200/60 flex items-center gap-1">
+                                <span>🔬 วิจัย:</span>
+                                <span className="font-bold">{group.typeCounts.research}</span>
+                              </span>
+                            )}
+                            {group.typeCounts.other > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-semibold border border-slate-200 flex items-center gap-1">
+                                <span>📑 อื่นๆ:</span>
+                                <span className="font-bold">{group.typeCounts.other}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Collapse/Expand button */}
+                          <button
+                            type="button"
+                            onClick={() => toggleAreaCollapse(group.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200/90 shadow-2xs transition-all cursor-pointer"
+                          >
+                            <span>{isCollapsed ? 'ขยายดูการ์ด' : 'ย่อ'}</span>
+                            {isCollapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Area Content (Cards Grid & Inner Type Filter) */}
+                      {!isCollapsed && (
+                        <div className="p-4 sm:p-5 space-y-4">
+                          {/* Inner Type Filter Pills */}
+                          {(group.typeCounts.summary > 0 || group.typeCounts.full > 0 || group.typeCounts.research > 0 || group.typeCounts.other > 0) && (
+                            <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll pb-1 text-xs">
+                              <span className="text-slate-400 text-[11px] font-semibold shrink-0">แยกประเภท:</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSetAreaTypeFilter(group.id, 'all')}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+                                  activeTypeFilter === 'all'
+                                    ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                }`}
+                              >
+                                ทั้งหมด ({group.plans.length})
+                              </button>
+                              {group.typeCounts.summary > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAreaTypeFilter(group.id, 'summary')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                    activeTypeFilter === 'summary'
+                                      ? 'bg-sky-600 text-white shadow-2xs font-bold'
+                                      : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/70'
+                                  }`}
+                                >
+                                  <span>📄 แผนฯ ฉบับย่อ</span>
+                                  <span className="font-mono text-[10px] opacity-80">({group.typeCounts.summary})</span>
+                                </button>
+                              )}
+                              {group.typeCounts.full > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAreaTypeFilter(group.id, 'full')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                    activeTypeFilter === 'full'
+                                      ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/70'
+                                  }`}
+                                >
+                                  <span>📘 แผนฯ ฉบับสมบูรณ์</span>
+                                  <span className="font-mono text-[10px] opacity-80">({group.typeCounts.full})</span>
+                                </button>
+                              )}
+                              {group.typeCounts.research > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAreaTypeFilter(group.id, 'research')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                    activeTypeFilter === 'research'
+                                      ? 'bg-purple-600 text-white shadow-2xs font-bold'
+                                      : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/70'
+                                  }`}
+                                >
+                                  <span>🔬 วิจัยในชั้นเรียน</span>
+                                  <span className="font-mono text-[10px] opacity-80">({group.typeCounts.research})</span>
+                                </button>
+                              )}
+                              {group.typeCounts.other > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAreaTypeFilter(group.id, 'other')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                    activeTypeFilter === 'other'
+                                      ? 'bg-indigo-600 text-white shadow-2xs font-bold'
+                                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/70'
+                                  }`}
+                                >
+                                  <span>📑 เอกสารอื่นๆ</span>
+                                  <span className="font-mono text-[10px] opacity-80">({group.typeCounts.other})</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Cards Grid */}
+                          {displayedPlans.length === 0 ? (
+                            <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
+                              ไม่พบเอกสารประเภทนี้ในกลุ่มสาระนี้
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                              {displayedPlans.map((plan) => (
+                                <LessonPlanCard
+                                  key={plan.id}
+                                  plan={plan}
+                                  currentTeacher={currentTeacher || teachers[0]}
+                                  onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
+                                  onOpenReview={(p) => setSelectedPlanForReview(p)}
+                                  onDeletePlan={(id) => handleDeletePlan(id)}
+                                  onEditPlan={(p) => setPlanToEdit(p)}
+                                  onResubmitPlan={(p) => setPlanToResubmit(p)}
+                                  statusConfigs={statusConfigs}
+                                  deadlineConfigs={deadlineConfigs}
+                                  onQuickChangeStatus={handleQuickChangePlanStatus}
+                                  onToggleLate={handleTogglePlanLate}
+                                  canReview={checkCanReviewPlan(plan)}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredPlans.map((plan) => (
                   <LessonPlanCard
                     key={plan.id}
                     plan={plan}
@@ -2841,11 +3466,11 @@ export default function App() {
                     deadlineConfigs={deadlineConfigs}
                     onQuickChangeStatus={handleQuickChangePlanStatus}
                     onToggleLate={handleTogglePlanLate}
-                    canReview={canReviewThisPlan}
+                    canReview={checkCanReviewPlan(plan)}
                   />
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
               <div className="overflow-x-auto touch-scroll">
@@ -2861,20 +3486,73 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredPlans.map((plan) => {
-                      const canReviewThisPlan =
-                        isAdmin ||
-                        viewTab === 'assigned_to_me' ||
-                        isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
-                        isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
-                        (Boolean(currentTeacher) &&
-                          (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
-                            plan.assigned_reviewer_name === currentTeacher?.Name) &&
-                          (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches) ||
-                            isTeacherDeptHeadOfPlan(currentTeacher, plan, departments) ||
-                            plan.teacher_id !== currentTeacher?.Teacher_ID));
+                    {groupByLearningArea && plansGroupedByArea.length > 0 ? (
+                      plansGroupedByArea.map((group) => {
+                        const isCollapsed = Boolean(collapsedAreas[group.id]);
+                        const theme = getDeptTheme(group.code, group.name);
+                        const activeTypeFilter = areaTypeFilters[group.id] || 'all';
+                        const displayedPlans = group.plans.filter((p) => {
+                          if (activeTypeFilter === 'all') return true;
+                          const meta = classifyDocumentType(p.plan_type);
+                          if (activeTypeFilter === 'summary') return meta.key === 'summary_plan';
+                          if (activeTypeFilter === 'full') return meta.key === 'full_plan';
+                          if (activeTypeFilter === 'research') return meta.key === 'classroom_research';
+                          if (activeTypeFilter === 'other') {
+                            return meta.key !== 'summary_plan' && meta.key !== 'full_plan' && meta.key !== 'classroom_research';
+                          }
+                          return true;
+                        });
 
-                      return (
+                        return (
+                          <React.Fragment key={`dept-table-${group.id}`}>
+                            <tr className={`border-y border-slate-200 ${theme.bg}`}>
+                              <td colSpan={6} className="py-2.5 px-4 font-bold text-slate-800 text-xs">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span>{theme.icon}</span>
+                                    <span className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${theme.badge}`}>
+                                      {group.code}
+                                    </span>
+                                    <span className="font-bold text-slate-900">{group.name}</span>
+                                    <span className="text-slate-600 font-normal">({displayedPlans.length} รายการ)</span>
+                                    {group.headName && (
+                                      <span className="text-[11px] text-slate-500 hidden md:inline font-normal">
+                                        — หัวหน้ากลุ่มสาระ: {group.headName}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAreaCollapse(group.id)}
+                                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer flex items-center gap-1"
+                                  >
+                                    <span>{isCollapsed ? 'ขยายดูแถว' : 'ย่อ'}</span>
+                                    {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                            {!isCollapsed &&
+                              displayedPlans.map((plan) => (
+                                <LessonPlanTableRow
+                                  key={plan.id}
+                                  plan={plan}
+                                  currentTeacher={currentTeacher || teachers[0]}
+                                  onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
+                                  onOpenReview={(p) => setSelectedPlanForReview(p)}
+                                  onDeletePlan={(id) => handleDeletePlan(id)}
+                                  onEditPlan={(p) => setPlanToEdit(p)}
+                                  onResubmitPlan={(p) => setPlanToResubmit(p)}
+                                  statusConfigs={statusConfigs}
+                                  deadlineConfigs={deadlineConfigs}
+                                  canReview={checkCanReviewPlan(plan)}
+                                />
+                              ))}
+                          </React.Fragment>
+                        );
+                      })
+                    ) : (
+                      filteredPlans.map((plan) => (
                         <LessonPlanTableRow
                           key={plan.id}
                           plan={plan}
@@ -2886,10 +3564,10 @@ export default function App() {
                           onResubmitPlan={(p) => setPlanToResubmit(p)}
                           statusConfigs={statusConfigs}
                           deadlineConfigs={deadlineConfigs}
-                          canReview={canReviewThisPlan}
+                          canReview={checkCanReviewPlan(plan)}
                         />
-                      );
-                    })}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -3184,6 +3862,18 @@ export default function App() {
           teachers={teachers}
           isOpen={isLoginModalOpen}
           onLogin={handleSetCurrentUser}
+        />
+      )}
+
+      {/* All Documents Visibility & Permission Access Modal (Admin) */}
+      {isAllDocsPermissionModalOpen && (
+        <AllDocumentsPermissionModal
+          isOpen={isAllDocsPermissionModalOpen}
+          onClose={() => setIsAllDocsPermissionModalOpen(false)}
+          config={allDocsAccessConfig}
+          onSaveConfig={handleSaveAllDocsAccessConfig}
+          teachers={teachers}
+          departments={departments}
         />
       )}
 
