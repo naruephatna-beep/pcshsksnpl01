@@ -121,6 +121,8 @@ import {
   ArrowRight,
   Clock,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Upload,
   RefreshCw,
   BrainCircuit,
@@ -149,6 +151,7 @@ export default function App() {
   const [areaFilter, setAreaFilter] = useState<string>('');
   const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
   const [assignedReviewSubTab, setAssignedReviewSubTab] = useState<'pending' | 'completed' | 'all'>('pending');
+  const [isTeacherStatsOpen, setIsTeacherStatsOpen] = useState<boolean>(false);
 
   // Auto-switch to executive dashboard for leadership accounts
   useEffect(() => {
@@ -2305,46 +2308,6 @@ export default function App() {
                     )}
                   </div>
                 </div>
-
-                {/* 3 Quick Status Indicators */}
-                <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 mt-4 pt-4 border-t border-white/10 text-center">
-                  <button
-                    type="button"
-                    onClick={() => setViewTab('approved')}
-                    className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                      viewTab === 'approved' ? 'bg-emerald-500/25 ring-2 ring-emerald-400' : 'bg-white/5 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-[10px] sm:text-xs text-emerald-300 font-semibold block">อนุมัติแล้ว</span>
-                    <span className="text-base sm:text-xl font-black text-white font-mono">
-                      {plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID && (p.status === 'approved' || p.status === 'passed')).length}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewTab('pending_review')}
-                    className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                      viewTab === 'pending_review' ? 'bg-amber-500/25 ring-2 ring-amber-400' : 'bg-white/5 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-[10px] sm:text-xs text-amber-300 font-semibold block">กำลังรอตรวจ</span>
-                    <span className="text-base sm:text-xl font-black text-white font-mono">
-                      {plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID && p.status === 'submitted' && !p.reviewed_by).length}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewTab('needs_revision')}
-                    className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                      viewTab === 'needs_revision' ? 'bg-rose-500/25 ring-2 ring-rose-400' : 'bg-white/5 hover:bg-white/10'
-                    }`}
-                  >
-                    <span className="text-[10px] sm:text-xs text-rose-300 font-semibold block">ส่งกลับแก้ไข</span>
-                    <span className="text-base sm:text-xl font-black text-white font-mono">
-                      {plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID && p.status === 'needs_revision').length}
-                    </span>
-                  </button>
-                </div>
               </div>
             )}
 
@@ -2360,18 +2323,52 @@ export default function App() {
               />
             )}
 
-            {/* Dashboard Statistics */}
+            {/* Dashboard Statistics (Collapsible for teachers to prevent cognitive overload, full for Admin) */}
             <div id="dashboard-stats-section" className="scroll-mt-20">
-              <DashboardStats
-                plans={plans}
-                teachers={teachers}
-                currentTeacher={currentTeacher}
-                selectedArea={areaFilter}
-                onSelectArea={(area) => setAreaFilter(area)}
-                selectedDocType={docTypeFilter}
-                onSelectDocType={(dt) => setDocTypeFilter(dt)}
-                deadlineConfigs={deadlineConfigs}
-              />
+              {!isAdmin ? (
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all">
+                  <button
+                    type="button"
+                    onClick={() => setIsTeacherStatsOpen(!isTeacherStatsOpen)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-slate-700 hover:text-indigo-950 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-indigo-600" />
+                      <span>สถิติภาพรวมการส่งเอกสารของโรงเรียน & กลุ่มสาระ</span>
+                      <span className="text-[10px] text-slate-500 font-normal hidden sm:inline">(คลิกเพื่อเปิด/ปิดดูสถิติกลุ่มสาระ)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-500 font-mono text-[11px]">
+                      <span>{isTeacherStatsOpen ? 'ย่อซ่อนสถิติ' : 'ขยายดูสถิติ'}</span>
+                      {isTeacherStatsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                  </button>
+                  {isTeacherStatsOpen && (
+                    <div className="p-3 sm:p-4 border-t border-slate-100 bg-slate-50/50 animate-in fade-in duration-150">
+                      <DashboardStats
+                        plans={plans}
+                        teachers={teachers}
+                        currentTeacher={currentTeacher}
+                        selectedArea={areaFilter}
+                        onSelectArea={(area) => setAreaFilter(area)}
+                        selectedDocType={docTypeFilter}
+                        onSelectDocType={(dt) => setDocTypeFilter(dt)}
+                        deadlineConfigs={deadlineConfigs}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <DashboardStats
+                  plans={plans}
+                  teachers={teachers}
+                  currentTeacher={currentTeacher}
+                  selectedArea={areaFilter}
+                  onSelectArea={(area) => setAreaFilter(area)}
+                  selectedDocType={docTypeFilter}
+                  onSelectDocType={(dt) => setDocTypeFilter(dt)}
+                  deadlineConfigs={deadlineConfigs}
+                />
+              )}
             </div>
 
         {/* Lesson Plans Control Bar */}
