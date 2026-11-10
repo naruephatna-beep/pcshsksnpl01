@@ -96,6 +96,7 @@ import {
 import { StaffStructureManagerModal } from './components/StaffStructureManagerModal';
 import { WorkflowManagerModal } from './components/WorkflowManagerModal';
 import { AllDocumentsPermissionModal } from './components/AllDocumentsPermissionModal';
+import { ReviewerWorkloadModal } from './components/ReviewerWorkloadModal';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
@@ -155,6 +156,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [areaFilter, setAreaFilter] = useState<string>('');
   const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
+  const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [assignedReviewSubTab, setAssignedReviewSubTab] = useState<'pending' | 'completed' | 'all'>('pending');
   const [isTeacherStatsOpen, setIsTeacherStatsOpen] = useState<boolean>(false);
   const [groupByLearningArea, setGroupByLearningArea] = useState<boolean>(true);
@@ -185,6 +187,7 @@ export default function App() {
   const [isDirectoryModalOpen, setIsDirectoryModalOpen] = useState(false);
   const [isFileStorageModalOpen, setIsFileStorageModalOpen] = useState(false);
   const [isAdminTrackerModalOpen, setIsAdminTrackerModalOpen] = useState(false);
+  const [isReviewerWorkloadModalOpen, setIsReviewerWorkloadModalOpen] = useState(false);
   const [adminTrackerInitialView, setAdminTrackerInitialView] = useState<
     'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'
   >('table');
@@ -1530,6 +1533,34 @@ export default function App() {
     return false;
   };
 
+  // Helper to accurately match grade level (ม.1 - ม.6)
+  const matchesGradeFilter = (planGrade?: string, filter?: string): boolean => {
+    if (!filter || filter === 'all') return true;
+    if (!planGrade) return false;
+    const pg = planGrade.trim().toLowerCase();
+    const f = filter.trim().toLowerCase();
+    const gradeNum = f.replace(/[^0-9]/g, '');
+    if (gradeNum) {
+      if (
+        pg.includes(`ม.${gradeNum}`) ||
+        pg.includes(`ม. ${gradeNum}`) ||
+        pg.includes(`ปีที่ ${gradeNum}`) ||
+        pg.includes(`ปีที่${gradeNum}`) ||
+        pg.includes(`มัธยมศึกษาปีที่ ${gradeNum}`) ||
+        pg.includes(`ชั้นมัธยมศึกษาปีที่ ${gradeNum}`) ||
+        pg.includes(`ม${gradeNum}/`) ||
+        pg.includes(`ม.${gradeNum}/`) ||
+        pg === `ม.${gradeNum}` ||
+        pg === `ม${gradeNum}` ||
+        pg.startsWith(`ม.${gradeNum} `) ||
+        pg.startsWith(`ม.${gradeNum}/`)
+      ) {
+        return true;
+      }
+    }
+    return pg.includes(f);
+  };
+
   // Review queues memoization
   const { assignedPendingPlans, assignedCompletedPlans, allAssignedReviewPlans } = useMemo(() => {
     if (!currentTeacher) {
@@ -1694,6 +1725,27 @@ export default function App() {
     };
   }, [contextPlansForCategoryCounts, customFilterCategories, deadlineConfigs]);
 
+  // Counts for each grade level (ม.1 - ม.6)
+  const gradeCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: contextPlansForCategoryCounts.length,
+      'ม.1': 0,
+      'ม.2': 0,
+      'ม.3': 0,
+      'ม.4': 0,
+      'ม.5': 0,
+      'ม.6': 0,
+    };
+    for (const p of contextPlansForCategoryCounts) {
+      (['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'] as const).forEach((g) => {
+        if (matchesGradeFilter(p.grade_level, g)) {
+          counts[g]++;
+        }
+      });
+    }
+    return counts;
+  }, [contextPlansForCategoryCounts]);
+
   // Filtered plans logic (memoized to eliminate redundant computations on every keystroke/render)
   const filteredPlans = useMemo(() => {
     return plans.filter((plan) => {
@@ -1757,7 +1809,12 @@ export default function App() {
         return false;
       }
 
-      // 3. Search query
+      // 3. Grade Level Filter (แยกตามระดับชั้น ม.1 - ม.6)
+      if (gradeFilter !== 'all' && !matchesGradeFilter(plan.grade_level, gradeFilter)) {
+        return false;
+      }
+
+      // 4. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchSubject =
@@ -1796,6 +1853,7 @@ export default function App() {
     statusFilter,
     areaFilter,
     docTypeFilter,
+    gradeFilter,
     searchQuery,
   ]);
 
@@ -2086,6 +2144,7 @@ export default function App() {
           onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
           onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
           onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+          onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
           canViewAllDocs={canViewAllDocs}
           onOpenAllDocsPermission={() => setIsAllDocsPermissionModalOpen(true)}
           assignedToMeCount={assignedToMeCount}
@@ -2133,6 +2192,7 @@ export default function App() {
               onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
               onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
               onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+              onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
               canViewAllDocs={canViewAllDocs}
               onOpenAllDocsPermission={() => setIsAllDocsPermissionModalOpen(true)}
               assignedToMeCount={assignedToMeCount}
@@ -2174,6 +2234,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={() => setIsReviewerWorkloadModalOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold active:scale-95 transition-all shadow-2xs cursor-pointer"
+                title="ตรวจสอบภาระงานผู้ตรวจ: ใครตรวจแล้วกี่อัน ค้างตรวจกี่อัน"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
+                <span className="text-[11px]">ภาระงานผู้ตรวจ</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 setTeacherToEdit(currentTeacher);
@@ -2273,6 +2343,18 @@ export default function App() {
                 >
                   <Layers className="w-3.5 h-3.5 text-amber-600" />
                   <span>จำแนกประเภทเอกสาร</span>
+                </button>
+
+                <button
+                  onClick={() => setIsReviewerWorkloadModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 border border-emerald-400/40"
+                  title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน: ใครตรวจไปกี่อัน และเหลืองานค้างกี่อัน"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-100" />
+                  <span>👥 ภาระงานผู้ตรวจ</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/20 text-white font-mono">
+                    Audit
+                  </span>
                 </button>
               </>
             )}
@@ -2466,6 +2548,15 @@ export default function App() {
                 <FileText className="w-4 h-4 text-slate-500" />
                 <span className="truncate">เอกสารทั้งหมด ({plans.length})</span>
               </button>
+
+              <button
+                onClick={() => setIsReviewerWorkloadModalOpen(true)}
+                className="px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs active:scale-95 border border-emerald-400/30"
+                title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน: ใครตรวจไปกี่อัน และเหลืองานค้างกี่อัน"
+              >
+                <UserCheck className="w-4 h-4 text-emerald-200" />
+                <span className="truncate">👥 ภาระงานผู้ตรวจ</span>
+              </button>
             </div>
 
             <div className="text-xs text-slate-500 font-medium px-2 flex items-center gap-1.5">
@@ -2538,6 +2629,14 @@ export default function App() {
                 <span>ตารางติดตามส่ง</span>
               </button>
               <button
+                onClick={() => setIsReviewerWorkloadModalOpen(true)}
+                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                title="ตรวจสอบว่าหัวหน้าสาขา หัวหน้ากลุ่มสาระ และผู้บริหาร แต่ละท่านตรวจงานไปกี่อัน และค้างตรวจกี่อัน"
+              >
+                <UserCheck className="w-4 h-4 text-emerald-200" />
+                <span>ภาระงานผู้ตรวจ</span>
+              </button>
+              <button
                 onClick={() => syncWithDatabase(false)}
                 disabled={isSyncing}
                 className="p-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
@@ -2562,6 +2661,7 @@ export default function App() {
               onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
               onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
               onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
+              onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
             />
           </div>
         ) : (
@@ -2954,6 +3054,55 @@ export default function App() {
             )}
           </div>
 
+          {/* Grade Level Filter (แยกตามระดับชั้น ม.1 - ม.6) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-2 border-t border-slate-100 text-xs">
+            <span className="text-slate-500 font-medium text-xs shrink-0 mr-1 flex items-center gap-1">
+              <GraduationCap className="w-3.5 h-3.5 text-amber-500" />
+              <span>ระดับชั้น:</span>
+            </span>
+            <button
+              onClick={() => setGradeFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                gradeFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs font-bold'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+            >
+              <span>ทุกระดับชั้น</span>
+              <span
+                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
+                  gradeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {gradeCounts.all}
+              </span>
+            </button>
+            {(['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'] as const).map((grade) => {
+              const isSelected = gradeFilter === grade;
+              return (
+                <button
+                  key={`grade-btn-${grade}`}
+                  onClick={() => setGradeFilter((prev) => (prev === grade ? 'all' : grade))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-amber-500 text-slate-950 shadow-xs font-bold ring-2 ring-amber-300'
+                      : 'bg-amber-50/70 hover:bg-amber-100/80 text-amber-900 border border-amber-200/80'
+                  }`}
+                  title={`กรองเฉพาะระดับชั้น ${grade}`}
+                >
+                  <span>{grade}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
+                      isSelected ? 'bg-slate-950 text-amber-300 font-bold' : 'bg-amber-200/80 text-amber-900'
+                    }`}
+                  >
+                    {gradeCounts[grade] || 0}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Search bar & Active filter indicators */}
           <div className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 pt-2.5 border-t border-slate-100">
             <div className="relative flex-1 w-full">
@@ -2966,6 +3115,19 @@ export default function App() {
                 className="w-full pl-10 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all placeholder:text-slate-400"
               />
             </div>
+
+            {gradeFilter !== 'all' && (
+              <div className="flex items-center gap-2 bg-amber-50 text-amber-900 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 border border-amber-300">
+                <span>ระดับชั้น: {gradeFilter}</span>
+                <button
+                  onClick={() => setGradeFilter('all')}
+                  className="hover:text-amber-950 font-bold ml-1 cursor-pointer"
+                  title="แสดงทุกระดับชั้น"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             {docTypeFilter !== 'all' && (
               <div className="flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 border border-purple-200">
@@ -3004,6 +3166,18 @@ export default function App() {
                   ✕
                 </button>
               </div>
+            )}
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setIsReviewerWorkloadModalOpen(true)}
+                className="w-full sm:w-auto px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-all"
+                title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน: ใครตรวจไปกี่อัน และเหลืองานค้างกี่อัน"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
+                <span>👥 ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
+              </button>
             )}
           </div>
         </div>
@@ -3737,6 +3911,7 @@ export default function App() {
           onDeletePlan={(id) => handleDeletePlan(id)}
           onOpenReview={(p) => setSelectedPlanForReview(p)}
           onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+          onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
         />
       )}
 
@@ -3874,6 +4049,21 @@ export default function App() {
           onSaveConfig={handleSaveAllDocsAccessConfig}
           teachers={teachers}
           departments={departments}
+        />
+      )}
+
+      {/* Reviewer Workload & Audit Tracker Modal (Admin) */}
+      {isReviewerWorkloadModalOpen && (
+        <ReviewerWorkloadModal
+          isOpen={isReviewerWorkloadModalOpen}
+          onClose={() => setIsReviewerWorkloadModalOpen(false)}
+          teachers={teachers}
+          plans={plans}
+          workflows={workflows}
+          departments={departments}
+          branches={branches}
+          onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
+          onOpenReview={(plan) => setSelectedPlanForReview(plan)}
         />
       )}
 

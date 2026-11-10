@@ -189,6 +189,86 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
           </span>
         </div>
 
+        {/* Visual Workflow Timeline Progress Stepper */}
+        {(() => {
+          const hasBranch = Boolean(plan.branch);
+          const steps = hasBranch
+            ? [
+                { id: 1, label: 'หน.สาขาวิชา' },
+                { id: 2, label: 'หน.กลุ่มสาระ' },
+                { id: 3, label: 'ผอ.อนุมัติ' },
+              ]
+            : [
+                { id: 1, label: 'หน.กลุ่มสาระ' },
+                { id: 2, label: 'ผอ.อนุมัติ' },
+              ];
+
+          const isApproved = plan.status === 'approved';
+          const isNeedsRevision = plan.status === 'needs_revision';
+          const currentStage = isApproved ? 99 : (plan.current_stage_order || 1);
+
+          return (
+            <div className="mt-2.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200/90 rounded-xl">
+              <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold mb-1.5">
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-slate-400" />
+                  <span>ไทม์ไลน์ลำดับขั้น:</span>
+                </span>
+                {isApproved ? (
+                  <span className="text-emerald-700 font-black">อนุมัติครบทุกระดับ ✓</span>
+                ) : isNeedsRevision ? (
+                  <span className="text-rose-600 font-bold">รอการปรับปรุง</span>
+                ) : (
+                  <span className="text-amber-700 font-bold truncate max-w-[150px]">
+                    {plan.assigned_reviewer_name ? `รอ: ${plan.assigned_reviewer_name}` : 'กำลังรอตรวจ'}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                {steps.map((st, idx) => {
+                  const isDone = isApproved || currentStage > st.id;
+                  const isCurrent = !isApproved && currentStage === st.id;
+
+                  return (
+                    <React.Fragment key={st.id}>
+                      <div
+                        className={`flex-1 flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-bold border transition-colors ${
+                          isDone
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                            : isCurrent
+                            ? isNeedsRevision
+                              ? 'bg-rose-50 border-rose-300 text-rose-800'
+                              : 'bg-amber-50 border-amber-300 text-amber-900 ring-1 ring-amber-300'
+                            : 'bg-white border-slate-200 text-slate-400'
+                        }`}
+                      >
+                        <span
+                          className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] shrink-0 font-mono ${
+                            isDone
+                              ? 'bg-emerald-600 text-white'
+                              : isCurrent
+                              ? isNeedsRevision
+                                ? 'bg-rose-600 text-white'
+                                : 'bg-amber-500 text-slate-950 font-black animate-pulse'
+                              : 'bg-slate-200 text-slate-500'
+                          }`}
+                        >
+                          {isDone ? '✓' : st.id}
+                        </span>
+                        <span className="truncate">{st.label}</span>
+                      </div>
+                      {idx < steps.length - 1 && (
+                        <span className="text-slate-300 text-[10px] shrink-0">➔</span>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Teacher details */}
         <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">

@@ -19,6 +19,7 @@ import {
   Layers,
   Building2,
   Workflow,
+  UserCheck,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 
@@ -35,6 +36,7 @@ interface NavbarProps {
   onOpenWorkflowManager?: () => void;
   onOpenExecutiveDashboard?: () => void;
   onOpenGoogleDriveConfig?: () => void;
+  onOpenReviewerWorkload?: () => void;
   onLogout: () => void;
   lastSyncTime?: string;
   isSyncing?: boolean;
@@ -54,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenWorkflowManager,
   onOpenExecutiveDashboard,
   onOpenGoogleDriveConfig,
+  onOpenReviewerWorkload,
   onLogout,
   pendingAssignmentsCount,
   onScrollToAssignments,
@@ -140,6 +143,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="hidden lg:inline">แยกประเภทเอกสาร</span>
                       <span className="lg:hidden">แยกประเภท</span>
                     </button>
+
+                    {onOpenReviewerWorkload && (
+                      <button
+                        onClick={onOpenReviewerWorkload}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer active:scale-95 border border-emerald-400/40"
+                        title="ตรวจสอบภาระงานผู้ตรวจ: ใครตรวจแล้วกี่อัน ค้างตรวจกี่อัน และผ่านการอนุมัติกี่ฉบับ"
+                      >
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-100" />
+                        <span>ภาระงานผู้ตรวจ</span>
+                      </button>
+                    )}
 
                     {onOpenStaffStructure && (
                       <button
@@ -397,6 +411,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Users className="w-4 h-4 text-slate-600" />
                   <span>สมุดรายชื่อบุคลากร (27 ท่าน)</span>
                 </button>
+                {onOpenReviewerWorkload && (
+                  <button
+                    onClick={() => handleMobileAction(onOpenReviewerWorkload)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 shadow-xs"
+                  >
+                    <UserCheck className="w-4 h-4 text-emerald-200" />
+                    <span>ภาระงานผู้ตรวจ (ใครตรวจกี่อัน / ค้างกี่อัน)</span>
+                  </button>
+                )}
                 {onOpenGoogleDriveConfig && (
                   <button
                     onClick={() => handleMobileAction(onOpenGoogleDriveConfig)}

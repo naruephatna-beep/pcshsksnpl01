@@ -275,7 +275,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                         <Mail className="w-3 h-3" />
                         {t.Email}
                       </span>
-                      {t.phone && (
+                      {(isAdmin || isMe) && t.phone && (
                         <span className="flex items-center gap-1">
                           <Phone className="w-3 h-3" />
                           {t.phone}
@@ -286,16 +286,18 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                 </div>
 
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {hasDefaultPass ? (
-                    <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
-                      <ShieldAlert className="w-3 h-3" />
-                      รหัส 12345
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" />
-                      เปลี่ยนรหัสแล้ว
-                    </span>
+                  {isAdmin && (
+                    hasDefaultPass ? (
+                      <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3" />
+                        รหัสเริ่มต้น
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        ตั้งรหัสส่วนตัวแล้ว
+                      </span>
+                    )
                   )}
 
                   <div className="flex items-center gap-1 mt-1">

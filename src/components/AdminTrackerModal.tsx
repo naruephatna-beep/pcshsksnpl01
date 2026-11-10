@@ -73,6 +73,7 @@ interface AdminTrackerModalProps {
   onOpenReview?: (plan: LessonPlan) => void;
   onOpenDeadlineManager?: () => void;
   onOpenCertificate?: (plan: LessonPlan) => void;
+  onOpenReviewerWorkload?: () => void;
 }
 
 export interface TeacherMissingTask {
@@ -100,6 +101,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   onOpenReview,
   onOpenDeadlineManager,
   onOpenCertificate,
+  onOpenReviewerWorkload,
 }) => {
   const [filterArea, setFilterArea] = useState<string>('ทั้งหมด');
   const [filterStatus, setFilterStatus] = useState<'all' | 'uncompleted' | 'completed' | 'late'>('all');
@@ -789,6 +791,19 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                       >
                         <Calendar className="w-4 h-4 text-amber-400" />
                         <span>กำหนดส่ง & งานที่มอบหมาย</span>
+                      </button>
+                    )}
+
+                    {onOpenReviewerWorkload && (
+                      <button
+                        onClick={() => {
+                          onOpenReviewerWorkload();
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <UserCheck className="w-4 h-4 text-amber-400" />
+                        <span>👥 ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
                       </button>
                     )}
 

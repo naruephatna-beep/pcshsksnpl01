@@ -55,6 +55,7 @@ interface SidebarProps {
   onOpenGoogleDriveConfig?: () => void;
   onOpenStaffStructure?: () => void;
   onOpenWorkflowManager?: () => void;
+  onOpenReviewerWorkload?: () => void;
   assignedToMeCount?: number;
   onScrollToAssignments: () => void;
   onLogout: () => void;
@@ -87,6 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenGoogleDriveConfig,
   onOpenStaffStructure,
   onOpenWorkflowManager,
+  onOpenReviewerWorkload,
   assignedToMeCount = 0,
   onScrollToAssignments,
   onLogout,
@@ -479,6 +481,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   Breakdown
                 </span>
               </button>
+
+              {/* ตรวจสอบภาระงานผู้ตรวจ (ใครตรวจกี่อัน) */}
+              {onOpenReviewerWorkload && (
+                <button
+                  onClick={() => handleNavClick(onOpenReviewerWorkload)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-950/70 via-teal-950/60 to-slate-900 border border-emerald-500/40 text-emerald-200 hover:text-white hover:border-emerald-400 transition-all cursor-pointer group font-semibold shadow-xs"
+                  title="ตรวจสอบยอดตรวจจริงของหัวหน้าสาขา หัวหน้ากลุ่มสาระ และผู้บริหารว่าใครตรวจกี่อันและค้างกี่อัน"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <UserCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
+                    <span className="truncate text-xs font-bold text-white">ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
+                  </div>
+                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 shrink-0">
+                    Audit
+                  </span>
+                </button>
+              )}
 
               {/* กำหนดส่ง & จัดการสถานะ */}
               <button
