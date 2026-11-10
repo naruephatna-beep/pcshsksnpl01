@@ -17,6 +17,7 @@ import {
   updateTeacherRecord,
   saveLocalTeachers,
   saveAllTeachers,
+  getLocalTeachers,
 } from './supabaseClient';
 
 const STORAGE_KEY_DEPARTMENTS = 'lp_school_departments';
@@ -1102,11 +1103,18 @@ export function assignWorkflowToPlan(
   // If first stage has own_group_only and candidates are available, resolve reviewer
   if (!assignedReviewerId && allTeachers && departments) {
     const stage1 = targetWf?.stages?.find((s) => s.order === currentStageOrder);
-    if (stage1 && (stage1.scope_mode === 'own_group_only' || !stage1.scope_mode)) {
+    if (stage1) {
       const candidates = resolveReviewersForStage(stage1, plan, allTeachers, departments, branches);
-      if (candidates.length === 1) {
-        assignedReviewerId = candidates[0].Teacher_ID;
-        assignedReviewerName = candidates[0].Name;
+      if (stage1.scope_mode === 'own_group_only' || !stage1.scope_mode) {
+        if (candidates.length >= 1) {
+          assignedReviewerId = candidates[0].Teacher_ID;
+          assignedReviewerName = candidates[0].Name;
+        }
+      } else if (candidates.length > 0) {
+        // Automatically select 1 reviewer randomly among eligible candidates so tasks never duplicate
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+        assignedReviewerId = chosen.Teacher_ID;
+        assignedReviewerName = chosen.Name;
       }
     }
   }
@@ -1341,7 +1349,7 @@ export function resolveReviewersForStage(
     }
 
     // D. ผู้ดูแลระบบทุกคน (All Admins)
-    else if (role === 'all_admins') {
+    else if (role === 'all_admins' || (role as string) === 'admin') {
       result = allTeachers.filter((t) => isTeacherAdmin(t));
     }
   }
@@ -1455,7 +1463,10 @@ export function advancePlanStage(
   plan: LessonPlan,
   workflow: ReviewWorkflowConfig,
   reviewRecord: StageReviewRecord,
-  reviewer: Teacher
+  reviewer: Teacher,
+  allTeachers: Teacher[] = getLocalTeachers(),
+  departments: DepartmentConfig[] = getLocalDepartments(),
+  branches: BranchConfig[] = getLocalBranches()
 ): LessonPlan {
   const currentReviews = plan.stage_reviews || [];
   const updatedReviews = [
@@ -1488,6 +1499,23 @@ export function advancePlanStage(
 
   if (!isFinalStage) {
     const nextStage = workflow.stages.find((s) => s.order === currentStageOrder + 1);
+    let nextAssignedId: string | undefined = undefined;
+    let nextAssignedName: string | undefined = undefined;
+
+    if (nextStage && allTeachers && departments) {
+      const candidates = resolveReviewersForStage(nextStage, plan, allTeachers, departments, branches);
+      if (nextStage.scope_mode === 'own_group_only' || !nextStage.scope_mode) {
+        if (candidates.length >= 1) {
+          nextAssignedId = candidates[0].Teacher_ID;
+          nextAssignedName = candidates[0].Name;
+        }
+      } else if (candidates.length > 0) {
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+        nextAssignedId = chosen.Teacher_ID;
+        nextAssignedName = chosen.Name;
+      }
+    }
+
     return {
       ...plan,
       status: 'submitted', // Still pending in next stage for other reviewers
@@ -1501,8 +1529,8 @@ export function advancePlanStage(
       total_score: reviewRecord.total_score ?? plan.total_score,
       stage_reviews: updatedReviews,
       admin_notes: `ผ่านขั้นที่ ${currentStageOrder} (${reviewRecord.stage_title}) เรียบร้อยแล้ว กำลังรอ ${nextStage?.title || 'ขั้นถัดไป'}`,
-      assigned_reviewer_id: undefined,
-      assigned_reviewer_name: undefined,
+      assigned_reviewer_id: nextAssignedId,
+      assigned_reviewer_name: nextAssignedName,
     };
   }
 

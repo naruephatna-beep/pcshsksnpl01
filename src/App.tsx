@@ -1363,7 +1363,24 @@ export default function App() {
     const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
     if (!stage) return false;
 
-    const isEligible = resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
+    const candidates = resolveReviewersForStage(stage, plan, allTeachers, depts, branches);
+    if (stage.scope_mode === 'random_all' || stage.scope_mode === 'random_cross_only') {
+      // Deterministically select exactly ONE reviewer from candidates based on plan.id
+      // to guarantee NO TWO TEACHERS ever see the same plan simultaneously in their pending queue
+      if (candidates.length > 0) {
+        let hash = 0;
+        const seed = plan.id || plan.plan_title || 'plan_seed';
+        for (let i = 0; i < seed.length; i++) {
+          hash = (hash << 5) - hash + seed.charCodeAt(i);
+          hash |= 0;
+        }
+        const picked = candidates[Math.abs(hash) % candidates.length];
+        return isSameTeacherIdOrName(picked.Teacher_ID, picked.Name, teacher);
+      }
+      return false;
+    }
+
+    const isEligible = candidates.some((c) =>
       isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
     );
 

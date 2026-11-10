@@ -1161,40 +1161,57 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                               เลือกบทบาทตำแหน่งผู้ตรวจในขั้นนี้:
                             </span>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                               {[
                                 {
                                   role: 'submitter_branch_head' as ReviewerRoleType,
-                                  title: 'หัวหน้ากลุ่มสาขาของผู้ส่ง',
-                                  desc: 'หัวหน้าสาขาวิชาประจำวิชาของผู้ส่ง (เช่น สาขาเทคโนโลยี/เคมี)',
+                                  title: 'หัวหน้ากลุ่มสาขาวิชา',
+                                  badge: 'สาขาวิชา',
+                                  desc: 'หัวหน้าสาขาวิชาประจำวิชาของผู้ส่ง (เช่น ฟิสิกส์, เคมี, ชีวะ, เทคโนโลยี)',
                                 },
                                 {
                                   role: 'submitter_department_head' as ReviewerRoleType,
-                                  title: 'หัวหน้ากลุ่มสาระของผู้ส่ง',
-                                  desc: 'หัวหน้ากลุ่มสาระการเรียนรู้ของผู้ส่ง (เช่น วิทยาศาสตร์ฯ)',
+                                  title: 'หัวหน้ากลุ่มสาระฯ',
+                                  badge: 'กลุ่มสาระ',
+                                  desc: 'หัวหน้ากลุ่มสาระการเรียนรู้ของผู้ส่ง (เช่น วิทย์ฯ, คณิต, ภาษาไทย)',
                                 },
                                 {
-                                  role: 'admin' as ReviewerRoleType,
-                                  title: 'ฝ่ายบริหาร / แอดมินวิชาการ',
-                                  desc: 'ผู้ดูแลระบบและฝ่ายบริหารวิชาการของโรงเรียน',
+                                  role: 'school_leadership' as ReviewerRoleType,
+                                  title: 'ฝ่ายบริหารสถานศึกษา',
+                                  badge: 'ผู้บริหาร',
+                                  desc: 'ผู้อำนวยการสถานศึกษา, รองผู้อำนวยการ, และคณะผู้บริหาร',
+                                },
+                                {
+                                  role: 'all_admins' as ReviewerRoleType,
+                                  title: 'แอดมินวิชาการ / ระบบกลาง',
+                                  badge: 'แอดมิน',
+                                  desc: 'ผู้ดูแลระบบกลางและคณะทำงานวิชาการของโรงเรียน',
                                 },
                               ].map((item) => {
-                                const isChecked = stage.assigned_role === item.role;
+                                const isChecked =
+                                  stage.assigned_role === item.role ||
+                                  (item.role === 'all_admins' && (stage.assigned_role as string) === 'admin');
                                 return (
                                   <div
                                     key={item.role}
                                     onClick={() => handleUpdateStage(stage.id, { assigned_role: item.role })}
                                     className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
                                       isChecked
-                                        ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold ring-1 ring-emerald-400/30'
-                                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-bold ring-2 ring-emerald-500/20 shadow-xs'
+                                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                                     }`}
                                   >
-                                    <div className="flex items-center justify-between">
-                                      <span>{item.title}</span>
-                                      {isChecked && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="font-bold text-slate-900">{item.title}</span>
+                                      {isChecked ? (
+                                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                      ) : (
+                                        <span className="text-[10px] font-semibold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                          {item.badge}
+                                        </span>
+                                      )}
                                     </div>
-                                    <p className="text-[10px] text-slate-500 font-normal mt-1 leading-relaxed">
+                                    <p className="text-[10px] text-slate-500 font-normal leading-relaxed">
                                       {item.desc}
                                     </p>
                                   </div>
@@ -1327,27 +1344,50 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
 
                       {/* 4. ขอบเขตการตรวจ (Review Scope) */}
                       <div className="space-y-2 pt-2 border-t border-slate-200/80">
-                        <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                          <Target className="w-4 h-4 text-emerald-600" />
-                          <span>ขอบเขตการตรวจ (Review Scope)</span>
-                        </label>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                            <Target className="w-4 h-4 text-emerald-600" />
+                            <span>ขอบเขตการตรวจ (Review Scope)</span>
+                          </label>
+                          <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            ⚙️ แอดมินตั้งค่า: ตรวจเฉพาะคนของตัวเอง หรือ สุ่มตรวจทุกคน
+                          </span>
+                        </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           {[
                             {
                               mode: 'own_group_only' as ReviewScopeMode,
-                              title: 'ตรวจเฉพาะคนของตนเอง',
-                              desc: 'หัวหน้าสาขา/หัวหน้ากลุ่มสาระตรวจเฉพาะคุณครูในสังกัดของตนเอง',
+                              title: '1. ตรวจเฉพาะคนของตัวเอง',
+                              badge: 'สายตรงในสังกัด',
+                              desc:
+                                stage.assigned_role === 'submitter_branch_head'
+                                  ? 'หัวหน้าสาขาตรวจเฉพาะครูในสาขาของตนเอง (เช่น หัวหน้าสาขาฟิสิกส์ตรวจเฉพาะครูฟิสิกส์)'
+                                  : stage.assigned_role === 'submitter_department_head'
+                                  ? 'หัวหน้ากลุ่มสาระตรวจเฉพาะครูในกลุ่มสาระของตนเอง (เช่น หัวหน้าวิทย์ฯ ตรวจเฉพาะครูวิทย์ฯ)'
+                                  : 'ผู้ตรวจจะได้รับเอกสารเฉพาะคุณครูที่อยู่ในสาขาหรือกลุ่มสาระของตนเองเท่านั้น',
                             },
                             {
                               mode: 'random_all' as ReviewScopeMode,
-                              title: 'สุ่มตรวจทุกคนเท่าๆ กัน',
-                              desc: 'กระจายงานให้ผู้ตรวจทุกคนในปริมาณเท่ากันโดยอัตโนมัติ',
+                              title: '2. ตรวจของทุกคนแบบสุ่ม',
+                              badge: 'เกลี่ยงานเท่ากัน',
+                              desc:
+                                stage.assigned_role === 'submitter_branch_head'
+                                  ? 'หัวหน้าสาขาทุกคนช่วยกันตรวจทั้งโรงเรียน ระบบจะสุ่มและแบ่งจำนวนเล่มให้ทุกคนเท่าๆ กัน'
+                                  : stage.assigned_role === 'submitter_department_head'
+                                  ? 'หัวหน้ากลุ่มสาระทุกคนช่วยกันตรวจเอกสารทั้งโรงเรียน ระบบจะสุ่มกระจายงานให้เท่าๆ กัน'
+                                  : 'ผู้ตรวจทุกคนในขั้นนี้มีสิทธิ์ตรวจเอกสารของทุกคน ระบบจะสุ่มกระจายภาระงานให้อย่างสมดุล',
                             },
                             {
                               mode: 'random_cross_only' as ReviewScopeMode,
-                              title: 'สุ่มตรวจข้ามกลุ่มเท่านั้น',
-                              desc: 'สุ่มตรวจข้ามสาขาหรือข้ามกลุ่มสาระ (Cross-check)',
+                              title: '3. สุ่มตรวจข้ามกลุ่มเท่านั้น',
+                              badge: 'Cross-Check',
+                              desc:
+                                stage.assigned_role === 'submitter_branch_head'
+                                  ? 'สุ่มให้หัวหน้าสาขาอื่นเป็นผู้ตรวจ โดยไม่ให้ตรวจครูในสาขาของตนเอง เพื่อความเป็นกลาง'
+                                  : stage.assigned_role === 'submitter_department_head'
+                                  ? 'สุ่มให้หัวหน้ากลุ่มสาระอื่นตรวจข้ามกลุ่มสาระ โดยไม่ตรวจคนในกลุ่มสาระของตนเอง'
+                                  : 'สุ่มตรวจข้ามกลุ่มสาระหรือข้ามสาขาวิชา เพื่อการประเมินเทียบเคียงที่โปร่งใส',
                             },
                           ].map((item) => {
                             const isChecked = (stage.scope_mode || 'own_group_only') === item.mode;
@@ -1355,19 +1395,27 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                               <div
                                 key={item.mode}
                                 onClick={() => handleUpdateStage(stage.id, { scope_mode: item.mode })}
-                                className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex flex-col justify-between ${
                                   isChecked
-                                    ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold ring-1 ring-emerald-400/30'
-                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-bold ring-2 ring-emerald-500/20 shadow-xs'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                                 }`}
                               >
-                                <div className="flex items-center justify-between">
-                                  <span>{item.title}</span>
-                                  {isChecked && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                                <div>
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="font-bold text-slate-900">{item.title}</span>
+                                    {isChecked ? (
+                                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    ) : (
+                                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                        {item.badge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 font-normal leading-relaxed">
+                                    {item.desc}
+                                  </p>
                                 </div>
-                                <p className="text-[10px] text-slate-500 font-normal mt-1 leading-relaxed">
-                                  {item.desc}
-                                </p>
                               </div>
                             );
                           })}

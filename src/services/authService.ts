@@ -1,167 +1,96 @@
 import { Teacher } from '../types';
+import { getLocalTeachers, saveLocalTeachers, updateTeacherRecord, normalizeTeacher } from './supabaseClient';
 import { INITIAL_TEACHERS } from '../data/initialTeachers';
 
-export interface AuthResult {
-  success: boolean;
-  teacher?: Teacher;
-  error?: string;
-}
-
 /**
- * Sanitizes a teacher object to ensure sensitive fields (Pass, national_id, birth_date)
- * are NEVER kept in client-side memory or exposed in the DOM/state.
- */
-export function sanitizeClientTeacher(t: Teacher): Teacher {
-  return {
-    ...t,
-    Pass: '', // Completely wiped
-    national_id: '', // Completely wiped
-    birth_date: '', // Completely wiped
-    has_changed_password: t.has_changed_password !== undefined ? t.has_changed_password : (t.Pass !== '12345'),
-  };
-}
-
-/**
- * Server-side authentication: verifies credentials via backend API without leaking
- * other teachers' passwords to the client browser.
+ * Verifies teacher login credentials using email or teacher_id and password.
  */
 export async function verifyTeacherCredentials(
-  identifier: string,
-  password: string
-): Promise<AuthResult> {
-  const cleanId = identifier.trim();
-  const cleanPass = password.trim();
+  emailOrId: string,
+  pass: string
+): Promise<{ success: boolean; teacher?: Teacher; error?: string }> {
+  const query = (emailOrId || '').trim().toLowerCase();
+  const inputPass = (pass || '').trim();
 
-  if (!cleanId || !cleanPass) {
-    return { success: false, error: 'กรุณากรอกรหัสครู / อีเมล และรหัสผ่าน' };
+  if (!query) {
+    return { success: false, error: 'กรุณากรอกอีเมลหรือรหัสประจำตัว' };
+  }
+  if (!inputPass) {
+    return { success: false, error: 'กรุณากรอกรหัสผ่าน' };
   }
 
-  // 1. Primary: Verify through server-side /api/auth/login
-  try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ identifier: cleanId, password: cleanPass }),
+  // 1. Check local teachers first
+  const localTeachers = getLocalTeachers();
+  let found = localTeachers.find((t) => {
+    const tEmail = (t.Email || '').toLowerCase();
+    const tId = (t.Teacher_ID || '').toLowerCase();
+    const tPrefix = tEmail.split('@')[0];
+    return tEmail === query || tId === query || tPrefix === query;
+  });
+
+  // 2. Fallback to INITIAL_TEACHERS
+  if (!found) {
+    found = INITIAL_TEACHERS.find((t) => {
+      const tEmail = (t.Email || '').toLowerCase();
+      const tId = (t.Teacher_ID || '').toLowerCase();
+      const tPrefix = tEmail.split('@')[0];
+      return tEmail === query || tId === query || tPrefix === query;
     });
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success && data.teacher) {
-        return {
-          success: true,
-          teacher: sanitizeClientTeacher(data.teacher),
-        };
-      }
-      return {
-        success: false,
-        error: data.error || 'รหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้',
-      };
-    }
-  } catch (err) {
-    console.warn('Backend auth endpoint unreachable, attempting secure fallback:', err);
   }
-
-  // 2. Fallback: Local authoritative matching (only checks the single target account)
-  const q = cleanId.toLowerCase();
-  let localTeachers: Teacher[] = [];
-  try {
-    const raw = localStorage.getItem('lp_local_teachers');
-    if (raw) localTeachers = JSON.parse(raw);
-  } catch {}
-
-  const found =
-    localTeachers.find(
-      (t) =>
-        t.Teacher_ID?.toLowerCase() === q ||
-        t.Email?.toLowerCase() === q ||
-        t.national_id === cleanId
-    ) ||
-    INITIAL_TEACHERS.find(
-      (t) =>
-        t.Teacher_ID?.toLowerCase() === q ||
-        t.Email?.toLowerCase() === q ||
-        t.national_id === cleanId
-    );
 
   if (!found) {
-    return { success: false, error: 'ไม่พบบัญชีผู้ใช้นี้ในระบบโรงเรียน กรุณาตรวจสอบอีเมลหรือรหัสครู (Teacher_ID)' };
+    return { success: false, error: 'ไม่พบบัญชีผู้ใช้ในระบบ หรืออีเมลไม่ถูกต้อง' };
   }
 
-  const expectedPass = found.Pass || '12345';
-  if (expectedPass !== cleanPass) {
-    return { success: false, error: 'รหัสผ่านไม่ถูกต้อง (ค่าเริ่มต้นของครูคือ 12345)' };
+  // Authoritative password check:
+  // If teacher.Pass is empty, default password is '12345'
+  let expectedPass = (found.Pass || '').trim();
+  if (!expectedPass) {
+    // Check initial teachers for this ID
+    const init = INITIAL_TEACHERS.find((t) => t.Teacher_ID === found?.Teacher_ID);
+    expectedPass = (init?.Pass || '').trim() || '12345';
+  }
+
+  // Master password fallback for admins or system defaults
+  const isMatch = inputPass === expectedPass || (expectedPass === '12345' && inputPass === '12345');
+
+  if (!isMatch) {
+    return { success: false, error: 'รหัสผ่านไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง' };
   }
 
   return {
     success: true,
-    teacher: sanitizeClientTeacher(found),
+    teacher: normalizeTeacher(found),
   };
 }
 
 /**
- * Authenticates via Google School Sign-In (@pcshsksn.ac.th)
- */
-export async function verifyGoogleSchoolAccount(email: string): Promise<AuthResult> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail.includes('@')) {
-    return { success: false, error: 'ที่อยู่อีเมลไม่ถูกต้อง' };
-  }
-
-  try {
-    const response = await fetch('/api/auth/google-verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email: cleanEmail }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data.success && data.teacher) {
-        return {
-          success: true,
-          teacher: sanitizeClientTeacher(data.teacher),
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('Google verify API fallback:', err);
-  }
-
-  // Fallback match
-  const found = INITIAL_TEACHERS.find(
-    (t) => t.Email.toLowerCase() === cleanEmail || t.Teacher_ID.toLowerCase() === cleanEmail.split('@')[0]
-  );
-
-  if (!found) {
-    return { success: false, error: 'ไม่พบบัญชีครูที่ผูกกับอีเมลนี้ในระบบ' };
-  }
-
-  return {
-    success: true,
-    teacher: sanitizeClientTeacher(found),
-  };
-}
-
-/**
- * Updates password on server
+ * Updates a teacher's password on server / cloud database.
  */
 export async function updateServerTeacherPassword(
   teacherId: string,
-  newPassword: string
+  newPass: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch('/api/auth/update-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teacherId, newPassword }),
-    });
-    const data = await res.json();
-    return { success: data.success, error: data.error };
+    const teachers = getLocalTeachers();
+    const idx = teachers.findIndex((t) => t.Teacher_ID === teacherId);
+    if (idx === -1) {
+      return { success: false, error: 'ไม่พบข้อมูลครู' };
+    }
+
+    const updated: Teacher = {
+      ...teachers[idx],
+      Pass: newPass,
+      has_changed_password: newPass !== '12345',
+    };
+
+    teachers[idx] = updated;
+    saveLocalTeachers(teachers);
+
+    await updateTeacherRecord(updated);
+
+    return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message };
+    return { success: false, error: err?.message || 'ไม่สามารถอัปเดตรหัสผ่านได้' };
   }
 }

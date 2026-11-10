@@ -83,7 +83,7 @@ export function saveCloudflareConfig(config: CloudflareSettings) {
 /**
  * Cloudflare Worker Client Fetcher
  */
-async function cfFetch<T = any>(
+export async function cfFetch<T = any>(
   path: string,
   options: RequestInit = {}
 ): Promise<{ success: boolean; data?: T; error?: string; status?: number }> {
@@ -282,6 +282,8 @@ export function sanitizeTeacherForCloudflare(t: Teacher): Record<string, any> {
     academic_standing: t.academic_standing ? String(t.academic_standing) : '',
     department: t.department ? String(t.department) : '',
     role: t.role ? String(t.role) : 'teacher',
+    is_head_of_department: t.is_head_of_department ? 1 : 0,
+    is_head_of_branch: t.is_head_of_branch ? 1 : 0,
   };
 }
 
@@ -304,6 +306,15 @@ export async function saveTeacherToCloudflare(teacher: Teacher): Promise<{ succe
     body: JSON.stringify(sanitized),
   });
   return { success: res.success, error: res.error };
+}
+
+export async function saveTeachersBatchToCloudflare(teachers: Teacher[]): Promise<{ success: boolean; count?: number; error?: string }> {
+  const sanitizedList = teachers.map(sanitizeTeacherForCloudflare);
+  const res = await cfFetch<{ success: boolean; count: number }>('/api/teachers/batch', {
+    method: 'POST',
+    body: JSON.stringify(sanitizedList),
+  });
+  return { success: res.success, count: res.data?.count, error: res.error };
 }
 
 export async function fetchPlansFromCloudflare(): Promise<{ data: LessonPlan[]; success: boolean; error?: string }> {
