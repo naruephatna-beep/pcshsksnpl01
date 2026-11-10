@@ -64,7 +64,6 @@ interface WorkflowManagerModalProps {
   plans: LessonPlan[];
   onUpdatePlans: (plans: LessonPlan[]) => void;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
-  embedded?: boolean;
 }
 
 export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
@@ -78,7 +77,6 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
   plans,
   onUpdatePlans,
   deadlineConfigs,
-  embedded = false,
 }) => {
   // 1. Gather all ACTUAL document types registered in the school system
   const actualDocumentTypes = useMemo(() => {
@@ -478,10 +476,10 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const innerContent = (
-    <div className={`w-full bg-white flex flex-col ${embedded ? 'rounded-2xl border border-slate-200 shadow-2xs' : 'max-w-5xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh]'}`}>
-      {/* Header - Only when not embedded */}
-      {!embedded && (
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-200">
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Header */}
         <div className="bg-[#0B1329] text-white p-5 sm:p-6 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-amber-400/20 shrink-0">
@@ -509,7 +507,6 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
-      )}
 
         {/* Notice toast */}
         {toastNotice && (
@@ -1460,24 +1457,22 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 shrink-0">
+        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>
               สายงานที่กำหนดจะถูกผูกเข้ากับเอกสารประเภท <strong>{selectedDocType}</strong> โดยอัตโนมัติทันทีเมื่อบันทึก
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            {!embedded && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                ปิดหน้าต่าง
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              ปิดหน้าต่าง
+            </button>
             <button
               type="button"
               onClick={handleSaveAll}
@@ -1488,17 +1483,6 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
           </div>
         </div>
       </div>
-  );
-
-  return (
-    <>
-      {embedded ? (
-        innerContent
-      ) : (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-200">
-          {innerContent}
-        </div>
-      )}
 
       {/* Modal: Add New Actual Document Type */}
       {isAddDocTypeModalOpen && (
@@ -1517,7 +1501,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsAddDocTypeModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1543,7 +1527,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddDocTypeModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
                 >
                   ยกเลิก
                 </button>
@@ -1558,6 +1542,6 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
