@@ -379,14 +379,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Section 2: ฝ่ายบริหาร & ผู้ดูแลระบบ (Admin Hub) */}
+        {/* Section 2: ฝ่ายบริหาร & การติดตาม (Analytics & Tracking) */}
         {isAdmin && (
           <div>
-            <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-400/90 flex items-center gap-1.5">
-              <span>การบริหาร & ตรวจสอบ</span>
+            <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+              <span>การติดตาม & สถิติ (Analytics)</span>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {/* แดชบอร์ดภาพรวมผู้บริหาร */}
               <button
                 onClick={() =>
@@ -395,71 +395,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     if (setExecutiveMode) setExecutiveMode('standard');
                   }, 'executive-dashboard-section')
                 }
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'standard'
                     ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <BarChart3 className="w-4 h-4 text-amber-400 shrink-0" />
                   <span className="truncate text-xs">แดชบอร์ดภาพรวมผู้บริหาร</span>
                 </div>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
-                  Stats
-                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
               </button>
 
-              {/* จัดอันดับกลุ่มสาระ (Leaderboard) */}
-              <button
-                onClick={() =>
-                  handleNavClick(() => {
-                    setMainView('executive');
-                    if (setExecutiveMode) setExecutiveMode('ranking');
-                  }, 'executive-dashboard-section')
-                }
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
-                  mainView === 'executive' && executiveMode === 'ranking'
-                    ? 'bg-amber-400/20 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="truncate text-xs">จัดอันดับกลุ่มสาระ</span>
-                </div>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400 text-slate-950">
-                  Rank #1
-                </span>
-              </button>
+              {/* ภาระงานผู้ตรวจ (ใครตรวจกี่อัน) */}
+              {onOpenReviewerWorkload && (
+                <button
+                  onClick={() => handleNavClick(onOpenReviewerWorkload)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                  title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน: ใครตรวจไปกี่อัน และเหลืองานค้างกี่อัน"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="truncate text-xs">ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                </button>
+              )}
 
-              {/* วิเคราะห์ Data-Driven Org (DDO) */}
-              <button
-                onClick={() =>
-                  handleNavClick(() => {
-                    setMainView('executive');
-                    if (setExecutiveMode) setExecutiveMode('ddo');
-                  }, 'executive-dashboard-section')
-                }
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
-                  mainView === 'executive' && executiveMode === 'ddo'
-                    ? 'bg-indigo-500/20 text-indigo-300 font-semibold border-l-2 border-indigo-400 shadow-2xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <BrainCircuit className="w-4 h-4 text-indigo-400 shrink-0" />
-                  <span className="truncate text-xs">วิเคราะห์ Data-Driven Org</span>
-                </div>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500 text-white shadow-2xs">
-                  DDO
-                </span>
-              </button>
-
-              {/* ศูนย์ติดตามงานรายบุคคล */}
+              {/* ติดตามงานรายบุคคล */}
               <button
                 onClick={() => handleNavClick(() => onOpenAdminTrackerModal('table'))}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <ClipboardList className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
@@ -468,54 +435,90 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
 
-              {/* จำแนกประเภทเอกสารรายคน */}
+              {/* สรุปจำแนกประเภทเอกสาร */}
               <button
                 onClick={() => handleNavClick(() => onOpenAdminTrackerModal('breakdown'))}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Layers className="w-4 h-4 text-amber-400 shrink-0 transition-colors" />
-                  <span className="truncate text-xs">สรุปประเภทเอกสารรายคน</span>
-                </div>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  Breakdown
-                </span>
-              </button>
-
-              {/* ตรวจสอบภาระงานผู้ตรวจ (ใครตรวจกี่อัน) */}
-              {onOpenReviewerWorkload && (
-                <button
-                  onClick={() => handleNavClick(onOpenReviewerWorkload)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-950/70 via-teal-950/60 to-slate-900 border border-emerald-500/40 text-emerald-200 hover:text-white hover:border-emerald-400 transition-all cursor-pointer group font-semibold shadow-xs"
-                  title="ตรวจสอบยอดตรวจจริงของหัวหน้าสาขา หัวหน้ากลุ่มสาระ และผู้บริหารว่าใครตรวจกี่อันและค้างกี่อัน"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <UserCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
-                    <span className="truncate text-xs font-bold text-white">ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
-                  </div>
-                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 shrink-0">
-                    Audit
-                  </span>
-                </button>
-              )}
-
-              {/* กำหนดส่ง & จัดการสถานะ */}
-              <button
-                onClick={() => handleNavClick(onOpenDeadlineManager)}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Calendar className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
-                  <span className="truncate text-xs">กำหนดส่ง & จัดการสถานะ</span>
+                  <Layers className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
+                  <span className="truncate text-xs">สรุปจำแนกประเภทเอกสาร</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
 
-              {/* โครงสร้างสาขา & หัวหน้าสาขา */}
+              {/* จัดอันดับกลุ่มสาระ */}
+              <button
+                onClick={() =>
+                  handleNavClick(() => {
+                    setMainView('executive');
+                    if (setExecutiveMode) setExecutiveMode('ranking');
+                  }, 'executive-dashboard-section')
+                }
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
+                  mainView === 'executive' && executiveMode === 'ranking'
+                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Trophy className="w-4 h-4 text-amber-400/80 shrink-0" />
+                  <span className="truncate text-xs">จัดอันดับกลุ่มสาระ</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
+              </button>
+
+              {/* วิเคราะห์ Data-Driven Org */}
+              <button
+                onClick={() =>
+                  handleNavClick(() => {
+                    setMainView('executive');
+                    if (setExecutiveMode) setExecutiveMode('ddo');
+                  }, 'executive-dashboard-section')
+                }
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
+                  mainView === 'executive' && executiveMode === 'ddo'
+                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <BrainCircuit className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span className="truncate text-xs">วิเคราะห์ Data-Driven Org</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 opacity-60 shrink-0" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Section 3: การตั้งค่าระบบ (System Configuration) */}
+        {isAdmin && (
+          <div>
+            <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+              <span>การตั้งค่าระบบ (Settings)</span>
+            </div>
+
+            <div className="space-y-0.5">
+              {/* สายงานอนุมัติ & ผู้ตรวจ */}
+              {onOpenWorkflowManager && (
+                <button
+                  onClick={() => handleNavClick(onOpenWorkflowManager)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Workflow className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span className="truncate text-xs">สายงานอนุมัติ & ผู้ตรวจ</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                </button>
+              )}
+
+              {/* โครงสร้างสาขา & กลุ่มสาระ */}
               {onOpenStaffStructure && (
                 <button
                   onClick={() => handleNavClick(onOpenStaffStructure)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
@@ -525,42 +528,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               )}
 
-              {/* สายงานอนุมัติ & ผู้ตรวจ */}
-              {onOpenWorkflowManager && (
-                <button
-                  onClick={() => handleNavClick(onOpenWorkflowManager)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Workflow className="w-4 h-4 text-indigo-400 shrink-0" />
-                    <span className="truncate text-xs">สายงานอนุมัติ & ผู้ตรวจ (Stages)</span>
-                  </div>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
-                    Workflow
-                  </span>
-                </button>
-              )}
+              {/* กำหนดส่ง & จัดการสถานะ */}
+              <button
+                onClick={() => handleNavClick(onOpenDeadlineManager)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Calendar className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
+                  <span className="truncate text-xs">กำหนดส่ง & จัดการสถานะ</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+              </button>
 
-              {/* สิทธิ์ดูเอกสารทั้งหมด */}
-              {onOpenAllDocsPermission && (
-                <button
-                  onClick={() => handleNavClick(onOpenAllDocsPermission)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate text-xs">สิทธิ์ดูเอกสารทั้งหมด</span>
-                  </div>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                    Security
-                  </span>
-                </button>
-              )}
-
-              {/* สมุดรายชื่อบุคลากร */}
+              {/* ทำเนียบบุคลากร */}
               <button
                 onClick={() => handleNavClick(onOpenDirectoryModal)}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer group font-medium"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Users className="w-4 h-4 text-slate-400 group-hover:text-amber-400 shrink-0 transition-colors" />
@@ -569,19 +552,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
               </button>
 
+              {/* สิทธิ์ดูเอกสารทั้งหมด */}
+              {onOpenAllDocsPermission && (
+                <button
+                  onClick={() => handleNavClick(onOpenAllDocsPermission)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="truncate text-xs">สิทธิ์ดูเอกสารทั้งโรงเรียน</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                </button>
+              )}
+
               {/* ตั้งค่า Google Drive อัตโนมัติ */}
               {onOpenGoogleDriveConfig && (
                 <button
                   onClick={() => handleNavClick(onOpenGoogleDriveConfig)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-emerald-300 hover:text-white bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all cursor-pointer group font-medium"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate text-xs">ตั้งค่า Google Drive (Auto)</span>
+                    <span className="truncate text-xs">ตั้งค่า Google Drive</span>
                   </div>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-mono">
-                    Drive
-                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
                 </button>
               )}
             </div>

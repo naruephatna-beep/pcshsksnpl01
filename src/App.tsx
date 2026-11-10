@@ -203,6 +203,7 @@ export default function App() {
   const [isStaffStructureModalOpen, setIsStaffStructureModalOpen] = useState(false);
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   const [isAllDocsPermissionModalOpen, setIsAllDocsPermissionModalOpen] = useState(false);
+  const [isAdminTopMenuOpen, setIsAdminTopMenuOpen] = useState(false);
   const [allDocsAccessConfig, setAllDocsAccessConfig] = useState<AllDocumentsAccessConfig>(() => {
     try {
       const raw = localStorage.getItem('school_all_docs_access_config');
@@ -2315,48 +2316,146 @@ export default function App() {
               </button>
             )}
 
-            {/* Admin Quick Action Button: สรุปประเภทเอกสาร (รายคน) */}
+            {/* Unified Admin Tools Menu for Desktop */}
             {isAdmin && (
-              <>
+              <div className="relative">
                 <button
-                  onClick={() => setIsStaffStructureModalOpen(true)}
-                  className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-300 text-slate-800 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                  title="จัดการโครงสร้างสาขาและแต่งตั้งหัวหน้าสาขา"
+                  type="button"
+                  onClick={() => setIsAdminTopMenuOpen(!isAdminTopMenuOpen)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                    isAdminTopMenuOpen
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200 shadow-2xs'
+                  }`}
+                  title="เครื่องมือและการจัดการผู้ดูแลระบบ"
                 >
-                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                  <span>โครงสร้างสาขา</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                  <span>จัดการระบบ</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isAdminTopMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                <button
-                  onClick={() => setIsWorkflowModalOpen(true)}
-                  className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                  title="ตั้งค่าสายงานการอนุมัติและกระจายงานอัตโนมัติ"
-                >
-                  <WorkflowIcon className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>สายงานอนุมัติ</span>
-                </button>
+                {isAdminTopMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setIsAdminTopMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200/90 z-40 p-2 text-xs text-slate-800 animate-in fade-in slide-in-from-top-2 divide-y divide-slate-100">
+                      {/* Group 1: Analytics & Tracking */}
+                      <div className="p-1 space-y-0.5">
+                        <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          สถิติ & ติดตามงาน
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsReviewerWorkloadModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-950 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">ภาระงานผู้ตรวจ</div>
+                            <div className="text-[10px] text-slate-400">ตรวจสอบยอดตรวจจริงและงานค้าง</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleOpenAdminTracker('table');
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <ClipboardList className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">ติดตามงานรายบุคคล</div>
+                            <div className="text-[10px] text-slate-400">ตารางติดตามการส่งเอกสารของครู</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleOpenAdminTracker('breakdown');
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Layers className="w-4 h-4 text-amber-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">จำแนกประเภทเอกสาร</div>
+                            <div className="text-[10px] text-slate-400">สรุปจำนวนส่งรายประเภทต่อคน</div>
+                          </div>
+                        </button>
+                      </div>
 
-                <button
-                  onClick={() => handleOpenAdminTracker('breakdown')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                  title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสารเป็นรายคน"
-                >
-                  <Layers className="w-3.5 h-3.5 text-amber-600" />
-                  <span>จำแนกประเภทเอกสาร</span>
-                </button>
-
-                <button
-                  onClick={() => setIsReviewerWorkloadModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 border border-emerald-400/40"
-                  title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน: ใครตรวจไปกี่อัน และเหลืองานค้างกี่อัน"
-                >
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-100" />
-                  <span>👥 ภาระงานผู้ตรวจ</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/20 text-white font-mono">
-                    Audit
-                  </span>
-                </button>
-              </>
+                      {/* Group 2: Settings */}
+                      <div className="p-1 space-y-0.5 pt-1.5">
+                        <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          ตั้งค่าระบบ
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsWorkflowModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <WorkflowIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">สายงานอนุมัติ & ผู้ตรวจ</div>
+                            <div className="text-[10px] text-slate-400">กำหนดลำดับขั้นตอนและผู้ตรวจ</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsStaffStructureModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">โครงสร้างสาขาวิชา & สาระ</div>
+                            <div className="text-[10px] text-slate-400">แต่งตั้งหัวหน้าและจัดกลุ่มครู</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDeadlineModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Calendar className="w-4 h-4 text-slate-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">กำหนดส่ง & สถานะ</div>
+                            <div className="text-[10px] text-slate-400">ตั้งวันหมดเขตและสถานะเอกสาร</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDirectoryModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Users className="w-4 h-4 text-sky-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">ทำเนียบบุคลากร</div>
+                            <div className="text-[10px] text-slate-400">รายชื่อครูทั้งหมด {teachers.length} ท่าน</div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             {/* Teacher Profile Button */}
@@ -2502,71 +2601,47 @@ export default function App() {
 
         {/* View Switcher for Admins & Leadership */}
         {isAdmin && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
-            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl w-full sm:w-auto">
               <button
                 onClick={() => {
                   setMainView('executive');
                   setExecutiveMode('standard');
                 }}
-                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  mainView === 'executive' && executiveMode === 'standard'
-                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  mainView === 'executive'
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <BarChart3 className="w-4 h-4 text-indigo-600" />
-                <span className="truncate">ภาพรวมผู้บริหาร</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setMainView('executive');
-                  setExecutiveMode('ddo');
-                }}
-                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  mainView === 'executive' && executiveMode === 'ddo'
-                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-indigo-950'
-                }`}
-              >
-                <BrainCircuit className="w-4 h-4 text-indigo-600" />
-                <span className="truncate">Data-Driven Org</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold">
-                  DDO
-                </span>
+                <BarChart3 className="w-4 h-4 text-amber-500" />
+                <span>แดชบอร์ดภาพรวมบริหาร</span>
               </button>
 
               <button
                 onClick={() => setMainView('plans')}
-                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   mainView === 'plans'
-                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <FileText className="w-4 h-4 text-slate-500" />
-                <span className="truncate">เอกสารทั้งหมด ({plans.length})</span>
-              </button>
-
-              <button
-                onClick={() => setIsReviewerWorkloadModalOpen(true)}
-                className="px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs active:scale-95 border border-emerald-400/30"
-                title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน: ใครตรวจไปกี่อัน และเหลืองานค้างกี่อัน"
-              >
-                <UserCheck className="w-4 h-4 text-emerald-200" />
-                <span className="truncate">👥 ภาระงานผู้ตรวจ</span>
+                <FileText className="w-4 h-4 text-indigo-600" />
+                <span>รายการเอกสารทั้งหมด</span>
+                <span className="font-mono text-[11px] text-slate-400">({plans.length})</span>
               </button>
             </div>
 
-            <div className="text-xs text-slate-500 font-medium px-2 flex items-center gap-1.5">
+            <div className="text-xs text-slate-500 font-medium px-1 flex items-center gap-1.5">
               <span>มุมมอง:</span>
               <span className="font-semibold text-slate-800 truncate">
                 {mainView === 'executive'
                   ? executiveMode === 'ddo'
-                    ? 'องค์กรขับเคลื่อนด้วยข้อมูล (Data-Driven Organization)'
-                    : 'แดชบอร์ดภาพรวมและกราฟ'
-                  : 'รายการแผนและการตรวจประเมิน'}
+                    ? 'วิเคราะห์ Data-Driven Org'
+                    : executiveMode === 'ranking'
+                    ? 'จัดอันดับกลุ่มสาระ'
+                    : 'แดชบอร์ดภาพรวมผู้บริหาร'
+                  : 'รายการเอกสารและการประเมิน'}
               </span>
             </div>
           </div>
@@ -2574,75 +2649,40 @@ export default function App() {
 
         {/* Special Admin Control Notification Bar (shown on plans view) */}
         {isAdmin && mainView === 'plans' && (
-          <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
-            <div className="flex items-start sm:items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 font-bold shadow-xs mt-0.5 sm:mt-0">
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
+          <div className="bg-amber-50/50 border border-amber-200/70 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 font-bold shadow-2xs">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
-                  <span>โหมดผู้ดูแลระบบ (Admin: {currentTeacher?.Teacher_ID})</span>
-                  <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-semibold">
-                    Super Admin
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                  <span>โหมดผู้ดูแลระบบ (Admin)</span>
+                  <span className="text-[10px] text-amber-900 font-mono font-medium">
+                    ID: {currentTeacher?.Teacher_ID}
                   </span>
-                </h4>
-                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                  ท่านสามารถติดตามดูว่าครูคนใดส่งแผนแล้วบ้างแยกตามกลุ่มสาระการเรียนรู้ และมีสิทธิ์แก้ไขข้อมูลแผนการสอนรวมถึงข้อมูลครูทุกคนในระบบ
+                </div>
+                <p className="text-[11px] text-slate-600 truncate max-w-xl">
+                  ท่านมีสิทธิ์ตรวจสอบความคืบหน้าของครูทุกคน และจัดการสายงานอนุมัติในระบบ
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 flex-wrap w-full sm:w-auto">
-              <button
-                onClick={() => {
-                  setExecutiveMode('ranking');
-                  setMainView('executive');
-                }}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-                title="จัดอันดับกลุ่มสาระที่ส่งเอกสารครบและตรงเวลาทุกคนก่อน"
-              >
-                <Trophy className="w-4 h-4 text-slate-950" />
-                <span>จัดอันดับกลุ่มสาระ</span>
-              </button>
-              <button
-                onClick={() => setIsDeadlineModalOpen(true)}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-                title="กำหนดช่วงเวลาส่งของแต่ละประเภทเอกสาร และปรับแต่งสถานะทั้งหมด"
-              >
-                <Calendar className="w-4 h-4 text-slate-500" />
-                <span>กำหนดส่ง & สถานะ</span>
-              </button>
-              <button
-                onClick={() => handleOpenAdminTracker('breakdown')}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-                title="ดูสรุปจำแนกประเภทเอกสารรายบุคคล ใครส่งอะไรแล้วบ้างและส่งกี่ฉบับ"
-              >
-                <Layers className="w-4 h-4 text-amber-700" />
-                <span>จำแนกประเภทเอกสาร</span>
-              </button>
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
               <button
                 onClick={() => handleOpenAdminTracker('table')}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-initial px-3 py-1.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
                 title="ตารางติดตามดูสถานะการส่งเอกสารของบุคลากรทุกคน"
               >
-                <ClipboardList className="w-4 h-4 text-amber-400" />
+                <ClipboardList className="w-3.5 h-3.5 text-amber-400" />
                 <span>ตารางติดตามส่ง</span>
               </button>
               <button
                 onClick={() => setIsReviewerWorkloadModalOpen(true)}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-                title="ตรวจสอบว่าหัวหน้าสาขา หัวหน้ากลุ่มสาระ และผู้บริหาร แต่ละท่านตรวจงานไปกี่อัน และค้างตรวจกี่อัน"
+                className="flex-1 sm:flex-initial px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน"
               >
-                <UserCheck className="w-4 h-4 text-emerald-200" />
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>ภาระงานผู้ตรวจ</span>
-              </button>
-              <button
-                onClick={() => syncWithDatabase(false)}
-                disabled={isSyncing}
-                className="p-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
-                title={`ซิงก์ข้อมูลและล้างแคชล่าสุดกับ Cloudflare D1 (${lastSyncTime})`}
-              >
-                <RefreshCw className={`w-4 h-4 text-slate-600 ${isSyncing ? 'animate-spin text-amber-500' : ''}`} />
               </button>
             </div>
           </div>
@@ -3166,18 +3206,6 @@ export default function App() {
                   ✕
                 </button>
               </div>
-            )}
-
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => setIsReviewerWorkloadModalOpen(true)}
-                className="w-full sm:w-auto px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-all"
-                title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน: ใครตรวจไปกี่อัน และเหลืองานค้างกี่อัน"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
-                <span>👥 ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
-              </button>
             )}
           </div>
         </div>

@@ -147,10 +147,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {onOpenReviewerWorkload && (
                       <button
                         onClick={onOpenReviewerWorkload}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer active:scale-95 border border-emerald-400/40"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
                         title="ตรวจสอบภาระงานผู้ตรวจ: ใครตรวจแล้วกี่อัน ค้างตรวจกี่อัน และผ่านการอนุมัติกี่ฉบับ"
                       >
-                        <UserCheck className="w-3.5 h-3.5 text-emerald-100" />
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                         <span>ภาระงานผู้ตรวจ</span>
                       </button>
                     )}
