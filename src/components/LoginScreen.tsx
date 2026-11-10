@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Teacher } from '../types';
-import { INITIAL_TEACHERS } from '../data/initialTeachers';
+import { verifyTeacherCredentials } from '../services/authService';
 import { updateTeacherRecord } from '../services/supabaseClient';
 import {
   Lock,
@@ -10,9 +10,7 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  ShieldCheck,
-  Database,
-  Cloud,
+  Loader2,
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -30,39 +28,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  // Merge passed teachers with INITIAL_TEACHERS
-  const allAvailableTeachers: Teacher[] = React.useMemo(() => {
-    const map = new Map<string, Teacher>();
-    INITIAL_TEACHERS.forEach((t) => map.set(t.Teacher_ID.toLowerCase(), t));
-    teachers.forEach((t) => map.set(t.Teacher_ID.toLowerCase(), t));
-    return Array.from(map.values());
-  }, [teachers]);
-
-  const handleFormLogin = (e: React.FormEvent) => {
+  const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsVerifying(true);
 
-    const trimmedInput = email.trim().toLowerCase();
-    const found = allAvailableTeachers.find(
-      (t) =>
-        t.Email.toLowerCase() === trimmedInput ||
-        t.Teacher_ID.toLowerCase() === trimmedInput ||
-        t.national_id === trimmedInput
-    );
-
-    if (!found) {
-      setError('ไม่พบบัญชีผู้ใช้นี้ในระบบ กรุณาตรวจสอบอีเมลหรือรหัสครู (Teacher_ID)');
-      return;
+    try {
+      const res = await verifyTeacherCredentials(email, password);
+      if (res.success && res.teacher) {
+        onLogin(res.teacher);
+      } else {
+        setError(res.error || 'รหัสผ่านไม่ถูกต้อง หรือไม่พบบัญชีผู้ใช้');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์การเข้าสู่ระบบ');
+    } finally {
+      setIsVerifying(false);
     }
-
-    if (found.Pass !== password.trim()) {
-      setError('รหัสผ่านไม่ถูกต้อง (ค่าเริ่มต้นของครูคือ 12345)');
-      return;
-    }
-
-    updateTeacherRecord(found);
-    onLogin(found);
   };
 
   return (
@@ -150,10 +134,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
               </div>
 
+
+
               {/* Form Login */}
               <form onSubmit={handleFormLogin} className="space-y-3.5">
                 {error && (
-                  <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2">
+                  <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                     {error}
                   </div>
@@ -170,7 +156,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="เช่น te001 หรืออีเมลโรงเรียน"
+                      placeholder="เช่น te028 หรือ naruephat.na@pcshsksn.ac.th"
                       className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm sm:text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white transition-all"
                     />
                   </div>
@@ -192,13 +178,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="กรอกรหัสผ่าน"
+                      placeholder="กรอกรหัสผ่าน (ค่าเริ่มต้น 12345)"
                       className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm sm:text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white transition-all font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-1"
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                       aria-label="แสดงรหัสผ่าน"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -209,11 +195,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer"
+                    disabled={isVerifying}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-70 text-slate-950 font-bold rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer"
                   >
-                    <LogIn className="w-4 h-4" />
-                    <span>เข้าสู่ระบบส่งเอกสารวิชาการ</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {isVerifying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                        <span>กำลังตรวจสอบข้อมูล...</span>
+                      </>
+                    ) : (
+                      <>
+                        <LogIn className="w-4 h-4" />
+                        <span>เข้าสู่ระบบส่งเอกสารวิชาการ</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -229,6 +225,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
         </div>
       </main>
+
+
 
       {/* Page Footer */}
       <footer className="relative z-10 py-3 text-center text-xs text-slate-500">

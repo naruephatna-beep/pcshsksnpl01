@@ -42,15 +42,15 @@ import {
   CheckCircle2,
   FileCheck2,
   AlertCircle,
-  HelpCircle,
   RotateCcw,
   BookOpen,
   FileText,
   Tag,
   GitFork,
   Shuffle,
-  Scale,
   Target,
+  Play,
+  Settings,
 } from 'lucide-react';
 
 interface WorkflowManagerModalProps {
@@ -64,6 +64,7 @@ interface WorkflowManagerModalProps {
   plans: LessonPlan[];
   onUpdatePlans: (plans: LessonPlan[]) => void;
   deadlineConfigs?: PlanTypeDeadlineConfig[];
+  embedded?: boolean;
 }
 
 export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
@@ -77,33 +78,160 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
   plans,
   onUpdatePlans,
   deadlineConfigs,
+  embedded = false,
 }) => {
-  // Ensure we have all document-specific workflows initialized
-  const initialWorkflows = useMemo(() => {
-    if (workflows && workflows.length > 0) {
-      // If legacy 1 workflow was passed, merge with document-specific defaults
-      if (workflows.length === 1 && workflows[0].id === 'wf_standard_3stages') {
-        return DEFAULT_WORKFLOWS;
+  // 1. Gather all ACTUAL document types registered in the school system
+  const actualDocumentTypes = useMemo(() => {
+    const list: string[] = [];
+    const addIfNew = (name?: string) => {
+      const clean = name?.trim();
+      if (!clean) return;
+      // Do not include generic placeholder 'เอกสารทั่วไป' (ไม่ใช่ประเภทเอกสารจริงของโรงเรียน)
+      if (clean === 'เอกสารทั่วไป' || clean.toLowerCase() === 'general') return;
+      if (!list.includes(clean)) {
+        list.push(clean);
       }
-      return workflows;
+    };
+
+    // 1. Prioritize active tasks from school deadline configurations (ภาระงานจริงที่โรงเรียนตั้งค่าไว้)
+    if (deadlineConfigs && deadlineConfigs.length > 0) {
+      deadlineConfigs
+        .filter((d) => d.is_active !== false)
+        .forEach((d) => addIfNew(d.name));
     }
-    return DEFAULT_WORKFLOWS;
-  }, [workflows]);
+
+    // 2. Ensure core academic categories exist only if not already represented in active deadlines
+    const hasSummary = list.some((t) => t.includes('ย่อ'));
+    if (!hasSummary) addIfNew('แผนการจัดการเรียนรู้ฉบับย่อ');
+
+    const hasFull = list.some((t) => t.includes('สมบูรณ์'));
+    if (!hasFull) addIfNew('แผนการจัดการเรียนรู้ฉบับสมบูรณ์');
+
+    const hasResearch = list.some((t) => t.includes('วิจัย') || t.includes('CAR'));
+    if (!hasResearch) addIfNew('รายงานการวิจัยในชั้นเรียน (CAR)');
+
+    // 3. Add any other custom document types with actual teacher submissions
+    if (plans && plans.length > 0) {
+      plans.forEach((p) => {
+        if (p.plan_type && p.plan_type !== 'เอกสารทั่วไป' && p.plan_type.toLowerCase() !== 'general') {
+          addIfNew(p.plan_type);
+        }
+      });
+    }
+
+    return list;
+  }, [deadlineConfigs, plans]);
+
+  // 2. Initialize workflows guaranteeing that EVERY actual document type has a dedicated workflow
+  const initialWorkflows = useMemo(() => {
+    const rawList: ReviewWorkflowConfig[] =
+      workflows && workflows.length > 0 ? [...workflows] : [...DEFAULT_WORKFLOWS];
+
+    // Filter out dummy 'wf_general_plan' and 'เอกสารทั่วไป'
+    const baseList = rawList.filter(
+      (w) => w.id !== 'wf_general_plan' && w.plan_type !== 'เอกสารทั่วไป'
+    );
+
+    actualDocumentTypes.forEach((docType) => {
+      const exists = baseList.some(
+        (w) =>
+          w.plan_type?.toLowerCase() === docType.toLowerCase() ||
+          w.target_plan_types?.some((t) => t.toLowerCase() === docType.toLowerCase()) ||
+          (docType.includes('ย่อ') && (w.id === 'wf_summary_plan' || w.plan_type?.includes('ย่อ'))) ||
+          (docType.includes('สมบูรณ์') && (w.id === 'wf_full_plan' || w.plan_type?.includes('สมบูรณ์'))) ||
+          ((docType.includes('วิจัย') || docType.includes('CAR')) && (w.id === 'wf_research_plan' || w.plan_type?.includes('วิจัย')))
+      );
+
+      if (!exists) {
+        // Auto-provision a dedicated workflow for this actual document type
+        const newId = `wf_doc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        baseList.push({
+          id: newId,
+          name: `สายงานตรวจ${docType}`,
+          description: `กำหนดขั้นตอนการอนุมัติสำหรับเอกสารประเภท: ${docType}`,
+          plan_type: docType,
+          target_plan_types: [docType],
+          is_active: true,
+          auto_assign_on_deadline: false,
+          stages: [
+            {
+              id: `stage_${Date.now()}_1`,
+              order: 1,
+              title: 'ขั้นที่ 1: หัวหน้ากลุ่มสาขาวิชาตรวจทาน',
+              description: 'หัวหน้ากลุ่มสาขาประจำวิชาของผู้ส่งตรวจสอบความถูกต้อง',
+              evaluation_mode: 'approval_only',
+              reviewer_selection_type: 'role',
+              assigned_role: 'submitter_branch_head',
+              scope_mode: 'own_group_only',
+              auto_assign_enabled: false,
+            },
+            {
+              id: `stage_${Date.now()}_2`,
+              order: 2,
+              title: 'ขั้นที่ 2: หัวหน้ากลุ่มสาระการเรียนรู้กลั่นกรองและอนุมัติ',
+              description: 'หัวหน้ากลุ่มสาระการเรียนรู้ตรวจสอบและอนุมัติ',
+              evaluation_mode: 'approval_only',
+              reviewer_selection_type: 'role',
+              assigned_role: 'submitter_department_head',
+              scope_mode: 'own_group_only',
+              auto_assign_enabled: false,
+            },
+          ],
+        });
+      }
+    });
+
+    return baseList;
+  }, [workflows, actualDocumentTypes]);
 
   const [allWorkflows, setAllWorkflows] = useState<ReviewWorkflowConfig[]>(initialWorkflows);
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(
-    initialWorkflows[0]?.id || 'wf_summary_plan'
+
+  // Active document type selected by user
+  const [selectedDocType, setSelectedDocType] = useState<string>(
+    actualDocumentTypes[0] || 'แผนการจัดการเรียนรู้ฉบับย่อ'
   );
 
-  // Active workflow being edited
+  // Current active workflow mapped to the selected actual document type
   const currentWorkflow = useMemo(() => {
-    return allWorkflows.find((w) => w.id === selectedWorkflowId) || allWorkflows[0] || DEFAULT_WORKFLOWS[0];
-  }, [allWorkflows, selectedWorkflowId]);
+    // 1. Exact match
+    const found = allWorkflows.find(
+      (w) =>
+        w.plan_type?.toLowerCase() === selectedDocType.toLowerCase() ||
+        w.target_plan_types?.some((t) => t.toLowerCase() === selectedDocType.toLowerCase())
+    );
+    if (found) return found;
+
+    // 2. Keyword matching
+    if (selectedDocType.includes('ย่อ')) {
+      const summary = allWorkflows.find((w) => w.id === 'wf_summary_plan' || w.plan_type?.includes('ย่อ'));
+      if (summary) return summary;
+    }
+    if (selectedDocType.includes('สมบูรณ์')) {
+      const full = allWorkflows.find((w) => w.id === 'wf_full_plan' || w.plan_type?.includes('สมบูรณ์'));
+      if (full) return full;
+    }
+    if (selectedDocType.includes('วิจัย') || selectedDocType.includes('CAR')) {
+      const res = allWorkflows.find((w) => w.id === 'wf_research_plan' || w.plan_type?.includes('วิจัย'));
+      if (res) return res;
+    }
+
+    return allWorkflows[0] || DEFAULT_WORKFLOWS[0];
+  }, [allWorkflows, selectedDocType]);
 
   const stages = currentWorkflow?.stages || [];
 
   // Active stage being edited or expanded
   const [expandedStageId, setExpandedStageId] = useState<string | null>(stages[0]?.id || null);
+
+  // New document type inline modal
+  const [isAddDocTypeModalOpen, setIsAddDocTypeModalOpen] = useState(false);
+  const [newDocTypeName, setNewDocTypeName] = useState('');
+
+  // Simulation test: sample submitter & collapsible toggle
+  const [sampleSubmitterId, setSampleSubmitterId] = useState<string>(
+    teachers[0]?.Teacher_ID || 'te028'
+  );
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState<boolean>(false);
 
   // Auto-assign simulation / execution notice
   const [autoAssignResult, setAutoAssignResult] = useState<{
@@ -128,7 +256,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     );
   };
 
-  // Add new stage (สร้างกี่ขั้นก็ได้ 1..X)
+  // Add new stage
   const handleAddStage = () => {
     const newOrder = stages.length + 1;
     const newStage: ReviewStageConfig = {
@@ -136,15 +264,16 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
       order: newOrder,
       title: `ขั้นที่ ${newOrder}: ตรวจประเมินขั้นตอนที่ ${newOrder}`,
       description: `การตรวจประเมินลำดับขั้นที่ ${newOrder}`,
-      evaluation_mode: 'approval_only', // ค่าเริ่มต้น: แบบกดอนุมัติ
-      reviewer_selection_type: 'role', // ค่าเริ่มต้น: เลือกจากตำแหน่ง
+      evaluation_mode: 'approval_only', // Default: approval
+      reviewer_selection_type: 'role', // Default: role
       assigned_role: 'submitter_department_head',
+      scope_mode: 'own_group_only',
       auto_assign_enabled: false,
     };
     const updatedStages = [...stages, newStage];
     updateCurrentWorkflow({ stages: updatedStages });
     setExpandedStageId(newStage.id);
-    showToast(`เพิ่มขั้นตอนที่ ${newOrder} ให้กับสายงานเรียบร้อยแล้ว`);
+    showToast(`เพิ่มขั้นตอนที่ ${newOrder} ให้กับประเภทเอกสาร "${selectedDocType}" เรียบร้อยแล้ว`);
   };
 
   // Remove a stage
@@ -183,55 +312,69 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     updateCurrentWorkflow({ stages: updatedStages });
   };
 
-  // Add a brand new workflow for custom document type
-  const handleCreateNewWorkflow = () => {
+  // Add a brand new actual document type and its dedicated workflow
+  const handleCreateNewDocType = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanName = newDocTypeName.trim();
+    if (!cleanName) return;
+
+    if (actualDocumentTypes.includes(cleanName)) {
+      showToast(`มีประเภทเอกสาร "${cleanName}" อยู่แล้ว`, 'error');
+      setSelectedDocType(cleanName);
+      setIsAddDocTypeModalOpen(false);
+      return;
+    }
+
     const newId = `wf_custom_${Date.now()}`;
     const newWf: ReviewWorkflowConfig = {
       id: newId,
-      name: `สายงานตรวจเอกสารใหม่ (${allWorkflows.length + 1})`,
-      description: 'กำหนดขั้นตอนการอนุมัติสำหรับประเภทเอกสารนี้',
-      plan_type: 'เอกสารอื่นๆ',
-      target_plan_types: [],
+      name: `สายงานตรวจ${cleanName}`,
+      description: `กำหนดขั้นตอนการอนุมัติสำหรับ: ${cleanName}`,
+      plan_type: cleanName,
+      target_plan_types: [cleanName],
       is_active: true,
       auto_assign_on_deadline: false,
       stages: [
         {
           id: `stage_init_${Date.now()}`,
           order: 1,
-          title: 'ขั้นที่ 1: ตรวจสอบและอนุมัติความถูกต้อง',
-          description: 'ตรวจสอบความถูกต้องของเอกสารและอนุมัติผลงาน',
+          title: 'ขั้นที่ 1: หัวหน้ากลุ่มสาขาตรวจทาน',
+          description: 'หัวหน้ากลุ่มสาขาประจำวิชาของผู้ส่งตรวจสอบความถูกต้อง',
+          evaluation_mode: 'approval_only',
+          reviewer_selection_type: 'role',
+          assigned_role: 'submitter_branch_head',
+          scope_mode: 'own_group_only',
+          auto_assign_enabled: false,
+        },
+        {
+          id: `stage_init2_${Date.now()}`,
+          order: 2,
+          title: 'ขั้นที่ 2: หัวหน้ากลุ่มสาระการเรียนรู้กลั่นกรองและอนุมัติ',
+          description: 'หัวหน้ากลุ่มสาระการเรียนรู้ตรวจสอบและอนุมัติ',
           evaluation_mode: 'approval_only',
           reviewer_selection_type: 'role',
           assigned_role: 'submitter_department_head',
+          scope_mode: 'own_group_only',
           auto_assign_enabled: false,
         },
       ],
     };
+
     const updatedList = [...allWorkflows, newWf];
     setAllWorkflows(updatedList);
-    setSelectedWorkflowId(newId);
+    setSelectedDocType(cleanName);
     setExpandedStageId(newWf.stages[0].id);
-    showToast('สร้างสายงานตรวจเอกสารใหม่เรียบร้อยแล้ว');
-  };
-
-  // Delete a custom workflow
-  const handleDeleteWorkflow = (wfId: string) => {
-    if (allWorkflows.length <= 1) {
-      showToast('ต้องมีสายงานอย่างน้อย 1 รายการ', 'error');
-      return;
-    }
-    const updatedList = allWorkflows.filter((w) => w.id !== wfId);
-    setAllWorkflows(updatedList);
-    setSelectedWorkflowId(updatedList[0].id);
-    showToast('ลบสายงานเรียบร้อยแล้ว');
+    setNewDocTypeName('');
+    setIsAddDocTypeModalOpen(false);
+    showToast(`เพิ่มประเภทเอกสาร "${cleanName}" พร้อมสร้างสายงานอนุมัติเรียบร้อยแล้ว`);
   };
 
   // Reset to default presets
   const handleResetToDefaults = () => {
     setAllWorkflows(DEFAULT_WORKFLOWS);
-    setSelectedWorkflowId(DEFAULT_WORKFLOWS[0].id);
+    setSelectedDocType('แผนการจัดการเรียนรู้ฉบับย่อ');
     setExpandedStageId(DEFAULT_WORKFLOWS[0].stages[0].id);
-    showToast('รีเซ็ตสายงานเป็นค่ามาตรฐาน 4 ประเภทเอกสารเรียบร้อยแล้ว');
+    showToast('รีเซ็ตสายงานเป็นค่ามาตรฐานเรียบร้อยแล้ว');
   };
 
   // Save all workflow changes to state and database
@@ -243,7 +386,6 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
 
   // Run Auto-assign for a specific stage
   const handleExecuteAutoAssign = async (stage: ReviewStageConfig) => {
-    // Filter plans that belong to this workflow or document type
     const candidatePlans = plans.filter((p) => {
       if (p.workflow_id === currentWorkflow.id) return true;
       const type = (p.plan_type || '').toLowerCase();
@@ -256,24 +398,37 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     const res = autoAssignPlansForStage(targetPlans, stage, teachers, departments);
     if (res.assignedCount === 0) {
       showToast(
-        `ไม่พบเอกสารใน "${stage.title}" ของสายงานนี้ที่รอการกระจายงาน หรือเอกสารถูกตรวจครบแล้ว`,
+        `ไม่พบเอกสารใน "${stage.title}" ของประเภทเอกสารนี้ที่รอตรวจ`,
         'error'
       );
       return;
     }
 
-    onUpdatePlans(res.updatedPlans);
+    // 1. Merge updated plans back into full plans array
+    const updatedMap = new Map<string, LessonPlan>();
+    res.updatedPlans.forEach((p) => updatedMap.set(p.id, p));
+    const allUpdatedPlans = plans.map((p) => updatedMap.get(p.id) || p);
 
-    // Save plans to cloud
-    for (const p of res.updatedPlans) {
-      if (p.assigned_reviewer_id) {
-        await savePlanRecord(p);
-      }
+    // 2. Update React state in App.tsx
+    onUpdatePlans(allUpdatedPlans);
+
+    // 3. Persist modified plans to database and local storage
+    const modifiedList = res.updatedPlans.filter((p) => {
+      const original = plans.find((orig) => orig.id === p.id);
+      return original?.assigned_reviewer_id !== p.assigned_reviewer_id;
+    });
+
+    if (modifiedList.length > 0) {
+      Promise.all(modifiedList.map((p) => savePlanRecord(p))).catch((err) => {
+        console.warn('Error persisting auto-assigned plans to cloud:', err);
+      });
     }
 
     const dist: Record<string, { name: string; count: number }> = {};
-    for (const [tId, data] of Object.entries(res.reviewerWorkload)) {
-      dist[tId] = { name: data.teacher.Name, count: data.count };
+    if (res.reviewerWorkload) {
+      Object.entries(res.reviewerWorkload).forEach(([tId, info]) => {
+        dist[tId] = { name: info.teacher?.Name || tId, count: info.count };
+      });
     }
 
     setAutoAssignResult({
@@ -282,33 +437,51 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
       distribution: dist,
     });
 
-    showToast(`กระจายงานสำเร็จ! แบ่งเอกสาร ${res.assignedCount} รายการให้ผู้ตรวจเท่าๆ กันเรียบร้อย`);
+    showToast(`สุ่มกระจายงานสำเร็จ! แบ่งเอกสาร ${res.assignedCount} รายการให้ผู้ตรวจเท่าๆ กันเรียบร้อย`);
   };
 
-  // Available document types list from deadlines
-  const availableDocTypes = useMemo(() => {
-    const list = [
-      'แผนการจัดการเรียนรู้ฉบับย่อ',
-      'แผนการจัดการเรียนรู้ฉบับสมบูรณ์',
-      'รายงานการวิจัยในชั้นเรียน (CAR)',
-      'เอกสารทั่วไป',
-    ];
-    if (deadlineConfigs && deadlineConfigs.length > 0) {
-      deadlineConfigs.forEach((d) => {
-        if (d.name && !list.includes(d.name)) {
-          list.push(d.name);
-        }
-      });
-    }
-    return list;
-  }, [deadlineConfigs]);
+  // Simulate routing for sample submitter teacher
+  const sampleTeacher = teachers.find((t) => t.Teacher_ID === sampleSubmitterId) || teachers[0];
+  const simulatedRoute = useMemo(() => {
+    if (!sampleTeacher) return [];
+    const mockPlan: LessonPlan = {
+      id: 'mock_sim',
+      teacher_id: sampleTeacher.Teacher_ID,
+      teacher_name: sampleTeacher.Name,
+      learning_area: sampleTeacher.Learning_Area,
+      branch: sampleTeacher.branch || '',
+      subject_name: 'วิชาตัวอย่าง',
+      subject_code: 'ว30000',
+      grade_level: 'ม.4',
+      semester: '1/2569',
+      academic_year: '2569',
+      total_hours: 40,
+      file_name: 'sample_document.pdf',
+      plan_type: selectedDocType,
+      plan_title: `เอกสารตัวอย่าง (${selectedDocType})`,
+      file_url: '#',
+      submitted_at: new Date().toISOString(),
+      status: 'submitted',
+      workflow_id: currentWorkflow.id,
+    };
+
+    return stages.map((s) => {
+      const candidates = resolveReviewersForStage(s, mockPlan, teachers, departments, branches);
+      return {
+        stageOrder: s.order,
+        stageTitle: s.title,
+        evaluationMode: s.evaluation_mode,
+        candidates,
+      };
+    });
+  }, [sampleTeacher, selectedDocType, currentWorkflow.id, stages, teachers, departments, branches]);
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Header */}
+  const innerContent = (
+    <div className={`w-full bg-white flex flex-col ${embedded ? 'rounded-2xl border border-slate-200 shadow-2xs' : 'max-w-5xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh]'}`}>
+      {/* Header - Only when not embedded */}
+      {!embedded && (
         <div className="bg-[#0B1329] text-white p-5 sm:p-6 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-amber-400/20 shrink-0">
@@ -317,7 +490,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono font-semibold text-amber-400 uppercase tracking-wider">
-                  Document-Specific Approval Workflows
+                  Document-Driven Approval Workflows
                 </span>
                 <span className="text-xs text-slate-400">·</span>
                 <span className="text-xs text-slate-300">จ.ภ. กาฬสินธุ์</span>
@@ -336,11 +509,12 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+      )}
 
         {/* Notice toast */}
         {toastNotice && (
           <div
-            className={`px-6 py-2.5 text-xs font-semibold flex items-center gap-2 animate-in fade-in duration-150 ${
+            className={`px-6 py-2.5 text-xs font-semibold flex items-center gap-2 animate-in fade-in duration-150 shrink-0 ${
               toastNotice.type === 'success'
                 ? 'bg-emerald-50 text-emerald-900 border-b border-emerald-200'
                 : 'bg-rose-50 text-rose-900 border-b border-rose-200'
@@ -351,251 +525,306 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
           </div>
         )}
 
-        {/* Document Type Selector Bar (รูปแบบที่ 1: ผูกสายงานและจำนวนขั้นตามประเภทเอกสาร) */}
-        <div className="bg-slate-100 border-b border-slate-200 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 overflow-x-auto shrink-0">
-          <div className="flex items-center gap-1.5 min-w-max">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1">
-              <FileCheck2 className="w-3.5 h-3.5 text-slate-600" />
-              <span>เลือกประเภทเอกสาร:</span>
+        {/* Primary Actual Document Types Dropdown Bar (เลือกประเภทเอกสารแบบ Dropdown คลีน สบายตา) */}
+        <div className="bg-slate-100/90 border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 select-none">
+          <div className="flex items-center gap-3 flex-1 min-w-[280px] max-w-xl">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+              <FileCheck2 className="w-4 h-4 text-amber-600" />
+              <span>ประเภทเอกสาร:</span>
             </span>
 
-            {allWorkflows.map((wf) => {
-              const isSelected = wf.id === currentWorkflow.id;
-              const stageCount = wf.stages?.length || 0;
-              const isSummary = (wf.plan_type || wf.name).includes('ย่อ');
-              const isFull = (wf.plan_type || wf.name).includes('สมบูรณ์');
-              const isResearch = (wf.plan_type || wf.name).includes('วิจัย');
+            {/* Dropdown Select */}
+            <div className="relative flex-1 min-w-0">
+              <select
+                value={selectedDocType}
+                onChange={(e) => {
+                  const docType = e.target.value;
+                  setSelectedDocType(docType);
+                  const matchingWf = allWorkflows.find(
+                    (w) =>
+                      w.plan_type === docType ||
+                      w.target_plan_types?.includes(docType) ||
+                      (docType.includes('ย่อ') && (w.id === 'wf_summary_plan' || w.plan_type?.includes('ย่อ'))) ||
+                      (docType.includes('สมบูรณ์') && (w.id === 'wf_full_plan' || w.plan_type?.includes('สมบูรณ์'))) ||
+                      ((docType.includes('วิจัย') || docType.includes('CAR')) && (w.id === 'wf_research_plan' || w.plan_type?.includes('วิจัย')))
+                  );
+                  setExpandedStageId(matchingWf?.stages?.[0]?.id || null);
+                }}
+                className="w-full pl-3.5 pr-9 py-2 bg-white border-2 border-slate-300 hover:border-amber-500 focus:border-amber-500 rounded-xl text-xs sm:text-sm font-extrabold text-slate-900 shadow-2xs focus:outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer appearance-none transition-colors truncate"
+              >
+                {actualDocumentTypes.map((docType) => {
+                  const matchingWf = allWorkflows.find(
+                    (w) =>
+                      w.plan_type === docType ||
+                      w.target_plan_types?.includes(docType) ||
+                      (docType.includes('ย่อ') && (w.id === 'wf_summary_plan' || w.plan_type?.includes('ย่อ'))) ||
+                      (docType.includes('สมบูรณ์') && (w.id === 'wf_full_plan' || w.plan_type?.includes('สมบูรณ์'))) ||
+                      ((docType.includes('วิจัย') || docType.includes('CAR')) && (w.id === 'wf_research_plan' || w.plan_type?.includes('วิจัย')))
+                  );
+                  const stageCount = matchingWf?.stages?.length || 2;
+                  const docPlansCount = plans.filter((p) => (p.plan_type || '').trim() === docType).length;
+                  const icon = docType.includes('ย่อ')
+                    ? '📘'
+                    : docType.includes('สมบูรณ์')
+                    ? '📗'
+                    : docType.includes('วิจัย') || docType.includes('CAR')
+                    ? '🔬'
+                    : '📄';
 
-              return (
-                <button
-                  key={wf.id}
-                  onClick={() => {
-                    setSelectedWorkflowId(wf.id);
-                    setExpandedStageId(wf.stages?.[0]?.id || null);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-2xs ${
-                    isSelected
-                      ? 'bg-[#0B1329] text-white shadow-sm ring-2 ring-amber-400/30'
-                      : 'bg-white text-slate-700 hover:bg-slate-200/80 border border-slate-200'
-                  }`}
-                >
-                  <span className="text-sm">
-                    {isSummary ? '📘' : isFull ? '📗' : isResearch ? '🔬' : '📄'}
-                  </span>
-                  <span>{wf.name.split(' (')[0]}</span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
-                      isSelected ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    {stageCount} ขั้น
-                  </span>
-                </button>
-              );
-            })}
-
-            <button
-              onClick={handleCreateNewWorkflow}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-200 text-indigo-700 border border-indigo-200 flex items-center gap-1 transition-all cursor-pointer"
-              title="สร้างสายงานสำหรับเอกสารประเภทใหม่"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>เพิ่มสายงานใหม่</span>
-            </button>
+                  return (
+                    <option key={docType} value={docType} className="py-1 text-slate-900">
+                      {icon} {docType} ({stageCount} ลำดับขั้น{docPlansCount > 0 ? ` • ส่งแล้ว ${docPlansCount} รายการ` : ''})
+                    </option>
+                  );
+                })}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
           </div>
 
-          <button
-            onClick={handleResetToDefaults}
-            className="text-[11px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-200 transition-colors shrink-0 cursor-pointer"
-            title="รีเซ็ตสายงานเป็น 4 ประเภทมาตรฐานของโรงเรียน"
-          >
-            <RotateCcw className="w-3 h-3 text-slate-500" />
-            <span className="hidden sm:inline">รีเซ็ตเป็นค่าเริ่มต้น</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsAddDocTypeModalOpen(true)}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-200 text-indigo-700 border border-indigo-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95"
+              title="เพิ่มประเภทเอกสารใหม่ของโรงเรียน"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>เพิ่มประเภทเอกสาร</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetToDefaults}
+              className="text-[11px] font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1.5 px-2.5 py-2 rounded-xl hover:bg-slate-200 transition-colors shrink-0 cursor-pointer"
+              title="รีเซ็ตสายงานเป็นค่ามาตรฐาน"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline">รีเซ็ตค่ามาตรฐาน</span>
+            </button>
+          </div>
         </div>
 
-        {/* Quick Workflow Overview Bar */}
-        <div className="px-6 py-3.5 bg-slate-50 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-1">
-              <span className="text-xs font-bold text-slate-700 shrink-0">ชื่อสายงาน:</span>
+        {/* Active Document Type Overview Header (กระชับ คลีน ไม่ซ้ำซ้อน) */}
+        <div className="px-5 sm:px-6 py-3 bg-white border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 min-w-0 flex-1">
+            <span className="text-xs font-bold text-slate-500 shrink-0">ชื่อสายงาน:</span>
+            <div className="flex-1 min-w-[200px] max-w-md">
               <input
                 type="text"
                 value={currentWorkflow.name}
                 onChange={(e) => updateCurrentWorkflow({ name: e.target.value })}
-                className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 w-full max-w-md"
+                className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 w-full"
+                placeholder="ชื่อสายงานอนุมัติ"
               />
             </div>
-            <span className="text-xs text-slate-500 shrink-0">
-              (กำหนดตรวจ <strong>{stages.length}</strong> ลำดับขั้น)
-            </span>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold text-[11px]">
+                {stages.length} ลำดับขั้น
+              </span>
+              {plans.filter((p) => (p.plan_type || '').trim() === selectedDocType).length > 0 && (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 font-bold text-[11px]">
+                  เอกสารจริง {plans.filter((p) => (p.plan_type || '').trim() === selectedDocType).length} ฉบับ
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {allWorkflows.length > 1 && (
-              <button
-                onClick={() => handleDeleteWorkflow(currentWorkflow.id)}
-                className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
-                title="ลบสายงานนี้"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">ลบสายงาน</span>
-              </button>
-            )}
-
             <button
+              type="button"
               onClick={handleAddStage}
-              className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+              className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
             >
               <Plus className="w-4 h-4 text-amber-600" />
               <span>เพิ่มลำดับขั้นใหม่</span>
-            </button>
-
-            <button
-              onClick={handleSaveAll}
-              className="px-4 py-1.5 bg-[#0B1329] hover:bg-slate-900 text-amber-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-            >
-              <Check className="w-4 h-4" />
-              <span>บันทึกการตั้งค่า</span>
             </button>
           </div>
         </div>
 
         {/* Body Container */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-slate-50/50 space-y-6">
-          {/* Target Document Types Mapping Card */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 space-y-5">
+          {/* 1. Visual Pipeline Diagram (ผังเส้นทางการอนุมัติจริง) */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-2xs space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-amber-600" />
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  ประเภทเอกสารที่ผูกกับสายงานนี้ (Document Mapping)
-                </h4>
-              </div>
-              <span className="text-[11px] text-slate-500">
-                เมื่อครูส่งเอกสารประเภทนี้ ระบบจะตรวจตามจำนวนขั้นด้านล่างอัตโนมัติ
-              </span>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-1">
-              {availableDocTypes.map((type) => {
-                const isSelected =
-                  currentWorkflow.plan_type === type ||
-                  currentWorkflow.target_plan_types?.includes(type);
-
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => {
-                      const curTargets = currentWorkflow.target_plan_types || [];
-                      let nextTargets: string[];
-                      if (curTargets.includes(type)) {
-                        nextTargets = curTargets.filter((t) => t !== type);
-                      } else {
-                        nextTargets = [...curTargets, type];
-                      }
-                      updateCurrentWorkflow({
-                        plan_type: type,
-                        target_plan_types: nextTargets,
-                      });
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-2 transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-amber-50 border-amber-400 text-amber-950 font-bold shadow-2xs ring-1 ring-amber-400/40'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div
-                      className={`w-3.5 h-3.5 rounded-md flex items-center justify-center text-[10px] ${
-                        isSelected ? 'bg-amber-500 text-slate-950 font-black' : 'border border-slate-300'
-                      }`}
-                    >
-                      {isSelected && <Check className="w-2.5 h-2.5" />}
-                    </div>
-                    <span>{type}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Step Breadcrumb Graphic (Multi-stage Pipeline) */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-2xs">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
                 <Layers className="w-4 h-4 text-indigo-600" />
-                <span>ลำดับสายงานตรวจเอกสารนี้ ({stages.length} ขั้นตอน)</span>
+                <span>เส้นทางการประเมินของเอกสารนี้ ({stages.length} ขั้นตอน)</span>
               </h4>
-              <span className="text-xs text-slate-400">
-                คลิกที่ขั้นตอนเพื่อแก้ไขรายละเอียดและผู้ตรวจ
+              <span className="text-[11px] text-slate-500">
+                เมื่อครูส่งเอกสาร ระบบจะส่งตามลำดับขั้น 1 ➔ 2 ➔ 3 อัตโนมัติ
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              <div className="px-3 py-2 bg-slate-100 rounded-xl border border-slate-200 text-xs flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span className="font-semibold text-slate-800">1. คุณครูผู้สอนส่งงาน</span>
+              </div>
+
               {stages.map((stage, idx) => {
                 const isSelected = expandedStageId === stage.id;
                 const isApproval = stage.evaluation_mode === 'approval_only';
-
                 return (
-                  <React.Fragment key={stage.id}>
-                    <div
+                  <React.Fragment key={`pipe-${stage.id}`}>
+                    <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    <button
+                      type="button"
                       onClick={() => setExpandedStageId(stage.id)}
-                      className={`px-3.5 py-2.5 rounded-xl border flex items-center gap-2.5 transition-all cursor-pointer ${
+                      className={`px-3 py-2 rounded-xl text-xs border text-left flex items-center gap-2 transition-all cursor-pointer ${
                         isSelected
-                          ? 'bg-[#0B1329] text-white border-amber-400 shadow-md ring-2 ring-amber-400/20'
-                          : 'bg-slate-50 hover:bg-white text-slate-800 border-slate-200 shadow-2xs'
+                          ? 'bg-amber-50 border-amber-400 text-amber-950 font-bold shadow-2xs ring-1 ring-amber-400/40'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <div
-                        className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
-                          isSelected ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 text-slate-700'
+                      <span className="w-5 h-5 rounded-md bg-[#0B1329] text-amber-400 text-[10px] font-black flex items-center justify-center shrink-0">
+                        {stage.order}
+                      </span>
+                      <div className="truncate max-w-[160px]">
+                        <span className="font-bold">{stage.title.split(':')[1]?.trim() || stage.title}</span>
+                      </div>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-black shrink-0 ${
+                          isApproval ? 'bg-sky-100 text-sky-800' : 'bg-purple-100 text-purple-800'
                         }`}
                       >
-                        {stage.order}
-                      </div>
-                      <div className="text-left">
-                        <p
-                          className={`text-xs font-bold truncate max-w-[170px] ${
-                            isSelected ? 'text-white' : 'text-slate-900'
-                          }`}
-                        >
-                          {stage.title}
-                        </p>
-                        <p
-                          className={`text-[10px] ${
-                            isSelected ? 'text-amber-300' : 'text-slate-500'
-                          }`}
-                        >
-                          {isApproval ? 'แบบกดอนุมัติ (Approve)' : 'แบบให้คะแนนรูบริก'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {idx < stages.length - 1 && (
-                      <ArrowRight className="w-4 h-4 text-slate-300 shrink-0" />
-                    )}
+                        {isApproval ? 'อนุมัติ' : 'เกณฑ์รูบริก'}
+                      </span>
+                    </button>
                   </React.Fragment>
                 );
               })}
+
+              <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+              <div className="px-3 py-2 bg-emerald-50 rounded-xl border border-emerald-300 text-xs flex items-center gap-2 text-emerald-900 font-bold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>อนุมัติเสร็จสมบูรณ์ & สำเนาไฟล์เข้าไดรฟ์</span>
+              </div>
             </div>
           </div>
 
-          {/* Auto-assign distribution result modal/alert */}
+          {/* 2. Collapsible Live Routing Simulator (พับเก็บได้ ไม่เกะกะสายตา) */}
+          <div className="bg-gradient-to-r from-amber-50/70 via-white to-amber-50/40 rounded-2xl border border-amber-200/90 shadow-2xs overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setIsSimulatorOpen(!isSimulatorOpen)}
+              className="w-full p-3 sm:p-4 flex items-center justify-between text-left hover:bg-amber-100/40 transition-colors cursor-pointer select-none"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0">
+                  <Target className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-slate-900 block">
+                    🧪 ทดสอบจำลองเส้นทางตรวจจริง (Live Route Simulator)
+                  </span>
+                  <span className="text-[11px] text-slate-500 block">
+                    คลิกเพื่อดูตัวอย่างว่าครูส่งงานแล้วจะถูกส่งไปยังผู้ตรวจท่านใด
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-bold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg hidden sm:inline">
+                  {isSimulatorOpen ? '▲ ซ่อนการทดสอบ' : '▼ คลิกเพื่อทดสอบผู้ตรวจ'}
+                </span>
+                {isSimulatorOpen ? (
+                  <ChevronUp className="w-4 h-4 text-slate-600 sm:hidden" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-600 sm:hidden" />
+                )}
+              </div>
+            </button>
+
+            {isSimulatorOpen && (
+              <div className="p-4 sm:p-5 border-t border-amber-200/80 bg-white/80 space-y-3 animate-in fade-in duration-150">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-700">
+                    เลือกจำลองครูผู้ส่งงานเพื่อดูเส้นทางผู้ตรวจ:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-slate-600">สมมติครูผู้ส่งงาน:</label>
+                    <select
+                      value={sampleSubmitterId}
+                      onChange={(e) => setSampleSubmitterId(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      {teachers.map((t) => (
+                        <option key={t.Teacher_ID} value={t.Teacher_ID}>
+                          {t.Name} ({t.branch || t.Learning_Area || 'ไม่ระบุสาขา'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                  {simulatedRoute.map((sim) => (
+                    <div
+                      key={`sim-${sim.stageOrder}`}
+                      className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-[#0B1329] text-amber-400 text-[10px] font-black flex items-center justify-center">
+                            {sim.stageOrder}
+                          </span>
+                          <span>ขั้นที่ {sim.stageOrder}</span>
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-black ${
+                            sim.evaluationMode === 'approval_only'
+                              ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                              : 'bg-purple-50 text-purple-800 border border-purple-200'
+                          }`}
+                        >
+                          {sim.evaluationMode === 'approval_only' ? 'แบบกดอนุมัติ' : 'แบบเกณฑ์รูบริก'}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-slate-600 font-medium">
+                        {sim.candidates.length === 0 ? (
+                          <span className="text-rose-600 text-[11px] font-bold">
+                            ⚠️ ไม่พบผู้ตรวจที่ตรงเงื่อนไข (กรุณาตรวจสอบการแต่งตั้งหัวหน้า)
+                          </span>
+                        ) : (
+                          <div className="space-y-1">
+                            <span className="text-[11px] text-slate-500 block">ผู้รับเอกสารไปตรวจ:</span>
+                            {sim.candidates.map((c) => (
+                              <div
+                                key={c.Teacher_ID}
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-950 font-bold text-[11px] mr-1.5 mb-1 border border-amber-200/80"
+                              >
+                                <UserCheck className="w-3 h-3 text-amber-600" />
+                                <span>{c.Name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Auto-assign distribution notification */}
           {autoAssignResult && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2 animate-in fade-in duration-200">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
+                <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>
-                    ผลการกระจายงานอัตโนมัติ: {autoAssignResult.stageTitle} (รวม {autoAssignResult.assignedCount} เอกสาร)
+                  <span className="text-xs font-bold text-emerald-950">
+                    ผลการกระจายงานอัตโนมัติ: {autoAssignResult.stageTitle}
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setAutoAssignResult(null)}
-                  className="text-emerald-700 hover:text-emerald-900 text-xs font-bold"
+                  className="text-emerald-700 hover:text-emerald-900 text-xs"
                 >
-                  ปิด
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               <p className="text-[11px] text-emerald-800">
@@ -617,7 +846,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
             </div>
           )}
 
-          {/* Stages List & Detailed Editors */}
+          {/* 3. Stages List & Detailed Editors */}
           <div className="space-y-4">
             {stages.map((stage, idx) => {
               const isExpanded = expandedStageId === stage.id;
@@ -760,7 +989,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                         </div>
                       </div>
 
-                      {/* 2. รูปแบบการตรวจงานในแต่ละขั้น (ตามข้อ 3: แบบกดอนุมัติ vs แบบให้คะแนนรูบริก) */}
+                      {/* 2. รูปแบบการประเมินในขั้นนี้ (Evaluation Mode) */}
                       <div className="space-y-2">
                         <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                           <Award className="w-4 h-4 text-amber-600" />
@@ -821,11 +1050,11 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                     {!isApproval && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
                                   </div>
                                   <span className="text-xs font-bold text-slate-900">
-                                    แบบให้คะแนน (Rubric Scoring)
+                                    แบบให้คะแนนรูบริก (Rubric Scoring)
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-slate-500 leading-relaxed pl-6">
-                                  ผู้ตรวจต้องประเมินและให้คะแนนตามเกณฑ์รูบริก 5 ด้านตามเกณฑ์วิชาการ ว.PA พร้อมคำนวณระดับคุณภาพ
+                                  ผู้ตรวจประเมินและให้คะแนนตามเกณฑ์รูบริก 5 ด้านตามเกณฑ์วิชาการ ว.PA พร้อมคำนวณระดับคุณภาพ
                                 </p>
                               </div>
                               <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold shrink-0">
@@ -836,12 +1065,12 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                         </div>
                       </div>
 
-                      {/* 3. การเลือกผู้ตรวจในแต่ละขั้น (ตามข้อ 2: 3 รูปแบบ) */}
+                      {/* 3. การเลือกผู้ตรวจในแต่ละขั้น (Reviewer Selection) */}
                       <div className="space-y-3 pt-2">
                         <div className="flex items-center justify-between">
                           <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                             <Users className="w-4 h-4 text-indigo-600" />
-                            <span>รูปแบบการเลือกผู้ตรวจในขั้นนี้ (Reviewer Selection)</span>
+                            <span>ผู้ตรวจในขั้นนี้ (Reviewer Selection)</span>
                           </label>
 
                           <span className="text-[11px] text-indigo-900 font-bold bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
@@ -851,64 +1080,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
 
                         {/* Four Mode Buttons */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          {/* Mode 1: ระบุชื่อรายบุคคล */}
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'individual' })}
-                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                              selectionType === 'individual'
-                                ? 'bg-indigo-50/80 border-indigo-600 shadow-2xs font-bold text-indigo-950 ring-1 ring-indigo-600/20'
-                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <UserCheck className="w-4 h-4 text-indigo-600" />
-                              <span className="text-xs">1. ระบุรายบุคคล</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-1">
-                              ติ๊กเลือกครูรายคนที่มอบหมาย
-                            </p>
-                          </button>
-
-                          {/* Mode 2: เลือกยกทั้งกลุ่มสาระ */}
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'department' })}
-                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                              selectionType === 'department'
-                                ? 'bg-amber-50/80 border-amber-600 shadow-2xs font-bold text-amber-950 ring-1 ring-amber-600/20'
-                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Building2 className="w-4 h-4 text-amber-600" />
-                              <span className="text-xs">2. ยกกลุ่มสาระ</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-1">
-                              ครูทั้งกลุ่มสาระของผู้ส่ง
-                            </p>
-                          </button>
-
-                          {/* Mode 3: เลือกยกทั้งกลุ่มสาขาวิชา */}
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'branch' })}
-                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                              selectionType === 'branch'
-                                ? 'bg-sky-50/80 border-sky-600 shadow-2xs font-bold text-sky-950 ring-1 ring-sky-600/20'
-                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <GitFork className="w-4 h-4 text-sky-600" />
-                              <span className="text-xs">3. ยกกลุ่มสาขา</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-1">
-                              ครูในสาขาวิชาเดียวกัน
-                            </p>
-                          </button>
-
-                          {/* Mode 4: เลือกจากตำแหน่ง */}
+                          {/* Mode 1: เลือกจากตำแหน่ง */}
                           <button
                             type="button"
                             onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'role' })}
@@ -920,20 +1092,127 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           >
                             <div className="flex items-center gap-2">
                               <Crown className="w-4 h-4 text-emerald-600" />
-                              <span className="text-xs">4. เลือกจากตำแหน่ง</span>
+                              <span className="text-xs">1. เลือกจากตำแหน่ง</span>
                             </div>
                             <p className="text-[10px] text-slate-500 mt-1">
                               หัวหน้าสาขา, หัวหน้ากลุ่มสาระ, ผอ.
                             </p>
                           </button>
+
+                          {/* Mode 2: ระบุชื่อรายบุคคล */}
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'individual' })}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              selectionType === 'individual'
+                                ? 'bg-indigo-50/80 border-indigo-600 shadow-2xs font-bold text-indigo-950 ring-1 ring-indigo-600/20'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <UserCheck className="w-4 h-4 text-indigo-600" />
+                              <span className="text-xs">2. ระบุรายบุคคล</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              ติ๊กเลือกครูรายคนที่มอบหมาย
+                            </p>
+                          </button>
+
+                          {/* Mode 3: เลือกยกทั้งกลุ่มสาระ */}
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'department' })}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              selectionType === 'department'
+                                ? 'bg-amber-50/80 border-amber-600 shadow-2xs font-bold text-amber-950 ring-1 ring-amber-600/20'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-amber-600" />
+                              <span className="text-xs">3. ยกกลุ่มสาระ</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              ครูทั้งกลุ่มสาระของผู้ส่ง
+                            </p>
+                          </button>
+
+                          {/* Mode 4: เลือกยกทั้งกลุ่มสาขาวิชา */}
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStage(stage.id, { reviewer_selection_type: 'branch' })}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              selectionType === 'branch'
+                                ? 'bg-sky-50/80 border-sky-600 shadow-2xs font-bold text-sky-950 ring-1 ring-sky-600/20'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <GitFork className="w-4 h-4 text-sky-600" />
+                              <span className="text-xs">4. ยกกลุ่มสาขา</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              ครูในสาขาวิชาเดียวกัน
+                            </p>
+                          </button>
                         </div>
 
-                        {/* Sub-form 1: ระบุชื่อรายบุคคล */}
+                        {/* Sub-form 1: เลือกจากตำแหน่ง (Role) */}
+                        {selectionType === 'role' && (
+                          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                            <span className="text-xs font-bold text-slate-800 block">
+                              เลือกบทบาทตำแหน่งผู้ตรวจในขั้นนี้:
+                            </span>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                              {[
+                                {
+                                  role: 'submitter_branch_head' as ReviewerRoleType,
+                                  title: 'หัวหน้ากลุ่มสาขาของผู้ส่ง',
+                                  desc: 'หัวหน้าสาขาวิชาประจำวิชาของผู้ส่ง (เช่น สาขาเทคโนโลยี/เคมี)',
+                                },
+                                {
+                                  role: 'submitter_department_head' as ReviewerRoleType,
+                                  title: 'หัวหน้ากลุ่มสาระของผู้ส่ง',
+                                  desc: 'หัวหน้ากลุ่มสาระการเรียนรู้ของผู้ส่ง (เช่น วิทยาศาสตร์ฯ)',
+                                },
+                                {
+                                  role: 'admin' as ReviewerRoleType,
+                                  title: 'ฝ่ายบริหาร / แอดมินวิชาการ',
+                                  desc: 'ผู้ดูแลระบบและฝ่ายบริหารวิชาการของโรงเรียน',
+                                },
+                              ].map((item) => {
+                                const isChecked = stage.assigned_role === item.role;
+                                return (
+                                  <div
+                                    key={item.role}
+                                    onClick={() => handleUpdateStage(stage.id, { assigned_role: item.role })}
+                                    className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                      isChecked
+                                        ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold ring-1 ring-emerald-400/30'
+                                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span>{item.title}</span>
+                                      {isChecked && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 font-normal mt-1 leading-relaxed">
+                                      {item.desc}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Sub-form 2: ระบุชื่อรายบุคคล */}
                         {selectionType === 'individual' && (
                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                             <div className="flex items-center justify-between text-xs">
                               <span className="font-bold text-slate-800">
-                                เลือกครูผู้ตรวจรายบุคคล ({stage.assigned_teacher_ids?.length || 0} คนที่เลือก):
+                                ติ๊กเลือกครูผู้ตรวจรายบุคคล ({stage.assigned_teacher_ids?.length || 0} คนที่เลือก):
                               </span>
                               <span className="text-slate-400 text-[11px]">ติ๊กถูกเพื่อเลือกหรือยกเลิก</span>
                             </div>
@@ -970,7 +1249,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           </div>
                         )}
 
-                        {/* Sub-form 2: เลือกยกทั้งกลุ่มสาระ */}
+                        {/* Sub-form 3: เลือกยกทั้งกลุ่มสาระ */}
                         {selectionType === 'department' && (
                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                             <span className="text-xs font-bold text-slate-800 block">
@@ -978,39 +1257,12 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                             </span>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                              {/* Dynamic: กลุ่มสาระของผู้ส่งแผนการสอน */}
-                              <label
-                                className={`p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
-                                  (stage.assigned_departments || []).includes('submitter_department')
-                                    ? 'bg-amber-50 border-amber-300 text-amber-950 font-bold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={(stage.assigned_departments || []).includes('submitter_department')}
-                                  onChange={(e) => {
-                                    const currentDepts = stage.assigned_departments || [];
-                                    const nextDepts = e.target.checked
-                                      ? [...currentDepts, 'submitter_department']
-                                      : currentDepts.filter((d) => d !== 'submitter_department');
-                                    handleUpdateStage(stage.id, { assigned_departments: nextDepts });
-                                  }}
-                                  className="rounded text-amber-600 focus:ring-amber-500"
-                                />
-                                <div>
-                                  <p className="text-xs font-bold">กลุ่มสาระของผู้ส่ง (ตรงกลุ่มสาระ)</p>
-                                  <p className="text-[10px] text-slate-500">ดึงครูในกลุ่มสาระเดียวกันมาตรวจ</p>
-                                </div>
-                              </label>
-
-                              {/* Fixed Departments */}
                               {departments.map((dept) => {
-                                const isChecked = (stage.assigned_departments || []).includes(dept.name);
+                                const isChecked = (stage.assigned_departments || []).includes(dept.id);
                                 return (
                                   <label
                                     key={dept.id}
-                                    className={`p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
+                                    className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 cursor-pointer transition-colors ${
                                       isChecked
                                         ? 'bg-amber-50 border-amber-300 text-amber-950 font-bold'
                                         : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -1022,8 +1274,8 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                       onChange={(e) => {
                                         const currentDepts = stage.assigned_departments || [];
                                         const nextDepts = e.target.checked
-                                          ? [...currentDepts, dept.name]
-                                          : currentDepts.filter((d) => d !== dept.name);
+                                          ? [...currentDepts, dept.id]
+                                          : currentDepts.filter((id) => id !== dept.id);
                                         handleUpdateStage(stage.id, { assigned_departments: nextDepts });
                                       }}
                                       className="rounded text-amber-600 focus:ring-amber-500"
@@ -1036,7 +1288,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           </div>
                         )}
 
-                        {/* Sub-form 3: เลือกยกทั้งกลุ่มสาขาวิชา */}
+                        {/* Sub-form 4: เลือกยกทั้งกลุ่มสาขา */}
                         {selectionType === 'branch' && (
                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
                             <span className="text-xs font-bold text-slate-800 block">
@@ -1044,39 +1296,12 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                             </span>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                              {/* Dynamic: สาขาวิชาของผู้ส่งแผนการสอน */}
-                              <label
-                                className={`p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
-                                  (stage.assigned_branches || []).includes('submitter_branch')
-                                    ? 'bg-sky-50 border-sky-300 text-sky-950 font-bold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={(stage.assigned_branches || []).includes('submitter_branch')}
-                                  onChange={(e) => {
-                                    const currentBranches = stage.assigned_branches || [];
-                                    const nextBranches = e.target.checked
-                                      ? [...currentBranches, 'submitter_branch']
-                                      : currentBranches.filter((b) => b !== 'submitter_branch');
-                                    handleUpdateStage(stage.id, { assigned_branches: nextBranches });
-                                  }}
-                                  className="rounded text-sky-600 focus:ring-sky-500"
-                                />
-                                <div>
-                                  <p className="text-xs font-bold">สาขาวิชาของผู้ส่ง (ตรงสาขา)</p>
-                                  <p className="text-[10px] text-slate-500">ดึงครูในสาขาวิชาเดียวกันมาตรวจ (เช่น เทคโนโลยี)</p>
-                                </div>
-                              </label>
-
-                              {/* Fixed Branches */}
-                              {branches.map((branch) => {
-                                const isChecked = (stage.assigned_branches || []).includes(branch.name);
+                              {branches.map((b) => {
+                                const isChecked = (stage.assigned_branches || []).includes(b.id);
                                 return (
                                   <label
-                                    key={branch.id}
-                                    className={`p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
+                                    key={b.id}
+                                    className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 cursor-pointer transition-colors ${
                                       isChecked
                                         ? 'bg-sky-50 border-sky-300 text-sky-950 font-bold'
                                         : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -1088,353 +1313,71 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                       onChange={(e) => {
                                         const currentBranches = stage.assigned_branches || [];
                                         const nextBranches = e.target.checked
-                                          ? [...currentBranches, branch.name]
-                                          : currentBranches.filter((b) => b !== branch.name);
+                                          ? [...currentBranches, b.id]
+                                          : currentBranches.filter((id) => id !== b.id);
                                         handleUpdateStage(stage.id, { assigned_branches: nextBranches });
                                       }}
                                       className="rounded text-sky-600 focus:ring-sky-500"
                                     />
-                                    <span className="truncate">{branch.name}</span>
+                                    <span className="truncate">{b.name}</span>
                                   </label>
                                 );
                               })}
                             </div>
                           </div>
                         )}
-
-                        {/* Sub-form 4: เลือกจากตำแหน่ง */}
-                        {selectionType === 'role' && (
-                          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-                            <span className="text-xs font-bold text-slate-800 block">
-                              เลือกบทบาท/ตำแหน่งของผู้ตรวจในขั้นนี้:
-                            </span>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {/* Role 1: หัวหน้ากลุ่มสาขาวิชาของผู้ส่ง */}
-                              <label
-                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
-                                  stage.assigned_role === 'submitter_branch_head'
-                                    ? 'bg-indigo-50 border-indigo-400 text-indigo-950 font-bold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`role_${stage.id}`}
-                                  checked={stage.assigned_role === 'submitter_branch_head'}
-                                  onChange={() =>
-                                    handleUpdateStage(stage.id, {
-                                      assigned_role: 'submitter_branch_head',
-                                    })
-                                  }
-                                  className="mt-0.5 text-indigo-600"
-                                />
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <Award className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                                    <p className="text-xs font-bold text-slate-900">
-                                      หัวหน้ากลุ่มสาขาวิชาของผู้ส่ง (Branch Head)
-                                    </p>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 mt-0.5">
-                                    ระบบจะค้นหาหัวหน้าสาขาวิชาที่ตรงกับสาขาของครูผู้ส่ง (เช่น ครู te028 ส่งแผนเทคโนโลยี ระบบส่งให้หัวหน้าสาขาเทคโนโลยี)
-                                  </p>
-                                </div>
-                              </label>
-
-                              {/* Role 2: หัวหน้ากลุ่มสาระการเรียนรู้ของผู้ส่ง */}
-                              <label
-                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
-                                  stage.assigned_role === 'submitter_department_head'
-                                    ? 'bg-amber-50 border-amber-400 text-amber-950 font-bold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`role_${stage.id}`}
-                                  checked={stage.assigned_role === 'submitter_department_head'}
-                                  onChange={() =>
-                                    handleUpdateStage(stage.id, {
-                                      assigned_role: 'submitter_department_head',
-                                    })
-                                  }
-                                  className="mt-0.5 text-amber-600"
-                                />
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                                    <p className="text-xs font-bold text-slate-900">
-                                      หัวหน้ากลุ่มสาระการเรียนรู้ของผู้ส่ง (Dept Head)
-                                    </p>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 mt-0.5">
-                                    ระบบจะค้นหาหัวหน้ากลุ่มสาระที่ตรงกับกลุ่มสาระของแผนการสอนนั้นๆ (เช่น วิทยาศาสตร์และเทคโนโลยี)
-                                  </p>
-                                </div>
-                              </label>
-
-                              {/* Role 3: หัวหน้าสาขาทุกคน */}
-                              <label
-                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
-                                  stage.assigned_role === 'all_branch_heads'
-                                    ? 'bg-indigo-50 border-indigo-400 text-indigo-950 font-bold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`role_${stage.id}`}
-                                  checked={stage.assigned_role === 'all_branch_heads'}
-                                  onChange={() =>
-                                    handleUpdateStage(stage.id, {
-                                      assigned_role: 'all_branch_heads',
-                                    })
-                                  }
-                                  className="mt-0.5 text-indigo-600"
-                                />
-                                <div>
-                                  <p className="text-xs font-bold text-slate-900">
-                                    หัวหน้ากลุ่มสาขาวิชาทุกคน (All Branch Heads)
-                                  </p>
-                                  <p className="text-[11px] text-slate-500 mt-0.5">
-                                    ดึงหัวหน้าสาขาวิชาทั้งหมดมาร่วมเป็นกรรมการตรวจประเมิน
-                                  </p>
-                                </div>
-                              </label>
-
-                              {/* Role 4: หัวหน้ากลุ่มสาระทุกคน */}
-                              <label
-                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
-                                  stage.assigned_role === 'all_department_heads'
-                                    ? 'bg-amber-50 border-amber-400 text-amber-950 font-bold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`role_${stage.id}`}
-                                  checked={stage.assigned_role === 'all_department_heads'}
-                                  onChange={() =>
-                                    handleUpdateStage(stage.id, {
-                                      assigned_role: 'all_department_heads',
-                                    })
-                                  }
-                                  className="mt-0.5 text-amber-600"
-                                />
-                                <div>
-                                  <p className="text-xs font-bold text-slate-900">
-                                    หัวหน้ากลุ่มสาระทุกคน (All Department Heads)
-                                  </p>
-                                  <p className="text-[11px] text-slate-500 mt-0.5">
-                                    ดึงหัวหน้ากลุ่มสาระทั้ง 8 กลุ่มสาระมาร่วมเป็นคณะกรรมการตรวจ
-                                  </p>
-                                </div>
-                              </label>
-
-                              {/* Role 5: ฝ่ายบริหาร/ผู้อำนวยการ */}
-                              <label
-                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
-                                  stage.assigned_role === 'school_leadership'
-                                    ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`role_${stage.id}`}
-                                  checked={stage.assigned_role === 'school_leadership'}
-                                  onChange={() =>
-                                    handleUpdateStage(stage.id, {
-                                      assigned_role: 'school_leadership',
-                                    })
-                                  }
-                                  className="mt-0.5 text-emerald-600"
-                                />
-                                <div>
-                                  <p className="text-xs font-bold text-slate-900">
-                                    ฝ่ายบริหาร / ผู้อำนวยการสถานศึกษา (Leadership)
-                                  </p>
-                                  <p className="text-[11px] text-slate-500 mt-0.5">
-                                    ผู้อำนวยการหรือผู้บริหารลงนามอนุมัติในขั้นตอนสุดท้าย
-                                  </p>
-                                </div>
-                              </label>
-
-                              {/* Role 6: แอดมินทุกคน */}
-                              <label
-                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all cursor-pointer ${
-                                  stage.assigned_role === 'all_admins'
-                                    ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`role_${stage.id}`}
-                                  checked={stage.assigned_role === 'all_admins'}
-                                  onChange={() =>
-                                    handleUpdateStage(stage.id, {
-                                      assigned_role: 'all_admins',
-                                    })
-                                  }
-                                  className="mt-0.5 text-emerald-600"
-                                />
-                                <div>
-                                  <p className="text-xs font-bold text-slate-900">
-                                    ผู้ดูแลระบบทุกคน (All Administrators)
-                                  </p>
-                                  <p className="text-[11px] text-slate-500 mt-0.5">
-                                    คณะแอดมินฝ่ายวิชาการสามารถตรวจและอนุมัติได้ทุกคน
-                                  </p>
-                                </div>
-                              </label>
-                            </div>
-                          </div>
-                        )}
                       </div>
 
-                      {/* 4. ขอบเขตการตรวจของหัวหน้าสาขา / หัวหน้ากลุ่มสาระ (Admin Review Scope Setting) */}
-                      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3 shadow-2xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                            <Shuffle className="w-4 h-4 text-amber-600" />
-                            <span>ขอบเขตการตรวจของผู้ตรวจในขั้นนี้ (Review Scope & Distribution)</span>
-                            <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300 ml-1">
-                              แอดมินกำหนด
-                            </span>
-                          </label>
-                          <span className="text-[11px] text-slate-500">
-                            เลือกระหว่างตรวจเฉพาะคนในกลุ่มของตนเอง หรือสุ่มตรวจของทุกคน
-                          </span>
-                        </div>
+                      {/* 4. ขอบเขตการตรวจ (Review Scope) */}
+                      <div className="space-y-2 pt-2 border-t border-slate-200/80">
+                        <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Target className="w-4 h-4 text-emerald-600" />
+                          <span>ขอบเขตการตรวจ (Review Scope)</span>
+                        </label>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                          {/* Option 1: ตรวจเฉพาะคนของตัวเอง */}
-                          <div
-                            onClick={() => handleUpdateStage(stage.id, { scope_mode: 'own_group_only' })}
-                            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
-                              (stage.scope_mode || 'own_group_only') === 'own_group_only'
-                                ? 'bg-amber-50/80 border-amber-500 shadow-xs ring-1 ring-amber-500/20'
-                                : 'bg-white border-slate-200 hover:border-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="radio"
-                                    name={`scope_mode_${stage.id}`}
-                                    checked={(stage.scope_mode || 'own_group_only') === 'own_group_only'}
-                                    onChange={() => handleUpdateStage(stage.id, { scope_mode: 'own_group_only' })}
-                                    className="text-amber-600 focus:ring-amber-500"
-                                  />
-                                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                                    <Target className="w-3.5 h-3.5 text-amber-600" />
-                                    <span>ตรวจเฉพาะคนของตัวเอง</span>
-                                  </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {[
+                            {
+                              mode: 'own_group_only' as ReviewScopeMode,
+                              title: 'ตรวจเฉพาะคนของตนเอง',
+                              desc: 'หัวหน้าสาขา/หัวหน้ากลุ่มสาระตรวจเฉพาะคุณครูในสังกัดของตนเอง',
+                            },
+                            {
+                              mode: 'random_all' as ReviewScopeMode,
+                              title: 'สุ่มตรวจทุกคนเท่าๆ กัน',
+                              desc: 'กระจายงานให้ผู้ตรวจทุกคนในปริมาณเท่ากันโดยอัตโนมัติ',
+                            },
+                            {
+                              mode: 'random_cross_only' as ReviewScopeMode,
+                              title: 'สุ่มตรวจข้ามกลุ่มเท่านั้น',
+                              desc: 'สุ่มตรวจข้ามสาขาหรือข้ามกลุ่มสาระ (Cross-check)',
+                            },
+                          ].map((item) => {
+                            const isChecked = (stage.scope_mode || 'own_group_only') === item.mode;
+                            return (
+                              <div
+                                key={item.mode}
+                                onClick={() => handleUpdateStage(stage.id, { scope_mode: item.mode })}
+                                className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                  isChecked
+                                    ? 'bg-emerald-50 border-emerald-400 text-emerald-950 font-bold ring-1 ring-emerald-400/30'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span>{item.title}</span>
+                                  {isChecked && <Check className="w-3.5 h-3.5 text-emerald-600" />}
                                 </div>
-                                <p className="text-[11px] text-slate-600 leading-relaxed pl-5">
-                                  หัวหน้ากลุ่มสาระหรือหัวหน้ากลุ่มสาขาจะตรวจเฉพาะครูในกลุ่มสาระ/สาขาวิชาของตนเองเท่านั้น (ตรงสายงาน)
+                                <p className="text-[10px] text-slate-500 font-normal mt-1 leading-relaxed">
+                                  {item.desc}
                                 </p>
                               </div>
-                              <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold shrink-0">
-                                ตรงสายงาน
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Option 2: ตรวจของทุกคนแบบสุ่มกระจายงานเท่ากัน */}
-                          <div
-                            onClick={() => handleUpdateStage(stage.id, { scope_mode: 'random_all' })}
-                            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
-                              stage.scope_mode === 'random_all'
-                                ? 'bg-indigo-50/80 border-indigo-600 shadow-xs ring-1 ring-indigo-600/20'
-                                : 'bg-white border-slate-200 hover:border-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="radio"
-                                    name={`scope_mode_${stage.id}`}
-                                    checked={stage.scope_mode === 'random_all'}
-                                    onChange={() => handleUpdateStage(stage.id, { scope_mode: 'random_all' })}
-                                    className="text-indigo-600 focus:ring-indigo-500"
-                                  />
-                                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                                    <Shuffle className="w-3.5 h-3.5 text-indigo-600" />
-                                    <span>ตรวจของทุกคนแบบสุ่ม</span>
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-slate-600 leading-relaxed pl-5">
-                                  ระบบจะสุ่มกระจายเอกสารของครูทุกคนให้หัวหน้าทุกท่านช่วยกันตรวจในปริมาณที่เท่าๆ กัน (Round-robin) ไม่จำกัดกลุ่มสาระ
-                                </p>
-                              </div>
-                              <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[10px] font-bold shrink-0">
-                                สุ่มทุกคน
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Option 3: สุ่มตรวจทุกคนแต่ไม่เจอกลุ่มของตนเอง (Cross-check) */}
-                          <div
-                            onClick={() => handleUpdateStage(stage.id, { scope_mode: 'random_cross_only' })}
-                            className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
-                              stage.scope_mode === 'random_cross_only'
-                                ? 'bg-purple-50/80 border-purple-600 shadow-xs ring-1 ring-purple-600/20'
-                                : 'bg-white border-slate-200 hover:border-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="radio"
-                                    name={`scope_mode_${stage.id}`}
-                                    checked={stage.scope_mode === 'random_cross_only'}
-                                    onChange={() => handleUpdateStage(stage.id, { scope_mode: 'random_cross_only' })}
-                                    className="text-purple-600 focus:ring-purple-500"
-                                  />
-                                  <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                                    <Scale className="w-3.5 h-3.5 text-purple-600" />
-                                    <span>สุ่มตรวจข้ามกลุ่ม</span>
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-slate-600 leading-relaxed pl-5">
-                                  ระบบจะสุ่มกระจายเอกสารให้หัวหน้าทุกคนตรวจ แต่จะคัดกรองไม่ให้ตรวจคนในกลุ่มสาระ/สาขาของตนเอง เพื่อความเป็นกลาง
-                                </p>
-                              </div>
-                              <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold shrink-0">
-                                ประเมินข้ามกลุ่ม
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Current Mode Summary Pill */}
-                        <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2 text-slate-700">
-                            <Info className="w-4 h-4 text-slate-500 shrink-0" />
-                            <span>
-                              สถานะการตั้งค่าปัจจุบัน:{' '}
-                              <strong className="text-slate-900">
-                                {stage.scope_mode === 'random_all'
-                                  ? 'สุ่มตรวจของทุกคนแบบเฉลี่ยภาระงานเท่ากัน'
-                                  : stage.scope_mode === 'random_cross_only'
-                                  ? 'สุ่มตรวจทุกคนแต่ไม่ตรวจกลุ่มของตนเอง (Cross-check)'
-                                  : 'ตรวจเฉพาะคนในกลุ่มสาระ / สาขาวิชาของตนเองเท่านั้น'}
-                              </strong>
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-slate-500 hidden sm:inline">
-                            มีผลทันทีเมื่อกดบันทึก
-                          </span>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      {/* 5. ระบบกระจายงานอัตโนมัติ (Auto-assign Workload Balancer) */}
+                      {/* 5. Auto-assign trigger */}
                       {(() => {
                         const stageWaitingPlans = plans.filter((p) => {
                           const planStage = p.current_stage_order || 1;
@@ -1517,22 +1460,26 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
+        <div className="p-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 shrink-0">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              สายงานที่กำหนดจะถูกผูกเข้ากับเอกสารที่ระบุโดยอัตโนมัติทันทีเมื่อบันทึก
+              สายงานที่กำหนดจะถูกผูกเข้ากับเอกสารประเภท <strong>{selectedDocType}</strong> โดยอัตโนมัติทันทีเมื่อบันทึก
             </span>
           </div>
 
           <div className="flex items-center gap-2">
+            {!embedded && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            )}
             <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              ปิดหน้าต่าง
-            </button>
-            <button
+              type="button"
               onClick={handleSaveAll}
               className="px-6 py-2 bg-[#0B1329] hover:bg-slate-900 text-amber-400 font-bold rounded-xl text-xs transition-all shadow-xs cursor-pointer active:scale-95"
             >
@@ -1541,6 +1488,76 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        innerContent
+      ) : (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 sm:p-5 animate-in fade-in duration-200">
+          {innerContent}
+        </div>
+      )}
+
+      {/* Modal: Add New Actual Document Type */}
+      {isAddDocTypeModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">เพิ่มประเภทเอกสารใหม่</h3>
+                  <p className="text-[11px] text-slate-500">สร้างประเภทเอกสารจริงพร้อมสายงานอนุมัติ</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddDocTypeModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewDocType} className="space-y-4 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  ชื่อประเภทเอกสารจริง <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={newDocTypeName}
+                  onChange={(e) => setNewDocTypeName(e.target.value)}
+                  placeholder="เช่น แผนบูรณาการ, บันทึกหลังสอน, วิจัยชั้นเรียน"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddDocTypeModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold bg-[#0B1329] hover:bg-slate-900 text-amber-400 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                >
+                  สร้างประเภทเอกสาร
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

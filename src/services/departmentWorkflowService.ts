@@ -16,6 +16,7 @@ import {
   saveSystemSetting,
   updateTeacherRecord,
   saveLocalTeachers,
+  saveAllTeachers,
 } from './supabaseClient';
 
 const STORAGE_KEY_DEPARTMENTS = 'lp_school_departments';
@@ -284,6 +285,89 @@ export const DEFAULT_BRANCHES: BranchConfig[] = [
   },
 ];
 
+export const isTeacherInDept = (teacherDept?: string | null, deptName?: string | null): boolean => {
+  const t = (teacherDept || '').trim().toLowerCase();
+  const d = (deptName || '').trim().toLowerCase();
+  if (!t || !d) return false;
+  return t === d || t.includes(d) || d.includes(t);
+};
+
+export const isTeacherInBranch = (teacherBranch?: string | null, branchName?: string | null): boolean => {
+  const t = (teacherBranch || '').trim().toLowerCase();
+  const b = (branchName || '').trim().toLowerCase();
+  if (!t || !b) return false;
+  if (t === b) return true;
+
+  // Clean common prefixes ("สาขาวิชา", "สาขา")
+  const cleanT = t.replace(/^สาขาวิชา|^สาขา/, '').trim();
+  const cleanB = b.replace(/^สาขาวิชา|^สาขา/, '').trim();
+
+  if (cleanT && cleanB && cleanT === cleanB) return true;
+  if (cleanT && cleanB && (cleanT.includes(cleanB) || cleanB.includes(cleanT))) return true;
+
+  return t.includes(b) || b.includes(t);
+};
+
+/**
+ * Checks if a teacher is the appointed Branch Head of the specific branch of a plan
+ */
+export const isTeacherBranchHeadOfPlan = (
+  teacher?: Teacher | null,
+  plan?: LessonPlan | null,
+  branches: BranchConfig[] = []
+): boolean => {
+  if (!teacher || !plan) return false;
+  const planBranch = (plan.branch || '').trim();
+  const teacherId = teacher.Teacher_ID;
+
+  // 1. Is teacher appointed head in matching branch in branches list?
+  const matchedBranch = branches.find((b) => {
+    if (b.head_teacher_id !== teacherId) return false;
+    if (!planBranch) return true;
+    return isTeacherInBranch(planBranch, b.name);
+  });
+  if (matchedBranch) return true;
+
+  // 2. Is teacher flagged as is_head_of_branch or role head_of_branch with matching branch?
+  const isHeadRole = teacher.is_head_of_branch === true || teacher.role === 'head_of_branch';
+  if (isHeadRole) {
+    if (!planBranch) return true;
+    if (isTeacherInBranch(teacher.branch, planBranch)) return true;
+  }
+
+  return false;
+};
+
+/**
+ * Checks if a teacher is the appointed Department Head of the learning area of a plan
+ */
+export const isTeacherDeptHeadOfPlan = (
+  teacher?: Teacher | null,
+  plan?: LessonPlan | null,
+  departments: DepartmentConfig[] = []
+): boolean => {
+  if (!teacher || !plan) return false;
+  const planArea = (plan.learning_area || '').trim();
+  const teacherId = teacher.Teacher_ID;
+
+  // 1. Is teacher appointed head in matching department?
+  const matchedDept = departments.find((d) => {
+    if (d.head_teacher_id !== teacherId) return false;
+    if (!planArea) return true;
+    return isTeacherInDept(planArea, d.name);
+  });
+  if (matchedDept) return true;
+
+  // 2. Is teacher flagged as is_head_of_department or role head_of_department with matching area?
+  const isHeadRole = teacher.is_head_of_department === true || teacher.role === 'head_of_department';
+  if (isHeadRole) {
+    if (!planArea) return true;
+    if (isTeacherInDept(teacher.Learning_Area, planArea)) return true;
+  }
+
+  return false;
+};
+
 // Default Workflows mapped to document types (มีทั้งหัวหน้ากลุ่มสาขา และ หัวหน้ากลุ่มสาระ)
 export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
   {
@@ -513,16 +597,7 @@ export async function appointDepartmentHead(
 
   // Persist
   await saveDepartments(updatedDepartments);
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-  const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedTeacherObj) {
-    await updateTeacherRecord(updatedTeacherObj);
-  }
-  if (prevHeadId && prevHeadId !== teacherId) {
-    const prevTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === prevHeadId);
-    if (prevTeacherObj) await updateTeacherRecord(prevTeacherObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedDepartments, updatedTeachers };
 }
@@ -559,12 +634,7 @@ export async function removeDepartmentHead(
   };
 
   await saveDepartments(updatedDepartments);
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-  if (currentHeadId) {
-    const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === currentHeadId);
-    if (updatedTeacherObj) await updateTeacherRecord(updatedTeacherObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedDepartments, updatedTeachers };
 }
@@ -590,13 +660,7 @@ export async function assignTeacherToDepartment(
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers };
 }
@@ -693,16 +757,7 @@ export async function appointBranchHead(
 
   // Persist
   await saveBranches(updatedBranches);
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-  const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedTeacherObj) {
-    await updateTeacherRecord(updatedTeacherObj);
-  }
-  if (prevHeadId && prevHeadId !== teacherId) {
-    const prevTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === prevHeadId);
-    if (prevTeacherObj) await updateTeacherRecord(prevTeacherObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedBranches, updatedTeachers };
 }
@@ -739,12 +794,7 @@ export async function removeBranchHead(
   };
 
   await saveBranches(updatedBranches);
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-  if (currentHeadId) {
-    const updatedTeacherObj = updatedTeachers.find((t) => t.Teacher_ID === currentHeadId);
-    if (updatedTeacherObj) await updateTeacherRecord(updatedTeacherObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedBranches, updatedTeachers };
 }
@@ -760,22 +810,20 @@ export async function assignTeacherToBranch(
   const teacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
   if (!teacher) return { success: false, updatedTeachers: allTeachers };
 
+  const isClearing = !branchName || !branchName.trim();
+
   const updatedTeachers = allTeachers.map((t) =>
     t.Teacher_ID === teacherId
       ? {
           ...t,
-          branch: branchName,
+          branch: isClearing ? '' : branchName.trim(),
+          branch_id: isClearing ? '' : t.branch_id,
+          is_head_of_branch: isClearing ? false : t.is_head_of_branch,
         }
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers };
 }
@@ -792,23 +840,37 @@ export async function assignTeacherToDepartmentAndBranch(
   const teacher = allTeachers.find((t) => t.Teacher_ID === teacherId);
   if (!teacher) return { success: false, updatedTeachers: allTeachers };
 
-  const updatedTeachers = allTeachers.map((t) =>
-    t.Teacher_ID === teacherId
-      ? {
-          ...t,
-          Learning_Area: departmentName,
-          branch: branchName,
-        }
-      : t
-  );
+  const isClearingBranch = !branchName || !branchName.trim();
+  const isClearingDept = !departmentName || !departmentName.trim();
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
+  const updatedTeachers = allTeachers.map((t) => {
+    if (t.Teacher_ID === teacherId) {
+      const isHeadDept = isClearingDept ? false : t.is_head_of_department;
+      const isHeadBranch = isClearingBranch ? false : t.is_head_of_branch;
+      return {
+        ...t,
+        Learning_Area: isClearingDept ? '' : departmentName.trim(),
+        department: isClearingDept ? '' : departmentName.trim(),
+        department_id: isClearingDept ? '' : t.department_id,
+        branch: isClearingBranch ? '' : branchName.trim(),
+        branch_id: isClearingBranch ? '' : t.branch_id,
+        is_head_of_department: isHeadDept,
+        is_head_of_branch: isHeadBranch,
+        role: (
+          t.role === 'admin'
+            ? 'admin'
+            : isHeadDept
+            ? 'head_of_department'
+            : isHeadBranch
+            ? 'head_of_branch'
+            : 'teacher'
+        ) as any,
+      };
+    }
+    return t;
+  });
 
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers };
 }
@@ -841,19 +903,14 @@ export async function removeTeacherFromDepartment(
           ...t,
           Learning_Area: '',
           department: '',
+          department_id: '',
           is_head_of_department: false,
           role: (t.is_head_of_branch ? 'head_of_branch' : t.role === 'admin' ? 'admin' : 'teacher') as any,
         }
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers, updatedDepartments };
 }
@@ -885,19 +942,14 @@ export async function removeTeacherFromBranch(
       ? {
           ...t,
           branch: '',
+          branch_id: '',
           is_head_of_branch: false,
           role: (t.is_head_of_department ? 'head_of_department' : t.role === 'admin' ? 'admin' : 'teacher') as any,
         }
       : t
   );
 
-  saveLocalTeachers(updatedTeachers);
-  saveSystemSetting('school_teachers_all', updatedTeachers).catch(() => {});
-
-  const updatedObj = updatedTeachers.find((t) => t.Teacher_ID === teacherId);
-  if (updatedObj) {
-    await updateTeacherRecord(updatedObj);
-  }
+  await saveAllTeachers(updatedTeachers);
 
   return { success: true, updatedTeachers, updatedBranches };
 }
@@ -964,18 +1016,36 @@ export function getWorkflowForPlan(
 
   const pType = (plan.plan_type || plan.plan_title || '').trim().toLowerCase();
 
-  // 2. Exact match in plan_type or target_plan_types
+  // 2. Exact match in plan_type or target_plan_types (First priority for actual document types)
   for (const wf of currentWorkflows) {
     if (wf.plan_type && wf.plan_type !== 'all') {
       const wfType = wf.plan_type.trim().toLowerCase();
-      if (pType === wfType || pType.includes(wfType) || wfType.includes(pType)) {
+      if (pType === wfType) {
         return wf;
       }
     }
     if (Array.isArray(wf.target_plan_types)) {
       for (const t of wf.target_plan_types) {
         const lowerT = t.trim().toLowerCase();
-        if (pType === lowerT || pType.includes(lowerT) || lowerT.includes(pType)) {
+        if (pType === lowerT) {
+          return wf;
+        }
+      }
+    }
+  }
+
+  // 3. Substring match if no exact match found
+  for (const wf of currentWorkflows) {
+    if (wf.plan_type && wf.plan_type !== 'all') {
+      const wfType = wf.plan_type.trim().toLowerCase();
+      if (pType.includes(wfType) || wfType.includes(pType)) {
+        return wf;
+      }
+    }
+    if (Array.isArray(wf.target_plan_types)) {
+      for (const t of wf.target_plan_types) {
+        const lowerT = t.trim().toLowerCase();
+        if (pType.includes(lowerT) || lowerT.includes(pType)) {
           return wf;
         }
       }
@@ -1280,8 +1350,15 @@ export function resolveReviewersForStage(
     result = allTeachers.filter((t) => isTeacherAdmin(t));
   }
 
-  // Submitter should never evaluate their own plan (unless only 1 reviewer in system)
-  if (result.length > 1 && plan.teacher_id) {
+  // Submitter should never evaluate their own plan, UNLESS they are the designated branch head or department head appointed for this stage
+  const isDesignatedBranchHead =
+    (stage.assigned_role === 'submitter_branch_head' || stage.title?.includes('สาขา')) &&
+    submitterBranchHeadId === plan.teacher_id;
+  const isDesignatedDeptHead =
+    (stage.assigned_role === 'submitter_department_head' || stage.title?.includes('กลุ่มสาระ')) &&
+    submitterDeptHeadId === plan.teacher_id;
+
+  if (!isDesignatedBranchHead && !isDesignatedDeptHead && result.length > 1 && plan.teacher_id) {
     const withoutSelf = result.filter((t) => t.Teacher_ID !== plan.teacher_id);
     if (withoutSelf.length > 0) {
       result = withoutSelf;
@@ -1332,10 +1409,16 @@ export function autoAssignPlansForStage(
     const candidates = resolveReviewersForStage(stage, p, allTeachers, departments, branches);
     if (candidates.length === 0) return p;
 
-    // Initialize workload tracking for newly discovered candidates
+    // Initialize workload tracking for newly discovered candidates with their existing pending assignments
     candidates.forEach((c) => {
       if (!workload[c.Teacher_ID]) {
-        workload[c.Teacher_ID] = { teacher: c, count: 0 };
+        const existingCount = plans.filter(
+          (other) =>
+            other.assigned_reviewer_id === c.Teacher_ID &&
+            other.status !== 'approved' &&
+            other.status !== 'deleted'
+        ).length;
+        workload[c.Teacher_ID] = { teacher: c, count: existingCount };
       }
     });
 
@@ -1382,6 +1465,7 @@ export function advancePlanStage(
 
   const totalStages = workflow.stages.length;
   const currentStageOrder = plan.current_stage_order || 1;
+  const reviewedAtStr = reviewRecord.reviewed_at || new Date().toISOString();
 
   // Case 1: Revision requested or rejected
   if (reviewRecord.status === 'needs_revision' || reviewRecord.status === 'rejected') {
@@ -1390,24 +1474,31 @@ export function advancePlanStage(
       status: 'needs_revision',
       reviewed_by: reviewer.Teacher_ID,
       reviewer_name: reviewer.Name,
-      reviewed_at: reviewRecord.reviewed_at || new Date().toISOString(),
+      reviewed_at: reviewedAtStr,
       review_comment: reviewRecord.comment || plan.review_comment,
       rubric_scores: reviewRecord.rubric_scores || plan.rubric_scores,
       total_score: reviewRecord.total_score ?? plan.total_score,
       stage_reviews: updatedReviews,
+      admin_notes: `ส่งกลับแก้ไข: ${reviewRecord.comment || 'กรุณาปรับปรุงตามข้อเสนอแนะ'}`,
     };
   }
 
-  // Case 2: Approved / Passed
-  const hasNextStage = currentStageOrder < totalStages;
+  // Case 2: Advance to Next Stage if more stages remain
+  const isFinalStage = currentStageOrder >= totalStages;
 
-  if (hasNextStage) {
+  if (!isFinalStage) {
     const nextStage = workflow.stages.find((s) => s.order === currentStageOrder + 1);
     return {
       ...plan,
-      status: 'submitted', // Still pending in next stage
+      status: 'submitted', // Still pending in next stage for other reviewers
       current_stage_order: currentStageOrder + 1,
       total_stages: totalStages,
+      reviewed_by: reviewer.Teacher_ID,
+      reviewer_name: reviewer.Name,
+      reviewed_at: reviewedAtStr,
+      review_comment: reviewRecord.comment || plan.review_comment,
+      rubric_scores: reviewRecord.rubric_scores || plan.rubric_scores,
+      total_score: reviewRecord.total_score ?? plan.total_score,
       stage_reviews: updatedReviews,
       admin_notes: `ผ่านขั้นที่ ${currentStageOrder} (${reviewRecord.stage_title}) เรียบร้อยแล้ว กำลังรอ ${nextStage?.title || 'ขั้นถัดไป'}`,
       assigned_reviewer_id: undefined,
@@ -1423,10 +1514,11 @@ export function advancePlanStage(
     total_stages: totalStages,
     reviewed_by: reviewer.Teacher_ID,
     reviewer_name: reviewer.Name,
-    reviewed_at: reviewRecord.reviewed_at || new Date().toISOString(),
+    reviewed_at: reviewedAtStr,
     review_comment: reviewRecord.comment || plan.review_comment,
     rubric_scores: reviewRecord.rubric_scores || plan.rubric_scores,
     total_score: reviewRecord.total_score ?? plan.total_score,
     stage_reviews: updatedReviews,
+    admin_notes: `ผ่านการอนุมัติเรียบร้อยแล้ว (${reviewRecord.stage_title})`,
   };
 }

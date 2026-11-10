@@ -56,8 +56,14 @@ export const GoogleSchoolSignInModal: React.FC<GoogleSchoolSignInModalProps> = (
     setSelectedTeacher(teacher);
     // Instant One-Tap Sign In with school email
     setTimeout(() => {
-      updateTeacherRecord(teacher);
-      onLogin(teacher);
+      const sanitized: Teacher = {
+        ...teacher,
+        Pass: '',
+        national_id: '',
+        birth_date: '',
+        has_changed_password: teacher.has_changed_password ?? (teacher.Pass !== '12345'),
+      };
+      onLogin(sanitized);
       onClose();
     }, 250);
   };

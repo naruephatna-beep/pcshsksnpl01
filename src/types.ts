@@ -2,14 +2,14 @@ export interface Teacher {
   Teacher_ID: string;
   Name: string;
   Email: string;
-  Pass: string;
+  Pass?: string; // Masked on client for security
   Learning_Area: string; // กลุ่มสาระการเรียนรู้ เช่น วิทยาศาสตร์และเทคโนโลยี, คณิตศาสตร์
   branch?: string; // สาขาวิชา / สาขา เช่น สาขาเทคโนโลยี, สาขาเคมี, สาขาฟิสิกส์, สาขาชีววิทยา
   photo: string;
-  national_id: string;
+  national_id?: string; // Masked on client for security
   phone: string;
   signature_url: string;
-  birth_date: string;
+  birth_date?: string; // Masked on client for security
   position: string;
   academic_standing: string;
   department: string; // ฝ่ายบริหารงาน เช่น กลุ่มบริหารวิชาการ
@@ -18,6 +18,7 @@ export interface Teacher {
   is_head_of_branch?: boolean; // หัวหน้ากลุ่มสาขา
   department_id?: string;
   branch_id?: string;
+  has_changed_password?: boolean; // Indicates if password has been changed from default '12345'
   created_at?: string;
   updated_at?: string;
 }
@@ -307,4 +308,45 @@ export function isBranchHead(teacher: Teacher | null | undefined): boolean {
   if (!teacher) return false;
   const role = String(teacher.role || '').toLowerCase().trim();
   return role === 'head_of_branch' || teacher.is_head_of_branch === true;
+}
+
+/**
+ * การตั้งค่าสิทธิ์การเข้าถึง "เอกสารทั้งหมดในระบบ"
+ */
+export interface AllDocumentsAccessConfig {
+  allow_all_teachers: boolean; // default false (ปิดไม่ให้ครูทุกคนเห็น)
+  allow_dept_heads: boolean; // อนุญาตให้หัวหน้ากลุ่มสาระเห็นเอกสารทั้งหมดหรือไม่
+  allow_branch_heads: boolean; // อนุญาตให้หัวหน้ากลุ่มสาขาเห็นเอกสารทั้งหมดหรือไม่
+  allowed_teacher_ids: string[]; // รายชื่อรหัสครูที่ได้รับอนุญาตเป็นรายบุคคล
+}
+
+export const DEFAULT_ALL_DOCS_ACCESS_CONFIG: AllDocumentsAccessConfig = {
+  allow_all_teachers: false,
+  allow_dept_heads: false,
+  allow_branch_heads: false,
+  allowed_teacher_ids: [],
+};
+
+/**
+ * ตรวจสอบว่าครูท่านนี้ได้รับสิทธิ์ให้ดู "เอกสารทั้งหมดในระบบ" หรือไม่
+ */
+export function canTeacherViewAllDocuments(
+  teacher: Teacher | null | undefined,
+  config?: AllDocumentsAccessConfig | null
+): boolean {
+  if (!teacher) return false;
+  // 1. แอดมินและผู้บริหารโรงเรียนมีสิทธิ์เสมอ
+  if (isTeacherAdmin(teacher) || isTeacherExecutive(teacher)) return true;
+  if (!config) return false;
+  // 2. หากแอดมินเปิดให้ครูทุกคนดูได้
+  if (config.allow_all_teachers) return true;
+  // 3. หากแอดมินเปิดให้หัวหน้ากลุ่มสาระดูได้
+  if (config.allow_dept_heads && isDepartmentHead(teacher)) return true;
+  // 4. หากแอดมินเปิดให้หัวหน้ากลุ่มสาขาดูได้
+  if (config.allow_branch_heads && isBranchHead(teacher)) return true;
+  // 5. หากได้รับสิทธิ์เจาะจงเป็นรายบุคคล
+  if (Array.isArray(config.allowed_teacher_ids) && config.allowed_teacher_ids.includes(teacher.Teacher_ID)) {
+    return true;
+  }
+  return false;
 }

@@ -11,6 +11,9 @@ import {
   DepartmentConfig,
   BranchConfig,
   ReviewWorkflowConfig,
+  AllDocumentsAccessConfig,
+  DEFAULT_ALL_DOCS_ACCESS_CONFIG,
+  canTeacherViewAllDocuments,
 } from './types';
 import {
   fetchTeachers,
@@ -29,7 +32,9 @@ import {
   getDeletedPlanIds,
   recordDeletedPlanId,
   syncDeletedPlanIdsWithCloud,
+  saveAssignmentSubmissionRecord,
 } from './services/supabaseClient';
+import { updateServerTeacherPassword } from './services/authService';
 import {
   getSavedDeadlineConfigs,
   saveDeadlineConfigs,
@@ -39,6 +44,7 @@ import {
   getPlanStatusInfo,
   getSavedSubmissions,
   classifyDocumentType,
+  isPlanMatchingAssignment,
   DEFAULT_DEADLINE_CONFIGS,
   DEFAULT_STATUS_CONFIGS,
 } from './utils/deadlineUtils';
@@ -54,7 +60,7 @@ import { ForcePasswordModal } from './components/ForcePasswordModal';
 import { LoginModal } from './components/LoginModal';
 import { LoginScreen } from './components/LoginScreen';
 import { SubmissionReceiptModal } from './components/SubmissionReceiptModal';
-import { getDatabaseProvider } from './services/cloudflareClient';
+import { getDatabaseProvider, savePlanToCloudflare } from './services/cloudflareClient';
 import { TeacherDirectoryModal } from './components/TeacherDirectoryModal';
 import { FileStorageInfoModal } from './components/FileStorageInfoModal';
 import { AdminTrackerModal } from './components/AdminTrackerModal';
@@ -83,9 +89,14 @@ import {
   getWorkflowForPlan,
   assignWorkflowToPlan,
   resolveReviewersForStage,
+  isTeacherBranchHeadOfPlan,
+  isTeacherDeptHeadOfPlan,
+  isTeacherInDept,
 } from './services/departmentWorkflowService';
 import { StaffStructureManagerModal } from './components/StaffStructureManagerModal';
 import { WorkflowManagerModal } from './components/WorkflowManagerModal';
+import { AllDocumentsPermissionModal } from './components/AllDocumentsPermissionModal';
+import { ReviewerWorkloadModal } from './components/ReviewerWorkloadModal';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
@@ -116,6 +127,8 @@ import {
   ArrowRight,
   Clock,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Upload,
   RefreshCw,
   BrainCircuit,
@@ -134,7 +147,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Filters & Views
-  const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision' | 'assigned_to_me'>('all');
+  const [viewTab, setViewTab] = useState<'all' | 'my' | 'pending_review' | 'approved' | 'needs_revision' | 'assigned_to_me' | 'school_all'>('all');
   const [mainView, setMainView] = useState<'plans' | 'executive'>('plans');
   const [executiveMode, setExecutiveMode] = useState<'standard' | 'ranking' | 'ddo'>('standard');
   const [planDisplayMode, setPlanDisplayMode] = useState<'board' | 'table'>('board');
@@ -143,7 +156,12 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [areaFilter, setAreaFilter] = useState<string>('');
   const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
+  const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [assignedReviewSubTab, setAssignedReviewSubTab] = useState<'pending' | 'completed' | 'all'>('pending');
+  const [isTeacherStatsOpen, setIsTeacherStatsOpen] = useState<boolean>(false);
+  const [groupByLearningArea, setGroupByLearningArea] = useState<boolean>(true);
+  const [collapsedAreas, setCollapsedAreas] = useState<Record<string, boolean>>({});
+  const [areaTypeFilters, setAreaTypeFilters] = useState<Record<string, string>>({});
 
   // Auto-switch to executive dashboard for leadership accounts
   useEffect(() => {
@@ -151,6 +169,13 @@ export default function App() {
       setMainView('executive');
     }
   }, [currentTeacher]);
+
+  // Ensure assigned review queue always opens on 'pending' (รอตรวจ) where reviewed plans are cleared
+  useEffect(() => {
+    if (viewTab === 'assigned_to_me') {
+      setAssignedReviewSubTab('pending');
+    }
+  }, [viewTab]);
 
   // Modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -162,6 +187,7 @@ export default function App() {
   const [isDirectoryModalOpen, setIsDirectoryModalOpen] = useState(false);
   const [isFileStorageModalOpen, setIsFileStorageModalOpen] = useState(false);
   const [isAdminTrackerModalOpen, setIsAdminTrackerModalOpen] = useState(false);
+  const [isReviewerWorkloadModalOpen, setIsReviewerWorkloadModalOpen] = useState(false);
   const [adminTrackerInitialView, setAdminTrackerInitialView] = useState<
     'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'
   >('table');
@@ -176,6 +202,29 @@ export default function App() {
   const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState(false);
   const [isStaffStructureModalOpen, setIsStaffStructureModalOpen] = useState(false);
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [isAllDocsPermissionModalOpen, setIsAllDocsPermissionModalOpen] = useState(false);
+  const [isAdminTopMenuOpen, setIsAdminTopMenuOpen] = useState(false);
+  const [allDocsAccessConfig, setAllDocsAccessConfig] = useState<AllDocumentsAccessConfig>(() => {
+    try {
+      const raw = localStorage.getItem('school_all_docs_access_config');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return {
+            allow_all_teachers: Boolean(parsed.allow_all_teachers),
+            allow_dept_heads: Boolean(parsed.allow_dept_heads),
+            allow_branch_heads: Boolean(parsed.allow_branch_heads),
+            allowed_teacher_ids: Array.isArray(parsed.allowed_teacher_ids) ? parsed.allowed_teacher_ids : [],
+          };
+        }
+      }
+    } catch {}
+    return DEFAULT_ALL_DOCS_ACCESS_CONFIG;
+  });
+
+  const canViewAllDocs = useMemo(() => {
+    return canTeacherViewAllDocuments(currentTeacher, allDocsAccessConfig);
+  }, [currentTeacher, allDocsAccessConfig]);
   const [departments, setDepartments] = useState<DepartmentConfig[]>(() => getLocalDepartments());
   const [branches, setBranches] = useState<BranchConfig[]>(() => getLocalBranches());
   const [workflows, setWorkflows] = useState<ReviewWorkflowConfig[]>(() => getLocalWorkflows());
@@ -201,9 +250,9 @@ export default function App() {
     setIsSyncing(true);
     try {
       // Execute all database fetches and cloud deleted IDs sync concurrently in a single parallel batch
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes] = await Promise.all([
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes, allDocsAccessRes] = await Promise.all([
         fetchTeachers(),
-        fetchPlans(),
+        fetchPlans(currentTeacher),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
         fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
         fetchAssignmentSubmissionsList(),
@@ -212,9 +261,17 @@ export default function App() {
         fetchSystemSetting<DepartmentConfig[]>('school_departments', getLocalDepartments()),
         fetchSystemSetting<BranchConfig[]>('school_branches', getLocalBranches()),
         fetchSystemSetting<ReviewWorkflowConfig[]>('review_workflows', getLocalWorkflows()),
+        fetchSystemSetting<AllDocumentsAccessConfig>('school_all_docs_access_config', DEFAULT_ALL_DOCS_ACCESS_CONFIG),
       ]);
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
+
+      if (allDocsAccessRes?.data && typeof allDocsAccessRes.data === 'object') {
+        setAllDocsAccessConfig(allDocsAccessRes.data);
+        try {
+          localStorage.setItem('school_all_docs_access_config', JSON.stringify(allDocsAccessRes.data));
+        } catch {}
+      }
 
       if (deptRes?.data && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
         setDepartments(deptRes.data);
@@ -305,10 +362,75 @@ export default function App() {
 
       // 2. Also keep local storage plans that haven't been pushed or were saved recently (filtered strictly)
       const localPlans = getLocalPlans().filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
-      const knownIds = new Set([...remotePlans.map((p) => p.id), ...convertedDynamicPlans.map((p) => p.id)]);
+      const localPlanMap = new Map(localPlans.map((lp) => [lp.id, lp]));
+
+      // CRITICAL FIX: Smart merge conflict resolution
+      // If a local plan has been reviewed (e.g. status is approved, passed, needs_revision, or has reviewer info)
+      // but remote plan is still in unreviewed/submitted status, the local review MUST take precedence!
+      // This prevents the reviewed work from bouncing back to "waiting" when remote database update was delayed.
+      const resolvedRemotePlans = remotePlans.map((rp) => {
+        const lp = localPlanMap.get(rp.id);
+        if (!lp) return rp;
+
+        const isLocalReviewed =
+          lp.status === 'approved' ||
+          lp.status === 'passed' ||
+          lp.status === 'needs_revision' ||
+          lp.status === 'rejected' ||
+          Boolean(lp.reviewed_by) ||
+          Boolean(lp.reviewed_at) ||
+          (lp.stage_reviews && lp.stage_reviews.length > 0);
+
+        const isRemoteUnreviewed = rp.status === 'submitted' || !rp.reviewed_by;
+
+        if (isLocalReviewed && isRemoteUnreviewed) {
+          // Local review is more current; preserve local review and re-sync to Cloudflare D1
+          savePlanToCloudflare(lp).catch(() => {});
+          return {
+            ...rp,
+            ...lp,
+            status: lp.status,
+            reviewed_by: lp.reviewed_by,
+            reviewer_name: lp.reviewer_name,
+            reviewed_at: lp.reviewed_at,
+            review_comment: lp.review_comment,
+            rubric_scores: lp.rubric_scores,
+            total_score: lp.total_score,
+            stage_reviews: lp.stage_reviews,
+            current_stage_order: lp.current_stage_order,
+          };
+        }
+        return rp;
+      });
+
+      const resolvedDynamicPlans = convertedDynamicPlans.map((dp) => {
+        const lp = localPlanMap.get(dp.id);
+        if (lp) {
+          const isLocalReviewed =
+            lp.status === 'approved' ||
+            lp.status === 'passed' ||
+            lp.status === 'needs_revision' ||
+            lp.status === 'rejected' ||
+            Boolean(lp.reviewed_by);
+          if (isLocalReviewed && dp.status === 'submitted') {
+            return {
+              ...dp,
+              ...lp,
+              status: lp.status,
+              reviewed_by: lp.reviewed_by,
+              reviewer_name: lp.reviewer_name,
+              reviewed_at: lp.reviewed_at,
+              review_comment: lp.review_comment,
+            };
+          }
+        }
+        return dp;
+      });
+
+      const knownIds = new Set([...resolvedRemotePlans.map((p) => p.id), ...resolvedDynamicPlans.map((p) => p.id)]);
       const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
 
-      const mergedPlans = [...remotePlans, ...convertedDynamicPlans, ...missingLocals].filter(
+      const mergedPlans = [...resolvedRemotePlans, ...resolvedDynamicPlans, ...missingLocals].filter(
         (p) => !deletedIds.has(p.id) && p.status !== 'deleted'
       );
       saveLocalPlans(mergedPlans);
@@ -366,7 +488,17 @@ export default function App() {
             t.Teacher_ID.toLowerCase() === savedUserEmail.toLowerCase()
         );
         if (found) {
-          setCurrentTeacher(found);
+          const sanitizedFound: Teacher = {
+            ...found,
+            Pass: '',
+            national_id: '',
+            birth_date: '',
+          };
+          setCurrentTeacher(sanitizedFound);
+          const scopedPlansRes = await fetchPlans(sanitizedFound);
+          if (scopedPlansRes.data) {
+            setPlans(scopedPlansRes.data);
+          }
         }
       }
     } catch (e) {
@@ -381,7 +513,7 @@ export default function App() {
     try {
       if (table === 'lesson_plans') {
         const deletedIds = getDeletedPlanIds();
-        const plansRes = await fetchPlans();
+        const plansRes = await fetchPlans(currentTeacher);
         if (plansRes.data) {
           const effectiveDl = deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
           const remotePlans = (plansRes.data || []).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
@@ -424,11 +556,72 @@ export default function App() {
               };
             });
           const localPlans = getLocalPlans().filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
-          const knownIds = new Set([...remotePlans.map((p) => p.id), ...convertedDynamicPlans.map((p) => p.id)]);
+          const localPlanMap = new Map(localPlans.map((lp) => [lp.id, lp]));
+
+          const resolvedRemotePlans = remotePlans.map((rp) => {
+            const lp = localPlanMap.get(rp.id);
+            if (!lp) return rp;
+
+            const isLocalReviewed =
+              lp.status === 'approved' ||
+              lp.status === 'passed' ||
+              lp.status === 'needs_revision' ||
+              lp.status === 'rejected' ||
+              Boolean(lp.reviewed_by) ||
+              Boolean(lp.reviewed_at) ||
+              (lp.stage_reviews && lp.stage_reviews.length > 0);
+
+            const isRemoteUnreviewed = rp.status === 'submitted' || !rp.reviewed_by;
+
+            if (isLocalReviewed && isRemoteUnreviewed) {
+              savePlanToCloudflare(lp).catch(() => {});
+              return {
+                ...rp,
+                ...lp,
+                status: lp.status,
+                reviewed_by: lp.reviewed_by,
+                reviewer_name: lp.reviewer_name,
+                reviewed_at: lp.reviewed_at,
+                review_comment: lp.review_comment,
+                rubric_scores: lp.rubric_scores,
+                total_score: lp.total_score,
+                stage_reviews: lp.stage_reviews,
+                current_stage_order: lp.current_stage_order,
+              };
+            }
+            return rp;
+          });
+
+          const resolvedDynamicPlans = convertedDynamicPlans.map((dp) => {
+            const lp = localPlanMap.get(dp.id);
+            if (lp) {
+              const isLocalReviewed =
+                lp.status === 'approved' ||
+                lp.status === 'passed' ||
+                lp.status === 'needs_revision' ||
+                lp.status === 'rejected' ||
+                Boolean(lp.reviewed_by);
+              if (isLocalReviewed && dp.status === 'submitted') {
+                return {
+                  ...dp,
+                  ...lp,
+                  status: lp.status,
+                  reviewed_by: lp.reviewed_by,
+                  reviewer_name: lp.reviewer_name,
+                  reviewed_at: lp.reviewed_at,
+                  review_comment: lp.review_comment,
+                };
+              }
+            }
+            return dp;
+          });
+
+          const knownIds = new Set([...resolvedRemotePlans.map((p) => p.id), ...resolvedDynamicPlans.map((p) => p.id)]);
           const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
-          const merged = [...remotePlans, ...convertedDynamicPlans, ...missingLocals].filter(
+          const merged = [...resolvedRemotePlans, ...resolvedDynamicPlans, ...missingLocals].filter(
             (p) => !deletedIds.has(p.id) && p.status !== 'deleted'
           );
+          saveLocalPlans(merged);
           setPlans(merged);
         }
       } else if (table === 'teachers') {
@@ -491,7 +684,18 @@ export default function App() {
   // Update current user in storage when changed
   const handleSetCurrentUser = (teacher: Teacher) => {
     setIsLoading(true);
-    setCurrentTeacher(teacher);
+    const sanitized: Teacher = {
+      ...teacher,
+      Pass: '',
+      national_id: '',
+      birth_date: '',
+    };
+    setCurrentTeacher(sanitized);
+    fetchPlans(sanitized).then((plansRes) => {
+      if (plansRes.data) {
+        setPlans(plansRes.data);
+      }
+    });
     if (isTeacherExecutive(teacher)) {
       setMainView('executive');
     } else {
@@ -508,6 +712,7 @@ export default function App() {
     setIsLoading(true);
     localStorage.removeItem('lp_current_user_email');
     setCurrentTeacher(null);
+    setPlans([]);
     setTimeout(() => {
       setIsLoading(false);
     }, 500);
@@ -515,11 +720,19 @@ export default function App() {
 
   // Password update enforcement (auto-updates in DB)
   const handlePasswordChanged = async (updated: Teacher) => {
+    if (updated.Pass) {
+      updateServerTeacherPassword(updated.Teacher_ID, updated.Pass).catch(() => {});
+    }
     const res = await updateTeacherRecord(updated);
+    const sanitizedUpdated: Teacher = {
+      ...updated,
+      Pass: '',
+      has_changed_password: true,
+    };
     setTeachers((prev) =>
-      prev.map((t) => (t.Teacher_ID === updated.Teacher_ID ? updated : t))
+      prev.map((t) => (t.Teacher_ID === updated.Teacher_ID ? sanitizedUpdated : t))
     );
-    setCurrentTeacher(updated);
+    setCurrentTeacher(sanitizedUpdated);
 
     setToastNotice({
       type: 'success',
@@ -634,12 +847,31 @@ export default function App() {
     return lastRes;
   };
 
-  // Plan review update (auto-updates in DB)
   const handleSaveReview = async (updatedPlan: LessonPlan) => {
     const res = await savePlanRecord(updatedPlan);
     setPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
+
+    // Sync AssignmentSubmission if this plan originated from dynamic assignment submission
+    try {
+      const savedSubs = getSavedSubmissions();
+      const targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+      if (targetSub) {
+        const updatedSub: AssignmentSubmission = {
+          ...targetSub,
+          status: updatedPlan.status,
+          reviewed_by: updatedPlan.reviewed_by || currentTeacher?.Teacher_ID || null,
+          reviewer_name: updatedPlan.reviewer_name || currentTeacher?.Name || null,
+          reviewed_at: updatedPlan.reviewed_at || new Date().toISOString(),
+          review_comment: updatedPlan.review_comment || null,
+          admin_notes: updatedPlan.admin_notes || null,
+        };
+        await saveAssignmentSubmissionRecord(updatedSub);
+      }
+    } catch (e) {
+      console.warn('[Sync Assignment Submission Error]', e);
+    }
 
     // If plan was approved or has top score, fire a subtle celebration
     if (updatedPlan.status === 'approved' || updatedPlan.status === 'passed' || (typeof updatedPlan.total_score === 'number' && updatedPlan.total_score >= 90)) {
@@ -820,6 +1052,32 @@ export default function App() {
     }
   };
 
+  // Save All Documents access permissions (Admin)
+  const handleSaveAllDocsAccessConfig = async (newConfig: AllDocumentsAccessConfig) => {
+    setAllDocsAccessConfig(newConfig);
+    try {
+      localStorage.setItem('school_all_docs_access_config', JSON.stringify(newConfig));
+    } catch {}
+    const dbRes = await saveSystemSetting('school_all_docs_access_config', newConfig);
+    if (dbRes.success && dbRes.isSupabase) {
+      setToastNotice({
+        type: 'success',
+        message: 'บันทึกสิทธิ์การดูเอกสารทั้งหมดสำเร็จ!',
+        details: newConfig.allow_all_teachers
+          ? 'เปิดให้ครูทุกคนในโรงเรียนดูเอกสารทั้งหมดได้'
+          : `จำกัดสิทธิ์เฉพาะครู ${newConfig.allowed_teacher_ids.length} ท่าน (และผู้ดูแลระบบ)`,
+      });
+    } else {
+      setToastNotice({
+        type: 'success',
+        message: 'บันทึกการตั้งค่าสิทธิ์เรียบร้อยแล้ว',
+        details: newConfig.allow_all_teachers
+          ? 'เปิดให้ครูทุกคนดูเอกสารทั้งหมดในระบบได้'
+          : `อนุญาตเฉพาะครู ${newConfig.allowed_teacher_ids.length} ท่าน`,
+      });
+    }
+  };
+
   // Quick Change Plan Status (Admin)
   const handleQuickChangePlanStatus = async (
     planOrId: LessonPlan | string,
@@ -831,15 +1089,70 @@ export default function App() {
     const targetPlan = plans.find((p) => p.id === planId);
     if (!targetPlan) return;
 
+    const isNowApproved = newStatus === 'approved' || newStatus === 'passed';
+    const nowIso = new Date().toISOString();
+
     const updatedPlan: LessonPlan = {
       ...targetPlan,
       status: newStatus,
       is_late: isLateOverride !== undefined ? isLateOverride : targetPlan.is_late,
       admin_notes: adminNotes !== undefined ? adminNotes : targetPlan.admin_notes,
+      reviewed_by: isNowApproved ? (targetPlan.reviewed_by || currentTeacher?.Teacher_ID || 'admin') : targetPlan.reviewed_by,
+      reviewer_name: isNowApproved ? (targetPlan.reviewer_name || currentTeacher?.Name || 'ผู้ดูแลระบบ') : targetPlan.reviewer_name,
+      reviewed_at: isNowApproved ? (targetPlan.reviewed_at || nowIso) : targetPlan.reviewed_at,
     };
 
     setPlans((prev) => prev.map((p) => (p.id === planId ? updatedPlan : p)));
     await savePlanRecord(updatedPlan);
+
+    // Also update dynamic assignment submission if applicable
+    try {
+      const savedSubs = getSavedSubmissions();
+      const targetSub = savedSubs.find((s) => s.id === planId);
+      if (targetSub) {
+        const updatedSub: AssignmentSubmission = {
+          ...targetSub,
+          status: newStatus,
+          is_late: isLateOverride !== undefined ? isLateOverride : targetSub.is_late,
+          admin_notes: adminNotes !== undefined ? adminNotes : targetSub.admin_notes,
+          reviewed_by: isNowApproved ? (targetSub.reviewed_by || currentTeacher?.Teacher_ID || 'admin') : targetSub.reviewed_by,
+          reviewer_name: isNowApproved ? (targetSub.reviewer_name || currentTeacher?.Name || 'ผู้ดูแลระบบ') : targetSub.reviewer_name,
+          reviewed_at: isNowApproved ? (targetSub.reviewed_at || nowIso) : targetSub.reviewed_at,
+        };
+        await saveAssignmentSubmissionRecord(updatedSub);
+      }
+    } catch {
+      // ignore
+    }
+
+    if (isNowApproved) {
+      triggerSchoolCelebration('light');
+
+      // Auto archive copy into Google Drive
+      const planTeacher = teachers.find((t) => t.Teacher_ID === updatedPlan.teacher_id);
+      const teacherBranch =
+        updatedPlan.branch ||
+        planTeacher?.branch ||
+        planTeacher?.Learning_Area ||
+        updatedPlan.learning_area ||
+        'ทั่วไป';
+
+      archiveReviewedPlanToGoogleDrive({
+        planId: updatedPlan.id,
+        planTitle: updatedPlan.plan_title || updatedPlan.subject_name || 'เอกสารวิชาการ',
+        planType: updatedPlan.plan_type,
+        branch: teacherBranch,
+        learningArea: updatedPlan.learning_area || planTeacher?.Learning_Area,
+        teacherName: updatedPlan.teacher_name || planTeacher?.Name || 'คุณครู',
+        teacherId: updatedPlan.teacher_id,
+        fileUrl: updatedPlan.file_url,
+        fileName: updatedPlan.file_name,
+        reviewerName: currentTeacher?.Name,
+        reviewerId: currentTeacher?.Teacher_ID,
+      }).catch((err) => {
+        console.warn('[Quick Status GoogleDrive Archive Error]', err);
+      });
+    }
 
     const stInfo = getPlanStatusInfo(newStatus, statusConfigs);
     setToastNotice({
@@ -866,9 +1179,20 @@ export default function App() {
     });
   };
 
-  // Must force password change if current logged-in teacher has Pass === '12345'
-  const mustForceChangePassword = currentTeacher && currentTeacher.Pass === '12345';
+  // Must force password change if current logged-in teacher has default password
+  const mustForceChangePassword = Boolean(
+    currentTeacher &&
+      !isTeacherAdmin(currentTeacher) &&
+      (currentTeacher.Pass === '12345' || currentTeacher.has_changed_password === false)
+  );
   const isAdmin = isTeacherAdmin(currentTeacher);
+
+  // Prevent unauthorized teachers from accessing all school documents
+  useEffect(() => {
+    if (!isAdmin && !canViewAllDocs && viewTab === 'school_all') {
+      setViewTab('all');
+    }
+  }, [isAdmin, canViewAllDocs, viewTab]);
 
   const handleOpenSubmitForType = (planType: string) => {
     const targetConfig = (deadlineConfigs || []).find(
@@ -925,9 +1249,32 @@ export default function App() {
     const myEmail = String(teacher.Email || (teacher as any).email || '').trim().toLowerCase();
     const myName = String(teacher.Name || (teacher as any).name || '').trim().toLowerCase();
 
-    if (targetId && (targetId === myId || targetId === myEmail)) return true;
-    if (targetName && myName && (targetName === myName || targetName.includes(myName) || myName.includes(targetName))) {
+    // 1. Direct ID match
+    if (targetId && myId && targetId === myId) return true;
+
+    // 2. Email match
+    if (targetId && myEmail && (targetId === myEmail || targetId.includes(myEmail) || myEmail.includes(targetId))) {
       return true;
+    }
+
+    // 3. Name match with title & position cleanup
+    if (targetName && myName) {
+      if (targetName === myName) return true;
+      if (targetName.includes(myName) || myName.includes(targetName)) return true;
+
+      // Clean prefix (นาย, นางสาว, นาง, ดร., ครู) and parenthesized positions/notes
+      const cleanTarget = targetName
+        .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
+        .replace(/\s*\(.*?\)/g, '')
+        .trim();
+      const cleanMine = myName
+        .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
+        .replace(/\s*\(.*?\)/g, '')
+        .trim();
+
+      if (cleanTarget && cleanMine && (cleanTarget === cleanMine || cleanTarget.includes(cleanMine) || cleanMine.includes(cleanTarget))) {
+        return true;
+      }
     }
     return false;
   };
@@ -935,9 +1282,11 @@ export default function App() {
   // Helper to check if a teacher has already reviewed this plan
   const hasTeacherReviewedPlan = (plan: LessonPlan, teacher: Teacher | null): boolean => {
     if (!teacher) return false;
+    // 1. Directly recorded reviewer on the plan
     if (isSameTeacherIdOrName(plan.reviewed_by, plan.reviewer_name, teacher)) {
       return true;
     }
+    // 2. Any stage review submitted by this teacher
     if (
       plan.stage_reviews &&
       plan.stage_reviews.some((r) => isSameTeacherIdOrName(r.reviewer_id, r.reviewer_name, teacher))
@@ -969,22 +1318,34 @@ export default function App() {
   ): boolean => {
     if (!teacher || plan.status === 'deleted') return false;
 
-    // Never review your own plan
-    if (isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher)) {
-      return false;
-    }
-
-    // If the plan has already completed review or returned for revision, it is NOT pending review!
+    // 1. If the plan has already completed review or returned for revision, it MUST NOT appear as pending!
     if (isPlanReviewCompleted(plan)) {
       return false;
     }
 
-    // If this teacher has already submitted a review for this plan, they are done with this review!
+    // 2. If this teacher has already submitted a review for this plan, they are done with this review!
     if (hasTeacherReviewedPlan(plan, teacher)) {
       return false;
     }
 
-    // Check direct assignment
+    // 3. Check if this is the teacher's own plan
+    const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
+    if (isOwner) {
+      const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
+      const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
+      const isAdm = isTeacherAdmin(teacher);
+      const isDirectlyAssigned = isSameTeacherIdOrName(
+        plan.assigned_reviewer_id,
+        plan.assigned_reviewer_name,
+        teacher
+      );
+
+      if (!isBranchHead && !isDeptHead && !isAdm && !isDirectlyAssigned) {
+        return false;
+      }
+    }
+
+    // 4. Check direct assignment
     const isDirectlyAssigned = isSameTeacherIdOrName(
       plan.assigned_reviewer_id,
       plan.assigned_reviewer_name,
@@ -996,17 +1357,36 @@ export default function App() {
       return isDirectlyAssigned;
     }
 
-    // Resolve the exact workflow specifically designated for THIS plan's document type
+    // 5. Resolve the exact workflow specifically designated for THIS plan's document type
     const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
     const currentStageOrder = plan.current_stage_order || 1;
     const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
-    const isEligible = stage
-      ? resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
-          isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
-        )
-      : false;
+    if (!stage) return false;
 
-    return isEligible;
+    const isEligible = resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
+      isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
+    );
+
+    if (isEligible) return true;
+
+    // Direct check for branch head or dept head on their own plan when stage role matches
+    if (isOwner) {
+      const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
+      const isBranchStage =
+        stage.assigned_role === 'submitter_branch_head' ||
+        stage.assigned_role === 'all_branch_heads' ||
+        stage.title?.toLowerCase().includes('สาขา');
+      if (isBranchHead && isBranchStage) return true;
+
+      const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
+      const isDeptStage =
+        stage.assigned_role === 'submitter_department_head' ||
+        stage.assigned_role === 'all_department_heads' ||
+        stage.title?.toLowerCase().includes('กลุ่มสาระ');
+      if (isDeptHead && isDeptStage) return true;
+    }
+
+    return false;
   };
 
   // Helper to check if a plan was reviewed by this teacher or finished
@@ -1019,18 +1399,16 @@ export default function App() {
   ): boolean => {
     if (!teacher || plan.status === 'deleted') return false;
 
-    // Never review your own plan
-    if (isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher)) {
-      return false;
-    }
-
-    // If this teacher has personally reviewed this plan
+    // 1. If this teacher personally reviewed this plan
     if (hasTeacherReviewedPlan(plan, teacher)) {
       return true;
     }
 
-    // If this plan was assigned/eligible for this teacher and has reached completed review
+    // 2. If this plan has completed review and this teacher is an admin or reviewer
     if (isPlanReviewCompleted(plan)) {
+      if (isTeacherAdmin(teacher)) {
+        return true;
+      }
       const isDirectlyAssigned = isSameTeacherIdOrName(
         plan.assigned_reviewer_id,
         plan.assigned_reviewer_name,
@@ -1041,16 +1419,20 @@ export default function App() {
       }
 
       const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
-      const currentStageOrder = plan.current_stage_order || 1;
-      const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
-      const isEligible = stage
-        ? resolveReviewersForStage(stage, plan, allTeachers, depts, branches).some((c) =>
-            isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
-          )
-        : false;
-
-      if (isEligible) {
+      const isEligibleAnyStage = (planWorkflow?.stages || []).some((stg) =>
+        resolveReviewersForStage(stg, plan, allTeachers, depts, branches).some((c) =>
+          isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
+        )
+      );
+      if (isEligibleAnyStage) {
         return true;
+      }
+
+      const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
+      if (isOwner) {
+        if (isTeacherBranchHeadOfPlan(teacher, plan, branches) || isTeacherDeptHeadOfPlan(teacher, plan, depts)) {
+          return true;
+        }
       }
     }
 
@@ -1061,60 +1443,123 @@ export default function App() {
   const matchesDocumentTypeFilter = (plan: LessonPlan, filter: string): boolean => {
     if (!filter || filter === 'all') return true;
 
-    const rawType = String(plan.plan_type || '').trim();
+    const rawType = String(plan.plan_type || plan.plan_title || '').trim();
+    if (!rawType) return false;
+
     const lowerType = rawType.toLowerCase();
     const lowerFilter = filter.trim().toLowerCase();
 
-    // Direct exact or substring match
-    if (lowerType === lowerFilter || lowerType.includes(lowerFilter) || lowerFilter.includes(lowerType)) {
+    // 1. Direct match with exact filter string or plan type
+    if (lowerType === lowerFilter) return true;
+    if (plan.plan_type === filter) return true;
+
+    // Check if filter matches a deadlineConfig
+    const matchingConfig = deadlineConfigs.find(
+      (c) => c.id === filter || c.name.toLowerCase() === lowerFilter
+    );
+    if (matchingConfig && isPlanMatchingAssignment(plan, matchingConfig)) {
       return true;
     }
 
-    const meta = classifyDocumentType(plan.plan_type);
-
-    if (filter === 'summary_plan') {
-      return meta.key === 'summary_plan' || lowerType.includes('ย่อ') || lowerType.includes('summary');
+    // Check custom prefix match
+    if (filter.startsWith('custom_')) {
+      const customName = filter.replace('custom_', '').trim().toLowerCase();
+      if (lowerType === customName || (plan.plan_title || '').toLowerCase().includes(customName)) {
+        return true;
+      }
     }
-    if (filter === 'full_plan') {
+
+    // 2. Classify plan into canonical category
+    const meta = classifyDocumentType(plan.plan_type || plan.plan_title);
+    const planCatKey = meta.key;
+
+    // Filter by canonical category key or Thai keyword
+    if (filter === 'summary_plan' || filter === 'type_summary' || lowerFilter.includes('ย่อ')) {
       return (
-        meta.key === 'full_plan' ||
+        planCatKey === 'summary_plan' ||
+        lowerType.includes('ย่อ') ||
+        lowerType.includes('summary')
+      );
+    }
+    if (filter === 'full_plan' || filter === 'type_full' || lowerFilter.includes('สมบูรณ์')) {
+      return (
+        planCatKey === 'full_plan' ||
         lowerType.includes('สมบูรณ์') ||
         lowerType.includes('full') ||
         lowerType.includes('active learning')
       );
     }
-    if (filter === 'classroom_research') {
+    if (
+      filter === 'classroom_research' ||
+      filter.includes('research') ||
+      lowerFilter.includes('วิจัย')
+    ) {
       return (
-        meta.key === 'classroom_research' ||
+        planCatKey === 'classroom_research' ||
         lowerType.includes('วิจัย') ||
-        lowerType.includes('research')
+        lowerType.includes('research') ||
+        lowerType.includes('car')
       );
     }
-    if (filter === 'syllabus') {
+    if (filter === 'syllabus' || lowerFilter.includes('กำหนดการ') || lowerFilter.includes('โครงการสอน')) {
       return (
-        meta.key === 'syllabus' ||
+        planCatKey === 'syllabus' ||
         lowerType.includes('กำหนดการ') ||
         lowerType.includes('โครงการสอน') ||
         lowerType.includes('syllabus')
       );
     }
-    if (filter === 'post_teaching') {
+    if (filter === 'post_teaching' || lowerFilter.includes('บันทึกหลังสอน')) {
       return (
-        meta.key === 'post_teaching' ||
+        planCatKey === 'post_teaching' ||
         lowerType.includes('บันทึกหลังสอน') ||
         lowerType.includes('บันทึกหลังการสอน')
       );
     }
-    if (filter === 'general_academic') {
+    if (filter === 'general_academic' || lowerFilter.includes('ทั่วไป') || lowerFilter.includes('วิชาการ')) {
       return (
-        meta.key === 'general_academic' ||
-        (!lowerType.includes('ย่อ') &&
-          !lowerType.includes('สมบูรณ์') &&
-          !lowerType.includes('วิจัย'))
+        planCatKey === 'general_academic' ||
+        (planCatKey !== 'summary_plan' &&
+          planCatKey !== 'full_plan' &&
+          planCatKey !== 'classroom_research')
       );
     }
 
-    return meta.key === filter;
+    // Direct metadata key match
+    if (planCatKey === lowerFilter) return true;
+
+    // Substring match only if filter is descriptive
+    if (lowerType.includes(lowerFilter)) return true;
+
+    return false;
+  };
+
+  // Helper to accurately match grade level (ม.1 - ม.6)
+  const matchesGradeFilter = (planGrade?: string, filter?: string): boolean => {
+    if (!filter || filter === 'all') return true;
+    if (!planGrade) return false;
+    const pg = planGrade.trim().toLowerCase();
+    const f = filter.trim().toLowerCase();
+    const gradeNum = f.replace(/[^0-9]/g, '');
+    if (gradeNum) {
+      if (
+        pg.includes(`ม.${gradeNum}`) ||
+        pg.includes(`ม. ${gradeNum}`) ||
+        pg.includes(`ปีที่ ${gradeNum}`) ||
+        pg.includes(`ปีที่${gradeNum}`) ||
+        pg.includes(`มัธยมศึกษาปีที่ ${gradeNum}`) ||
+        pg.includes(`ชั้นมัธยมศึกษาปีที่ ${gradeNum}`) ||
+        pg.includes(`ม${gradeNum}/`) ||
+        pg.includes(`ม.${gradeNum}/`) ||
+        pg === `ม.${gradeNum}` ||
+        pg === `ม${gradeNum}` ||
+        pg.startsWith(`ม.${gradeNum} `) ||
+        pg.startsWith(`ม.${gradeNum}/`)
+      ) {
+        return true;
+      }
+    }
+    return pg.includes(f);
   };
 
   // Review queues memoization
@@ -1161,7 +1606,7 @@ export default function App() {
       if (assignedReviewSubTab === 'completed') return assignedCompletedPlans;
       return allAssignedReviewPlans;
     }
-    if (isAdmin) {
+    if (isAdmin || (canViewAllDocs && viewTab === 'school_all')) {
       if (areaFilter) return plans.filter((p) => p.learning_area === areaFilter && p.status !== 'deleted');
       return plans.filter((p) => p.status !== 'deleted');
     }
@@ -1175,10 +1620,78 @@ export default function App() {
     assignedCompletedPlans,
     allAssignedReviewPlans,
     isAdmin,
+    canViewAllDocs,
     areaFilter,
     plans,
     currentTeacher,
   ]);
+
+  // Dynamic list of custom document categories from deadlineConfigs and existing plans
+  const customFilterCategories = useMemo(() => {
+    interface FilterCat {
+      id: string;
+      label: string;
+      short: string;
+      count: number;
+    }
+    const list: FilterCat[] = [];
+
+    // Custom assignments from deadlineConfigs
+    if (deadlineConfigs && deadlineConfigs.length > 0) {
+      deadlineConfigs.forEach((cfg) => {
+        const lowerId = (cfg.id || '').toLowerCase();
+        const lowerName = (cfg.name || '').toLowerCase();
+        if (
+          lowerId === 'type_summary' ||
+          lowerId === 'type_full' ||
+          lowerId.includes('classroom_research') ||
+          lowerName.includes('ฉบับย่อ') ||
+          lowerName.includes('ฉบับสมบูรณ์') ||
+          lowerName.includes('วิจัยในชั้นเรียน')
+        ) {
+          return;
+        }
+
+        const count = contextPlansForCategoryCounts.filter((p) => isPlanMatchingAssignment(p, cfg)).length;
+        list.push({
+          id: cfg.id,
+          label: cfg.name,
+          short: `📑 ${cfg.name.length > 18 ? cfg.name.slice(0, 16) + '...' : cfg.name}`,
+          count,
+        });
+      });
+    }
+
+    // Custom distinct plan types from existing plans
+    const customTypes = new Set<string>();
+    contextPlansForCategoryCounts.forEach((p) => {
+      const pType = (p.plan_type || '').trim();
+      if (!pType) return;
+      const meta = classifyDocumentType(pType);
+      if (meta.key === 'summary_plan' || meta.key === 'full_plan' || meta.key === 'classroom_research') {
+        return;
+      }
+      const matched = list.some((c) => {
+        const cfg = deadlineConfigs.find((dc) => dc.id === c.id);
+        return cfg && isPlanMatchingAssignment(p, cfg);
+      });
+      if (!matched) {
+        customTypes.add(pType);
+      }
+    });
+
+    customTypes.forEach((pType) => {
+      const count = contextPlansForCategoryCounts.filter((p) => (p.plan_type || '').trim() === pType).length;
+      list.push({
+        id: `custom_${pType}`,
+        label: pType,
+        short: `📋 ${pType.length > 18 ? pType.slice(0, 16) + '...' : pType}`,
+        count,
+      });
+    });
+
+    return list;
+  }, [deadlineConfigs, contextPlansForCategoryCounts]);
 
   const docCategoryCounts = useMemo(() => {
     let summary = 0;
@@ -1186,11 +1699,23 @@ export default function App() {
     let research = 0;
     let general = 0;
     for (const p of contextPlansForCategoryCounts) {
-      const meta = classifyDocumentType(p.plan_type);
+      const meta = classifyDocumentType(p.plan_type || p.plan_title);
       if (meta.key === 'summary_plan') summary++;
       else if (meta.key === 'full_plan') full++;
       else if (meta.key === 'classroom_research') research++;
-      else general++;
+      else {
+        const matchedCustom = customFilterCategories.some((c) => {
+          const cfg = deadlineConfigs.find((dc) => dc.id === c.id);
+          if (cfg) return isPlanMatchingAssignment(p, cfg);
+          if (c.id.startsWith('custom_')) {
+            return (p.plan_type || '').trim() === c.label;
+          }
+          return false;
+        });
+        if (!matchedCustom) {
+          general++;
+        }
+      }
     }
     return {
       all: contextPlansForCategoryCounts.length,
@@ -1199,6 +1724,27 @@ export default function App() {
       research,
       general,
     };
+  }, [contextPlansForCategoryCounts, customFilterCategories, deadlineConfigs]);
+
+  // Counts for each grade level (ม.1 - ม.6)
+  const gradeCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: contextPlansForCategoryCounts.length,
+      'ม.1': 0,
+      'ม.2': 0,
+      'ม.3': 0,
+      'ม.4': 0,
+      'ม.5': 0,
+      'ม.6': 0,
+    };
+    for (const p of contextPlansForCategoryCounts) {
+      (['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'] as const).forEach((g) => {
+        if (matchesGradeFilter(p.grade_level, g)) {
+          counts[g]++;
+        }
+      });
+    }
+    return counts;
   }, [contextPlansForCategoryCounts]);
 
   // Filtered plans logic (memoized to eliminate redundant computations on every keystroke/render)
@@ -1225,7 +1771,7 @@ export default function App() {
             return false;
           }
         }
-      } else if (!isAdmin) {
+      } else if (!isAdmin && (!canViewAllDocs || viewTab !== 'school_all')) {
         // Regular teacher's personal view
         const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, currentTeacher);
         if (!isOwner) {
@@ -1233,10 +1779,10 @@ export default function App() {
         }
 
         // Waiting for review tab: show unreviewed plans
-        if (viewTab === 'pending_review' && (plan.status === 'approved' || plan.status === 'needs_revision')) {
+        if (viewTab === 'pending_review' && isPlanReviewCompleted(plan)) {
           return false;
         }
-        if (viewTab === 'approved' && plan.status !== 'approved') {
+        if (viewTab === 'approved' && plan.status !== 'approved' && plan.status !== 'passed') {
           return false;
         }
         if (viewTab === 'needs_revision' && plan.status !== 'needs_revision') {
@@ -1264,7 +1810,12 @@ export default function App() {
         return false;
       }
 
-      // 3. Search query
+      // 3. Grade Level Filter (แยกตามระดับชั้น ม.1 - ม.6)
+      if (gradeFilter !== 'all' && !matchesGradeFilter(plan.grade_level, gradeFilter)) {
+        return false;
+      }
+
+      // 4. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchSubject =
@@ -1299,11 +1850,248 @@ export default function App() {
     teachers,
     departments,
     isAdmin,
+    canViewAllDocs,
     statusFilter,
     areaFilter,
     docTypeFilter,
+    gradeFilter,
     searchQuery,
   ]);
+
+  // Check if a plan can be reviewed by current teacher
+  const checkCanReviewPlan = (plan: LessonPlan): boolean => {
+    return (
+      isAdmin ||
+      viewTab === 'assigned_to_me' ||
+      isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
+      isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
+      (Boolean(currentTeacher) &&
+        (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
+          plan.assigned_reviewer_name === currentTeacher?.Name) &&
+        (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches) ||
+          isTeacherDeptHeadOfPlan(currentTeacher, plan, departments) ||
+          plan.teacher_id !== currentTeacher?.Teacher_ID))
+    );
+  };
+
+  // Visual Theme helper for each Learning Area
+  const getDeptTheme = (deptCode?: string, deptName?: string) => {
+    const name = (deptName || '').toLowerCase();
+    const code = (deptCode || '').toUpperCase();
+
+    if (code === 'SCI' || name.includes('วิทยาศาสตร์') || name.includes('เทคโนโลยี')) {
+      return {
+        bg: 'bg-sky-50 text-sky-900 border-sky-200',
+        badge: 'bg-sky-600 text-white',
+        border: 'border-sky-300',
+        accentBar: 'bg-sky-500',
+        gradient: 'from-sky-500/10 via-sky-50/40 to-white',
+        icon: '🧪',
+      };
+    }
+    if (code === 'MATH' || name.includes('คณิต')) {
+      return {
+        bg: 'bg-amber-50 text-amber-900 border-amber-200',
+        badge: 'bg-amber-600 text-white',
+        border: 'border-amber-300',
+        accentBar: 'bg-amber-500',
+        gradient: 'from-amber-500/10 via-amber-50/40 to-white',
+        icon: '📐',
+      };
+    }
+    if (code === 'THA' || name.includes('ไทย')) {
+      return {
+        bg: 'bg-rose-50 text-rose-900 border-rose-200',
+        badge: 'bg-rose-600 text-white',
+        border: 'border-rose-300',
+        accentBar: 'bg-rose-500',
+        gradient: 'from-rose-500/10 via-rose-50/40 to-white',
+        icon: '📖',
+      };
+    }
+    if (code === 'ENG' || name.includes('ต่างประเทศ') || name.includes('อังกฤษ')) {
+      return {
+        bg: 'bg-indigo-50 text-indigo-900 border-indigo-200',
+        badge: 'bg-indigo-600 text-white',
+        border: 'border-indigo-300',
+        accentBar: 'bg-indigo-500',
+        gradient: 'from-indigo-500/10 via-indigo-50/40 to-white',
+        icon: '🌐',
+      };
+    }
+    if (code === 'SOC' || name.includes('สังคม')) {
+      return {
+        bg: 'bg-emerald-50 text-emerald-900 border-emerald-200',
+        badge: 'bg-emerald-600 text-white',
+        border: 'border-emerald-300',
+        accentBar: 'bg-emerald-500',
+        gradient: 'from-emerald-500/10 via-emerald-50/40 to-white',
+        icon: '🏛️',
+      };
+    }
+    if (code === 'HPE' || name.includes('สุขศึกษา') || name.includes('พลศึกษา')) {
+      return {
+        bg: 'bg-orange-50 text-orange-900 border-orange-200',
+        badge: 'bg-orange-600 text-white',
+        border: 'border-orange-300',
+        accentBar: 'bg-orange-500',
+        gradient: 'from-orange-500/10 via-orange-50/40 to-white',
+        icon: '⚽',
+      };
+    }
+    if (code === 'ART' || name.includes('ศิลปะ')) {
+      return {
+        bg: 'bg-fuchsia-50 text-fuchsia-900 border-fuchsia-200',
+        badge: 'bg-fuchsia-600 text-white',
+        border: 'border-fuchsia-300',
+        accentBar: 'bg-fuchsia-500',
+        gradient: 'from-fuchsia-500/10 via-fuchsia-50/40 to-white',
+        icon: '🎨',
+      };
+    }
+    if (code === 'OCC' || name.includes('การงานอาชีพ')) {
+      return {
+        bg: 'bg-teal-50 text-teal-900 border-teal-200',
+        badge: 'bg-teal-600 text-white',
+        border: 'border-teal-300',
+        accentBar: 'bg-teal-500',
+        gradient: 'from-teal-500/10 via-teal-50/40 to-white',
+        icon: '🛠️',
+      };
+    }
+    if (code === 'ACT' || name.includes('กิจกรรม') || name.includes('แนะแนว')) {
+      return {
+        bg: 'bg-violet-50 text-violet-900 border-violet-200',
+        badge: 'bg-violet-600 text-white',
+        border: 'border-violet-300',
+        accentBar: 'bg-violet-500',
+        gradient: 'from-violet-500/10 via-violet-50/40 to-white',
+        icon: '🧭',
+      };
+    }
+    return {
+      bg: 'bg-slate-50 text-slate-900 border-slate-200',
+      badge: 'bg-slate-700 text-white',
+      border: 'border-slate-300',
+      accentBar: 'bg-slate-500',
+      gradient: 'from-slate-500/10 via-slate-50/40 to-white',
+      icon: '📁',
+    };
+  };
+
+  // Groups filtered plans by Learning Area with type counts breakdown
+  interface AreaGroup {
+    id: string;
+    name: string;
+    code: string;
+    color: string;
+    headName?: string;
+    plans: LessonPlan[];
+    typeCounts: {
+      all: number;
+      summary: number;
+      full: number;
+      research: number;
+      other: number;
+    };
+  }
+
+  const plansGroupedByArea = useMemo(() => {
+    const groups: AreaGroup[] = [];
+    const assignedPlanIds = new Set<string>();
+
+    departments.forEach((dept) => {
+      const deptPlans = filteredPlans.filter((p) => {
+        const pArea = (p.learning_area || '').trim();
+        if (pArea && isTeacherInDept(pArea, dept.name)) return true;
+        const planTeacher = teachers.find((t) => isSameTeacherIdOrName(p.teacher_id, p.teacher_name, t));
+        if (planTeacher?.Learning_Area && isTeacherInDept(planTeacher.Learning_Area, dept.name)) return true;
+        return false;
+      });
+
+      deptPlans.forEach((p) => assignedPlanIds.add(p.id));
+
+      if (deptPlans.length > 0) {
+        let summary = 0;
+        let full = 0;
+        let research = 0;
+        let other = 0;
+
+        deptPlans.forEach((p) => {
+          const typeMeta = classifyDocumentType(p.plan_type);
+          if (typeMeta.key === 'summary_plan') summary++;
+          else if (typeMeta.key === 'full_plan') full++;
+          else if (typeMeta.key === 'classroom_research') research++;
+          else other++;
+        });
+
+        groups.push({
+          id: dept.id,
+          name: dept.name,
+          code: dept.code || dept.name.slice(0, 3).toUpperCase(),
+          color: dept.color || '#4F46E5',
+          headName: dept.head_teacher_name,
+          plans: deptPlans,
+          typeCounts: {
+            all: deptPlans.length,
+            summary,
+            full,
+            research,
+            other,
+          },
+        });
+      }
+    });
+
+    // Unassigned / General plans
+    const unassignedPlans = filteredPlans.filter((p) => !assignedPlanIds.has(p.id));
+    if (unassignedPlans.length > 0) {
+      let summary = 0;
+      let full = 0;
+      let research = 0;
+      let other = 0;
+
+      unassignedPlans.forEach((p) => {
+        const typeMeta = classifyDocumentType(p.plan_type);
+        if (typeMeta.key === 'summary_plan') summary++;
+        else if (typeMeta.key === 'full_plan') full++;
+        else if (typeMeta.key === 'classroom_research') research++;
+        else other++;
+      });
+
+      groups.push({
+        id: 'dept_other',
+        name: 'กลุ่มสาระอื่นๆ / ไม่ระบุกลุ่มสาระ',
+        code: 'GEN',
+        color: '#64748B',
+        headName: 'งานวิชาการ',
+        plans: unassignedPlans,
+        typeCounts: {
+          all: unassignedPlans.length,
+          summary,
+          full,
+          research,
+          other,
+        },
+      });
+    }
+
+    return groups;
+  }, [departments, filteredPlans, teachers]);
+
+  const toggleAreaCollapse = (areaId: string) => {
+    setCollapsedAreas((prev) => ({
+      ...prev,
+      [areaId]: !prev[areaId],
+    }));
+  };
+
+  const handleSetAreaTypeFilter = (areaId: string, filterType: string) => {
+    setAreaTypeFilters((prev) => ({
+      ...prev,
+      [areaId]: filterType,
+    }));
+  };
 
   // If data is initializing, show full-page LoadingScreen with dancing dinosaur
   if (isLoading) {
@@ -1357,6 +2145,9 @@ export default function App() {
           onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
           onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
           onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+          onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
+          canViewAllDocs={canViewAllDocs}
+          onOpenAllDocsPermission={() => setIsAllDocsPermissionModalOpen(true)}
           assignedToMeCount={assignedToMeCount}
           onScrollToAssignments={handleScrollToAssignments}
           onLogout={handleLogout}
@@ -1402,6 +2193,9 @@ export default function App() {
               onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
               onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
               onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+              onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
+              canViewAllDocs={canViewAllDocs}
+              onOpenAllDocsPermission={() => setIsAllDocsPermissionModalOpen(true)}
               assignedToMeCount={assignedToMeCount}
               onScrollToAssignments={handleScrollToAssignments}
               onLogout={handleLogout}
@@ -1441,6 +2235,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={() => setIsReviewerWorkloadModalOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold active:scale-95 transition-all shadow-2xs cursor-pointer"
+                title="ตรวจสอบภาระงานผู้ตรวจ: ใครตรวจแล้วกี่อัน ค้างตรวจกี่อัน"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
+                <span className="text-[11px]">ภาระงานผู้ตรวจ</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 setTeacherToEdit(currentTeacher);
@@ -1512,36 +2316,146 @@ export default function App() {
               </button>
             )}
 
-            {/* Admin Quick Action Button: สรุปประเภทเอกสาร (รายคน) */}
+            {/* Unified Admin Tools Menu for Desktop */}
             {isAdmin && (
-              <>
+              <div className="relative">
                 <button
-                  onClick={() => setIsStaffStructureModalOpen(true)}
-                  className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-300 text-slate-800 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                  title="จัดการโครงสร้างสาขาและแต่งตั้งหัวหน้าสาขา"
+                  type="button"
+                  onClick={() => setIsAdminTopMenuOpen(!isAdminTopMenuOpen)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                    isAdminTopMenuOpen
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200 shadow-2xs'
+                  }`}
+                  title="เครื่องมือและการจัดการผู้ดูแลระบบ"
                 >
-                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                  <span>โครงสร้างสาขา</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                  <span>จัดการระบบ</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isAdminTopMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                <button
-                  onClick={() => setIsWorkflowModalOpen(true)}
-                  className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                  title="ตั้งค่าสายงานการอนุมัติและกระจายงานอัตโนมัติ"
-                >
-                  <WorkflowIcon className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>สายงานอนุมัติ</span>
-                </button>
+                {isAdminTopMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setIsAdminTopMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200/90 z-40 p-2 text-xs text-slate-800 animate-in fade-in slide-in-from-top-2 divide-y divide-slate-100">
+                      {/* Group 1: Analytics & Tracking */}
+                      <div className="p-1 space-y-0.5">
+                        <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          สถิติ & ติดตามงาน
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsReviewerWorkloadModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-emerald-50 text-slate-700 hover:text-emerald-950 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">ภาระงานผู้ตรวจ</div>
+                            <div className="text-[10px] text-slate-400">ตรวจสอบยอดตรวจจริงและงานค้าง</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleOpenAdminTracker('table');
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <ClipboardList className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">ติดตามงานรายบุคคล</div>
+                            <div className="text-[10px] text-slate-400">ตารางติดตามการส่งเอกสารของครู</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleOpenAdminTracker('breakdown');
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Layers className="w-4 h-4 text-amber-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">จำแนกประเภทเอกสาร</div>
+                            <div className="text-[10px] text-slate-400">สรุปจำนวนส่งรายประเภทต่อคน</div>
+                          </div>
+                        </button>
+                      </div>
 
-                <button
-                  onClick={() => handleOpenAdminTracker('breakdown')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                  title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสารเป็นรายคน"
-                >
-                  <Layers className="w-3.5 h-3.5 text-amber-600" />
-                  <span>จำแนกประเภทเอกสาร</span>
-                </button>
-              </>
+                      {/* Group 2: Settings */}
+                      <div className="p-1 space-y-0.5 pt-1.5">
+                        <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          ตั้งค่าระบบ
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsWorkflowModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <WorkflowIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">สายงานอนุมัติ & ผู้ตรวจ</div>
+                            <div className="text-[10px] text-slate-400">กำหนดลำดับขั้นตอนและผู้ตรวจ</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsStaffStructureModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">โครงสร้างสาขาวิชา & สาระ</div>
+                            <div className="text-[10px] text-slate-400">แต่งตั้งหัวหน้าและจัดกลุ่มครู</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDeadlineModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Calendar className="w-4 h-4 text-slate-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">กำหนดส่ง & สถานะ</div>
+                            <div className="text-[10px] text-slate-400">ตั้งวันหมดเขตและสถานะเอกสาร</div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDirectoryModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Users className="w-4 h-4 text-sky-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">ทำเนียบบุคลากร</div>
+                            <div className="text-[10px] text-slate-400">รายชื่อครูทั้งหมด {teachers.length} ท่าน</div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             {/* Teacher Profile Button */}
@@ -1687,62 +2601,47 @@ export default function App() {
 
         {/* View Switcher for Admins & Leadership */}
         {isAdmin && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
-            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl w-full sm:w-auto">
               <button
                 onClick={() => {
                   setMainView('executive');
                   setExecutiveMode('standard');
                 }}
-                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  mainView === 'executive' && executiveMode === 'standard'
-                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  mainView === 'executive'
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <BarChart3 className="w-4 h-4 text-indigo-600" />
-                <span className="truncate">ภาพรวมผู้บริหาร</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setMainView('executive');
-                  setExecutiveMode('ddo');
-                }}
-                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  mainView === 'executive' && executiveMode === 'ddo'
-                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-indigo-950'
-                }`}
-              >
-                <BrainCircuit className="w-4 h-4 text-indigo-600" />
-                <span className="truncate">Data-Driven Org</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-bold">
-                  DDO
-                </span>
+                <BarChart3 className="w-4 h-4 text-amber-500" />
+                <span>แดชบอร์ดภาพรวมบริหาร</span>
               </button>
 
               <button
                 onClick={() => setMainView('plans')}
-                className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   mainView === 'plans'
-                    ? 'bg-white text-indigo-900 shadow-xs font-bold'
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <FileText className="w-4 h-4 text-slate-500" />
-                <span className="truncate">เอกสารทั้งหมด ({plans.length})</span>
+                <FileText className="w-4 h-4 text-indigo-600" />
+                <span>รายการเอกสารทั้งหมด</span>
+                <span className="font-mono text-[11px] text-slate-400">({plans.length})</span>
               </button>
             </div>
 
-            <div className="text-xs text-slate-500 font-medium px-2 flex items-center gap-1.5">
+            <div className="text-xs text-slate-500 font-medium px-1 flex items-center gap-1.5">
               <span>มุมมอง:</span>
               <span className="font-semibold text-slate-800 truncate">
                 {mainView === 'executive'
                   ? executiveMode === 'ddo'
-                    ? 'องค์กรขับเคลื่อนด้วยข้อมูล (Data-Driven Organization)'
-                    : 'แดชบอร์ดภาพรวมและกราฟ'
-                  : 'รายการแผนและการตรวจประเมิน'}
+                    ? 'วิเคราะห์ Data-Driven Org'
+                    : executiveMode === 'ranking'
+                    ? 'จัดอันดับกลุ่มสาระ'
+                    : 'แดชบอร์ดภาพรวมผู้บริหาร'
+                  : 'รายการเอกสารและการประเมิน'}
               </span>
             </div>
           </div>
@@ -1750,67 +2649,40 @@ export default function App() {
 
         {/* Special Admin Control Notification Bar (shown on plans view) */}
         {isAdmin && mainView === 'plans' && (
-          <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
-            <div className="flex items-start sm:items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 font-bold shadow-xs mt-0.5 sm:mt-0">
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
+          <div className="bg-amber-50/50 border border-amber-200/70 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 font-bold shadow-2xs">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
-                  <span>โหมดผู้ดูแลระบบ (Admin: {currentTeacher?.Teacher_ID})</span>
-                  <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-semibold">
-                    Super Admin
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                  <span>โหมดผู้ดูแลระบบ (Admin)</span>
+                  <span className="text-[10px] text-amber-900 font-mono font-medium">
+                    ID: {currentTeacher?.Teacher_ID}
                   </span>
-                </h4>
-                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                  ท่านสามารถติดตามดูว่าครูคนใดส่งแผนแล้วบ้างแยกตามกลุ่มสาระการเรียนรู้ และมีสิทธิ์แก้ไขข้อมูลแผนการสอนรวมถึงข้อมูลครูทุกคนในระบบ
+                </div>
+                <p className="text-[11px] text-slate-600 truncate max-w-xl">
+                  ท่านมีสิทธิ์ตรวจสอบความคืบหน้าของครูทุกคน และจัดการสายงานอนุมัติในระบบ
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 flex-wrap w-full sm:w-auto">
-              <button
-                onClick={() => {
-                  setExecutiveMode('ranking');
-                  setMainView('executive');
-                }}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
-                title="จัดอันดับกลุ่มสาระที่ส่งเอกสารครบและตรงเวลาทุกคนก่อน"
-              >
-                <Trophy className="w-4 h-4 text-slate-950" />
-                <span>จัดอันดับกลุ่มสาระ</span>
-              </button>
-              <button
-                onClick={() => setIsDeadlineModalOpen(true)}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-                title="กำหนดช่วงเวลาส่งของแต่ละประเภทเอกสาร และปรับแต่งสถานะทั้งหมด"
-              >
-                <Calendar className="w-4 h-4 text-slate-500" />
-                <span>กำหนดส่ง & สถานะ</span>
-              </button>
-              <button
-                onClick={() => handleOpenAdminTracker('breakdown')}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-                title="ดูสรุปจำแนกประเภทเอกสารรายบุคคล ใครส่งอะไรแล้วบ้างและส่งกี่ฉบับ"
-              >
-                <Layers className="w-4 h-4 text-amber-700" />
-                <span>จำแนกประเภทเอกสาร</span>
-              </button>
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
               <button
                 onClick={() => handleOpenAdminTracker('table')}
-                className="flex-1 sm:flex-initial justify-center px-3.5 py-2.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+                className="flex-1 sm:flex-initial px-3 py-1.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
                 title="ตารางติดตามดูสถานะการส่งเอกสารของบุคลากรทุกคน"
               >
-                <ClipboardList className="w-4 h-4 text-amber-400" />
+                <ClipboardList className="w-3.5 h-3.5 text-amber-400" />
                 <span>ตารางติดตามส่ง</span>
               </button>
               <button
-                onClick={() => syncWithDatabase(false)}
-                disabled={isSyncing}
-                className="p-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl transition-all shadow-2xs cursor-pointer active:scale-95"
-                title={`ซิงก์ข้อมูลและล้างแคชล่าสุดกับ Cloudflare D1 (${lastSyncTime})`}
+                onClick={() => setIsReviewerWorkloadModalOpen(true)}
+                className="flex-1 sm:flex-initial px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="ตรวจสอบยอดตรวจจริงของผู้ตรวจทุกคน"
               >
-                <RefreshCw className={`w-4 h-4 text-slate-600 ${isSyncing ? 'animate-spin text-amber-500' : ''}`} />
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>ภาระงานผู้ตรวจ</span>
               </button>
             </div>
           </div>
@@ -1829,10 +2701,68 @@ export default function App() {
               onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
               onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
               onOpenDirectoryModal={() => setIsDirectoryModalOpen(true)}
+              onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
             />
           </div>
         ) : (
           <>
+            {/* Role-Based Smart Overview Banner for Teachers */}
+            {!isAdmin && currentTeacher && (
+              <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 rounded-3xl p-4 sm:p-6 text-white border border-indigo-900/60 shadow-xl relative overflow-hidden mb-5">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  {/* Teacher Info */}
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                      {currentTeacher.photo ? (
+                        <img src={currentTeacher.photo} alt={currentTeacher.Name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-amber-400 font-bold text-lg">{currentTeacher.Name.substring(0, 2)}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
+                          สวัสดีครับ/ค่ะ, {currentTeacher.Name}
+                        </h2>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30 font-mono">
+                          {currentTeacher.Teacher_ID}
+                        </span>
+                      </div>
+                      <p className="text-xs text-indigo-200 mt-0.5 truncate">
+                        {currentTeacher.position} · กลุ่มสาระ{currentTeacher.Learning_Area} {currentTeacher.branch ? `(สาขา${currentTeacher.branch})` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Primary Call to Action Buttons */}
+                  <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubmitModalInitialType(undefined);
+                        setIsSubmitModalOpen(true);
+                      }}
+                      className="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                    >
+                      <PlusCircle className="w-4 h-4 stroke-[2.5]" />
+                      <span>+ ส่งแผนการสอน / ภาระงาน</span>
+                    </button>
+                    {assignedToMeCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setViewTab('assigned_to_me')}
+                        className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                      >
+                        <UserCheck className="w-4 h-4 text-amber-300" />
+                        <span>เอกสารที่รอฉันตรวจ ({assignedToMeCount})</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* For regular users: Show assigned documents notification & deadline alert */}
             {!isAdmin && currentTeacher && (
               <TeacherAssignmentNotification
@@ -1845,17 +2775,52 @@ export default function App() {
               />
             )}
 
-            {/* Dashboard Statistics */}
+            {/* Dashboard Statistics (Collapsible for teachers to prevent cognitive overload, full for Admin) */}
             <div id="dashboard-stats-section" className="scroll-mt-20">
-              <DashboardStats
-                plans={plans}
-                teachers={teachers}
-                currentTeacher={currentTeacher}
-                selectedArea={areaFilter}
-                onSelectArea={(area) => setAreaFilter(area)}
-                selectedDocType={docTypeFilter}
-                onSelectDocType={(dt) => setDocTypeFilter(dt)}
-              />
+              {!isAdmin ? (
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all">
+                  <button
+                    type="button"
+                    onClick={() => setIsTeacherStatsOpen(!isTeacherStatsOpen)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-slate-700 hover:text-indigo-950 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-indigo-600" />
+                      <span>สถิติภาพรวมการส่งเอกสารของโรงเรียน & กลุ่มสาระ</span>
+                      <span className="text-[10px] text-slate-500 font-normal hidden sm:inline">(คลิกเพื่อเปิด/ปิดดูสถิติกลุ่มสาระ)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-500 font-mono text-[11px]">
+                      <span>{isTeacherStatsOpen ? 'ย่อซ่อนสถิติ' : 'ขยายดูสถิติ'}</span>
+                      {isTeacherStatsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                  </button>
+                  {isTeacherStatsOpen && (
+                    <div className="p-3 sm:p-4 border-t border-slate-100 bg-slate-50/50 animate-in fade-in duration-150">
+                      <DashboardStats
+                        plans={plans}
+                        teachers={teachers}
+                        currentTeacher={currentTeacher}
+                        selectedArea={areaFilter}
+                        onSelectArea={(area) => setAreaFilter(area)}
+                        selectedDocType={docTypeFilter}
+                        onSelectDocType={(dt) => setDocTypeFilter(dt)}
+                        deadlineConfigs={deadlineConfigs}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <DashboardStats
+                  plans={plans}
+                  teachers={teachers}
+                  currentTeacher={currentTeacher}
+                  selectedArea={areaFilter}
+                  onSelectArea={(area) => setAreaFilter(area)}
+                  selectedDocType={docTypeFilter}
+                  onSelectDocType={(dt) => setDocTypeFilter(dt)}
+                  deadlineConfigs={deadlineConfigs}
+                />
+              )}
             </div>
 
         {/* Lesson Plans Control Bar */}
@@ -1872,8 +2837,25 @@ export default function App() {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  เอกสารของฉันทั้งหมด ({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
+                  เอกสารของฉัน ({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
                 </button>
+                {canViewAllDocs && (
+                  <button
+                    onClick={() => setViewTab('school_all')}
+                    className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                      viewTab === 'school_all'
+                        ? 'bg-white text-indigo-950 shadow-xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="ดูเอกสารทั้งหมดของโรงเรียน แยกตามกลุ่มสาระการเรียนรู้ (ได้รับสิทธิ์)"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>เอกสารทั้งโรงเรียน</span>
+                    <span className="text-slate-500 font-mono text-xs">
+                      ({plans.filter((p) => p.status !== 'deleted').length})
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={() => setViewTab('pending_review')}
                   className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
@@ -1927,10 +2909,10 @@ export default function App() {
                       ? 'bg-indigo-600 text-white shadow-xs font-bold'
                       : 'text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 font-semibold'
                   }`}
-                  title="งานตรวจที่ได้รับมอบหมายให้ฉันตรวจ"
+                  title="เอกสารของคณะครูที่มอบหมายให้ฉันเป็นผู้ตรวจ / ประเมิน"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>งานตรวจที่มอบหมาย</span>
+                  <span>เอกสารที่รอฉันตรวจ</span>
                   {assignedToMeCount > 0 ? (
                     <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
                       {assignedToMeCount}
@@ -2065,6 +3047,32 @@ export default function App() {
                 {docCategoryCounts.research}
               </span>
             </button>
+            {/* Custom dynamically added document types from deadlineConfigs and custom plan types */}
+            {customFilterCategories.map((cat) => {
+              const isSelected = docTypeFilter === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setDocTypeFilter((prev) => (prev === cat.id ? 'all' : cat.id))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-amber-500 text-slate-950 shadow-xs font-bold ring-1 ring-amber-600'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80'
+                  }`}
+                  title={cat.label}
+                >
+                  <span className="truncate max-w-[160px]">{cat.short}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
+                      isSelected ? 'bg-black/20 text-slate-950 font-bold' : 'bg-amber-200/80 text-amber-950'
+                    }`}
+                  >
+                    {cat.count}
+                  </span>
+                </button>
+              );
+            })}
+
             {docCategoryCounts.general > 0 && (
               <button
                 onClick={() => setDocTypeFilter((prev) => (prev === 'general_academic' ? 'all' : 'general_academic'))}
@@ -2074,7 +3082,7 @@ export default function App() {
                     : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80'
                 }`}
               >
-                <span>📑 เอกสารวิชาการอื่นๆ</span>
+                <span>📑 เอกสารอื่นๆ</span>
                 <span
                   className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
                     docTypeFilter === 'general_academic' ? 'bg-white/20 text-white' : 'bg-indigo-200/80 text-indigo-900'
@@ -2084,6 +3092,55 @@ export default function App() {
                 </span>
               </button>
             )}
+          </div>
+
+          {/* Grade Level Filter (แยกตามระดับชั้น ม.1 - ม.6) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-2 border-t border-slate-100 text-xs">
+            <span className="text-slate-500 font-medium text-xs shrink-0 mr-1 flex items-center gap-1">
+              <GraduationCap className="w-3.5 h-3.5 text-amber-500" />
+              <span>ระดับชั้น:</span>
+            </span>
+            <button
+              onClick={() => setGradeFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                gradeFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs font-bold'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+            >
+              <span>ทุกระดับชั้น</span>
+              <span
+                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
+                  gradeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {gradeCounts.all}
+              </span>
+            </button>
+            {(['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'] as const).map((grade) => {
+              const isSelected = gradeFilter === grade;
+              return (
+                <button
+                  key={`grade-btn-${grade}`}
+                  onClick={() => setGradeFilter((prev) => (prev === grade ? 'all' : grade))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-amber-500 text-slate-950 shadow-xs font-bold ring-2 ring-amber-300'
+                      : 'bg-amber-50/70 hover:bg-amber-100/80 text-amber-900 border border-amber-200/80'
+                  }`}
+                  title={`กรองเฉพาะระดับชั้น ${grade}`}
+                >
+                  <span>{grade}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
+                      isSelected ? 'bg-slate-950 text-amber-300 font-bold' : 'bg-amber-200/80 text-amber-900'
+                    }`}
+                  >
+                    {gradeCounts[grade] || 0}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Search bar & Active filter indicators */}
@@ -2099,19 +3156,35 @@ export default function App() {
               />
             </div>
 
+            {gradeFilter !== 'all' && (
+              <div className="flex items-center gap-2 bg-amber-50 text-amber-900 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 border border-amber-300">
+                <span>ระดับชั้น: {gradeFilter}</span>
+                <button
+                  onClick={() => setGradeFilter('all')}
+                  className="hover:text-amber-950 font-bold ml-1 cursor-pointer"
+                  title="แสดงทุกระดับชั้น"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {docTypeFilter !== 'all' && (
               <div className="flex items-center gap-2 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 border border-purple-200">
                 <span>
                   ประเภท:{' '}
-                  {docTypeFilter === 'summary_plan'
-                    ? 'แผนฯ ฉบับย่อ'
-                    : docTypeFilter === 'full_plan'
-                    ? 'แผนฯ ฉบับสมบูรณ์'
-                    : docTypeFilter === 'classroom_research'
-                    ? 'วิจัยในชั้นเรียน'
-                    : docTypeFilter === 'general_academic'
-                    ? 'เอกสารวิชาการอื่นๆ'
-                    : docTypeFilter}
+                  {(() => {
+                    if (docTypeFilter === 'summary_plan') return 'แผนฯ ฉบับย่อ';
+                    if (docTypeFilter === 'full_plan') return 'แผนฯ ฉบับสมบูรณ์';
+                    if (docTypeFilter === 'classroom_research') return 'วิจัยในชั้นเรียน';
+                    if (docTypeFilter === 'general_academic') return 'เอกสารวิชาการอื่นๆ';
+                    const customCat = customFilterCategories.find((c) => c.id === docTypeFilter);
+                    if (customCat) return customCat.label;
+                    const cfg = deadlineConfigs.find((c) => c.id === docTypeFilter);
+                    if (cfg) return cfg.name;
+                    if (docTypeFilter.startsWith('custom_')) return docTypeFilter.replace('custom_', '');
+                    return docTypeFilter;
+                  })()}
                 </span>
                 <button
                   onClick={() => setDocTypeFilter('all')}
@@ -2149,7 +3222,7 @@ export default function App() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-sm sm:text-base font-bold text-white">
-                      งานตรวจที่ได้รับมอบหมาย (Review Tasks)
+                      เอกสารที่รอฉันตรวจ (Review Queue)
                     </h3>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
                       {assignedReviewSubTab === 'pending' ? 'เอกสารที่ตรวจแล้วจะหายไปอัตโนมัติ' : 'ประวัติงานตรวจ'}
@@ -2212,40 +3285,146 @@ export default function App() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="text-sm sm:text-base font-semibold text-slate-900 flex items-center gap-2">
               <FileCheck2 className="w-4 h-4 text-amber-500" />
-              <span>{viewTab === 'assigned_to_me' ? 'รายการเอกสารที่ได้รับมอบหมายให้ตรวจ' : 'รายการเอกสารวิชาการ / แผนการจัดการเรียนรู้'}</span>
+              <span>
+                {viewTab === 'assigned_to_me'
+                  ? 'รายการเอกสารที่ได้รับมอบหมายให้ตรวจ'
+                  : viewTab === 'school_all' || isAdmin
+                  ? 'เอกสารทั้งหมดในระบบ (แยกตามกลุ่มสาระการเรียนรู้)'
+                  : 'รายการเอกสารวิชาการ / แผนการจัดการเรียนรู้ของฉัน'}
+              </span>
               <span className="text-xs text-slate-500 font-normal">
-                (พบ {filteredPlans.length} รายการ)
+                (พบ {filteredPlans.length} รายการ{plansGroupedByArea.length > 0 && groupByLearningArea ? ` • ${plansGroupedByArea.length} กลุ่มสาระ` : ''})
               </span>
             </h3>
 
-            {/* View Switcher: บอร์ดการ์ด vs ตารางแถวสรุป */}
-            <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/90 self-start sm:self-auto shrink-0 shadow-2xs">
+            {/* Controls: Grouping Toggle + Expand/Collapse + View Switcher */}
+            <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+              {/* Admin Button: Configure Permissions for viewing All Documents */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setIsAllDocsPermissionModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/90 shadow-2xs cursor-pointer"
+                  title="ตั้งค่าว่าครูท่านใดมีสิทธิ์เข้าถึงและดูเอกสารทั้งหมดในระบบได้บ้าง (ตามคำสั่ง: ค่าเริ่มต้นไม่แสดงให้ครูเห็น)"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                  <span>
+                    สิทธิ์ดูเอกสาร (
+                    {allDocsAccessConfig.allow_all_teachers
+                      ? 'ครูทุกคน'
+                      : allDocsAccessConfig.allow_dept_heads
+                      ? 'หัวหน้าสาระ+'
+                      : allDocsAccessConfig.allowed_teacher_ids.length > 0
+                      ? `${allDocsAccessConfig.allowed_teacher_ids.length} ท่าน`
+                      : 'เฉพาะแอดมิน'}
+                    )
+                  </span>
+                </button>
+              )}
+
+              {/* Group By Learning Area Toggle Button */}
               <button
-                onClick={() => setPlanDisplayMode('board')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  planDisplayMode === 'board'
-                    ? 'bg-white text-slate-900 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                type="button"
+                onClick={() => setGroupByLearningArea((prev) => !prev)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer ${
+                  groupByLearningArea
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-2xs'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
                 }`}
-                title="ดูแบบบอร์ดการ์ด"
+                title="สลับการจัดกลุ่มตามกลุ่มสาระการเรียนรู้"
               >
-                <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
-                <span>บอร์ดการ์ด</span>
+                <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{groupByLearningArea ? 'แยกตามกลุ่มสาระ' : 'แสดงรวมทั้งหมด'}</span>
               </button>
-              <button
-                onClick={() => setPlanDisplayMode('table')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  planDisplayMode === 'table'
-                    ? 'bg-white text-slate-900 shadow-xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="ดูแบบตารางแถวสรุป"
-              >
-                <TableIcon className="w-3.5 h-3.5 text-amber-500" />
-                <span>ตารางแถวสรุป</span>
-              </button>
+
+              {groupByLearningArea && plansGroupedByArea.length > 0 && (
+                <div className="hidden sm:inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/90 text-xs shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsedAreas({})}
+                    className="px-2 py-1 rounded-lg hover:bg-white text-slate-700 font-medium transition-all cursor-pointer"
+                    title="ขยายทุกกลุ่มสาระ"
+                  >
+                    ขยายหมด
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const all: Record<string, boolean> = {};
+                      plansGroupedByArea.forEach((g) => {
+                        all[g.id] = true;
+                      });
+                      setCollapsedAreas(all);
+                    }}
+                    className="px-2 py-1 rounded-lg hover:bg-white text-slate-700 font-medium transition-all cursor-pointer"
+                    title="ย่อทุกกลุ่มสาระ"
+                  >
+                    ย่อหมด
+                  </button>
+                </div>
+              )}
+
+              {/* View Switcher: บอร์ดการ์ด vs ตารางแถวสรุป */}
+              <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/90 shrink-0 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setPlanDisplayMode('board')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    planDisplayMode === 'board'
+                      ? 'bg-white text-slate-900 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="ดูแบบบอร์ดการ์ด"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
+                  <span>บอร์ดการ์ด</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlanDisplayMode('table')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    planDisplayMode === 'table'
+                      ? 'bg-white text-slate-900 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="ดูแบบตารางแถวสรุป"
+                >
+                  <TableIcon className="w-3.5 h-3.5 text-amber-500" />
+                  <span>ตารางแถวสรุป</span>
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Department Quick Jump Toolbar */}
+          {groupByLearningArea && plansGroupedByArea.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto touch-scroll py-2.5 px-3 mb-5 bg-gradient-to-r from-slate-50 via-slate-100/60 to-slate-50 rounded-2xl border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                <span>⚡ ทางลัดกลุ่มสาระ:</span>
+              </span>
+              {plansGroupedByArea.map((group) => {
+                const theme = getDeptTheme(group.code, group.name);
+                return (
+                  <button
+                    key={`jump-${group.id}`}
+                    type="button"
+                    onClick={() => {
+                      setCollapsedAreas((prev) => ({ ...prev, [group.id]: false }));
+                      const el = document.getElementById(`area-section-${group.id}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold whitespace-nowrap shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
+                  >
+                    <span>{theme.icon}</span>
+                    <span>{group.name}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full font-mono text-[10px] ${theme.badge}`}>
+                      {group.plans.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {filteredPlans.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-3">
@@ -2271,19 +3450,211 @@ export default function App() {
               )}
             </div>
           ) : planDisplayMode === 'board' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredPlans.map((plan) => {
-                const canReviewThisPlan =
-                  isAdmin ||
-                  viewTab === 'assigned_to_me' ||
-                  isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
-                  isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
-                  (Boolean(currentTeacher) &&
-                    (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
-                      plan.assigned_reviewer_name === currentTeacher?.Name) &&
-                    plan.teacher_id !== currentTeacher?.Teacher_ID);
+            groupByLearningArea && plansGroupedByArea.length > 0 ? (
+              <div className="space-y-6">
+                {plansGroupedByArea.map((group) => {
+                  const isCollapsed = Boolean(collapsedAreas[group.id]);
+                  const theme = getDeptTheme(group.code, group.name);
+                  const activeTypeFilter = areaTypeFilters[group.id] || 'all';
+                  const displayedPlans = group.plans.filter((p) => {
+                    if (activeTypeFilter === 'all') return true;
+                    const meta = classifyDocumentType(p.plan_type);
+                    if (activeTypeFilter === 'summary') return meta.key === 'summary_plan';
+                    if (activeTypeFilter === 'full') return meta.key === 'full_plan';
+                    if (activeTypeFilter === 'research') return meta.key === 'classroom_research';
+                    if (activeTypeFilter === 'other') {
+                      return meta.key !== 'summary_plan' && meta.key !== 'full_plan' && meta.key !== 'classroom_research';
+                    }
+                    return true;
+                  });
 
-                return (
+                  return (
+                    <div
+                      key={group.id}
+                      id={`area-section-${group.id}`}
+                      className={`scroll-mt-24 bg-white rounded-3xl border ${theme.border} shadow-xs overflow-hidden transition-all`}
+                    >
+                      {/* Department Header Banner */}
+                      <div className={`p-4 sm:p-5 bg-gradient-to-r ${theme.gradient} border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3.5`}>
+                        <div className="flex items-start sm:items-center gap-3">
+                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-xs shrink-0 bg-white border border-slate-200/90">
+                            {theme.icon}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-black ${theme.badge}`}>
+                                {group.code}
+                              </span>
+                              <h4 className="text-base sm:text-lg font-bold text-slate-900">
+                                {group.name}
+                              </h4>
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-900 text-white shadow-2xs">
+                                {group.plans.length} รายการ
+                              </span>
+                            </div>
+                            {group.headName && (
+                              <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5">
+                                <span className="text-slate-400 font-medium">หัวหน้ากลุ่มสาระ:</span>
+                                <span className="font-semibold text-slate-800">{group.headName}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Breakdown pills & Collapse button */}
+                        <div className="flex items-center gap-2 flex-wrap self-end md:self-center">
+                          {/* Document Type breakdown chips */}
+                          <div className="flex items-center gap-1.5 text-[11px] bg-white/90 p-1 rounded-xl border border-slate-200/80 shadow-2xs">
+                            {group.typeCounts.summary > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 font-semibold border border-sky-200/60 flex items-center gap-1">
+                                <span>📄 ย่อ:</span>
+                                <span className="font-bold">{group.typeCounts.summary}</span>
+                              </span>
+                            )}
+                            {group.typeCounts.full > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200/60 flex items-center gap-1">
+                                <span>📘 สมบูรณ์:</span>
+                                <span className="font-bold">{group.typeCounts.full}</span>
+                              </span>
+                            )}
+                            {group.typeCounts.research > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg bg-purple-50 text-purple-800 font-semibold border border-purple-200/60 flex items-center gap-1">
+                                <span>🔬 วิจัย:</span>
+                                <span className="font-bold">{group.typeCounts.research}</span>
+                              </span>
+                            )}
+                            {group.typeCounts.other > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-semibold border border-slate-200 flex items-center gap-1">
+                                <span>📑 อื่นๆ:</span>
+                                <span className="font-bold">{group.typeCounts.other}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Collapse/Expand button */}
+                          <button
+                            type="button"
+                            onClick={() => toggleAreaCollapse(group.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200/90 shadow-2xs transition-all cursor-pointer"
+                          >
+                            <span>{isCollapsed ? 'ขยายดูการ์ด' : 'ย่อ'}</span>
+                            {isCollapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Area Content (Cards Grid & Inner Type Filter) */}
+                      {!isCollapsed && (
+                        <div className="p-4 sm:p-5 space-y-4">
+                          {/* Inner Type Filter Pills */}
+                          {(group.typeCounts.summary > 0 || group.typeCounts.full > 0 || group.typeCounts.research > 0 || group.typeCounts.other > 0) && (
+                            <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll pb-1 text-xs">
+                              <span className="text-slate-400 text-[11px] font-semibold shrink-0">แยกประเภท:</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSetAreaTypeFilter(group.id, 'all')}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+                                  activeTypeFilter === 'all'
+                                    ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                }`}
+                              >
+                                ทั้งหมด ({group.plans.length})
+                              </button>
+                              {group.typeCounts.summary > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAreaTypeFilter(group.id, 'summary')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                    activeTypeFilter === 'summary'
+                                      ? 'bg-sky-600 text-white shadow-2xs font-bold'
+                                      : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/70'
+                                  }`}
+                                >
+                                  <span>📄 แผนฯ ฉบับย่อ</span>
+                                  <span className="font-mono text-[10px] opacity-80">({group.typeCounts.summary})</span>
+                                </button>
+                              )}
+                              {group.typeCounts.full > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAreaTypeFilter(group.id, 'full')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                    activeTypeFilter === 'full'
+                                      ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/70'
+                                  }`}
+                                >
+                                  <span>📘 แผนฯ ฉบับสมบูรณ์</span>
+                                  <span className="font-mono text-[10px] opacity-80">({group.typeCounts.full})</span>
+                                </button>
+                              )}
+                              {group.typeCounts.research > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAreaTypeFilter(group.id, 'research')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                    activeTypeFilter === 'research'
+                                      ? 'bg-purple-600 text-white shadow-2xs font-bold'
+                                      : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/70'
+                                  }`}
+                                >
+                                  <span>🔬 วิจัยในชั้นเรียน</span>
+                                  <span className="font-mono text-[10px] opacity-80">({group.typeCounts.research})</span>
+                                </button>
+                              )}
+                              {group.typeCounts.other > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAreaTypeFilter(group.id, 'other')}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                    activeTypeFilter === 'other'
+                                      ? 'bg-indigo-600 text-white shadow-2xs font-bold'
+                                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/70'
+                                  }`}
+                                >
+                                  <span>📑 เอกสารอื่นๆ</span>
+                                  <span className="font-mono text-[10px] opacity-80">({group.typeCounts.other})</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Cards Grid */}
+                          {displayedPlans.length === 0 ? (
+                            <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
+                              ไม่พบเอกสารประเภทนี้ในกลุ่มสาระนี้
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                              {displayedPlans.map((plan) => (
+                                <LessonPlanCard
+                                  key={plan.id}
+                                  plan={plan}
+                                  currentTeacher={currentTeacher || teachers[0]}
+                                  onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
+                                  onOpenReview={(p) => setSelectedPlanForReview(p)}
+                                  onDeletePlan={(id) => handleDeletePlan(id)}
+                                  onEditPlan={(p) => setPlanToEdit(p)}
+                                  onResubmitPlan={(p) => setPlanToResubmit(p)}
+                                  statusConfigs={statusConfigs}
+                                  deadlineConfigs={deadlineConfigs}
+                                  onQuickChangeStatus={handleQuickChangePlanStatus}
+                                  onToggleLate={handleTogglePlanLate}
+                                  canReview={checkCanReviewPlan(plan)}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredPlans.map((plan) => (
                   <LessonPlanCard
                     key={plan.id}
                     plan={plan}
@@ -2297,11 +3668,11 @@ export default function App() {
                     deadlineConfigs={deadlineConfigs}
                     onQuickChangeStatus={handleQuickChangePlanStatus}
                     onToggleLate={handleTogglePlanLate}
-                    canReview={canReviewThisPlan}
+                    canReview={checkCanReviewPlan(plan)}
                   />
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            )
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
               <div className="overflow-x-auto touch-scroll">
@@ -2317,18 +3688,73 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredPlans.map((plan) => {
-                      const canReviewThisPlan =
-                        isAdmin ||
-                        viewTab === 'assigned_to_me' ||
-                        isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
-                        isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
-                        (Boolean(currentTeacher) &&
-                          (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
-                            plan.assigned_reviewer_name === currentTeacher?.Name) &&
-                          plan.teacher_id !== currentTeacher?.Teacher_ID);
+                    {groupByLearningArea && plansGroupedByArea.length > 0 ? (
+                      plansGroupedByArea.map((group) => {
+                        const isCollapsed = Boolean(collapsedAreas[group.id]);
+                        const theme = getDeptTheme(group.code, group.name);
+                        const activeTypeFilter = areaTypeFilters[group.id] || 'all';
+                        const displayedPlans = group.plans.filter((p) => {
+                          if (activeTypeFilter === 'all') return true;
+                          const meta = classifyDocumentType(p.plan_type);
+                          if (activeTypeFilter === 'summary') return meta.key === 'summary_plan';
+                          if (activeTypeFilter === 'full') return meta.key === 'full_plan';
+                          if (activeTypeFilter === 'research') return meta.key === 'classroom_research';
+                          if (activeTypeFilter === 'other') {
+                            return meta.key !== 'summary_plan' && meta.key !== 'full_plan' && meta.key !== 'classroom_research';
+                          }
+                          return true;
+                        });
 
-                      return (
+                        return (
+                          <React.Fragment key={`dept-table-${group.id}`}>
+                            <tr className={`border-y border-slate-200 ${theme.bg}`}>
+                              <td colSpan={6} className="py-2.5 px-4 font-bold text-slate-800 text-xs">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span>{theme.icon}</span>
+                                    <span className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${theme.badge}`}>
+                                      {group.code}
+                                    </span>
+                                    <span className="font-bold text-slate-900">{group.name}</span>
+                                    <span className="text-slate-600 font-normal">({displayedPlans.length} รายการ)</span>
+                                    {group.headName && (
+                                      <span className="text-[11px] text-slate-500 hidden md:inline font-normal">
+                                        — หัวหน้ากลุ่มสาระ: {group.headName}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAreaCollapse(group.id)}
+                                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer flex items-center gap-1"
+                                  >
+                                    <span>{isCollapsed ? 'ขยายดูแถว' : 'ย่อ'}</span>
+                                    {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                            {!isCollapsed &&
+                              displayedPlans.map((plan) => (
+                                <LessonPlanTableRow
+                                  key={plan.id}
+                                  plan={plan}
+                                  currentTeacher={currentTeacher || teachers[0]}
+                                  onOpenReceipt={(p) => setSelectedPlanForReceipt(p)}
+                                  onOpenReview={(p) => setSelectedPlanForReview(p)}
+                                  onDeletePlan={(id) => handleDeletePlan(id)}
+                                  onEditPlan={(p) => setPlanToEdit(p)}
+                                  onResubmitPlan={(p) => setPlanToResubmit(p)}
+                                  statusConfigs={statusConfigs}
+                                  deadlineConfigs={deadlineConfigs}
+                                  canReview={checkCanReviewPlan(plan)}
+                                />
+                              ))}
+                          </React.Fragment>
+                        );
+                      })
+                    ) : (
+                      filteredPlans.map((plan) => (
                         <LessonPlanTableRow
                           key={plan.id}
                           plan={plan}
@@ -2340,10 +3766,10 @@ export default function App() {
                           onResubmitPlan={(p) => setPlanToResubmit(p)}
                           statusConfigs={statusConfigs}
                           deadlineConfigs={deadlineConfigs}
-                          canReview={canReviewThisPlan}
+                          canReview={checkCanReviewPlan(plan)}
                         />
-                      );
-                    })}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2381,6 +3807,12 @@ export default function App() {
           isSupabaseConnected={isSupabaseConnected}
           deadlineConfigs={deadlineConfigs}
           initialPlanType={submitModalInitialType}
+          onSwitchToDynamic={(cfg) => {
+            setIsSubmitModalOpen(false);
+            setSubmitModalInitialType(undefined);
+            setSelectedDynamicConfig(cfg);
+            setIsDynamicSubmitModalOpen(true);
+          }}
         />
       )}
 
@@ -2476,6 +3908,7 @@ export default function App() {
             setTeacherToEdit(t);
             setIsProfileModalOpen(true);
           }}
+          onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
         />
       )}
 
@@ -2506,6 +3939,7 @@ export default function App() {
           onDeletePlan={(id) => handleDeletePlan(id)}
           onOpenReview={(p) => setSelectedPlanForReview(p)}
           onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+          onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
         />
       )}
 
@@ -2524,6 +3958,12 @@ export default function App() {
           isSupabaseConnected={isSupabaseConnected}
           currentTeacher={currentTeacher}
           teachers={teachers}
+          workflows={workflows}
+          onUpdateWorkflows={(updated) => setWorkflows(updated)}
+          departments={departments}
+          branches={branches}
+          onUpdatePlans={(updated) => setPlans(updated)}
+          onOpenAdminTrackerModal={handleOpenAdminTracker}
         />
       )}
 
@@ -2552,13 +3992,25 @@ export default function App() {
             setIsDynamicSubmitModalOpen(false);
             setSelectedDynamicConfig(null);
           }}
+          onSwitchToStandard={(typeName) => {
+            setIsDynamicSubmitModalOpen(false);
+            setSelectedDynamicConfig(null);
+            setSubmitModalInitialType(typeName);
+            setIsSubmitModalOpen(true);
+          }}
           onSubmitted={async (submission, correspondingPlan) => {
             if (correspondingPlan) {
-              setPlans((prev) => [correspondingPlan, ...prev]);
+              const plansToAdd = Array.isArray(correspondingPlan) ? correspondingPlan : [correspondingPlan];
+              setPlans((prev) => [...plansToAdd, ...prev]);
             }
+            const count = Array.isArray(correspondingPlan)
+              ? correspondingPlan.length
+              : (Array.isArray(submission) ? submission.length : 1);
             setToastNotice({
               type: 'success',
-              message: `ส่งภาระงาน "${selectedDynamicConfig.name}" เรียบร้อยแล้ว!`,
+              message: count > 1
+                ? `ส่งภาระงาน "${selectedDynamicConfig.name}" สำเร็จทั้งหมด ${count} รายการแล้ว!`
+                : `ส่งภาระงาน "${selectedDynamicConfig.name}" เรียบร้อยแล้ว!`,
               details: 'บันทึกข้อมูลและส่งเข้าระบบ Cloudflare D1 เรียบร้อยแล้ว',
             });
           }}
@@ -2622,6 +4074,33 @@ export default function App() {
         />
       )}
 
+      {/* All Documents Visibility & Permission Access Modal (Admin) */}
+      {isAllDocsPermissionModalOpen && (
+        <AllDocumentsPermissionModal
+          isOpen={isAllDocsPermissionModalOpen}
+          onClose={() => setIsAllDocsPermissionModalOpen(false)}
+          config={allDocsAccessConfig}
+          onSaveConfig={handleSaveAllDocsAccessConfig}
+          teachers={teachers}
+          departments={departments}
+        />
+      )}
+
+      {/* Reviewer Workload & Audit Tracker Modal (Admin) */}
+      {isReviewerWorkloadModalOpen && (
+        <ReviewerWorkloadModal
+          isOpen={isReviewerWorkloadModalOpen}
+          onClose={() => setIsReviewerWorkloadModalOpen(false)}
+          teachers={teachers}
+          plans={plans}
+          workflows={workflows}
+          departments={departments}
+          branches={branches}
+          onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
+          onOpenReview={(plan) => setSelectedPlanForReview(plan)}
+        />
+      )}
+
       {/* Mobile Floating Bottom Navigation Bar: สะดวกใช้งานบนมือถือด้วยนิ้วโป้งเดียว (Style 4: แสด-กรมท่า) */}
       {currentTeacher && (
         <nav
@@ -2629,92 +4108,79 @@ export default function App() {
           className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-2 pt-1 pb-safe flex items-center justify-around text-[10px] font-bold text-slate-600 transition-all select-none"
         >
           {/* Button 1: แผนงาน */}
+          {/* Button 1: หน้าหลัก / แผนทั้งหมด */}
           <button
             onClick={() => {
               window.scrollTo({ top: 0, behavior: 'smooth' });
               setMainView('plans');
               setViewTab('all');
             }}
-            className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 ${
-              mainView === 'plans' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            className={`flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 ${
+              mainView === 'plans' && viewTab === 'all' ? 'text-indigo-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="w-5 h-5" />
+            <span className="text-[10px]">หน้าหลัก</span>
+          </button>
+
+          {/* Button 2: งานของฉัน */}
+          <button
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              setMainView('plans');
+              setViewTab('my');
+            }}
+            className={`flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 ${
+              mainView === 'plans' && viewTab === 'my' ? 'text-indigo-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             <FileText className="w-5 h-5" />
-            <span>แผนงาน</span>
+            <span className="text-[10px]">งานของฉัน</span>
           </button>
-
-          {/* Button 2: ภาระงาน หรือ แดชบอร์ด */}
-          {isAdmin ? (
-            <button
-              onClick={() => {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                setMainView('executive');
-              }}
-              className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 ${
-                mainView === 'executive' ? 'text-amber-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <BarChart3 className="w-5 h-5" />
-              <span>แดชบอร์ด</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleScrollToAssignments}
-              className="relative flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
-            >
-              <div className="relative">
-                <Bell className="w-5 h-5 text-amber-500" />
-                {pendingAssignmentsCount !== undefined && pendingAssignmentsCount > 0 ? (
-                  <span className="absolute -top-1 -right-1.5 min-w-[15px] h-[15px] px-0.5 bg-amber-500 text-slate-950 rounded-full text-[9px] font-black flex items-center justify-center">
-                    {pendingAssignmentsCount}
-                  </span>
-                ) : (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full"></span>
-                )}
-              </div>
-              <span>ภาระงาน</span>
-            </button>
-          )}
 
           {/* Button 3: ส่งเอกสาร (Large Center Action: สีแสดทอง #F59E0B โดดเด่น) */}
-          {!isAdmin ? (
-            <button
-              onClick={() => {
-                setSubmitModalInitialType(undefined);
-                setIsSubmitModalOpen(true);
-              }}
-              className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-[#F59E0B] hover:bg-amber-400 active:bg-amber-600 text-slate-950 shadow-lg shadow-amber-500/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
-              title="ส่งเอกสารแผนการสอน"
-            >
-              <PlusCircle className="w-6 h-6 text-slate-950" />
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsAdminTrackerModalOpen(true)}
-              className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-[#0B1329] text-amber-400 shadow-lg shadow-slate-950/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
-              title="ติดตามงานรายบุคคล"
-            >
-              <ClipboardList className="w-6 h-6 text-amber-400" />
-            </button>
-          )}
-
-          {/* Button 4: บุคลากร */}
           <button
-            onClick={() => setIsDirectoryModalOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
+            onClick={() => {
+              setSubmitModalInitialType(undefined);
+              setIsSubmitModalOpen(true);
+            }}
+            className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-lg shadow-amber-500/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
+            title="ส่งแผนการสอนหรือภาระงานใหม่"
           >
-            <Users className="w-5 h-5 text-slate-600" />
-            <span>บุคลากร</span>
+            <PlusCircle className="w-6 h-6 text-slate-950 stroke-[2.5]" />
           </button>
 
-          {/* Button 5: เมนูแผงควบคุม (เปิด Sidebar Drawer สีกรมท่า #0B1329) */}
+          {/* Button 4: งานตรวจที่มอบหมาย (พร้อม Badge แจ้งเตือน) */}
           <button
-            onClick={() => setIsMobileSidebarOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
-            title="เปิดเมนูเพิ่มเติม"
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              setMainView('plans');
+              setViewTab('assigned_to_me');
+            }}
+            className={`relative flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 ${
+              mainView === 'plans' && viewTab === 'assigned_to_me' ? 'text-indigo-600 font-extrabold' : 'text-slate-500 hover:text-slate-900'
+            }`}
+            title="เอกสารที่รอฉันตรวจ"
           >
-            <Menu className="w-5 h-5 text-slate-700" />
-            <span>เมนู</span>
+            <div className="relative">
+              <UserCheck className="w-5 h-5" />
+              {assignedToMeCount > 0 && (
+                <span className="absolute -top-1 -right-2 min-w-[15px] h-[15px] px-1 bg-amber-500 text-slate-950 rounded-full text-[9px] font-black flex items-center justify-center shadow-xs">
+                  {assignedToMeCount > 99 ? '99+' : assignedToMeCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px]">งานตรวจ</span>
+          </button>
+
+          {/* Button 5: โปรไฟล์ */}
+          <button
+            onClick={() => setIsProfileModalOpen(true)}
+            className="flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
+            title="ข้อมูลโปรไฟล์ของฉัน"
+          >
+            <User className="w-5 h-5 text-slate-600" />
+            <span className="text-[10px]">โปรไฟล์</span>
           </button>
         </nav>
       )}

@@ -1,5 +1,6 @@
-import { LessonPlan, Teacher, isTeacherAdmin } from '../types';
-import { classifyDocumentType } from '../utils/deadlineUtils';
+import React from 'react';
+import { LessonPlan, Teacher, isTeacherAdmin, PlanTypeDeadlineConfig } from '../types';
+import { classifyDocumentType, isPlanMatchingAssignment } from '../utils/deadlineUtils';
 import {
   FileCheck2,
   CheckCircle2,
@@ -19,6 +20,7 @@ interface DashboardStatsProps {
   onSelectArea: (area: string) => void;
   selectedDocType?: string;
   onSelectDocType?: (docType: string) => void;
+  deadlineConfigs?: PlanTypeDeadlineConfig[];
 }
 
 export const DashboardStats: React.FC<DashboardStatsProps> = ({
@@ -29,6 +31,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
   onSelectArea,
   selectedDocType,
   onSelectDocType,
+  deadlineConfigs,
 }) => {
   const isAdmin = isTeacherAdmin(currentTeacher);
 
@@ -191,24 +194,117 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
             </button>
           )}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
           {(() => {
-            const categories = [
+            interface CatDef {
+              key: string;
+              label: string;
+              short: string;
+              config?: PlanTypeDeadlineConfig;
+              planType?: string;
+            }
+
+            const categoriesList: CatDef[] = [
               { key: 'summary_plan', label: 'แผนการจัดการเรียนรู้ฉบับย่อ', short: '📄 แผนฯ ฉบับย่อ' },
               { key: 'full_plan', label: 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์', short: '📘 แผนฯ ฉบับสมบูรณ์' },
               { key: 'classroom_research', label: 'ประเด็นการวิจัยในชั้นเรียน', short: '🔬 วิจัยในชั้นเรียน' },
-              { key: 'general_academic', label: 'เอกสารวิชาการอื่นๆ', short: '📑 เอกสารอื่นๆ' },
             ];
 
-            return categories.map((cat) => {
-              const count = relevantPlans.filter((p) => {
-                const meta = classifyDocumentType(p.plan_type);
-                if (cat.key === 'general_academic') {
-                  return meta.key !== 'summary_plan' && meta.key !== 'full_plan' && meta.key !== 'classroom_research';
+            // Add newly configured assignments from deadlineConfigs
+            if (deadlineConfigs && deadlineConfigs.length > 0) {
+              deadlineConfigs.forEach((cfg) => {
+                const lowerId = (cfg.id || '').toLowerCase();
+                const lowerName = (cfg.name || '').toLowerCase();
+                if (
+                  lowerId === 'type_summary' ||
+                  lowerId === 'type_full' ||
+                  lowerId.includes('classroom_research') ||
+                  lowerName.includes('ฉบับย่อ') ||
+                  lowerName.includes('ฉบับสมบูรณ์') ||
+                  lowerName.includes('วิจัยในชั้นเรียน')
+                ) {
+                  return;
                 }
+
+                categoriesList.push({
+                  key: cfg.id,
+                  label: cfg.name,
+                  short: `📑 ${cfg.name.length > 18 ? cfg.name.slice(0, 16) + '...' : cfg.name}`,
+                  config: cfg,
+                });
+              });
+            }
+
+            // Also detect distinct plan_type from existing plans not covered above
+            const registeredTypes = new Set<string>();
+            relevantPlans.forEach((p) => {
+              const pType = (p.plan_type || '').trim();
+              if (!pType) return;
+              const meta = classifyDocumentType(pType);
+              if (meta.key === 'summary_plan' || meta.key === 'full_plan' || meta.key === 'classroom_research') {
+                return;
+              }
+              const matchedByConfig = categoriesList.some((c) => c.config && isPlanMatchingAssignment(p, c.config));
+              if (!matchedByConfig) {
+                registeredTypes.add(pType);
+              }
+            });
+
+            registeredTypes.forEach((pType) => {
+              categoriesList.push({
+                key: `custom_${pType}`,
+                label: pType,
+                short: `📋 ${pType.length > 18 ? pType.slice(0, 16) + '...' : pType}`,
+                planType: pType,
+              });
+            });
+
+            // Calculate count function
+            const getCatCount = (cat: CatDef) => {
+              return relevantPlans.filter((p) => {
+                if (cat.config) {
+                  return isPlanMatchingAssignment(p, cat.config);
+                }
+                if (cat.planType) {
+                  return (p.plan_type || '').trim() === cat.planType;
+                }
+                if (cat.key === 'general_academic') {
+                  const meta = classifyDocumentType(p.plan_type);
+                  if (meta.key === 'summary_plan' || meta.key === 'full_plan' || meta.key === 'classroom_research') {
+                    return false;
+                  }
+                  const matchedOther = categoriesList.some((c) => {
+                    if (c.key === 'general_academic') return false;
+                    if (c.config) return isPlanMatchingAssignment(p, c.config);
+                    if (c.planType) return (p.plan_type || '').trim() === c.planType;
+                    return false;
+                  });
+                  return !matchedOther;
+                }
+                const meta = classifyDocumentType(p.plan_type);
                 return meta.key === cat.key;
               }).length;
+            };
 
+            // Check if there are any remaining plans that didn't match any category
+            const hasUncategorized = relevantPlans.some((p) => {
+              return !categoriesList.some((c) => {
+                if (c.config) return isPlanMatchingAssignment(p, c.config);
+                if (c.planType) return (p.plan_type || '').trim() === c.planType;
+                return classifyDocumentType(p.plan_type).key === c.key;
+              });
+            });
+
+            if (hasUncategorized) {
+              categoriesList.push({
+                key: 'general_academic',
+                label: 'เอกสารวิชาการอื่นๆ',
+                short: '📑 เอกสารอื่นๆ',
+              });
+            }
+
+            return categoriesList.map((cat) => {
+              const count = getCatCount(cat);
               const isSelected = selectedDocType === cat.key;
 
               return (
@@ -218,9 +314,10 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
                   onClick={() => onSelectDocType && onSelectDocType(isSelected ? 'all' : cat.key)}
                   className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     isSelected
-                      ? 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50/60'
+                      ? 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50/60 shadow-xs'
                       : 'border-slate-200/90 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50'
                   }`}
+                  title={cat.label}
                 >
                   <span className="text-[11px] font-bold text-slate-800 truncate" title={cat.label}>
                     {cat.short}

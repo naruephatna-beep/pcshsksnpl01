@@ -190,7 +190,7 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                  ภาระงานที่ Admin มอบหมาย
+                  กำหนดส่งเอกสารวิชาการ
                 </span>
                 {pendingCount > 0 ? (
                   <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
@@ -205,7 +205,7 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                 )}
               </div>
               <h3 className="text-base sm:text-lg font-bold tracking-tight text-white mt-1">
-                รายการเอกสารที่ต้องจัดส่ง (ภาระงานครู)
+                งานที่ฉันต้องส่ง (กำหนดส่งเอกสารวิชาการ)
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 ตรวจสอบวันเวลาคงเหลือและสถานะการส่งเอกสารของท่าน

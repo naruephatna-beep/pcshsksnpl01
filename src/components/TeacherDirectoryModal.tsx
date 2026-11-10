@@ -16,6 +16,7 @@ import {
   Crown,
   Award,
   GitFork,
+  Building2,
 } from 'lucide-react';
 
 import { AcademicEmailModal } from './AcademicEmailModal';
@@ -29,6 +30,7 @@ interface TeacherDirectoryModalProps {
   onClose: () => void;
   onSwitchUser?: (teacher: Teacher) => void;
   onEditTeacher: (teacher: Teacher) => void;
+  onOpenStaffStructure?: () => void;
 }
 
 export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
@@ -39,6 +41,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
   isOpen,
   onClose,
   onEditTeacher,
+  onOpenStaffStructure,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedArea, setSelectedArea] = useState('ทั้งหมด');
@@ -109,13 +112,29 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer shrink-0"
-            aria-label="ปิดหน้าต่าง"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {isAdmin && onOpenStaffStructure && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenStaffStructure();
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-semibold border border-white/20 transition-all cursor-pointer active:scale-95"
+                title="เปิดจัดการโครงสร้างสาขา และแต่งตั้งหัวหน้าสาระ/สาขา"
+              >
+                <Building2 className="w-3.5 h-3.5 text-amber-300" />
+                <span>โครงสร้างสาขา & หัวหน้าสาระ</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer shrink-0"
+              aria-label="ปิดหน้าต่าง"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Filter bar */}
@@ -173,7 +192,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
           {filtered.map((t) => {
             const photoUrl = formatGoogleDriveImageUrl(t.photo);
             const isMe = t.Teacher_ID === currentTeacher.Teacher_ID;
-            const hasDefaultPass = t.Pass === '12345';
+            const hasDefaultPass = t.has_changed_password === false || t.Pass === '12345';
             const isDeptH = isDepartmentHead(t);
             const isBranchH = isBranchHead(t);
 
@@ -256,7 +275,7 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                         <Mail className="w-3 h-3" />
                         {t.Email}
                       </span>
-                      {t.phone && (
+                      {(isAdmin || isMe) && t.phone && (
                         <span className="flex items-center gap-1">
                           <Phone className="w-3 h-3" />
                           {t.phone}
@@ -267,16 +286,18 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                 </div>
 
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {hasDefaultPass ? (
-                    <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
-                      <ShieldAlert className="w-3 h-3" />
-                      รหัส 12345
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" />
-                      เปลี่ยนรหัสแล้ว
-                    </span>
+                  {isAdmin && (
+                    hasDefaultPass ? (
+                      <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3" />
+                        รหัสเริ่มต้น
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        ตั้งรหัสส่วนตัวแล้ว
+                      </span>
+                    )
                   )}
 
                   <div className="flex items-center gap-1 mt-1">

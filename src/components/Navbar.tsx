@@ -19,6 +19,7 @@ import {
   Layers,
   Building2,
   Workflow,
+  UserCheck,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 
@@ -35,6 +36,7 @@ interface NavbarProps {
   onOpenWorkflowManager?: () => void;
   onOpenExecutiveDashboard?: () => void;
   onOpenGoogleDriveConfig?: () => void;
+  onOpenReviewerWorkload?: () => void;
   onLogout: () => void;
   lastSyncTime?: string;
   isSyncing?: boolean;
@@ -54,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenWorkflowManager,
   onOpenExecutiveDashboard,
   onOpenGoogleDriveConfig,
+  onOpenReviewerWorkload,
   onLogout,
   pendingAssignmentsCount,
   onScrollToAssignments,
@@ -114,32 +117,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {onOpenDeadlineManager && (
                       <button
                         onClick={onOpenDeadlineManager}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
-                        title="กำหนดช่วงเวลาส่งของแต่ละประเภทเอกสาร"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs cursor-pointer active:scale-95"
+                        title="ศูนย์จัดการภาระงานวิชาการ: กำหนดส่ง, สายงานอนุมัติผู้ตรวจ, ติดตามการส่งงาน และจัดการสถานะ"
                       >
-                        <Calendar className="w-3.5 h-3.5 text-slate-600" />
-                        <span>กำหนดส่ง & สถานะ</span>
+                        <Calendar className="w-3.5 h-3.5 text-amber-700" />
+                        <span>ศูนย์ภาระงาน & ตรวจเอกสาร</span>
                       </button>
                     )}
 
-                    <button
-                      onClick={() => onOpenAdminTrackerModal('table')}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
-                      title="ติดตามดูว่าใครยังไม่ส่งชิ้นงานไหนแยกตามภาระงานที่มอบหมาย"
-                    >
-                      <ClipboardList className="w-3.5 h-3.5 text-slate-600" />
-                      <span>ติดตามงานรายบุคคล</span>
-                    </button>
-
-                    <button
-                      onClick={() => onOpenAdminTrackerModal('breakdown')}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs cursor-pointer active:scale-95"
-                      title="ดูว่าใครส่งเอกสารอะไรแล้วบ้าง และส่งประเภทละกี่เอกสารเป็นรายคน"
-                    >
-                      <Layers className="w-3.5 h-3.5 text-amber-600" />
-                      <span className="hidden lg:inline">แยกประเภทเอกสาร</span>
-                      <span className="lg:hidden">แยกประเภท</span>
-                    </button>
+                    {onOpenReviewerWorkload && (
+                      <button
+                        onClick={onOpenReviewerWorkload}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
+                        title="ตรวจสอบภาระงานผู้ตรวจ: ใครตรวจแล้วกี่อัน ค้างตรวจกี่อัน และผ่านการอนุมัติกี่ฉบับ"
+                      >
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>ภาระงานผู้ตรวจ</span>
+                      </button>
+                    )}
 
                     {onOpenStaffStructure && (
                       <button
@@ -149,17 +144,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       >
                         <Building2 className="w-3.5 h-3.5 text-amber-600" />
                         <span className="hidden xl:inline">โครงสร้างสาขา</span>
-                      </button>
-                    )}
-
-                    {onOpenWorkflowManager && (
-                      <button
-                        onClick={onOpenWorkflowManager}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 shadow-2xs cursor-pointer active:scale-95"
-                        title="ตั้งค่าสายงานอนุมัติ ผู้ตรวจ และระบบกระจายงานอัตโนมัติ"
-                      >
-                        <Workflow className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>สายงานอนุมัติ</span>
                       </button>
                     )}
 
@@ -370,26 +354,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {onOpenDeadlineManager && (
                   <button
                     onClick={() => handleMobileAction(onOpenDeadlineManager)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-amber-950 bg-amber-50 border border-amber-300 hover:bg-amber-100"
                   >
-                    <Calendar className="w-4 h-4 text-slate-600" />
-                    <span>กำหนดวันเวลาส่ง & จัดการสถานะ</span>
+                    <Calendar className="w-4 h-4 text-amber-700" />
+                    <span>ศูนย์ภาระงาน & ตรวจเอกสาร</span>
                   </button>
                 )}
-                <button
-                  onClick={() => handleMobileAction(() => onOpenAdminTrackerModal('table'))}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50"
-                >
-                  <ClipboardList className="w-4 h-4 text-slate-600" />
-                  <span>เปิดตารางติดตามการส่งแผน</span>
-                </button>
-                <button
-                  onClick={() => handleMobileAction(() => onOpenAdminTrackerModal('breakdown'))}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-amber-950 bg-amber-50 border border-amber-300 hover:bg-amber-100"
-                >
-                  <Layers className="w-4 h-4 text-amber-600" />
-                  <span>สรุปประเภทเอกสารรายคน (Breakdown)</span>
-                </button>
                 <button
                   onClick={() => handleMobileAction(onOpenDirectoryModal)}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50"
@@ -397,6 +367,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Users className="w-4 h-4 text-slate-600" />
                   <span>สมุดรายชื่อบุคลากร (27 ท่าน)</span>
                 </button>
+                {onOpenReviewerWorkload && (
+                  <button
+                    onClick={() => handleMobileAction(onOpenReviewerWorkload)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 shadow-xs"
+                  >
+                    <UserCheck className="w-4 h-4 text-emerald-200" />
+                    <span>ภาระงานผู้ตรวจ (ใครตรวจกี่อัน / ค้างกี่อัน)</span>
+                  </button>
+                )}
                 {onOpenGoogleDriveConfig && (
                   <button
                     onClick={() => handleMobileAction(onOpenGoogleDriveConfig)}

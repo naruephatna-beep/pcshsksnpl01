@@ -188,6 +188,104 @@ export async function testCloudflareConnection(): Promise<{
 }
 
 /**
+ * Data Sanitizers for Cloudflare D1 (Strict Zero-Undefined Policy)
+ * Cloudflare D1 crashes with D1_TYPE_ERROR if any parameter in .bind(...) is undefined.
+ * These sanitizers ensure every single field is explicitly string, number, or null.
+ */
+export function sanitizePlanForCloudflare(plan: LessonPlan): Record<string, any> {
+  return {
+    id: String(plan.id || ''),
+    teacher_id: String(plan.teacher_id || ''),
+    teacher_name: String(plan.teacher_name || ''),
+    teacher_photo: plan.teacher_photo || '',
+    learning_area: String(plan.learning_area || ''),
+    subject_code: plan.subject_code ? String(plan.subject_code) : '',
+    subject_name: plan.subject_name ? String(plan.subject_name) : '',
+    grade_level: plan.grade_level ? String(plan.grade_level) : '',
+    semester: plan.semester ? String(plan.semester) : '1',
+    academic_year: plan.academic_year ? String(plan.academic_year) : '2569',
+    plan_title: plan.plan_title ? String(plan.plan_title) : '',
+    plan_type: plan.plan_type ? String(plan.plan_type) : 'แผนการสอนปกติ',
+    total_hours: typeof plan.total_hours === 'number' ? plan.total_hours : (Number(plan.total_hours) || 40),
+    file_url: plan.file_url ? String(plan.file_url) : '#',
+    file_name: plan.file_name ? String(plan.file_name) : '',
+    file_size: plan.file_size ? String(plan.file_size) : '2.5 MB',
+    notes: plan.notes ? String(plan.notes) : '',
+    submitted_at: plan.submitted_at ? String(plan.submitted_at) : new Date().toISOString(),
+    status: plan.status ? String(plan.status) : 'submitted',
+    is_late: plan.is_late ? 1 : 0,
+    submission_delay_text: plan.submission_delay_text ? String(plan.submission_delay_text) : null,
+    deadline_at: plan.deadline_at ? String(plan.deadline_at) : null,
+    admin_notes: plan.admin_notes ? String(plan.admin_notes) : null,
+    reviewed_by: plan.reviewed_by ? String(plan.reviewed_by) : null,
+    reviewer_name: plan.reviewer_name ? String(plan.reviewer_name) : null,
+    reviewed_at: plan.reviewed_at ? String(plan.reviewed_at) : null,
+    review_comment: plan.review_comment ? String(plan.review_comment) : null,
+    rubric_scores: typeof plan.rubric_scores === 'object' && plan.rubric_scores !== null
+      ? JSON.stringify(plan.rubric_scores)
+      : (plan.rubric_scores ? String(plan.rubric_scores) : null),
+    total_score: typeof plan.total_score === 'number' ? plan.total_score : (plan.total_score !== undefined && plan.total_score !== null && !isNaN(Number(plan.total_score)) ? Number(plan.total_score) : null),
+  };
+}
+
+export function sanitizeSubmissionForCloudflare(sub: AssignmentSubmission): Record<string, any> {
+  return {
+    id: String(sub.id || ''),
+    assignment_id: sub.assignment_id ? String(sub.assignment_id) : '',
+    assignment_name: sub.assignment_name ? String(sub.assignment_name) : '',
+    teacher_id: String(sub.teacher_id || ''),
+    teacher_name: String(sub.teacher_name || ''),
+    learning_area: sub.learning_area ? String(sub.learning_area) : '',
+    submitted_at: sub.submitted_at ? String(sub.submitted_at) : new Date().toISOString(),
+    status: sub.status ? String(sub.status) : 'submitted',
+    answers: typeof sub.answers === 'object' && sub.answers !== null ? JSON.stringify(sub.answers) : (sub.answers ? String(sub.answers) : '{}'),
+    attachments: typeof sub.attachments === 'object' && sub.attachments !== null ? JSON.stringify(sub.attachments) : (sub.attachments ? String(sub.attachments) : '[]'),
+    is_late: sub.is_late ? 1 : 0,
+    submission_delay_text: sub.submission_delay_text ? String(sub.submission_delay_text) : null,
+    reviewed_by: sub.reviewed_by ? String(sub.reviewed_by) : null,
+    reviewer_name: sub.reviewer_name ? String(sub.reviewer_name) : null,
+    reviewed_at: sub.reviewed_at ? String(sub.reviewed_at) : null,
+    review_comment: sub.review_comment ? String(sub.review_comment) : null,
+    admin_notes: sub.admin_notes ? String(sub.admin_notes) : null,
+  };
+}
+
+export function sanitizeTeacherForCloudflare(t: Teacher): Record<string, any> {
+  // CRITICAL: Preserve existing password if t.Pass is sanitized (empty string)
+  let effectivePass = t.Pass && String(t.Pass).trim() ? String(t.Pass).trim() : '';
+  if (!effectivePass) {
+    try {
+      const local = JSON.parse(localStorage.getItem('lp_local_teachers') || '[]');
+      const found = local.find((item: any) => item.Teacher_ID === t.Teacher_ID);
+      if (found?.Pass && String(found.Pass).trim()) {
+        effectivePass = String(found.Pass).trim();
+      }
+    } catch {}
+  }
+  if (!effectivePass) {
+    effectivePass = '12345';
+  }
+
+  return {
+    Teacher_ID: String(t.Teacher_ID || ''),
+    Name: String(t.Name || ''),
+    Email: String(t.Email || ''),
+    Pass: effectivePass,
+    Learning_Area: String(t.Learning_Area || ''),
+    branch: String(t.branch || ''),
+    photo: t.photo ? String(t.photo) : '',
+    national_id: t.national_id ? String(t.national_id) : '',
+    phone: t.phone ? String(t.phone) : '',
+    signature_url: t.signature_url ? String(t.signature_url) : '',
+    birth_date: t.birth_date ? String(t.birth_date) : '',
+    position: t.position ? String(t.position) : '',
+    academic_standing: t.academic_standing ? String(t.academic_standing) : '',
+    department: t.department ? String(t.department) : '',
+    role: t.role ? String(t.role) : 'teacher',
+  };
+}
+
+/**
  * Cloudflare D1 API Operations
  */
 export async function fetchTeachersFromCloudflare(): Promise<{ data: Teacher[]; success: boolean; error?: string }> {
@@ -200,9 +298,10 @@ export async function fetchTeachersFromCloudflare(): Promise<{ data: Teacher[]; 
 }
 
 export async function saveTeacherToCloudflare(teacher: Teacher): Promise<{ success: boolean; error?: string }> {
+  const sanitized = sanitizeTeacherForCloudflare(teacher);
   const res = await cfFetch('/api/teachers', {
     method: 'POST',
-    body: JSON.stringify(teacher),
+    body: JSON.stringify(sanitized),
   });
   return { success: res.success, error: res.error };
 }
@@ -218,9 +317,10 @@ export async function fetchPlansFromCloudflare(): Promise<{ data: LessonPlan[]; 
 }
 
 export async function savePlanToCloudflare(plan: LessonPlan): Promise<{ success: boolean; error?: string }> {
+  const sanitized = sanitizePlanForCloudflare(plan);
   const res = await cfFetch('/api/plans', {
     method: 'POST',
-    body: JSON.stringify(plan),
+    body: JSON.stringify(sanitized),
   });
   return { success: res.success, error: res.error };
 }
@@ -233,24 +333,26 @@ export async function deletePlanFromCloudflare(id: string): Promise<{ success: b
   if (res.success) return { success: true };
 
   // 2. Fallback: Only if DELETE route was not found, soft-delete via POST
+  const sanitizedFallback = sanitizePlanForCloudflare({
+    id,
+    teacher_id: '',
+    teacher_name: '',
+    learning_area: '',
+    subject_code: '',
+    subject_name: '',
+    grade_level: '',
+    semester: '1',
+    academic_year: '2569',
+    plan_title: 'deleted',
+    plan_type: 'deleted',
+    file_url: '#',
+    file_name: '',
+    status: 'deleted',
+  } as LessonPlan);
+
   await cfFetch('/api/plans', {
     method: 'POST',
-    body: JSON.stringify({
-      id,
-      teacher_id: '',
-      teacher_name: '',
-      learning_area: '',
-      subject_code: '',
-      subject_name: '',
-      grade_level: '',
-      semester: '',
-      academic_year: '',
-      plan_title: '',
-      plan_type: '',
-      file_url: '#',
-      file_name: '',
-      status: 'deleted',
-    }),
+    body: JSON.stringify(sanitizedFallback),
   }).catch(() => {});
 
   return { success: true };
@@ -267,9 +369,10 @@ export async function fetchSubmissionsFromCloudflare(): Promise<{ data: Assignme
 }
 
 export async function saveSubmissionToCloudflare(sub: AssignmentSubmission): Promise<{ success: boolean; error?: string }> {
+  const sanitized = sanitizeSubmissionForCloudflare(sub);
   const res = await cfFetch('/api/submissions', {
     method: 'POST',
-    body: JSON.stringify(sub),
+    body: JSON.stringify(sanitized),
   });
   return { success: res.success, error: res.error };
 }
@@ -282,19 +385,21 @@ export async function deleteSubmissionFromCloudflare(id: string): Promise<{ succ
   if (res.success) return { success: true };
 
   // 2. Fallback: Only if DELETE route returned 404 (e.g. older worker), soft-delete via POST
+  const sanitizedFallback = sanitizeSubmissionForCloudflare({
+    id,
+    assignment_id: 'deleted',
+    assignment_name: 'deleted',
+    teacher_id: '',
+    teacher_name: '',
+    learning_area: '',
+    status: 'deleted',
+  } as AssignmentSubmission);
+
   await cfFetch('/api/submissions', {
     method: 'POST',
-    body: JSON.stringify({
-      id,
-      assignment_id: 'deleted',
-      assignment_name: 'deleted',
-      teacher_id: '',
-      teacher_name: '',
-      status: 'deleted',
-    }),
+    body: JSON.stringify(sanitizedFallback),
   }).catch(() => {});
 
-  return { success: true };
 }
 
 export async function fetchSettingFromCloudflare<T = any>(key: string): Promise<{ data: T | null; success: boolean; error?: string }> {

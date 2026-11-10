@@ -3,12 +3,198 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import nodemailer from 'nodemailer';
+import { INITIAL_TEACHERS } from './src/data/initialTeachers';
+
+// Server-side authoritative credentials store (kept strictly on server)
+const serverCredentialsStore = new Map<string, string>();
+INITIAL_TEACHERS.forEach((t) => {
+  serverCredentialsStore.set(t.Teacher_ID.toLowerCase(), t.Pass || '12345');
+  if (t.Email) {
+    serverCredentialsStore.set(t.Email.toLowerCase(), t.Pass || '12345');
+  }
+});
+
+function sanitizeServerTeacher(t: any) {
+  const { Pass, national_id, birth_date, ...rest } = t;
+  const currentPass = serverCredentialsStore.get(t.Teacher_ID.toLowerCase()) || t.Pass || '12345';
+  return {
+    ...rest,
+    Pass: '', // Sanitized - never leak other teachers' passwords to browser
+    national_id: '', // Sanitized - citizen ID is not sent to browser
+    birth_date: '', // Sanitized - birth date is not sent to browser
+    has_changed_password: currentPass !== '12345',
+  };
+}
 
 function emailApiPlugin(): Plugin {
   return {
     name: 'email-api-plugin',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
+        // 1. Server-side Authentication (verifies password on server without leaking to client)
+        if (req.url === '/api/auth/login' && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
+          req.on('end', async () => {
+            try {
+              const { identifier, password } = JSON.parse(body || '{}');
+              if (!identifier || !password) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'กรุณากรอกรหัสครู / อีเมล และรหัสผ่าน' }));
+                return;
+              }
+
+              const q = String(identifier).trim().toLowerCase();
+              const p = String(password).trim();
+
+              const found = INITIAL_TEACHERS.find(
+                (t) =>
+                  t.Teacher_ID.toLowerCase() === q ||
+                  t.Email.toLowerCase() === q ||
+                  (t.national_id && t.national_id.toLowerCase() === q)
+              );
+
+              if (!found) {
+                res.statusCode = 401;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'ไม่พบบัญชีผู้ใช้นี้ในระบบโรงเรียน กรุณาตรวจสอบอีเมลหรือรหัสครู (Teacher_ID)' }));
+                return;
+              }
+
+              let expectedPass = serverCredentialsStore.get(found.Teacher_ID.toLowerCase()) || found.Pass || '12345';
+              if (expectedPass !== p) {
+                // If in-memory store doesn't match, verify against persistent Cloudflare D1
+                try {
+                  const cfRes = await fetch('https://pcshs-eduplan-db.naruephat-na.workers.dev/api/teachers');
+                  if (cfRes.ok) {
+                    const cfData: any = await cfRes.json();
+                    const list = Array.isArray(cfData) ? cfData : (cfData.data || []);
+                    const cfTeacher = list.find((t: any) =>
+                      t.Teacher_ID?.toLowerCase() === found.Teacher_ID.toLowerCase()
+                    );
+                    if (cfTeacher && cfTeacher.Pass) {
+                      expectedPass = cfTeacher.Pass;
+                      serverCredentialsStore.set(found.Teacher_ID.toLowerCase(), cfTeacher.Pass);
+                      if (found.Email) serverCredentialsStore.set(found.Email.toLowerCase(), cfTeacher.Pass);
+                    }
+                  }
+                } catch {}
+              }
+
+              if (expectedPass !== p) {
+                res.statusCode = 401;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'รหัสผ่านไม่ถูกต้อง (ค่าเริ่มต้นคือ 12345)' }));
+                return;
+              }
+
+              const sanitized = sanitizeServerTeacher(found);
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, teacher: sanitized }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: err?.message || 'Authentication error' }));
+            }
+          });
+          return;
+        }
+
+        // 2. Server-side password update
+        if (req.url === '/api/auth/update-password' && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
+          req.on('end', async () => {
+            try {
+              const { teacherId, newPassword } = JSON.parse(body || '{}');
+              if (!teacherId || !newPassword || String(newPassword).trim().length < 6) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' }));
+                return;
+              }
+
+              const cleanPass = String(newPassword).trim();
+              const id = String(teacherId).toLowerCase();
+              serverCredentialsStore.set(id, cleanPass);
+
+              const found = INITIAL_TEACHERS.find((t) => t.Teacher_ID.toLowerCase() === id);
+              if (found && found.Email) {
+                serverCredentialsStore.set(found.Email.toLowerCase(), cleanPass);
+              }
+
+              // Persist permanently to Cloudflare D1
+              try {
+                await fetch('https://pcshs-eduplan-db.naruephat-na.workers.dev/api/teachers', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    Teacher_ID: found?.Teacher_ID || id,
+                    Name: found?.Name || '',
+                    Email: found?.Email || '',
+                    Pass: cleanPass,
+                  }),
+                });
+              } catch {}
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, message: 'Password updated on server' }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: err?.message }));
+            }
+          });
+          return;
+        }
+
+        // 3. Google School Sign-In verification endpoint
+        if (req.url === '/api/auth/google-verify' && req.method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
+          req.on('end', async () => {
+            try {
+              const { email } = JSON.parse(body || '{}');
+              if (!email || !String(email).includes('@')) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'อีเมลไม่ถูกต้อง' }));
+                return;
+              }
+
+              const q = String(email).trim().toLowerCase();
+              const found = INITIAL_TEACHERS.find(
+                (t) => t.Email.toLowerCase() === q || t.Teacher_ID.toLowerCase() === q.split('@')[0]
+              );
+
+              if (!found) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'ไม่พบบัญชีครูที่ผูกกับอีเมลนี้ในฐานข้อมูลโรงเรียน' }));
+                return;
+              }
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, teacher: sanitizeServerTeacher(found) }));
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: err?.message }));
+            }
+          });
+          return;
+        }
+
         if (req.url === '/api/send-academic-email' && req.method === 'POST') {
           let body = '';
           req.on('data', (chunk) => {
