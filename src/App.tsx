@@ -397,10 +397,21 @@ export default function App() {
             rubric_scores: lp.rubric_scores,
             total_score: lp.total_score,
             stage_reviews: lp.stage_reviews,
-            current_stage_order: lp.current_stage_order,
+            current_stage_order: lp.current_stage_order || 1,
+            assigned_reviewer_id: rp.assigned_reviewer_id || lp.assigned_reviewer_id,
+            assigned_reviewer_name: rp.assigned_reviewer_name || lp.assigned_reviewer_name,
+            workflow_id: rp.workflow_id || lp.workflow_id,
           };
         }
-        return rp;
+        return {
+          ...rp,
+          assigned_reviewer_id: rp.assigned_reviewer_id || lp.assigned_reviewer_id,
+          assigned_reviewer_name: rp.assigned_reviewer_name || lp.assigned_reviewer_name,
+          current_stage_order: rp.current_stage_order || lp.current_stage_order || 1,
+          workflow_id: rp.workflow_id || lp.workflow_id,
+          stage_reviews: (rp.stage_reviews && rp.stage_reviews.length > 0) ? rp.stage_reviews : (lp.stage_reviews || []),
+          branch: rp.branch || lp.branch,
+        };
       });
 
       const resolvedDynamicPlans = convertedDynamicPlans.map((dp) => {
@@ -3897,7 +3908,10 @@ export default function App() {
           departments={departments}
           branches={branches}
           plans={plans}
-          onUpdatePlans={(updated) => setPlans(updated)}
+          onUpdatePlans={(updated) => {
+            setPlans(updated);
+            saveLocalPlans(updated);
+          }}
           deadlineConfigs={deadlineConfigs}
         />
       )}

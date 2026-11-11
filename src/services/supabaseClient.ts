@@ -801,9 +801,32 @@ export async function fetchPlans(
       try {
         const cfRes = await fetchPlansFromCloudflare();
         if (cfRes.success && cfRes.data) {
-          const filtered = cfRes.data.filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
-          saveLocalPlans(filtered);
-          return { data: applyScope(filtered), isSupabase: true };
+          const localPlans = getLocalPlans();
+          const localMap = new Map(localPlans.map((p) => [p.id, p]));
+          let assignmentMap: Record<string, any> = {};
+          try {
+            const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
+            if (rawAssign) assignmentMap = JSON.parse(rawAssign);
+          } catch {}
+
+          const merged = cfRes.data
+            .filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted')
+            .map((p) => {
+              const lp = localMap.get(p.id);
+              const meta = assignmentMap[p.id];
+              return {
+                ...p,
+                assigned_reviewer_id: p.assigned_reviewer_id || meta?.assigned_reviewer_id || lp?.assigned_reviewer_id,
+                assigned_reviewer_name: p.assigned_reviewer_name || meta?.assigned_reviewer_name || lp?.assigned_reviewer_name,
+                current_stage_order: p.current_stage_order || meta?.current_stage_order || lp?.current_stage_order || 1,
+                workflow_id: p.workflow_id || meta?.workflow_id || lp?.workflow_id,
+                stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (meta?.stage_reviews || lp?.stage_reviews || []),
+                branch: p.branch || lp?.branch,
+              };
+            });
+
+          saveLocalPlans(merged);
+          return { data: applyScope(merged), isSupabase: true };
         }
       } catch (err: any) {
         console.warn('Cloudflare fetchPlans error:', err);
@@ -819,9 +842,32 @@ export async function fetchPlans(
         .select('*')
         .order('submitted_at', { ascending: false });
       if (!error && data) {
-        const filtered = (data as LessonPlan[]).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
-        saveLocalPlans(filtered);
-        return { data: applyScope(filtered), isSupabase: true };
+        const localPlans = getLocalPlans();
+        const localMap = new Map(localPlans.map((p) => [p.id, p]));
+        let assignmentMap: Record<string, any> = {};
+        try {
+          const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
+          if (rawAssign) assignmentMap = JSON.parse(rawAssign);
+        } catch {}
+
+        const merged = (data as LessonPlan[])
+          .filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted')
+          .map((p) => {
+            const lp = localMap.get(p.id);
+            const meta = assignmentMap[p.id];
+            return {
+              ...p,
+              assigned_reviewer_id: p.assigned_reviewer_id || meta?.assigned_reviewer_id || lp?.assigned_reviewer_id,
+              assigned_reviewer_name: p.assigned_reviewer_name || meta?.assigned_reviewer_name || lp?.assigned_reviewer_name,
+              current_stage_order: p.current_stage_order || meta?.current_stage_order || lp?.current_stage_order || 1,
+              workflow_id: p.workflow_id || meta?.workflow_id || lp?.workflow_id,
+              stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (meta?.stage_reviews || lp?.stage_reviews || []),
+              branch: p.branch || lp?.branch,
+            };
+          });
+
+        saveLocalPlans(merged);
+        return { data: applyScope(merged), isSupabase: true };
       }
       if (error) {
         return { data: applyScope(getLocalPlans()), isSupabase: false, error: error.message };
@@ -838,6 +884,22 @@ export async function savePlanRecord(
 ): Promise<{ success: boolean; isSupabase: boolean; error?: string; message?: string }> {
   // Clear from deleted IDs if being saved/resubmitted
   clearDeletedPlanId(plan.id);
+
+  // Update local workflow assignments map
+  if (plan.assigned_reviewer_id || plan.current_stage_order) {
+    try {
+      const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
+      const assignments = rawAssign ? JSON.parse(rawAssign) : {};
+      assignments[plan.id] = {
+        assigned_reviewer_id: plan.assigned_reviewer_id,
+        assigned_reviewer_name: plan.assigned_reviewer_name,
+        current_stage_order: plan.current_stage_order,
+        workflow_id: plan.workflow_id,
+        stage_reviews: plan.stage_reviews,
+      };
+      localStorage.setItem('plan_workflow_assignments_v1', JSON.stringify(assignments));
+    } catch {}
+  }
 
   // Update local plans
   const plans = getLocalPlans();

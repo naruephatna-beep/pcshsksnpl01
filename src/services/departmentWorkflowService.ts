@@ -369,6 +369,118 @@ export const isTeacherDeptHeadOfPlan = (
   return false;
 };
 
+/**
+ * Robust identity matcher: Matches a teacher against an ID, Name, or Email
+ * Handles prefix removals (นาย, นาง, นางสาว, ดร., ครู), whitespace, case insensitivity.
+ */
+export const isSameTeacherIdOrName = (
+  tId?: string,
+  tName?: string,
+  teacher?: Teacher | null
+): boolean => {
+  if (!teacher) return false;
+  const targetId = String(tId || '').trim().toLowerCase();
+  const targetName = String(tName || '').trim().toLowerCase();
+  const myId = String(teacher.Teacher_ID || (teacher as any).teacher_id || '').trim().toLowerCase();
+  const myEmail = String(teacher.Email || (teacher as any).email || '').trim().toLowerCase();
+  const myName = String(teacher.Name || (teacher as any).name || '').trim().toLowerCase();
+
+  // 1. Direct ID match
+  if (targetId && myId && targetId === myId) return true;
+
+  // 2. Email match
+  if (targetId && myEmail && (targetId === myEmail || targetId.includes(myEmail) || myEmail.includes(targetId))) {
+    return true;
+  }
+
+  // 3. Name match with title & position cleanup
+  if (targetName && myName) {
+    if (targetName === myName) return true;
+    if (targetName.includes(myName) || myName.includes(targetName)) return true;
+
+    const cleanTarget = targetName
+      .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .trim();
+    const cleanMine = myName
+      .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .trim();
+
+    if (cleanTarget && cleanMine && (cleanTarget === cleanMine || cleanTarget.includes(cleanMine) || cleanMine.includes(cleanTarget))) {
+      return true;
+    }
+  }
+
+  // 4. Target ID might be name
+  if (targetId && myName && (targetId === myName || targetId.includes(myName) || myName.includes(targetId))) {
+    return true;
+  }
+
+  // 5. Target name might be ID
+  if (targetName && myId && targetName === myId) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Checks if a teacher has already reviewed this plan (directly or in any stage)
+ */
+export const hasTeacherReviewedPlan = (plan?: LessonPlan | null, teacher?: Teacher | null): boolean => {
+  if (!teacher || !plan) return false;
+  if (isSameTeacherIdOrName(plan.reviewed_by, plan.reviewer_name, teacher)) {
+    return true;
+  }
+  if (
+    plan.stage_reviews &&
+    plan.stage_reviews.some((r) => isSameTeacherIdOrName(r.reviewer_id, r.reviewer_name, teacher))
+  ) {
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Checks if a plan has finished review or reached a terminal review state
+ */
+export const isPlanReviewCompleted = (plan?: LessonPlan | null): boolean => {
+  if (!plan) return false;
+  const s = String(plan.status || '').toLowerCase().trim();
+  return (
+    s === 'approved' ||
+    s === 'passed' ||
+    s === 'needs_revision' ||
+    s === 'rejected' ||
+    s === 'completed'
+  );
+};
+
+export const STORAGE_KEY_WORKFLOW_ASSIGNMENTS = 'plan_workflow_assignments_v1';
+
+export interface PlanWorkflowMeta {
+  assigned_reviewer_id?: string;
+  assigned_reviewer_name?: string;
+  current_stage_order?: number;
+  workflow_id?: string;
+  stage_reviews?: StageReviewRecord[];
+}
+
+export function getLocalWorkflowAssignments(): Record<string, PlanWorkflowMeta> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_WORKFLOW_ASSIGNMENTS);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+
+export function saveLocalWorkflowAssignments(assignments: Record<string, PlanWorkflowMeta>): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_WORKFLOW_ASSIGNMENTS, JSON.stringify(assignments));
+  } catch {}
+}
+
 // Default Workflows mapped to document types (มีทั้งหัวหน้ากลุ่มสาขา และ หัวหน้ากลุ่มสาระ)
 export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
   {
@@ -1393,13 +1505,27 @@ export function autoAssignPlansForStage(
 } {
   const currentStageOrder = stage.order;
 
-  // Find plans that are currently waiting in this stage
-  const eligiblePlans = plans.filter((p) => {
-    const planStage = p.current_stage_order || 1;
-    return planStage === currentStageOrder && p.status !== 'approved' && p.status !== 'deleted';
-  });
+  // 1. Find plans that are currently waiting in this exact stage
+  let eligiblePlanIds = new Set(
+    plans
+      .filter((p) => {
+        const planStage = p.current_stage_order || 1;
+        return planStage === currentStageOrder && p.status !== 'approved' && p.status !== 'deleted';
+      })
+      .map((p) => p.id)
+  );
 
-  if (eligiblePlans.length === 0) {
+  // 2. If no plans are specifically waiting at this stage yet, target all unapproved plans in the passed list
+  const shouldSetStageOrder = eligiblePlanIds.size === 0;
+  if (shouldSetStageOrder) {
+    eligiblePlanIds = new Set(
+      plans
+        .filter((p) => p.status !== 'approved' && p.status !== 'deleted')
+        .map((p) => p.id)
+    );
+  }
+
+  if (eligiblePlanIds.size === 0) {
     return { updatedPlans: plans, assignedCount: 0, reviewerWorkload: {} };
   }
 
@@ -1407,9 +1533,9 @@ export function autoAssignPlansForStage(
   const workload: Record<string, { teacher: Teacher; count: number }> = {};
 
   // For each plan, find who is eligible according to stage config and scope_mode
+  let actualAssignedCount = 0;
   const updatedPlans = plans.map((p) => {
-    const planStage = p.current_stage_order || 1;
-    if (planStage !== currentStageOrder || p.status === 'approved' || p.status === 'deleted') {
+    if (!eligiblePlanIds.has(p.id)) {
       return p;
     }
 
@@ -1422,7 +1548,7 @@ export function autoAssignPlansForStage(
       if (!workload[c.Teacher_ID]) {
         const existingCount = plans.filter(
           (other) =>
-            other.assigned_reviewer_id === c.Teacher_ID &&
+            isSameTeacherIdOrName(other.assigned_reviewer_id, other.assigned_reviewer_name, c) &&
             other.status !== 'approved' &&
             other.status !== 'deleted'
         ).length;
@@ -1431,7 +1557,6 @@ export function autoAssignPlansForStage(
     });
 
     // Select candidate with the MINIMUM currently assigned workload (balanced distribution)
-    // Randomize ties for true balanced distribution
     const sortedCandidates = [...candidates].sort((a, b) => {
       const countA = workload[a.Teacher_ID]?.count || 0;
       const countB = workload[b.Teacher_ID]?.count || 0;
@@ -1441,9 +1566,11 @@ export function autoAssignPlansForStage(
 
     const chosen = sortedCandidates[0];
     workload[chosen.Teacher_ID].count += 1;
+    actualAssignedCount += 1;
 
     return {
       ...p,
+      current_stage_order: shouldSetStageOrder ? currentStageOrder : (p.current_stage_order || currentStageOrder),
       assigned_reviewer_id: chosen.Teacher_ID,
       assigned_reviewer_name: chosen.Name,
     };
@@ -1451,7 +1578,7 @@ export function autoAssignPlansForStage(
 
   return {
     updatedPlans,
-    assignedCount: eligiblePlans.length,
+    assignedCount: actualAssignedCount,
     reviewerWorkload: workload,
   };
 }

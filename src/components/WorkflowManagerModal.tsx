@@ -17,8 +17,10 @@ import {
   saveWorkflows,
   autoAssignPlansForStage,
   resolveReviewersForStage,
+  getLocalWorkflowAssignments,
+  saveLocalWorkflowAssignments,
 } from '../services/departmentWorkflowService';
-import { savePlanRecord } from '../services/supabaseClient';
+import { savePlanRecord, saveLocalPlans, saveSystemSetting } from '../services/supabaseClient';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   X,
@@ -393,10 +395,10 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     });
 
     const targetPlans = candidatePlans.length > 0 ? candidatePlans : plans;
-    const res = autoAssignPlansForStage(targetPlans, stage, teachers, departments);
+    const res = autoAssignPlansForStage(targetPlans, stage, teachers, departments, branches);
     if (res.assignedCount === 0) {
       showToast(
-        `ไม่พบเอกสารใน "${stage.title}" ของประเภทเอกสารนี้ที่รอตรวจ`,
+        `ไม่พบเอกสารในประเภทเอกสารนี้ที่รอตรวจหรือสามารถจัดสรรผู้ตรวจได้`,
         'error'
       );
       return;
@@ -404,16 +406,43 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
 
     // 1. Merge updated plans back into full plans array
     const updatedMap = new Map<string, LessonPlan>();
-    res.updatedPlans.forEach((p) => updatedMap.set(p.id, p));
+    res.updatedPlans.forEach((p) => {
+      updatedMap.set(p.id, {
+        ...p,
+        workflow_id: p.workflow_id || currentWorkflow.id,
+      });
+    });
     const allUpdatedPlans = plans.map((p) => updatedMap.get(p.id) || p);
 
-    // 2. Update React state in App.tsx
+    // 2. Atomically persist to Local Storage
+    saveLocalPlans(allUpdatedPlans);
+
+    // 3. Atomically persist workflow assignments map to localStorage and cloud system_settings
+    const assignmentMap = getLocalWorkflowAssignments();
+    res.updatedPlans.forEach((p) => {
+      assignmentMap[p.id] = {
+        assigned_reviewer_id: p.assigned_reviewer_id,
+        assigned_reviewer_name: p.assigned_reviewer_name,
+        current_stage_order: p.current_stage_order || stage.order,
+        workflow_id: p.workflow_id || currentWorkflow.id,
+        stage_reviews: p.stage_reviews,
+      };
+    });
+    saveLocalWorkflowAssignments(assignmentMap);
+    saveSystemSetting('plan_workflow_assignments', assignmentMap).catch((err) => {
+      console.warn('Error saving plan_workflow_assignments setting:', err);
+    });
+
+    // 4. Update React state in App.tsx
     onUpdatePlans(allUpdatedPlans);
 
-    // 3. Persist modified plans to database and local storage
+    // 5. Persist modified plans to database and local storage
     const modifiedList = res.updatedPlans.filter((p) => {
       const original = plans.find((orig) => orig.id === p.id);
-      return original?.assigned_reviewer_id !== p.assigned_reviewer_id;
+      return (
+        original?.assigned_reviewer_id !== p.assigned_reviewer_id ||
+        original?.current_stage_order !== p.current_stage_order
+      );
     });
 
     if (modifiedList.length > 0) {
@@ -435,7 +464,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
       distribution: dist,
     });
 
-    showToast(`สุ่มกระจายงานสำเร็จ! แบ่งเอกสาร ${res.assignedCount} รายการให้ผู้ตรวจเท่าๆ กันเรียบร้อย`);
+    showToast(`สุ่มกระจายงานสำเร็จ! แบ่งเอกสาร ${res.assignedCount} รายการให้ผู้ตรวจเรียบร้อย`);
   };
 
   // Simulate routing for sample submitter teacher
