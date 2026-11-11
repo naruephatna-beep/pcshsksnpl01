@@ -65,6 +65,164 @@ export async function saveGoogleDriveWebhookUrl(url: string): Promise<boolean> {
   }
 }
 
+export const STORAGE_KEY_GDRIVE_NAMING_PATTERN = 'pcshs_gdrive_naming_pattern';
+
+export const DEFAULT_NAMING_PATTERN = '{courseCode}_{teacherName}_{originalName}';
+
+export interface NamingPreset {
+  id: string;
+  label: string;
+  pattern: string;
+  example: string;
+  description: string;
+}
+
+export const NAMING_PRESETS: NamingPreset[] = [
+  {
+    id: 'code_teacher_original',
+    label: 'รหัสวิชา + ชื่อครู + ชื่อไฟล์เดิม (ตามที่ท่านเลือก)',
+    pattern: '{courseCode}_{teacherName}_{originalName}',
+    example: 'ว31101_นายสมชาย ใจดี_แผนการสอนฟิสิกส์ม4_บทที่1.pdf',
+    description: 'บันทึกโดยนำรหัสวิชา ตามด้วยชื่อครู และต่อด้วยชื่อไฟล์เดิมที่ครูตั้งมา',
+  },
+  {
+    id: 'teacher_original',
+    label: 'ชื่อครู + ชื่อไฟล์เดิมที่อัปโหลด',
+    pattern: '{teacherName}_{originalName}',
+    example: 'นายสมชาย ใจดี_แผนการสอนฟิสิกส์ม4_บทที่1.pdf',
+    description: 'นำชื่อครูมานำหน้า และต่อด้วยชื่อไฟล์เดิมที่ครูตั้งมา',
+  },
+  {
+    id: 'academic_full',
+    label: 'มาตรฐานวิชาการ (รหัสวิชา + ชื่อวิชา + ชื่อครู + เอกสาร)',
+    pattern: '{courseCode}_{subjectName}_{teacherName}_{assignmentName}',
+    example: 'ว31101_ฟิสิกส์ 1_นายสมชาย ใจดี_แผนการจัดการเรียนรู้.pdf',
+    description: 'ค้นหาง่ายตามรหัสวิชาและชื่อวิชา',
+  },
+  {
+    id: 'teacher_code_date',
+    label: 'รหัสครู + ชื่อครู + รหัสวิชา + เอกสาร + วันที่',
+    pattern: '[{teacherId}]_{teacherName}_{courseCode}_{assignmentName}_{date}',
+    example: '[T001]_นายสมชาย ใจดี_ว31101_แผนการจัดการเรียนรู้_2026-11-11.pdf',
+    description: 'มีทั้งรหัสครู รหัสวิชา และวันที่ส่ง',
+  },
+  {
+    id: 'original_only',
+    label: 'ใช้ชื่อไฟล์เดิมที่ครูอัปโหลด 100%',
+    pattern: '{originalName}',
+    example: 'แผนการสอนฟิสิกส์ม4_บทที่1.pdf',
+    description: 'ไม่เปลี่ยนแปลงชื่อไฟล์ ใช้ชื่อตามที่ครูตั้งมาเป๊ะๆ',
+  },
+];
+
+export const AVAILABLE_NAMING_VARIABLES = [
+  { tag: '{courseCode}', label: 'รหัสวิชา', sample: 'ว31101' },
+  { tag: '{subjectName}', label: 'ชื่อวิชา', sample: 'ฟิสิกส์ 1' },
+  { tag: '{teacherName}', label: 'ชื่อครู', sample: 'นายสมชาย ใจดี' },
+  { tag: '{teacherId}', label: 'รหัสครู', sample: 'T001' },
+  { tag: '{assignmentName}', label: 'ประเภทเอกสาร/งาน', sample: 'แผนการจัดการเรียนรู้' },
+  { tag: '{gradeLevel}', label: 'ระดับชั้น', sample: 'ม.4' },
+  { tag: '{semester}', label: 'ภาคเรียน', sample: '1' },
+  { tag: '{academicYear}', label: 'ปีการศึกษา', sample: '2569' },
+  { tag: '{date}', label: 'วันที่ส่ง', sample: '2026-11-11' },
+  { tag: '{originalName}', label: 'ชื่อไฟล์เดิม', sample: 'แผนการสอน' },
+];
+
+export function getSavedNamingPattern(): string {
+  try {
+    const val = localStorage.getItem(STORAGE_KEY_GDRIVE_NAMING_PATTERN);
+    if (val && val.trim()) return val.trim();
+    return DEFAULT_NAMING_PATTERN;
+  } catch {
+    return DEFAULT_NAMING_PATTERN;
+  }
+}
+
+export async function fetchGoogleDriveNamingPattern(): Promise<string> {
+  const localVal = getSavedNamingPattern();
+  try {
+    const res = await fetchSystemSetting<string>('gdrive_naming_pattern', localVal);
+    if (res.data && typeof res.data === 'string' && res.data.trim()) {
+      const cleanRemote = res.data.trim();
+      if (cleanRemote !== localVal) {
+        localStorage.setItem(STORAGE_KEY_GDRIVE_NAMING_PATTERN, cleanRemote);
+      }
+      return cleanRemote;
+    }
+  } catch (err) {
+    console.warn('Could not fetch gdrive_naming_pattern:', err);
+  }
+  return localVal;
+}
+
+export async function saveGoogleDriveNamingPattern(pattern: string): Promise<boolean> {
+  const clean = (pattern || '').trim() || DEFAULT_NAMING_PATTERN;
+  try {
+    localStorage.setItem(STORAGE_KEY_GDRIVE_NAMING_PATTERN, clean);
+    await saveSystemSetting('gdrive_naming_pattern', clean);
+    return true;
+  } catch (e) {
+    console.warn('Failed to save gdrive_naming_pattern:', e);
+    return false;
+  }
+}
+
+export function formatDriveFileName(
+  pattern: string,
+  file: { name: string },
+  meta: GoogleDriveUploadOptions
+): string {
+  const rawExt = file.name.includes('.') ? '.' + file.name.split('.').pop()!.toLowerCase() : '.pdf';
+  const baseOriginalName = file.name.replace(/\.[^/.]+$/, '').trim();
+
+  if (pattern.trim() === '{originalName}') {
+    return file.name.replace(/[\/\\:*?"<>|]/g, '_');
+  }
+
+  const clean = (str?: string) => (str || '').replace(/[\/\\:*?"<>|]/g, '_').trim();
+
+  const teacherId = clean(meta.teacherId);
+  const teacherName = clean(meta.teacherName);
+  const assignmentName = clean(meta.assignmentName);
+  const courseCode = clean(meta.courseCode);
+  const subjectName = clean(meta.subjectName);
+  const gradeLevel = clean(meta.gradeLevel);
+  const semester = clean(meta.semester);
+  const academicYear = clean(meta.academicYear);
+  const date = new Date().toISOString().slice(0, 10);
+  const originalName = clean(baseOriginalName);
+
+  let formatted = pattern
+    .replace(/\{courseCode\}/g, courseCode)
+    .replace(/\{subjectName\}/g, subjectName)
+    .replace(/\{teacherName\}/g, teacherName)
+    .replace(/\{teacherId\}/g, teacherId)
+    .replace(/\{assignmentName\}/g, assignmentName)
+    .replace(/\{docType\}/g, assignmentName)
+    .replace(/\{gradeLevel\}/g, gradeLevel)
+    .replace(/\{semester\}/g, semester)
+    .replace(/\{academicYear\}/g, academicYear)
+    .replace(/\{date\}/g, date)
+    .replace(/\{originalName\}/g, originalName);
+
+  // Clean empty brackets like []_ and duplicate underscores
+  formatted = formatted
+    .replace(/\[\s*\]_?/g, '')
+    .replace(/__+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .trim();
+
+  if (!formatted) {
+    formatted = `${clean(meta.teacherName) || 'ครู'}_${clean(meta.assignmentName) || 'เอกสาร'}`;
+  }
+
+  if (!formatted.toLowerCase().endsWith(rawExt.toLowerCase())) {
+    formatted += rawExt;
+  }
+
+  return formatted;
+}
+
 export interface GoogleDriveUploadOptions {
   teacherId: string;
   teacherName: string;
@@ -72,6 +230,10 @@ export interface GoogleDriveUploadOptions {
   learningArea?: string;
   semester?: string;
   academicYear?: string;
+  courseCode?: string;
+  subjectName?: string;
+  gradeLevel?: string;
+  customFileName?: string;
 }
 
 export interface GoogleDriveUploadResult {
@@ -219,10 +381,10 @@ export async function uploadPdfFileToGoogleDrive(
 
     // ตรวจสอบนามสกุลไฟล์จริง (.pdf, .xlsx, .xls, .csv, .docx ฯลฯ)
     const rawExt = file.name.includes('.') ? '.' + file.name.split('.').pop()!.toLowerCase() : '.pdf';
-    const cleanTeacherName = (meta.teacherName || 'ครูผู้สอน').replace(/[\/\\:*?"<>|]/g, '_');
-    const cleanAssignName = (meta.assignmentName || 'เอกสาร').replace(/[\/\\:*?"<>|]/g, '_');
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const generatedFileName = `[${meta.teacherId}]_${cleanTeacherName}_${cleanAssignName}_${timestamp}${rawExt}`;
+    
+    // ตั้งชื่อไฟล์ตามเทมเพลตที่ผู้ดูแลระบบหรือโรงเรียนกำหนดไว้
+    const pattern = await fetchGoogleDriveNamingPattern();
+    const generatedFileName = meta.customFileName || formatDriveFileName(pattern, file, meta);
 
     // กำหนด MIME type ให้ถูกต้องสำหรับ Google Drive
     let mimeType = file.type;
@@ -244,6 +406,9 @@ export async function uploadPdfFileToGoogleDrive(
       teacherId: meta.teacherId,
       teacherName: meta.teacherName,
       assignmentName: meta.assignmentName,
+      courseCode: meta.courseCode || '',
+      subjectName: meta.subjectName || '',
+      gradeLevel: meta.gradeLevel || '',
       learningArea: meta.learningArea || '',
       semester: meta.semester || '',
       academicYear: meta.academicYear || '',

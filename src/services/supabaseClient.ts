@@ -1404,7 +1404,15 @@ export async function uploadAssignmentAttachmentFile(
   file: File,
   teacherId: string,
   assignmentId: string,
-  teacherName?: string
+  teacherName?: string,
+  extraMeta?: {
+    courseCode?: string;
+    subjectName?: string;
+    gradeLevel?: string;
+    semester?: string;
+    academicYear?: string;
+    customFileName?: string;
+  }
 ): Promise<{ success: boolean; url: string; fileName: string; fileSize: string; error?: string }> {
   const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
   const sizeText = Number(fileSizeMb) < 1 ? `${Math.round(file.size / 1024)} KB` : `${fileSizeMb} MB`;
@@ -1417,6 +1425,12 @@ export async function uploadAssignmentAttachmentFile(
         teacherId,
         teacherName: teacherName || teacherId,
         assignmentName: assignmentId,
+        courseCode: extraMeta?.courseCode,
+        subjectName: extraMeta?.subjectName,
+        gradeLevel: extraMeta?.gradeLevel,
+        semester: extraMeta?.semester,
+        academicYear: extraMeta?.academicYear,
+        customFileName: extraMeta?.customFileName,
       });
 
       if (driveRes.success && driveRes.fileUrl) {

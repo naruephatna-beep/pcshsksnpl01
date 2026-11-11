@@ -245,11 +245,37 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
             : `กำลังนำไฟล์ "${f.name}" เข้าสู่ Google Drive...`
         );
 
+        // ตรวจหาข้อมูลรหัสวิชา ชื่อวิชา หรือระดับชั้นจากช่องกรอกของฟอร์ม (ถ้ามี)
+        let formCourseCode = '';
+        let formSubjectName = '';
+        let formGradeLevel = '';
+        if (currentItem && currentItem.formValues) {
+          for (const [key, val] of Object.entries(currentItem.formValues)) {
+            const fObj = fields.find((fld) => fld.id === key);
+            const label = (fObj?.label || key).toLowerCase();
+            const strVal = typeof val === 'string' ? val.trim() : '';
+            if (!formCourseCode && (label.includes('รหัสวิชา') || label.includes('course_code') || label.includes('code'))) {
+              formCourseCode = strVal;
+            } else if (!formSubjectName && (label.includes('ชื่อวิชา') || label.includes('รายวิชา') || label.includes('วิชา'))) {
+              formSubjectName = strVal;
+            } else if (!formGradeLevel && (label.includes('ระดับชั้น') || label.includes('ชั้น') || label.includes('grade'))) {
+              formGradeLevel = strVal;
+            }
+          }
+        }
+
         const uploadRes = await uploadAssignmentAttachmentFile(
           f,
           currentTeacher.Teacher_ID,
           config.name || config.id,
-          currentTeacher.Name
+          currentTeacher.Name,
+          {
+            courseCode: formCourseCode,
+            subjectName: formSubjectName,
+            gradeLevel: formGradeLevel,
+            semester: config.semester,
+            academicYear: config.academic_year,
+          }
         );
 
         if (uploadRes.success) {

@@ -26,6 +26,13 @@ import {
   testGoogleDriveConnection,
   GOOGLE_APPS_SCRIPT_TEMPLATE,
   DEFAULT_GDRIVE_WEBHOOK_URL,
+  getSavedNamingPattern,
+  fetchGoogleDriveNamingPattern,
+  saveGoogleDriveNamingPattern,
+  formatDriveFileName,
+  NAMING_PRESETS,
+  AVAILABLE_NAMING_VARIABLES,
+  DEFAULT_NAMING_PATTERN,
 } from '../services/googleDriveService';
 import {
   sendAcademicEmailOneClick,
@@ -55,7 +62,13 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
     supportsArchive?: boolean;
   } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'settings' | 'guide' | 'code'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'naming' | 'guide' | 'code'>('settings');
+
+  // Naming Pattern States
+  const [namingPattern, setNamingPattern] = useState<string>(DEFAULT_NAMING_PATTERN);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('code_teacher_original');
+  const [isSavingPattern, setIsSavingPattern] = useState(false);
+  const [patternSavedNotice, setPatternSavedNotice] = useState(false);
 
   // Test Email States
   const [testEmailAddress, setTestEmailAddress] = useState('naruephat.n@kkumail.com');
@@ -71,8 +84,41 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
       setWebhookUrl(getSavedGoogleDriveWebhookUrl());
       setTestResult(null);
       setEmailTestResult(null);
+      setPatternSavedNotice(false);
+
+      // Load naming pattern
+      fetchGoogleDriveNamingPattern().then((pat) => {
+        setNamingPattern(pat);
+        const matched = NAMING_PRESETS.find((p) => p.pattern === pat);
+        setSelectedPresetId(matched ? matched.id : 'custom');
+      });
     }
   }, [isOpen]);
+
+  // Live sample for preview
+  const sampleMeta = {
+    teacherId: 'T001',
+    teacherName: 'นายสมชาย ใจดี',
+    assignmentName: 'แผนการจัดการเรียนรู้',
+    courseCode: 'ว31101',
+    subjectName: 'ฟิสิกส์ 1',
+    gradeLevel: 'ม.4',
+    semester: '1',
+    academicYear: '2569',
+  };
+  const sampleFile = { name: 'แผนการสอนฟิสิกส์ม4_บทที่1.pdf' };
+  const previewFileName = formatDriveFileName(namingPattern, sampleFile, sampleMeta);
+
+  const handleSaveNamingPattern = async () => {
+    setIsSavingPattern(true);
+    try {
+      await saveGoogleDriveNamingPattern(namingPattern);
+      setPatternSavedNotice(true);
+      setTimeout(() => setPatternSavedNotice(false), 3000);
+    } finally {
+      setIsSavingPattern(false);
+    }
+  };
 
   const handleTestEmail = async () => {
     const to = testEmailAddress.trim();
@@ -226,10 +272,10 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-2 shrink-0">
+        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-2 shrink-0 overflow-x-auto touch-scroll">
           <button
             onClick={() => setActiveTab('settings')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === 'settings'
                 ? 'border-emerald-600 text-emerald-800 bg-white rounded-t-lg'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -239,8 +285,19 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
             <span>ตั้งค่า URL เชื่อมต่อ</span>
           </button>
           <button
+            onClick={() => setActiveTab('naming')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'naming'
+                ? 'border-emerald-600 text-emerald-800 bg-white rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>⚙️ รูปแบบชื่อไฟล์ใน Drive</span>
+          </button>
+          <button
             onClick={() => setActiveTab('guide')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === 'guide'
                 ? 'border-emerald-600 text-emerald-800 bg-white rounded-t-lg'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -251,7 +308,7 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('code')}
-            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === 'code'
                 ? 'border-emerald-600 text-emerald-800 bg-white rounded-t-lg'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -295,6 +352,27 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                     <span>ระบบสำเนาไฟล์ที่ตรวจแล้วเข้าโฟลเดอร์ <strong>"ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"</strong> อัตโนมัติ (ดึงและดาวน์โหลดไฟล์ PDF จริงจากลิงก์มาเก็บเป็นสำเนา)</span>
                   </p>
                 </div>
+              </div>
+
+              {/* Naming Pattern Shortcut Card */}
+              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <FileText className="w-4 h-4 text-emerald-600" />
+                    <span>รูปแบบชื่อไฟล์ที่บันทึกลง Google Drive</span>
+                  </div>
+                  <div className="text-[11px] font-mono text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 inline-block font-semibold">
+                    {previewFileName}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('naming')}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+                >
+                  <span>ปรับแต่งรูปแบบชื่อไฟล์</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               {/* Webhook Input Field */}
@@ -471,6 +549,204 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'naming' && (
+            <div className="space-y-5">
+              {/* Header Info */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 flex items-start gap-3">
+                <FileText className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <h3 className="font-bold text-sm text-emerald-950">
+                    ตั้งค่ารูปแบบชื่อไฟล์อัตโนมัติเมื่อบันทึกลง Google Drive
+                  </h3>
+                  <p className="leading-relaxed text-emerald-800">
+                    เมื่อคุณครูส่งแผนการสอนหรือเอกสาร ระบบจะจัดเรียงและตั้งชื่อไฟล์ตามเทมเพลตนี้ให้อัตโนมัติ เพื่อให้ผู้บริหารและฝ่ายวิชาการค้นหาและจัดระเบียบไฟล์ใน Google Drive ได้อย่างเป็นระเบียบเรียบร้อย
+                  </p>
+                </div>
+              </div>
+
+              {/* Live Preview Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 text-white shadow-lg space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider text-[11px]">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    ตัวอย่างชื่อไฟล์จริงที่จะปรากฏบน Google Drive (Live Preview)
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">ตัวอย่างข้อมูลจริง</span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-800/90 border border-slate-700 font-mono text-sm text-emerald-300 break-all select-all flex items-center gap-2.5">
+                  <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="font-bold">{previewFileName}</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px] text-slate-400">
+                  <div>รหัสวิชา: <strong className="text-white">ว31101</strong></div>
+                  <div>ชื่อวิชา: <strong className="text-white">ฟิสิกส์ 1</strong></div>
+                  <div>ครู: <strong className="text-white">นายสมชาย ใจดี</strong></div>
+                  <div>งาน: <strong className="text-white">แผนการจัดการเรียนรู้</strong></div>
+                </div>
+              </div>
+
+              {/* Presets List */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    1. เลือกรูปแบบสำเร็จรูปที่แนะนำสำหรับโรงเรียน
+                  </h4>
+                  <span className="text-[11px] text-slate-500">คลิกเพื่อเลือกใช้งานทันที</span>
+                </div>
+
+                <div className="space-y-2">
+                  {NAMING_PRESETS.map((p) => {
+                    const isSelected = selectedPresetId === p.id;
+                    return (
+                      <label
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedPresetId(p.id);
+                          setNamingPattern(p.pattern);
+                        }}
+                        className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                          isSelected
+                            ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="naming_preset"
+                          checked={isSelected}
+                          onChange={() => {
+                            setSelectedPresetId(p.id);
+                            setNamingPattern(p.pattern);
+                          }}
+                          className="mt-1 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-slate-900">{p.label}</span>
+                            {p.id === 'code_teacher_original' && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                ★ แนะนำ (ใช้งานเป็นหลัก)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs font-mono text-emerald-800 bg-white/80 px-2 py-1 rounded border border-emerald-200/60 inline-block">
+                            {p.example}
+                          </div>
+                          <p className="text-[11px] text-slate-500">{p.description}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+
+                  {/* Custom option */}
+                  <label
+                    onClick={() => setSelectedPresetId('custom')}
+                    className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                      selectedPresetId === 'custom'
+                        ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="naming_preset"
+                      checked={selectedPresetId === 'custom'}
+                      onChange={() => setSelectedPresetId('custom')}
+                      className="mt-1 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <span className="text-xs font-bold text-slate-900 block">
+                        กำหนดรูปแบบเอง (Custom Template)
+                      </span>
+                      <p className="text-[11px] text-slate-500">
+                        จัดเรียงตัวแปรอิสระตามความต้องการของโรงเรียน เช่น สลับลำดับคำ หรือเพิ่มข้อความเฉพาะ
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Custom Pattern Editor & Variable Chips */}
+              {selectedPresetId === 'custom' && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <label className="text-xs font-bold text-slate-900 block">
+                    2. แก้ไขแพทเทิร์นชื่อไฟล์ (คลิกปุ่มตัวแปรด้านล่างเพื่อแทรกอัตโนมัติ)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={namingPattern}
+                      onChange={(e) => setNamingPattern(e.target.value)}
+                      placeholder="{courseCode}_{subjectName}_{teacherName}_{assignmentName}"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-xs sm:text-sm bg-white text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-2xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-slate-600 block">
+                      ตัวแปรที่ใช้งานได้ (คลิกเพื่อแทรก):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {AVAILABLE_NAMING_VARIABLES.map((v) => (
+                        <button
+                          key={v.tag}
+                          type="button"
+                          onClick={() => {
+                            setNamingPattern((prev) => (prev ? `${prev}_${v.tag}` : v.tag));
+                          }}
+                          className="px-2.5 py-1 bg-white hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 hover:text-emerald-900 border border-slate-200 rounded-lg text-xs font-medium transition-colors cursor-pointer shadow-2xs flex items-center gap-1"
+                          title={`ตัวอย่าง: ${v.sample}`}
+                        >
+                          <span className="font-mono text-emerald-700 font-bold">{v.tag}</span>
+                          <span className="text-[10px] text-slate-400">({v.label})</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Notification Banner */}
+              {patternSavedNotice && (
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs flex items-center gap-2 shadow-2xs animate-in fade-in">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <div className="flex-1">
+                    <span className="font-bold block">บันทึกรูปแบบชื่อไฟล์สำเร็จ!</span>
+                    <span className="text-[11px]">
+                      ซิงค์ลงฐานข้อมูลเรียบร้อยแล้ว ทุกอุปกรณ์และคุณครูทุกคนในโรงเรียนจะใช้รูปแบบนี้เหมือนกันอัตโนมัติ
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Save Button */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNamingPattern(DEFAULT_NAMING_PATTERN);
+                    setSelectedPresetId('code_teacher_original');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                >
+                  คืนค่าเริ่มต้น
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveNamingPattern}
+                  disabled={isSavingPattern || !namingPattern.trim()}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSavingPattern ? 'กำลังบันทึก...' : 'บันทึกรูปแบบชื่อไฟล์นี้'}</span>
+                </button>
               </div>
             </div>
           )}
