@@ -9,6 +9,7 @@ import {
   EvaluationType,
   ReviewWorkflowConfig,
   StageReviewRecord,
+  FileReviewResult,
 } from '../types';
 import {
   getSavedStatusConfigs,
@@ -194,18 +195,157 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   const docMeta = classifyDocumentType(plan.plan_type);
   const isResearch = docMeta.key === 'classroom_research' || (plan.plan_type || '').includes('วิจัย');
 
+  const calcRubricScore = (r?: RubricScore) => {
+    if (!r) return 100;
+    return Math.round(
+      ((r.standards + r.activities + r.media + r.assessment + r.recording) / 25) * 100
+    );
+  };
+
+  // Form B: Per-file rubric evaluations & individual statuses for multi-file submissions
+  const [fileReviews, setFileReviews] = useState<FileReviewResult[]>(() => {
+    if (plan.file_reviews && Array.isArray(plan.file_reviews) && plan.file_reviews.length > 0) {
+      return plan.file_reviews;
+    }
+    if (parsedFormFields && Array.isArray(parsedFormFields._file_reviews) && parsedFormFields._file_reviews.length > 0) {
+      return parsedFormFields._file_reviews;
+    }
+    return attachedFiles.map((f, idx) => ({
+      file_index: idx,
+      file_name: f.file_name,
+      file_url: f.file_url,
+      file_size: f.file_size,
+      status: (plan.status === 'needs_revision' ? 'needs_revision' : 'approved') as 'approved' | 'needs_revision',
+      rubric_scores: plan.rubric_scores || {
+        standards: 5,
+        activities: 5,
+        media: 4,
+        assessment: 4,
+        recording: 5,
+      },
+      total_score: plan.total_score || 92,
+      comment: '',
+    }));
+  });
+
+  // Keep file reviews list synced if attachedFiles changes
+  React.useEffect(() => {
+    if (attachedFiles.length > 0) {
+      setFileReviews((prev) => {
+        if (prev.length === attachedFiles.length) return prev;
+        return attachedFiles.map((f, idx) => {
+          const existing = prev.find((p) => p.file_index === idx || p.file_url === f.file_url);
+          if (existing) return existing;
+          return {
+            file_index: idx,
+            file_name: f.file_name,
+            file_url: f.file_url,
+            file_size: f.file_size,
+            status: 'approved',
+            rubric_scores: { standards: 5, activities: 5, media: 4, assessment: 4, recording: 5 },
+            total_score: 92,
+            comment: '',
+          };
+        });
+      });
+    }
+  }, [attachedFiles]);
+
+  const handleUpdateFileStatus = (index: number, newStatus: 'approved' | 'needs_revision') => {
+    setFileReviews((prev) => {
+      const updatedList = prev.map((item, idx) =>
+        idx === index ? { ...item, status: newStatus } : item
+      );
+      // Auto-update overall status: if any file is needs_revision -> needs_revision, else approved
+      const hasAnyRejected = updatedList.some((item) => item.status === 'needs_revision');
+      setStatus(hasAnyRejected ? 'needs_revision' : 'approved');
+      return updatedList;
+    });
+  };
+
+  const handleUpdateFileRubric = (index: number, key: keyof RubricScore, val: number) => {
+    setFileReviews((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item;
+        const currentRubrics = item.rubric_scores || {
+          standards: 5,
+          activities: 5,
+          media: 4,
+          assessment: 4,
+          recording: 5,
+        };
+        const newRubrics = { ...currentRubrics, [key]: val };
+        const newScore = calcRubricScore(newRubrics);
+        return {
+          ...item,
+          rubric_scores: newRubrics,
+          total_score: newScore,
+        };
+      })
+    );
+  };
+
+  const handleUpdateFileComment = (index: number, val: string) => {
+    setFileReviews((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, comment: val } : item))
+    );
+  };
+
+  const handleBatchApproveAllFiles = () => {
+    setFileReviews((prev) =>
+      prev.map((item) => ({
+        ...item,
+        status: 'approved',
+        rubric_scores: { standards: 5, activities: 5, media: 5, assessment: 5, recording: 5 },
+        total_score: 100,
+      }))
+    );
+    setStatus('approved');
+  };
+
+  const handleBatchRejectAllFiles = () => {
+    setFileReviews((prev) =>
+      prev.map((item) => ({
+        ...item,
+        status: 'needs_revision',
+      }))
+    );
+    setStatus('needs_revision');
+  };
+
+  const rubricCriteria = React.useMemo(() => {
+    return isResearch
+      ? [
+          { key: 'standards' as const, label: '1. ความชัดเจนของสภาพปัญหาและความสำคัญของประเด็นการวิจัย' },
+          { key: 'activities' as const, label: '2. วัตถุประสงค์และกลุ่มเป้าหมายนักเรียนที่ชัดเจนและสอดคล้อง' },
+          { key: 'media' as const, label: '3. นวัตกรรม/วิธีดำเนินการวิจัยและการจัดกิจกรรมแก้ปัญหา' },
+          { key: 'assessment' as const, label: '4. เครื่องมือการวิจัยและการเก็บรวบรวมข้อมูลตามสภาพจริง' },
+          { key: 'recording' as const, label: '5. การสรุปผล ประโยชน์ และการสะท้อนคิดเพื่อพัฒนาการเรียนรู้' },
+        ]
+      : [
+          { key: 'standards' as const, label: '1. ความสอดคล้องของมาตรฐานการเรียนรู้และตัวชี้วัด' },
+          { key: 'activities' as const, label: '2. การจัดกิจกรรมการเรียนรู้เชิงรุก (Active Learning)' },
+          { key: 'media' as const, label: '3. สื่อ นวัตกรรม เทคโนโลยี และแหล่งเรียนรู้' },
+          { key: 'assessment' as const, label: '4. เครื่องมือการวัดผลและประเมินผลตามสภาพจริง' },
+          { key: 'recording' as const, label: '5. บันทึกผลหลังสอนและการสะท้อนคิด (Reflection)' },
+        ];
+  }, [isResearch]);
+
   if (!isOpen) return null;
 
-  const totalRubricScore =
-    Math.round(
-      ((rubrics.standards +
-        rubrics.activities +
-        rubrics.media +
-        rubrics.assessment +
-        rubrics.recording) /
-        25) *
-        100
-    );
+  const totalRubricScore = calcRubricScore(rubrics);
+
+  const multiFileAverageScore =
+    fileReviews.length > 0
+      ? Math.round(
+          fileReviews.reduce(
+            (sum, f) => sum + (f.total_score || calcRubricScore(f.rubric_scores)),
+            0
+          ) / fileReviews.length
+        )
+      : totalRubricScore;
+
+  const effectiveTotalScore = attachedFiles.length > 1 ? multiFileAverageScore : totalRubricScore;
 
   const handleQuickApprove = async () => {
     setStatus('approved');
@@ -215,6 +355,34 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const quickApprovedFileReviews: FileReviewResult[] = attachedFiles.map((f, idx) => ({
+      file_index: idx,
+      file_name: f.file_name,
+      file_url: f.file_url,
+      file_size: f.file_size,
+      status: 'approved',
+      rubric_scores: { standards: 5, activities: 5, media: 5, assessment: 5, recording: 5 },
+      total_score: 100,
+      comment: 'ผ่านเกณฑ์มาตรฐานสมบูรณ์',
+      reviewed_at: dateStr,
+      reviewed_by: reviewer.Teacher_ID,
+      reviewer_name: `${reviewer.Name} (${reviewer.position})`,
+    }));
+
+    let finalNotes = plan.notes;
+    try {
+      const cur = plan.notes ? JSON.parse(plan.notes) : {};
+      if (typeof cur === 'object' && cur !== null) {
+        cur._file_reviews = quickApprovedFileReviews;
+        finalNotes = JSON.stringify(cur);
+      }
+    } catch {
+      finalNotes = JSON.stringify({
+        _raw_notes: plan.notes,
+        _file_reviews: quickApprovedFileReviews,
+      });
+    }
 
     const reviewRecord: StageReviewRecord = {
       stage_id: currentStage?.id || `stage_${currentStageOrder}`,
@@ -227,12 +395,14 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
       status: 'approved',
       comment: autoNote,
       rubric_scores: isApprovalOnly ? undefined : rubrics,
-      total_score: isApprovalOnly ? undefined : totalRubricScore,
+      total_score: isApprovalOnly ? undefined : 100,
     };
 
     let updated: LessonPlan;
     if (activeWorkflow && activeWorkflow.stages.length > 0) {
       updated = advancePlanStage(plan, activeWorkflow, reviewRecord, reviewer);
+      updated.file_reviews = quickApprovedFileReviews;
+      updated.notes = finalNotes;
     } else {
       const existingReviews = plan.stage_reviews || [];
       updated = {
@@ -243,8 +413,10 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
         reviewed_at: dateStr,
         review_comment: autoNote,
         rubric_scores: isApprovalOnly ? undefined : rubrics,
-        total_score: isApprovalOnly ? undefined : totalRubricScore,
+        total_score: isApprovalOnly ? undefined : 100,
         evaluation_type: isApprovalOnly ? 'approval_only' : 'rubric_score',
+        file_reviews: quickApprovedFileReviews,
+        notes: finalNotes,
         stage_reviews: [
           ...existingReviews.filter((r) => r.stage_id !== reviewRecord.stage_id),
           reviewRecord,
@@ -269,6 +441,52 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+    const finalFileReviews: FileReviewResult[] | undefined =
+      attachedFiles.length > 1
+        ? fileReviews.map((fr) => ({
+            ...fr,
+            reviewed_at: dateStr,
+            reviewed_by: reviewer.Teacher_ID,
+            reviewer_name: `${reviewer.Name} (${reviewer.position})`,
+          }))
+        : undefined;
+
+    let finalNotes = plan.notes;
+    if (finalFileReviews && finalFileReviews.length > 0) {
+      try {
+        const cur = plan.notes ? JSON.parse(plan.notes) : {};
+        if (typeof cur === 'object' && cur !== null) {
+          cur._file_reviews = finalFileReviews;
+          finalNotes = JSON.stringify(cur);
+        }
+      } catch {
+        finalNotes = JSON.stringify({
+          _raw_notes: plan.notes,
+          _file_reviews: finalFileReviews,
+        });
+      }
+    }
+
+    // Prepare compiled comment summary if multi-file
+    let compiledComment = comment.trim();
+    if (attachedFiles.length > 1 && finalFileReviews && finalFileReviews.length > 0) {
+      const approvedCount = finalFileReviews.filter((f) => f.status === 'approved').length;
+      const breakdownRows = finalFileReviews.map((fr, idx) => {
+        const stLabel = fr.status === 'approved' ? '✓ ผ่าน' : '⚠️ ตีกลับให้แก้ไข';
+        const scoreText = !isApprovalOnly && fr.total_score !== undefined ? ` (${fr.total_score}%)` : '';
+        const noteText = fr.comment?.trim() ? ` - ข้อเสนอแนะ: ${fr.comment.trim()}` : '';
+        return `${idx + 1}. [${stLabel}${scoreText}] ${fr.file_name}${noteText}`;
+      });
+      const summaryHeader = `[ผลตรวจแยกรายไฟล์: ผ่าน ${approvedCount}/${finalFileReviews.length} ไฟล์]`;
+      const perFileBlock = `${summaryHeader}\n${breakdownRows.join('\n')}`;
+
+      if (!compiledComment) {
+        compiledComment = perFileBlock;
+      } else if (!compiledComment.includes('[ผลตรวจแยกรายไฟล์:')) {
+        compiledComment = `${compiledComment}\n\n${perFileBlock}`;
+      }
+    }
+
     const reviewRecord: StageReviewRecord = {
       stage_id: currentStage?.id || `stage_${currentStageOrder}`,
       stage_order: currentStageOrder,
@@ -278,14 +496,16 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
       reviewer_name: `${reviewer.Name} (${reviewer.position})`,
       reviewed_at: dateStr,
       status: (status === 'approved' ? 'approved' : status === 'needs_revision' ? 'needs_revision' : status) as any,
-      comment: comment.trim(),
+      comment: compiledComment,
       rubric_scores: isApprovalOnly ? undefined : rubrics,
-      total_score: isApprovalOnly ? undefined : totalRubricScore,
+      total_score: isApprovalOnly ? undefined : effectiveTotalScore,
     };
 
     let updated: LessonPlan;
     if (activeWorkflow && activeWorkflow.stages.length > 0) {
       updated = advancePlanStage(plan, activeWorkflow, reviewRecord, reviewer);
+      if (finalFileReviews) updated.file_reviews = finalFileReviews;
+      if (finalNotes) updated.notes = finalNotes;
     } else {
       const existingReviews = plan.stage_reviews || [];
       updated = {
@@ -294,10 +514,12 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
         reviewed_by: reviewer.Teacher_ID,
         reviewer_name: `${reviewer.Name} (${reviewer.position})`,
         reviewed_at: dateStr,
-        review_comment: comment.trim(),
+        review_comment: compiledComment,
         rubric_scores: isApprovalOnly ? undefined : rubrics,
-        total_score: isApprovalOnly ? undefined : totalRubricScore,
+        total_score: isApprovalOnly ? undefined : effectiveTotalScore,
         evaluation_type: isApprovalOnly ? 'approval_only' : 'rubric_score',
+        file_reviews: finalFileReviews,
+        notes: finalNotes,
         stage_reviews: [
           ...existingReviews.filter((r) => r.stage_id !== reviewRecord.stage_id),
           reviewRecord,
@@ -311,13 +533,15 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
       // 1-Click Academic Email notification
       if (sendEmailNotification && teacherEmail) {
         const currentStatusObj = allStatuses.find((s) => s.id === status);
-        const statusLabel = currentStatusObj?.label || (status === 'approved' ? 'อนุมัติ' : status === 'needs_revision' ? 'ส่งกลับแก้ไข' : status);
+        const statusLabel =
+          currentStatusObj?.label ||
+          (status === 'approved' ? 'อนุมัติ' : status === 'needs_revision' ? 'ส่งกลับแก้ไข' : status);
         const reviewMail = generateReviewEmailHtml({
           plan: updated,
           reviewer,
           statusLabel,
-          comment: comment.trim(),
-          rubricScore: isApprovalOnly ? undefined : totalRubricScore,
+          comment: compiledComment,
+          rubricScore: isApprovalOnly ? undefined : effectiveTotalScore,
         });
 
         sendAcademicEmailOneClick({
@@ -697,197 +921,670 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
           {/* Review Form Form Element with ID */}
           <form id="reviewPlanForm" onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-          {/* Status Selection */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-              ผลการพิจารณาตรวจสอบ <span className="text-rose-500">*</span>
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-              <label
-                className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                  status === 'approved'
-                    ? 'border-emerald-500 bg-emerald-50/80 text-emerald-900 shadow-sm'
-                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="review_status"
-                  value="approved"
-                  checked={status === 'approved'}
-                  onChange={() => setStatus('approved')}
-                  className="hidden"
-                />
-                <div
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    status === 'approved' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
-                  }`}
-                >
-                  {status === 'approved' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+            {attachedFiles.length > 1 ? (
+              /* =========================================================================
+                 FORM B: MULTI-FILE PER-FILE RUBRIC EVALUATION & STATUS TRACKING
+                 ========================================================================= */
+              <div className="space-y-4">
+                {/* Multi-File Header Bar */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border border-purple-200/90 shadow-2xs space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 bg-purple-600 text-white rounded-lg">
+                        <FileText className="w-4 h-4" />
+                      </span>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold text-purple-950 flex items-center gap-1.5">
+                          <span>ตรวจและประเมินแยกรายไฟล์ ({attachedFiles.length} ไฟล์)</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-200/80 text-purple-800">
+                            แบบ B: แยกคะแนนรูบริกและสถานะ
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-slate-600 mt-0.5">
+                          คลิกเลือกแต่ละไฟล์ด้านล่างเพื่อให้คะแนนรูบริกและเลือกว่าผ่านหรือส่งกลับแก้ไขแยกกันได้
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Quick Batch Actions */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleBatchApproveAllFiles}
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                        title="ปรับทุกไฟล์เป็น 'ผ่าน' และให้คะแนนเต็ม 100%"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>ให้ผ่านทุกไฟล์</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleBatchRejectAllFiles}
+                        className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                        title="ปรับทุกไฟล์เป็น 'ส่งกลับแก้ไข'"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                        <span>ตีกลับทุกไฟล์</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Overall Quick Stats Chips */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-purple-200/60 text-xs flex-wrap">
+                    <span className="text-[11px] text-slate-500 font-medium">สรุปเบื้องต้น:</span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold text-[11px] bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <CheckCircle className="w-3 h-3 text-emerald-600" />
+                      <span>ผ่าน {fileReviews.filter((f) => f.status === 'approved').length} ไฟล์</span>
+                    </span>
+                    {fileReviews.some((f) => f.status === 'needs_revision') && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold text-[11px] bg-rose-100 text-rose-800 border border-rose-300">
+                        <AlertTriangle className="w-3 h-3 text-rose-600" />
+                        <span>ตีกลับแก้ไข {fileReviews.filter((f) => f.status === 'needs_revision').length} ไฟล์</span>
+                      </span>
+                    )}
+                    {!isApprovalOnly && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold text-[11px] bg-indigo-100 text-indigo-800 border border-indigo-300">
+                        <Award className="w-3 h-3 text-indigo-600" />
+                        <span>คะแนนรูบริกเฉลี่ย: {effectiveTotalScore}%</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* File Navigation Tabs */}
                 <div>
-                  <div className="text-sm font-bold flex items-center gap-1.5">
-                    <CheckCircle className="w-4 h-4 text-emerald-600" />
-                    {isResearch ? 'อนุมัติ / เห็นชอบประเด็นการวิจัย' : 'อนุมัติให้ใช้จัดการเรียนรู้ได้'}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                      <span>เลือกไฟล์ที่กำลังตรวจ:</span>
+                    </label>
+                    <span className="text-[11px] text-indigo-600 font-semibold">
+                      ไฟล์ที่ {activeFileIndex + 1} จาก {attachedFiles.length}
+                    </span>
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    {isResearch
-                      ? 'ประเด็นการวิจัยหรือรายงานมีความสมบูรณ์ สอดคล้องกับเป้าหมายพัฒนาผู้เรียน'
-                      : 'แผนมีความสมบูรณ์ สอดคล้องกับหลักสูตร'}
-                  </div>
-                </div>
-              </label>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    {attachedFiles.map((file, idx) => {
+                      const fr = fileReviews[idx] || fileReviews[0];
+                      const isApproved = fr?.status === 'approved';
+                      const isSelected = activeFileIndex === idx;
+                      const score = fr?.total_score || (fr?.rubric_scores ? calcRubricScore(fr.rubric_scores) : 100);
 
-              <label
-                className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                  status === 'needs_revision'
-                    ? 'border-amber-500 bg-amber-50/80 text-amber-900 shadow-sm'
-                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="review_status"
-                  value="needs_revision"
-                  checked={status === 'needs_revision'}
-                  onChange={() => setStatus('needs_revision')}
-                  className="hidden"
-                />
-                <div
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    status === 'needs_revision' ? 'border-amber-600 bg-amber-600' : 'border-slate-300'
-                  }`}
-                >
-                  {status === 'needs_revision' && <div className="w-2 h-2 rounded-full bg-white"></div>}
-                </div>
-                <div>
-                  <div className="text-sm font-bold flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    ส่งกลับเพื่อปรับปรุงแก้ไข
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    ต้องปรับปรุงตามข้อเสนอแนะ
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            {/* Custom status selector for admin */}
-            <div className="mt-3 flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-              <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-indigo-600" />
-                <span>หรือระบุสถานะอื่นตามที่แอดมินกำหนด:</span>
-              </span>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white text-slate-800 shadow-2xs focus:ring-1 focus:ring-indigo-500"
-              >
-                {allStatuses.map((st) => (
-                  <option key={st.id} value={st.id}>
-                    {st.label} ({st.id})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {status === 'approved' && (
-              <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-950 font-medium">
-                <span className="text-base">📁</span>
-                <div>
-                  <span className="font-bold text-emerald-900">สำรองไฟล์เข้า Google Drive อัตโนมัติ:</span>
-                  <span className="text-emerald-800 ml-1">
-                    เมื่อกดบันทึกผล ระบบจะคัดลอกไฟล์สำเนาไปเก็บในโฟลเดอร์ <strong className="font-mono bg-white px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-950">ตรวจแล้ว/{plan.plan_type}_{plan.branch || (teachers?.find(t => t.Teacher_ID === plan.teacher_id)?.branch) || plan.learning_area}</strong> ใน Google Drive ทันที
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Rubric Evaluation OR Approval-Only Notice */}
-          {isApprovalOnly ? (
-            <div className="bg-indigo-50/70 border border-indigo-200/90 rounded-2xl p-4 text-xs text-indigo-950 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-bold text-indigo-900">
-                  <CheckCircle className="w-4 h-4 text-indigo-600" />
-                  <span>รูปแบบการตรวจ: ตรวจพิจารณาอนุมัติ / ส่งกลับแก้ไข (ไม่คิดคะแนน)</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEvaluationType('rubric_score')}
-                  className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
-                >
-                  ต้องการให้คะแนนคลิกที่นี่
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                เอกสารประเภท <strong>&ldquo;{plan.plan_type}&rdquo;</strong> ถูกกำหนดให้ตรวจแบบอนุมัติการใช้งานโดยไม่ต้องกรอกคะแนนรูบริก ท่านสามารถเลือกผลการพิจารณาด้านบนและพิมพ์ข้อเสนอแนะได้ทันที (หรือคลิกปุ่มด้านบนเพื่อประเมินรูบริก 100 คะแนน)
-              </p>
-            </div>
-          ) : (
-            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Award className="w-4 h-4 text-indigo-600" />
-                  {isResearch ? 'เกณฑ์การประเมินคุณภาพงานวิจัยในชั้นเรียน (5 ด้าน)' : 'เกณฑ์การประเมินคุณภาพแผน (5 ด้าน)'}
-                </h4>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEvaluationType('approval_only')}
-                    className="text-[10px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
-                  >
-                    สลับเป็นตรวจแค่อนุมัติ
-                  </button>
-                  <div className="text-xs font-bold px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg">
-                    คะแนนรวม: {totalRubricScore}%
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2.5 pt-1 text-xs">
-                {(isResearch
-                  ? [
-                      { key: 'standards' as const, label: '1. ความชัดเจนของสภาพปัญหาและความสำคัญของประเด็นการวิจัย' },
-                      { key: 'activities' as const, label: '2. วัตถุประสงค์และกลุ่มเป้าหมายนักเรียนที่ชัดเจนและสอดคล้อง' },
-                      { key: 'media' as const, label: '3. นวัตกรรม/วิธีดำเนินการวิจัยและการจัดกิจกรรมแก้ปัญหา' },
-                      { key: 'assessment' as const, label: '4. เครื่องมือการวิจัยและการเก็บรวบรวมข้อมูลตามสภาพจริง' },
-                      { key: 'recording' as const, label: '5. การสรุปผล ประโยชน์ และการสะท้อนคิดเพื่อพัฒนาการเรียนรู้' },
-                    ]
-                  : [
-                      { key: 'standards' as const, label: '1. ความสอดคล้องของมาตรฐานการเรียนรู้และตัวชี้วัด' },
-                      { key: 'activities' as const, label: '2. การจัดกิจกรรมการเรียนรู้เชิงรุก (Active Learning)' },
-                      { key: 'media' as const, label: '3. สื่อ นวัตกรรม เทคโนโลยี และแหล่งเรียนรู้' },
-                      { key: 'assessment' as const, label: '4. เครื่องมือการวัดผลและประเมินผลตามสภาพจริง' },
-                      { key: 'recording' as const, label: '5. บันทึกผลหลังสอนและการสะท้อนคิด (Reflection)' },
-                    ]
-                ).map((item) => (
-                  <div
-                    key={item.key}
-                    className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200/60"
-                  >
-                    <span className="text-slate-700 font-medium">{item.label}</span>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((score) => (
+                      return (
                         <button
+                          key={idx}
                           type="button"
-                          key={score}
-                          onClick={() => updateRubric(item.key, score)}
-                          className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${
-                            rubrics[item.key] >= score
-                              ? 'bg-amber-400 text-slate-900 shadow-sm'
-                              : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                          onClick={() => {
+                            setActiveFileIndex(idx);
+                            setIsSplitView(true);
+                          }}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-2 border cursor-pointer ${
+                            isSelected
+                              ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-indigo-500/30'
+                              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
                           }`}
                         >
-                          {score}
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                            isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <span className="truncate max-w-[130px]">{file.file_name}</span>
+                          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                            isApproved
+                              ? isSelected ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'
+                              : isSelected ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {isApproved ? `✓ ผ่าน (${score}%)` : `⚠️ แก้ไข (${score}%)`}
+                          </span>
                         </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Active File Detailed Review Box */}
+                {(() => {
+                  const currentReview = fileReviews[activeFileIndex] || fileReviews[0];
+                  const currentFile = attachedFiles[activeFileIndex] || attachedFiles[0];
+                  const isCurrentApproved = currentReview?.status === 'approved';
+                  const currentScores = currentReview?.rubric_scores || rubrics;
+                  const currentScorePercent = currentReview?.total_score || calcRubricScore(currentScores);
+
+                  return (
+                    <div className="p-4 sm:p-5 rounded-2xl border-2 border-indigo-200/80 bg-white shadow-xs space-y-4">
+                      {/* Active File Header */}
+                      <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-indigo-600 text-white">
+                              ไฟล์ที่ {activeFileIndex + 1}
+                            </span>
+                            <span className="text-xs font-bold text-slate-800 truncate">
+                              {currentFile?.file_name}
+                            </span>
+                          </div>
+                          {currentFile?.file_size && (
+                            <span className="text-[11px] text-slate-400 font-mono">
+                              ขนาดไฟล์: {currentFile.file_size}
+                            </span>
+                          )}
+                        </div>
+                        <a
+                          href={currentFile?.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shrink-0"
+                        >
+                          <span>เปิดดูเต็มจอ</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+
+                      {/* File Decision: Approve vs Needs Revision */}
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
+                          ผลการตรวจไฟล์นี้ <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateFileStatus(activeFileIndex, 'approved')}
+                            className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                              isCurrentApproved
+                                ? 'border-emerald-500 bg-emerald-50/80 text-emerald-950 shadow-xs'
+                                : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              isCurrentApproved ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                            }`}>
+                              {isCurrentApproved && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                            <div>
+                              <div className="text-xs sm:text-sm font-bold flex items-center gap-1.5 text-emerald-950">
+                                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>✅ ให้ผ่านไฟล์นี้ (Approved)</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                ไฟล์นี้มีความสมบูรณ์ สอดคล้องกับมาตรฐาน
+                              </p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateFileStatus(activeFileIndex, 'needs_revision')}
+                            className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                              !isCurrentApproved
+                                ? 'border-rose-500 bg-rose-50/80 text-rose-950 shadow-xs'
+                                : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              !isCurrentApproved ? 'border-rose-600 bg-rose-600' : 'border-slate-300'
+                            }`}>
+                              {!isCurrentApproved && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                            <div>
+                              <div className="text-xs sm:text-sm font-bold flex items-center gap-1.5 text-rose-950">
+                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                                <span>⚠️ ตีกลับให้แก้ไฟล์นี้ (Revise)</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                ไฟล์นี้ต้องปรับปรุงแก้ไขตามข้อเสนอแนะ
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* File Rubric Scoring (5 Criteria) */}
+                      {!isApprovalOnly && (
+                        <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3.5 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                              <Award className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>เกณฑ์การประเมินรูบริกสำหรับไฟล์นี้ (5 ด้าน)</span>
+                            </h5>
+                            <span className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-800 font-mono">
+                              คะแนนไฟล์นี้: {currentScorePercent}%
+                            </span>
+                          </div>
+
+                          <div className="space-y-2 pt-1 text-xs">
+                            {rubricCriteria.map((item) => (
+                              <div
+                                key={item.key}
+                                className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200/70"
+                              >
+                                <span className="text-slate-700 font-medium text-[11px] sm:text-xs pr-2">
+                                  {item.label}
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {[1, 2, 3, 4, 5].map((score) => (
+                                    <button
+                                      type="button"
+                                      key={score}
+                                      onClick={() => handleUpdateFileRubric(activeFileIndex, item.key, score)}
+                                      className={`w-7 h-7 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                                        (currentScores[item.key] || 5) >= score
+                                          ? 'bg-amber-400 text-slate-900 shadow-2xs ring-1 ring-amber-500/20'
+                                          : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                                      }`}
+                                    >
+                                      {score}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* File Specific Feedback */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>ข้อเสนอแนะเฉพาะไฟล์ที่ {activeFileIndex + 1}</span>
+                          </label>
+                          <span className="text-[11px] text-slate-400">
+                            (ข้อเสนอแนะนี้จะถูกส่งให้ครูทราบแยกรายไฟล์)
+                          </span>
+                        </div>
+
+                        {/* Quick Presets for this file */}
+                        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                          <span className="text-[10px] text-slate-400 font-semibold shrink-0">คลิกด่วน:</span>
+                          {[
+                            '✓ เนื้อหาในไฟล์นี้ถูกต้อง ครบถ้วนตามมาตรฐาน',
+                            '⚠️ ขอให้ปรับปรุงเกณฑ์การวัดและประเมินผลรูบริกในไฟล์นี้',
+                            '⚠️ ขอให้ระบุรายละเอียดกิจกรรม Active Learning เพิ่มเติม',
+                            '⚠️ ไม่สามารถเปิดดูไฟล์นี้ได้เนื่องจากยังไม่ได้เปิดสิทธิ์แชร์',
+                          ].map((pst, pIdx) => (
+                            <button
+                              key={pIdx}
+                              type="button"
+                              onClick={() => {
+                                const current = currentReview?.comment || '';
+                                handleUpdateFileComment(
+                                  activeFileIndex,
+                                  current ? `${current}\n${pst}` : pst
+                                );
+                              }}
+                              className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-900 border border-slate-200 transition-colors cursor-pointer text-left truncate max-w-[200px]"
+                              title={pst}
+                            >
+                              {pst}
+                            </button>
+                          ))}
+                        </div>
+
+                        <textarea
+                          rows={2}
+                          value={currentReview?.comment || ''}
+                          onChange={(e) => handleUpdateFileComment(activeFileIndex, e.target.value)}
+                          placeholder={`ระบุข้อคิดเห็นหรือสิ่งที่ควรแก้ไขเฉพาะไฟล์ที่ ${activeFileIndex + 1}...`}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* All-Files Summary Table (สรุปผลการตรวจทุกไฟล์ ณ ขณะนี้) */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>ตารางสรุปผลการตรวจทุกไฟล์ ({attachedFiles.length} ไฟล์)</span>
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      ผ่าน {fileReviews.filter((f) => f.status === 'approved').length}/{attachedFiles.length} ไฟล์
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs bg-white rounded-xl border border-slate-200 overflow-hidden">
+                      <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-2.5 w-12 text-center">ลำดับ</th>
+                          <th className="p-2.5">ชื่อไฟล์</th>
+                          <th className="p-2.5 w-28 text-center">สถานะ</th>
+                          {!isApprovalOnly && <th className="p-2.5 w-20 text-center">คะแนน</th>}
+                          <th className="p-2.5">ข้อเสนอแนะเฉพาะไฟล์</th>
+                          <th className="p-2.5 w-16 text-center">ตรวจ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {attachedFiles.map((file, idx) => {
+                          const fr = fileReviews[idx] || fileReviews[0];
+                          const isApproved = fr?.status === 'approved';
+                          const score = fr?.total_score || (fr?.rubric_scores ? calcRubricScore(fr.rubric_scores) : 100);
+
+                          return (
+                            <tr
+                              key={idx}
+                              className={`hover:bg-slate-50/80 transition-colors ${
+                                activeFileIndex === idx ? 'bg-indigo-50/40' : ''
+                              }`}
+                            >
+                              <td className="p-2.5 text-center font-bold text-slate-500 font-mono">{idx + 1}</td>
+                              <td className="p-2.5 font-medium text-slate-800 max-w-[180px] truncate" title={file.file_name}>
+                                {file.file_name}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  isApproved
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : 'bg-rose-100 text-rose-800 border border-rose-300'
+                                }`}>
+                                  {isApproved ? '✓ ผ่าน' : '⚠️ ตีกลับแก้ไข'}
+                                </span>
+                              </td>
+                              {!isApprovalOnly && (
+                                <td className="p-2.5 text-center font-mono font-bold text-slate-700">
+                                  {score}%
+                                </td>
+                              )}
+                              <td className="p-2.5 text-slate-600 text-[11px] truncate max-w-[200px]" title={fr?.comment || '-'}>
+                                {fr?.comment || <span className="text-slate-300 italic">-</span>}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveFileIndex(idx);
+                                    setIsSplitView(true);
+                                  }}
+                                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                                >
+                                  แก้ไข
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Overall Conclusion Notice */}
+                  {fileReviews.some((f) => f.status === 'needs_revision') ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs text-amber-900">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>
+                        มี <strong>{fileReviews.filter((f) => f.status === 'needs_revision').length} ไฟล์</strong> ที่ต้องปรับปรุงแก้ไข ระบบจึงตั้งสถานะภาพรวมของทั้งคำขอเป็น <strong>&ldquo;ส่งกลับเพื่อปรับปรุงแก้ไข&rdquo;</strong> โดยอัตโนมัติ
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-950 font-medium">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        เอกสารทุกไฟล์ (<strong>{attachedFiles.length} ไฟล์</strong>) ผ่านเกณฑ์การประเมินเรียบร้อยแล้ว สถานะภาพรวม: <strong>&ldquo;อนุมัติให้ใช้จัดการเรียนรู้ได้&rdquo;</strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Overall Submission Status Selection (Overrides allowed) */}
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
+                    สถานะภาพรวมของคำขอ <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                    <label
+                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        status === 'approved'
+                          ? 'border-emerald-500 bg-emerald-50/80 text-emerald-900 shadow-sm'
+                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="review_status"
+                        value="approved"
+                        checked={status === 'approved'}
+                        onChange={() => setStatus('approved')}
+                        className="hidden"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          status === 'approved' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                        }`}
+                      >
+                        {status === 'approved' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold flex items-center gap-1.5">
+                          <CheckCircle className="w-4 h-4 text-emerald-600" />
+                          {isResearch ? 'อนุมัติ / เห็นชอบประเด็นการวิจัย' : 'อนุมัติให้ใช้จัดการเรียนรู้ได้'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {isResearch
+                            ? 'ประเด็นการวิจัยหรือรายงานมีความสมบูรณ์ สอดคล้องกับเป้าหมายพัฒนาผู้เรียน'
+                            : 'แผนมีความสมบูรณ์ สอดคล้องกับหลักสูตร'}
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        status === 'needs_revision'
+                          ? 'border-amber-500 bg-amber-50/80 text-amber-900 shadow-sm'
+                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="review_status"
+                        value="needs_revision"
+                        checked={status === 'needs_revision'}
+                        onChange={() => setStatus('needs_revision')}
+                        className="hidden"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          status === 'needs_revision' ? 'border-amber-600 bg-amber-600' : 'border-slate-300'
+                        }`}
+                      >
+                        {status === 'needs_revision' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          ส่งกลับเพื่อปรับปรุงแก้ไข
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          ต้องปรับปรุงตามข้อเสนอแนะของไฟล์ที่ถูกตีกลับ
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* =========================================================================
+                 SINGLE-FILE SUBMISSIONS: STANDARD SINGLE-FILE RUBRIC & REVIEW UI
+                 ========================================================================= */
+              <>
+                {/* Status Selection */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                    ผลการพิจารณาตรวจสอบ <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                    <label
+                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        status === 'approved'
+                          ? 'border-emerald-500 bg-emerald-50/80 text-emerald-900 shadow-sm'
+                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="review_status"
+                        value="approved"
+                        checked={status === 'approved'}
+                        onChange={() => setStatus('approved')}
+                        className="hidden"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          status === 'approved' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                        }`}
+                      >
+                        {status === 'approved' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold flex items-center gap-1.5">
+                          <CheckCircle className="w-4 h-4 text-emerald-600" />
+                          {isResearch ? 'อนุมัติ / เห็นชอบประเด็นการวิจัย' : 'อนุมัติให้ใช้จัดการเรียนรู้ได้'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {isResearch
+                            ? 'ประเด็นการวิจัยหรือรายงานมีความสมบูรณ์ สอดคล้องกับเป้าหมายพัฒนาผู้เรียน'
+                            : 'แผนมีความสมบูรณ์ สอดคล้องกับหลักสูตร'}
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        status === 'needs_revision'
+                          ? 'border-amber-500 bg-amber-50/80 text-amber-900 shadow-sm'
+                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="review_status"
+                        value="needs_revision"
+                        checked={status === 'needs_revision'}
+                        onChange={() => setStatus('needs_revision')}
+                        className="hidden"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          status === 'needs_revision' ? 'border-amber-600 bg-amber-600' : 'border-slate-300'
+                        }`}
+                      >
+                        {status === 'needs_revision' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          ส่งกลับเพื่อปรับปรุงแก้ไข
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          ต้องปรับปรุงตามข้อเสนอแนะ
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Custom status selector for admin */}
+                  <div className="mt-3 flex items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>หรือระบุสถานะอื่นตามที่แอดมินกำหนด:</span>
+                    </span>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-bold bg-white text-slate-800 shadow-2xs focus:ring-1 focus:ring-indigo-500"
+                    >
+                      {allStatuses.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.label} ({st.id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {status === 'approved' && (
+                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-950 font-medium">
+                      <span className="text-base">📁</span>
+                      <div>
+                        <span className="font-bold text-emerald-900">สำรองไฟล์เข้า Google Drive อัตโนมัติ:</span>
+                        <span className="text-emerald-800 ml-1">
+                          เมื่อกดบันทึกผล ระบบจะคัดลอกไฟล์สำเนาไปเก็บในโฟลเดอร์ <strong className="font-mono bg-white px-1.5 py-0.5 rounded border border-emerald-300 text-emerald-950">ตรวจแล้ว/{plan.plan_type}_{plan.branch || (teachers?.find(t => t.Teacher_ID === plan.teacher_id)?.branch) || plan.learning_area}</strong> ใน Google Drive ทันที
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Rubric Evaluation OR Approval-Only Notice */}
+                {isApprovalOnly ? (
+                  <div className="bg-indigo-50/70 border border-indigo-200/90 rounded-2xl p-4 text-xs text-indigo-950 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 font-bold text-indigo-900">
+                        <CheckCircle className="w-4 h-4 text-indigo-600" />
+                        <span>รูปแบบการตรวจ: ตรวจพิจารณาอนุมัติ / ส่งกลับแก้ไข (ไม่คิดคะแนน)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEvaluationType('rubric_score')}
+                        className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
+                      >
+                        ต้องการให้คะแนนคลิกที่นี่
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      เอกสารประเภท <strong>&ldquo;{plan.plan_type}&rdquo;</strong> ถูกกำหนดให้ตรวจแบบอนุมัติการใช้งานโดยไม่ต้องกรอกคะแนนรูบริก ท่านสามารถเลือกผลการพิจารณาด้านบนและพิมพ์ข้อเสนอแนะได้ทันที (หรือคลิกปุ่มด้านบนเพื่อประเมินรูบริก 100 คะแนน)
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-indigo-600" />
+                        {isResearch ? 'เกณฑ์การประเมินคุณภาพงานวิจัยในชั้นเรียน (5 ด้าน)' : 'เกณฑ์การประเมินคุณภาพแผน (5 ด้าน)'}
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEvaluationType('approval_only')}
+                          className="text-[10px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                        >
+                          สลับเป็นตรวจแค่อนุมัติ
+                        </button>
+                        <div className="text-xs font-bold px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg">
+                          คะแนนรวม: {totalRubricScore}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5 pt-1 text-xs">
+                      {rubricCriteria.map((item) => (
+                        <div
+                          key={item.key}
+                          className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200/60"
+                        >
+                          <span className="text-slate-700 font-medium">{item.label}</span>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((score) => (
+                              <button
+                                type="button"
+                                key={score}
+                                onClick={() => updateRubric(item.key, score)}
+                                className={`w-7 h-7 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                                  rubrics[item.key] >= score
+                                    ? 'bg-amber-400 text-slate-900 shadow-sm'
+                                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                                }`}
+                              >
+                                {score}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )}
+              </>
+            )}
 
           {/* Comment & Feedback */}
           <div>
@@ -1098,7 +1795,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
             <span>{currentStatusObj?.label || (status === 'approved' ? 'อนุมัติ' : status === 'needs_revision' ? 'ส่งกลับแก้ไข' : status)}</span>
             {!isApprovalOnly && (
               <span className="font-mono text-[11px] bg-white/70 px-1 rounded ml-1">
-                {totalRubricScore}%
+                {effectiveTotalScore}%
               </span>
             )}
           </span>
@@ -1150,7 +1847,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
             reviewer,
             statusLabel: currentStatusObj?.label || (status === 'approved' ? 'อนุมัติ' : status === 'needs_revision' ? 'ส่งกลับแก้ไข' : status),
             comment: comment.trim(),
-            rubricScore: isApprovalOnly ? undefined : totalRubricScore,
+            rubricScore: isApprovalOnly ? undefined : effectiveTotalScore,
           }).subject
         }
         defaultHtml={
@@ -1159,7 +1856,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
             reviewer,
             statusLabel: currentStatusObj?.label || (status === 'approved' ? 'อนุมัติ' : status === 'needs_revision' ? 'ส่งกลับแก้ไข' : status),
             comment: comment.trim(),
-            rubricScore: isApprovalOnly ? undefined : totalRubricScore,
+            rubricScore: isApprovalOnly ? undefined : effectiveTotalScore,
           }).html
         }
         defaultPlainText={
@@ -1168,7 +1865,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
             reviewer,
             statusLabel: currentStatusObj?.label || (status === 'approved' ? 'อนุมัติ' : status === 'needs_revision' ? 'ส่งกลับแก้ไข' : status),
             comment: comment.trim(),
-            rubricScore: isApprovalOnly ? undefined : totalRubricScore,
+            rubricScore: isApprovalOnly ? undefined : effectiveTotalScore,
           }).plainText
         }
         categoryTitle="ส่งผลการตรวจเอกสารผ่านเมลวิชาการ"

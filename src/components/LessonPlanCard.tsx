@@ -98,6 +98,24 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
     return list;
   }, [plan.notes, plan.file_url, plan.file_name]);
 
+  // Extract per-file review results (Form B)
+  const planFileReviews = React.useMemo(() => {
+    if (plan.file_reviews && Array.isArray(plan.file_reviews) && plan.file_reviews.length > 0) {
+      return plan.file_reviews;
+    }
+    if (plan.notes) {
+      try {
+        const parsed = JSON.parse(plan.notes);
+        if (parsed && Array.isArray(parsed._file_reviews) && parsed._file_reviews.length > 0) {
+          return parsed._file_reviews;
+        }
+      } catch {}
+    }
+    return null;
+  }, [plan.file_reviews, plan.notes]);
+
+  const [showFileReviewBreakdown, setShowFileReviewBreakdown] = React.useState(false);
+
   // Timeliness & Late Status calculation
   const timeliness = checkSubmissionTimeliness(plan.plan_type, plan.submitted_at, deadlineConfigs);
   const isLate = plan.is_late !== undefined ? plan.is_late : timeliness.isLate;
@@ -359,6 +377,93 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
               ข้อเสนอแนะ ({plan.reviewer_name || 'ฝ่ายวิชาการ'}):
             </span>
             <p className="line-clamp-2 text-[11px]">{plan.review_comment}</p>
+          </div>
+        )}
+
+        {/* Form B: Per-file Review Summary Chips & Collapsible Details */}
+        {planFileReviews && planFileReviews.length > 1 && (
+          <div className="mt-2.5 rounded-xl border border-indigo-100 bg-indigo-50/50 p-2.5 text-xs space-y-2">
+            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+              <span className="font-bold text-indigo-950 flex items-center gap-1.5 text-[11px]">
+                <Award className="w-3.5 h-3.5 text-indigo-600" />
+                <span>
+                  ผลตรวจแยกรายไฟล์ ({planFileReviews.filter((f) => f.status === 'approved').length}/{planFileReviews.length} ไฟล์ผ่าน)
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFileReviewBreakdown(!showFileReviewBreakdown)}
+                className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 underline flex items-center gap-0.5 cursor-pointer"
+              >
+                <span>{showFileReviewBreakdown ? 'ย่อผลตรวจ' : 'ดูคะแนนรายไฟล์'}</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showFileReviewBreakdown ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+
+            {/* Quick status chips */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {planFileReviews.map((fr, idx) => {
+                const isApp = fr.status === 'approved';
+                return (
+                  <span
+                    key={idx}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                      isApp
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                    }`}
+                    title={`${fr.file_name}: ${isApp ? 'ผ่าน' : 'ส่งกลับแก้ไข'}${fr.comment ? ` - ${fr.comment}` : ''}`}
+                  >
+                    <span>{isApp ? '✓' : '⚠️'} ไฟล์ {idx + 1}</span>
+                    {fr.total_score !== undefined && (
+                      <span className="font-mono text-[9px] opacity-80">({fr.total_score}%)</span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+
+            {/* Detailed per-file table when expanded */}
+            {showFileReviewBreakdown && (
+              <div className="pt-2 border-t border-indigo-100/80 space-y-1.5 animate-in fade-in">
+                {planFileReviews.map((fr, idx) => {
+                  const isApp = fr.status === 'approved';
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-2 rounded-lg border text-[11px] ${
+                        isApp
+                          ? 'bg-white/90 border-emerald-200/80 text-emerald-950'
+                          : 'bg-rose-50/90 border-rose-200 text-rose-950 ring-1 ring-rose-300/40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                            isApp ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                          }`}>
+                            {isApp ? '✓ ผ่าน' : '⚠️ ตีกลับ'}
+                          </span>
+                          <span className="font-bold truncate max-w-[180px]">
+                            {idx + 1}. {fr.file_name}
+                          </span>
+                        </div>
+                        {fr.total_score !== undefined && (
+                          <span className="font-mono font-bold text-[10px] text-slate-700 shrink-0">
+                            {fr.total_score}%
+                          </span>
+                        )}
+                      </div>
+                      {fr.comment && (
+                        <p className="text-[10px] text-slate-600 mt-1 italic pl-1 border-l-2 border-slate-300 line-clamp-2">
+                          ข้อเสนอแนะ: {fr.comment}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

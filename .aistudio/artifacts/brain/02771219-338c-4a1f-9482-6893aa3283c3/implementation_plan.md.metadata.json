@@ -1,6 +1,6 @@
 {
-  "summary":  "แผนการพัฒนาฟีเจอร์ปุ่มสร้างและคัดลอก Prompt สำหรับส่งให้ AI เจนเนอเรตภาพอินโฟกราฟิก (1-Click Copy AI Infographic Prompt) โดยดึงข้อมูลสถิติจริงของ 8 กลุ่มสาระการเรียนรู้ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์ ในสไตล์ทางการและอัตลักษณ์โรงเรียนวิทยาศาสตร์",
-  "updatedAt":  "2026-10-29T09:40:06.047491327Z",
+  "summary":  "Implemented Form B (Per-file Rubric Evaluation & Individual Approval/Revision) for multi-file submissions. Reviewers can now evaluate rubric scores (5 dimensions, 100%) and select approval or revision per file, with auto-calculated overall status and comments. Teachers can view per-file results on cards and when resubmitting.",
+  "updatedAt":  "2026-11-11T09:11:08.409463175Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

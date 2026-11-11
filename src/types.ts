@@ -261,6 +261,22 @@ export interface LessonPlan {
   stage_reviews?: StageReviewRecord[];
   assigned_reviewer_id?: string;
   assigned_reviewer_name?: string;
+  // Per-file individual rubric & review evaluation
+  file_reviews?: FileReviewResult[];
+}
+
+export interface FileReviewResult {
+  file_index: number;
+  file_name: string;
+  file_url: string;
+  file_size?: string;
+  status: 'approved' | 'needs_revision' | 'pending';
+  rubric_scores?: RubricScore;
+  total_score?: number; // 0 - 100%
+  comment?: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  reviewer_name?: string;
 }
 
 export interface SupabaseConfig {

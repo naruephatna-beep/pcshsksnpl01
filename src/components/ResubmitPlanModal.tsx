@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Loader2,
   RotateCcw,
+  Award,
 } from 'lucide-react';
 import { PdfPermissionNotice } from './PdfPermissionNotice';
 
@@ -30,6 +31,23 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
   const [isPermissionConfirmed, setIsPermissionConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Extract per-file reviews (Form B)
+  const fileReviews = React.useMemo(() => {
+    if (!plan) return null;
+    if (plan.file_reviews && Array.isArray(plan.file_reviews) && plan.file_reviews.length > 0) {
+      return plan.file_reviews;
+    }
+    if (plan.notes) {
+      try {
+        const parsed = JSON.parse(plan.notes);
+        if (parsed && Array.isArray(parsed._file_reviews) && parsed._file_reviews.length > 0) {
+          return parsed._file_reviews;
+        }
+      } catch {}
+    }
+    return null;
+  }, [plan]);
 
   // Sync fileUrl when plan changes
   React.useEffect(() => {
@@ -183,6 +201,61 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
               <p className="text-rose-900 bg-white/70 p-2.5 rounded-xl border border-rose-100 whitespace-pre-wrap leading-relaxed">
                 {plan.review_comment}
               </p>
+            </div>
+          )}
+
+          {/* Form B: Per-file Review Breakdown (Shows which files passed and which need revision) */}
+          {fileReviews && fileReviews.length > 1 && (
+            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-amber-950 flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-amber-600" />
+                  <span>ผลตรวจแยกรายไฟล์ที่ส่งมา ({fileReviews.filter((f) => f.status === 'approved').length}/{fileReviews.length} ไฟล์ผ่าน):</span>
+                </span>
+                <span className="text-[10px] text-amber-800 font-semibold">
+                  {fileReviews.filter((f) => f.status === 'needs_revision').length} ไฟล์ที่ต้องปรับปรุง
+                </span>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                {fileReviews.map((fr, idx) => {
+                  const isApp = fr.status === 'approved';
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-2.5 rounded-xl border text-xs flex flex-col gap-1 ${
+                        isApp
+                          ? 'bg-white/80 border-emerald-200 text-emerald-950'
+                          : 'bg-white border-rose-300 text-rose-950 shadow-2xs ring-1 ring-rose-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                              isApp ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                            }`}
+                          >
+                            {isApp ? '✓ ผ่าน' : '⚠️ ตีกลับแก้ไข'}
+                          </span>
+                          <span className="font-bold truncate text-slate-800">
+                            ไฟล์ {idx + 1}: {fr.file_name}
+                          </span>
+                        </div>
+                        {fr.total_score !== undefined && (
+                          <span className="font-mono font-bold text-slate-600 shrink-0">
+                            {fr.total_score}%
+                          </span>
+                        )}
+                      </div>
+                      {fr.comment && (
+                        <p className="text-[11px] text-slate-600 italic pl-1 border-l-2 border-slate-300">
+                          ข้อเสนอแนะ: {fr.comment}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
