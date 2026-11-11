@@ -25,6 +25,7 @@ import {
 import confetti from 'canvas-confetti';
 import { PdfPermissionNotice } from './PdfPermissionNotice';
 import { uploadPdfFileToGoogleDrive } from '../services/googleDriveService';
+import { getEffectiveSampleUrl, renderTextWithLinks } from './TeacherAssignmentNotification';
 
 interface SubmitPlanModalProps {
   currentTeacher: Teacher;
@@ -734,53 +735,73 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
 
                     {/* Sample Documents for this Plan Type */}
                     {(() => {
-                      const matchingTypeConfig = (deadlineConfigs || []).find((c) => c.name === item.planType);
-                      if (
-                        !matchingTypeConfig?.sample_url &&
-                        (!matchingTypeConfig?.example_documents || matchingTypeConfig.example_documents.length === 0)
-                      ) {
+                      const matchingTypeConfig = (deadlineConfigs || []).find(
+                        (c) => (c.name || '').trim().toLowerCase() === (item.planType || '').trim().toLowerCase()
+                      );
+                      if (!matchingTypeConfig) return null;
+
+                      const effectiveSample = getEffectiveSampleUrl(matchingTypeConfig);
+                      const exampleDocs = (matchingTypeConfig.example_documents || []).filter((d) => d && d.url);
+                      const hasSample = !!effectiveSample || exampleDocs.length > 0;
+                      const hasText = !!matchingTypeConfig.description || !!matchingTypeConfig.notes;
+
+                      if (!hasSample && !hasText) {
                         return null;
                       }
+
                       return (
-                        <div className="mt-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 space-y-2">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-sky-900 flex items-center gap-1.5">
+                        <div className="mt-2.5 p-3.5 rounded-2xl bg-gradient-to-r from-sky-50 via-indigo-50/40 to-blue-50 border border-sky-200 text-slate-800 space-y-2.5 shadow-2xs">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/60 pb-2">
+                            <span className="font-bold text-sky-950 flex items-center gap-1.5 text-xs sm:text-sm">
                               <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
-                              <span>เอกสารตัวอย่าง & แบบฟอร์มต้นแบบสำหรับ {item.planType}:</span>
+                              <span>เอกสารตัวอย่าง & คำชี้แจงสำหรับ {item.planType}:</span>
                             </span>
-                            <span className="text-[10px] text-sky-700 font-medium">คลิกเพื่อเปิดดูตัวอย่าง</span>
-                          </div>
-                          <div className="flex flex-wrap gap-2 pt-0.5">
-                            {matchingTypeConfig.sample_url && (
+                            {effectiveSample && (
                               <a
-                                href={
-                                  /^https?:\/\//i.test(matchingTypeConfig.sample_url)
-                                    ? matchingTypeConfig.sample_url
-                                    : `https://${matchingTypeConfig.sample_url}`
-                                }
+                                href={effectiveSample}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-colors shrink-0 cursor-pointer active:scale-95"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
                                 <span>{matchingTypeConfig.sample_title || 'เปิดดูตัวอย่างเอกสาร'}</span>
                               </a>
                             )}
-                            {(matchingTypeConfig.example_documents || [])
-                              .filter((d) => d.url)
-                              .map((doc, dIdx) => (
-                                <a
-                                  key={dIdx}
-                                  href={/^https?:\/\//i.test(doc.url) ? doc.url : `https://${doc.url}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5 text-sky-600" />
-                                  <span>{doc.title || `เอกสารตัวอย่าง ${dIdx + 2}`}</span>
-                                </a>
-                              ))}
                           </div>
+
+                          {matchingTypeConfig.description && (
+                            <div className="text-xs text-slate-700 leading-relaxed bg-white/80 p-2.5 rounded-xl border border-sky-100/80">
+                              <span className="font-bold text-sky-900 block mb-0.5">คำชี้แจงจากผู้ดูแลระบบ:</span>
+                              <div className="whitespace-pre-line">{renderTextWithLinks(matchingTypeConfig.description)}</div>
+                            </div>
+                          )}
+
+                          {matchingTypeConfig.notes && (
+                            <div className="text-xs text-amber-900 leading-relaxed bg-amber-50/90 p-2.5 rounded-xl border border-amber-200/70">
+                              <span className="font-bold text-amber-950 block mb-0.5">หมายเหตุ:</span>
+                              <div className="whitespace-pre-line">{renderTextWithLinks(matchingTypeConfig.notes)}</div>
+                            </div>
+                          )}
+
+                          {exampleDocs.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-0.5">
+                              {exampleDocs.map((doc, dIdx) => {
+                                const docUrl = /^https?:\/\//i.test(doc.url) ? doc.url : `https://${doc.url}`;
+                                return (
+                                  <a
+                                    key={dIdx}
+                                    href={docUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5 text-sky-600" />
+                                    <span>{doc.title || `เอกสารตัวอย่าง ${dIdx + 1}`}</span>
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       );
                     })()}

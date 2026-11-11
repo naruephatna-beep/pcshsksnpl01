@@ -12,6 +12,8 @@ import {
   Flame,
   X,
   Sparkles,
+  ExternalLink,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 interface DeadlineCountdownBannerProps {
@@ -119,6 +121,20 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
 
   const { config, isOverdue, days, hours, minutes, allCompleted } = targetInfo;
 
+  const sampleUrl = useMemo(() => {
+    if (config?.sample_url && config.sample_url.trim()) {
+      const u = config.sample_url.trim();
+      return /^https?:\/\//i.test(u) ? u : `https://${u}`;
+    }
+    const combined = `${config?.description || ''} ${config?.notes || ''}`;
+    const m = combined.match(/(https?:\/\/[^\s]+|docs\.google\.com[^\s]+|drive\.google\.com[^\s]+)/i);
+    if (m) {
+      const u = m[0].trim();
+      return /^https?:\/\//i.test(u) ? u : `https://${u}`;
+    }
+    return null;
+  }, [config]);
+
   const handleScrollToPending = () => {
     window.dispatchEvent(new CustomEvent('filter-assignments', { detail: { filter: 'pending' } }));
     if (onScrollToAssignments) {
@@ -207,6 +223,19 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
 
         {/* Right CTA Actions */}
         <div className="flex items-center gap-2 shrink-0 pt-1 md:pt-0">
+          {sampleUrl && (
+            <a
+              href={sampleUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3.5 py-2.5 bg-white hover:bg-slate-100 text-slate-900 rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer border border-amber-300"
+              title="เปิดดูเอกสารตัวอย่าง / แบบฟอร์มต้นแบบ"
+            >
+              <ExternalLink className="w-4 h-4 text-sky-600" />
+              <span>ดูตัวอย่าง</span>
+            </a>
+          )}
+
           {!allCompleted && !isAdmin && (
             <button
               onClick={handleScrollToPending}

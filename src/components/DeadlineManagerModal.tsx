@@ -444,6 +444,20 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       return;
     }
 
+    // Normalize or auto-extract sample_url from description if empty
+    let resolvedSampleUrl = taskModal.sample_url.trim() || undefined;
+    if (resolvedSampleUrl) {
+      if (!/^https?:\/\//i.test(resolvedSampleUrl)) {
+        resolvedSampleUrl = `https://${resolvedSampleUrl}`;
+      }
+    } else if (taskModal.description) {
+      const match = taskModal.description.match(/(https?:\/\/[^\s]+|docs\.google\.com[^\s]+|drive\.google\.com[^\s]+)/i);
+      if (match) {
+        const raw = match[0].trim();
+        resolvedSampleUrl = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+      }
+    }
+
     if (taskModal.isNew) {
       const id = `type_${Date.now()}`;
       const newItem: PlanTypeDeadlineConfig = {
@@ -460,7 +474,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
         is_active: taskModal.is_active,
         evaluation_type: taskModal.evaluation_type,
         sample_title: taskModal.sample_title.trim() || undefined,
-        sample_url: taskModal.sample_url.trim() || undefined,
+        sample_url: resolvedSampleUrl,
         fields: taskModal.useCustomForm && taskModal.fields.length > 0 ? taskModal.fields : undefined,
       };
 
@@ -487,7 +501,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
             is_active: taskModal.is_active,
             evaluation_type: taskModal.evaluation_type,
             sample_title: taskModal.sample_title.trim() || undefined,
-            sample_url: taskModal.sample_url.trim() || undefined,
+            sample_url: resolvedSampleUrl,
             fields: taskModal.useCustomForm && taskModal.fields.length > 0 ? taskModal.fields : undefined,
           };
         }
@@ -2192,6 +2206,48 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         />
                       </div>
                     </div>
+
+                    {/* Test link or auto-detect from description */}
+                    {taskModal.sample_url && taskModal.sample_url.trim() ? (
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <a
+                          href={
+                            /^https?:\/\//i.test(taskModal.sample_url.trim())
+                              ? taskModal.sample_url.trim()
+                              : `https://${taskModal.sample_url.trim()}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[11px] font-bold shadow-2xs transition-colors cursor-pointer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>ทดสอบเปิดลิงก์ตัวอย่างที่ใส่ไว้</span>
+                        </a>
+                        <span className="text-[10px] text-sky-700 font-medium">ครูจะเห็นปุ่ม &quot;เปิดดูตัวอย่างเอกสาร&quot; นี้ในหน้าส่งงาน</span>
+                      </div>
+                    ) : (
+                      (() => {
+                        const descMatch = (taskModal.description || '').match(
+                          /(https?:\/\/[^\s]+|docs\.google\.com[^\s]+|drive\.google\.com[^\s]+)/i
+                        );
+                        if (descMatch) {
+                          const detectedUrl = descMatch[0].trim();
+                          return (
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-sky-200 text-sky-900 text-[11px]">
+                              <span className="truncate max-w-[280px]">✨ พบลิงก์ในคำชี้แจง: {detectedUrl}</span>
+                              <button
+                                type="button"
+                                onClick={() => setTaskModal({ ...taskModal, sample_url: detectedUrl })}
+                                className="px-2 py-0.5 bg-sky-600 hover:bg-sky-700 text-white rounded font-bold cursor-pointer shrink-0 ml-2"
+                              >
+                                นำมาใส่ช่องนี้
+                              </button>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()
+                    )}
                   </div>
                 </div>
               ) : (

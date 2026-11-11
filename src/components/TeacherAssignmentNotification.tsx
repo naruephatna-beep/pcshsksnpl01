@@ -53,6 +53,51 @@ export interface AssignmentItem {
   deadlineFormatted: string;
 }
 
+/**
+ * Extracts effective sample url from config.sample_url or finds URLs in description / notes
+ */
+export const getEffectiveSampleUrl = (c?: PlanTypeDeadlineConfig | null): string | null => {
+  if (!c) return null;
+  if (c.sample_url && c.sample_url.trim()) {
+    const raw = c.sample_url.trim();
+    return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  }
+  const text = `${c.description || ''} ${c.notes || ''}`;
+  const match = text.match(/(https?:\/\/[^\s]+|docs\.google\.com[^\s]+|drive\.google\.com[^\s]+)/i);
+  if (match) {
+    const raw = match[0].trim();
+    return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  }
+  return null;
+};
+
+/**
+ * Parses URLs inside plain text and renders them as clickable links
+ */
+export const renderTextWithLinks = (text?: string) => {
+  if (!text) return null;
+  const parts = text.split(/(https?:\/\/[^\s]+|docs\.google\.com[^\s]+|drive\.google\.com[^\s]+)/gi);
+  return parts.map((part, i) => {
+    if (/(https?:\/\/[^\s]+|docs\.google\.com[^\s]+|drive\.google\.com[^\s]+)/i.test(part)) {
+      const href = /^https?:\/\//i.test(part) ? part : `https://${part}`;
+      return (
+        <a
+          key={i}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sky-600 hover:text-sky-800 underline font-semibold break-all inline-flex items-center gap-0.5 mx-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span>{part}</span>
+          <ExternalLink className="w-3 h-3 inline shrink-0" />
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificationProps> = ({
   currentTeacher,
   plans,
@@ -376,6 +421,8 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                 ? getPlanStatusInfo(submittedPlan.status, statusConfigs)
                 : null;
 
+              const effectiveSample = getEffectiveSampleUrl(config);
+
               return (
                 <div
                   key={config.id}
@@ -430,7 +477,7 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                       )}
                     </div>
 
-                    {/* Metadata line (Zero-Pill discipline: unboxed text with · separators) */}
+                    {/* Metadata line */}
                     <div className="flex items-center gap-2 text-xs text-slate-500 mb-2.5 flex-wrap">
                       <span>ภาคเรียนที่ {config.semester}/{config.academic_year}</span>
                       <span aria-hidden="true">·</span>
@@ -446,44 +493,40 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                     </div>
 
                     {config.description && (
-                      <p className="text-xs text-slate-600 mb-2.5 line-clamp-2 leading-relaxed">
-                        {config.description}
-                      </p>
+                      <div className="text-xs text-slate-600 mb-2.5 leading-relaxed break-words">
+                        {renderTextWithLinks(config.description)}
+                      </div>
                     )}
 
                     {config.notes && (
-                      <div className="p-2 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] text-amber-900 mb-3 flex items-start gap-1.5">
+                      <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] text-amber-900 mb-3 flex items-start gap-1.5 leading-relaxed break-words">
                         <Info className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                        <div>
-                          <strong>คำชี้แจง:</strong> {config.notes}
+                        <div className="min-w-0 flex-1">
+                          <strong>คำชี้แจง:</strong> {renderTextWithLinks(config.notes)}
                         </div>
                       </div>
                     )}
 
                     {/* Sample Documents / Templates preview for this assignment */}
-                    {(config.sample_url || (config.example_documents && config.example_documents.length > 0)) && (
-                      <div className="p-2.5 rounded-lg bg-sky-50/80 border border-sky-200 space-y-1.5 mb-3 text-xs">
+                    {(effectiveSample || (config.example_documents && config.example_documents.length > 0)) && (
+                      <div className="p-2.5 sm:p-3 rounded-xl bg-sky-50/90 border border-sky-200 space-y-2 mb-3 text-xs">
                         <div className="flex items-center justify-between text-sky-950 font-bold text-[11px]">
-                          <span className="flex items-center gap-1 text-sky-900">
+                          <span className="flex items-center gap-1.5 text-sky-900">
                             <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
                             <span>เอกสารตัวอย่าง & แบบฟอร์มต้นแบบ:</span>
                           </span>
-                          <span className="text-[10px] text-sky-600">คลิกเปิดดู</span>
+                          <span className="text-[10px] text-sky-600 font-semibold">คลิกเปิดดู</span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
-                          {config.sample_url && (
+                        <div className="flex flex-wrap gap-2 pt-0.5">
+                          {effectiveSample && (
                             <a
-                              href={
-                                /^https?:\/\//i.test(config.sample_url)
-                                  ? config.sample_url
-                                  : `https://${config.sample_url}`
-                              }
+                              href={effectiveSample}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-md text-[11px] font-semibold transition-colors shadow-2xs"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
                             >
-                              <ExternalLink className="w-3 h-3 text-sky-600" />
-                              <span>{config.sample_title || 'ดูตัวอย่างเอกสาร'}</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>{config.sample_title || 'เปิดดูตัวอย่างเอกสาร'}</span>
                             </a>
                           )}
                           {(config.example_documents || [])
@@ -494,7 +537,7 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                                 href={/^https?:\/\//i.test(doc.url) ? doc.url : `https://${doc.url}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-white hover:bg-sky-100 text-sky-900 border border-sky-200 rounded-md text-[10px] font-medium transition-colors"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-sky-100 text-sky-900 border border-sky-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
                               >
                                 <ExternalLink className="w-3 h-3 text-sky-600" />
                                 <span>{doc.title || `ตัวอย่าง ${dIdx + 2}`}</span>
@@ -602,6 +645,19 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                             </a>
                           )}
 
+                          {effectiveSample && (
+                            <a
+                              href={effectiveSample}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 transition-colors cursor-pointer"
+                              title="เปิดดูเอกสารตัวอย่าง / แบบฟอร์มต้นแบบ"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 text-sky-600" />
+                              <span>ดูตัวอย่าง</span>
+                            </a>
+                          )}
+
                           {onOpenReceipt && submittedPlan && (
                             <button
                               onClick={() => onOpenReceipt(submittedPlan)}
@@ -624,14 +680,29 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => onOpenSubmitForType(config.name)}
-                        className="w-full py-2.5 sm:py-3 px-4 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <UploadCloud className="w-4 h-4 text-slate-950" />
-                        <span>ส่งเอกสารนี้ ({config.name})</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
-                      </button>
+                      <div className="flex items-center gap-2 w-full">
+                        {effectiveSample && (
+                          <a
+                            href={effectiveSample}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="py-2.5 sm:py-3 px-3.5 rounded-xl text-xs font-bold bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-300 transition-colors shadow-2xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+                            title="เปิดดูเอกสารตัวอย่าง / แบบฟอร์มต้นแบบ"
+                          >
+                            <ExternalLink className="w-4 h-4 text-sky-600" />
+                            <span>ดูตัวอย่าง</span>
+                          </a>
+                        )}
+
+                        <button
+                          onClick={() => onOpenSubmitForType(config.name)}
+                          className="flex-1 py-2.5 sm:py-3 px-4 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <UploadCloud className="w-4 h-4 text-slate-950" />
+                          <span>ส่งเอกสารนี้ ({config.name})</span>
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
