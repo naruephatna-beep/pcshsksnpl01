@@ -83,7 +83,9 @@ import {
   DEFAULT_BRANCHES,
   DEFAULT_WORKFLOWS,
   getLocalDepartments,
+  saveLocalDepartments,
   getLocalBranches,
+  saveLocalBranches,
   saveBranches,
   getLocalWorkflows,
   getWorkflowForPlan,
@@ -275,9 +277,11 @@ export default function App() {
 
       if (deptRes?.data && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
         setDepartments(deptRes.data);
+        saveLocalDepartments(deptRes.data);
       }
       if (branchRes?.data && Array.isArray(branchRes.data) && branchRes.data.length > 0) {
         setBranches(branchRes.data);
+        saveLocalBranches(branchRes.data);
       }
       if (wfRes?.data && Array.isArray(wfRes.data) && wfRes.data.length > 0) {
         setWorkflows(wfRes.data);

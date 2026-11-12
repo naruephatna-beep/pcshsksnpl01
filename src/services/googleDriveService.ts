@@ -67,7 +67,7 @@ export async function saveGoogleDriveWebhookUrl(url: string): Promise<boolean> {
 
 export const STORAGE_KEY_GDRIVE_NAMING_PATTERN = 'pcshs_gdrive_naming_pattern';
 
-export const DEFAULT_NAMING_PATTERN = '{courseCode}_{teacherName}_{originalName}';
+export const DEFAULT_NAMING_PATTERN = '{originalName}_{courseCode}_{teacherName}';
 
 export interface NamingPreset {
   id: string;
@@ -79,18 +79,32 @@ export interface NamingPreset {
 
 export const NAMING_PRESETS: NamingPreset[] = [
   {
+    id: 'original_code_teacher',
+    label: 'ชื่อไฟล์เดิม + รหัสวิชา + ชื่อครู (แนะนำตามที่คุณครูต้องการ)',
+    pattern: '{originalName}_{courseCode}_{teacherName}',
+    example: 'แผนการสอนฟิสิกส์ม4_บทที่1_ว31101_นายสมชาย ใจดี.pdf',
+    description: 'นำชื่อไฟล์เดิมที่ครูตั้งมาขึ้นก่อน ตามด้วยรหัสวิชา และชื่อครูผู้สอน',
+  },
+  {
+    id: 'original_teacher',
+    label: 'ชื่อไฟล์เดิม + ชื่อครูผู้สอน',
+    pattern: '{originalName}_{teacherName}',
+    example: 'แผนการสอนฟิสิกส์ม4_บทที่1_นายสมชาย ใจดี.pdf',
+    description: 'นำชื่อไฟล์เดิมที่ครูตั้งมาขึ้นก่อน และต่อท้ายด้วยชื่อครูผู้สอน',
+  },
+  {
+    id: 'original_only',
+    label: 'ใช้ชื่อไฟล์เดิมที่ครูอัปโหลด 100% (ไม่เปลี่ยนชื่อ)',
+    pattern: '{originalName}',
+    example: 'แผนการสอนฟิสิกส์ม4_บทที่1.pdf',
+    description: 'ไม่เปลี่ยนแปลงชื่อไฟล์ ใช้ชื่อตามที่ครูตั้งมาเป๊ะๆ',
+  },
+  {
     id: 'code_teacher_original',
-    label: 'รหัสวิชา + ชื่อครู + ชื่อไฟล์เดิม (ตามที่ท่านเลือก)',
+    label: 'รหัสวิชา + ชื่อครู + ชื่อไฟล์เดิม',
     pattern: '{courseCode}_{teacherName}_{originalName}',
     example: 'ว31101_นายสมชาย ใจดี_แผนการสอนฟิสิกส์ม4_บทที่1.pdf',
     description: 'บันทึกโดยนำรหัสวิชา ตามด้วยชื่อครู และต่อด้วยชื่อไฟล์เดิมที่ครูตั้งมา',
-  },
-  {
-    id: 'teacher_original',
-    label: 'ชื่อครู + ชื่อไฟล์เดิมที่อัปโหลด',
-    pattern: '{teacherName}_{originalName}',
-    example: 'นายสมชาย ใจดี_แผนการสอนฟิสิกส์ม4_บทที่1.pdf',
-    description: 'นำชื่อครูมานำหน้า และต่อด้วยชื่อไฟล์เดิมที่ครูตั้งมา',
   },
   {
     id: 'academic_full',
@@ -105,13 +119,6 @@ export const NAMING_PRESETS: NamingPreset[] = [
     pattern: '[{teacherId}]_{teacherName}_{courseCode}_{assignmentName}_{date}',
     example: '[T001]_นายสมชาย ใจดี_ว31101_แผนการจัดการเรียนรู้_2026-11-11.pdf',
     description: 'มีทั้งรหัสครู รหัสวิชา และวันที่ส่ง',
-  },
-  {
-    id: 'original_only',
-    label: 'ใช้ชื่อไฟล์เดิมที่ครูอัปโหลด 100%',
-    pattern: '{originalName}',
-    example: 'แผนการสอนฟิสิกส์ม4_บทที่1.pdf',
-    description: 'ไม่เปลี่ยนแปลงชื่อไฟล์ ใช้ชื่อตามที่ครูตั้งมาเป๊ะๆ',
   },
 ];
 

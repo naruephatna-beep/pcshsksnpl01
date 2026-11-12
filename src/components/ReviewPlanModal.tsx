@@ -114,26 +114,68 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
     return null;
   }, [plan.notes]);
 
-  // Extract all attached files (single file from plan.file_url or multi-files from parsedFormFields._attachments)
+  // Extract all attached files (scanning _attachments, file_url, and any dynamic form values containing URLs/files)
   const attachedFiles = React.useMemo(() => {
     const list: { file_name: string; file_url: string; file_size?: string }[] = [];
+    const seenUrls = new Set<string>();
+
+    const addFile = (name: string, url: string, size?: string) => {
+      if (!url || url === '#' || url.trim() === '') return;
+      const cleanUrl = url.trim();
+      if (seenUrls.has(cleanUrl)) return;
+      seenUrls.add(cleanUrl);
+      list.push({
+        file_name: name || `ไฟล์แนบที่ ${list.length + 1}`,
+        file_url: cleanUrl,
+        file_size: size,
+      });
+    };
+
+    // 1. Check parsedFormFields._attachments
     if (parsedFormFields && Array.isArray(parsedFormFields._attachments) && parsedFormFields._attachments.length > 0) {
       parsedFormFields._attachments.forEach((att: any, idx: number) => {
-        if (att && att.file_url && att.file_url !== '#') {
-          list.push({
-            file_name: att.file_name || `ไฟล์แนบที่ ${idx + 1}`,
-            file_url: att.file_url,
-            file_size: att.file_size,
-          });
+        if (att && att.file_url) {
+          addFile(att.file_name || `ไฟล์แนบที่ ${idx + 1}`, att.file_url, att.file_size);
         }
       });
     }
-    if (list.length === 0 && plan.file_url && plan.file_url !== '#') {
-      list.push({
-        file_name: plan.file_name || 'ไฟล์เอกสารหลัก',
-        file_url: plan.file_url,
+
+    // 2. Check all other fields in parsedFormFields for file objects, arrays of files, or drive/pdf links
+    if (parsedFormFields && typeof parsedFormFields === 'object') {
+      Object.entries(parsedFormFields).forEach(([key, val]) => {
+        if (key === '_attachments' || key === '_file_reviews') return;
+        if (!val) return;
+
+        // If field value is an array of attachments
+        if (Array.isArray(val)) {
+          val.forEach((item: any, itemIdx: number) => {
+            if (item && typeof item === 'object' && item.file_url) {
+              addFile(item.file_name || `${key} (ไฟล์ ${itemIdx + 1})`, item.file_url, item.file_size);
+            } else if (typeof item === 'string' && (item.startsWith('http://') || item.startsWith('https://'))) {
+              addFile(`${key} (ไฟล์ ${itemIdx + 1})`, item);
+            }
+          });
+        } else if (typeof val === 'object' && (val as any).file_url) {
+          addFile((val as any).file_name || key, (val as any).file_url, (val as any).file_size);
+        } else if (typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://'))) {
+          // If the string is a URL to Google Drive, PDF, or cloud storage
+          if (val.includes('drive.google.com') || val.includes('.pdf') || val.includes('storage') || key.toLowerCase().includes('file') || key.toLowerCase().includes('link')) {
+            addFile(key, val);
+          }
+        }
       });
     }
+
+    // 3. Fallback to main plan.file_url if not yet added
+    if (plan.file_url && plan.file_url !== '#') {
+      if (list.length === 0) {
+        addFile(plan.file_name || 'ไฟล์เอกสารหลัก', plan.file_url);
+      } else if (!seenUrls.has(plan.file_url.trim())) {
+        // Add as primary or additional file
+        addFile(plan.file_name || 'ไฟล์หลัก', plan.file_url);
+      }
+    }
+
     return list;
   }, [parsedFormFields, plan.file_url, plan.file_name]);
 
@@ -677,22 +719,24 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
                 {/* Multi-file preview tabs if > 1 attachment */}
                 {attachedFiles.length > 1 && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 overflow-x-auto scrollbar-none border-t border-slate-800/80 bg-slate-900/90">
-                    <span className="text-[10px] text-slate-400 font-semibold shrink-0">เลือกไฟล์ดู:</span>
+                  <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700 border-t border-slate-800/80 bg-slate-900">
+                    <span className="text-[10px] text-amber-300 font-bold shrink-0 flex items-center gap-1">
+                      <span>ไฟล์แนบ ({attachedFiles.length} ไฟล์):</span>
+                    </span>
                     {attachedFiles.map((file, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => setActiveFileIndex(idx)}
-                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all shrink-0 flex items-center gap-1 cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
                           activeFileIndex === idx
-                            ? 'bg-amber-400 text-slate-950 shadow-xs ring-1 ring-white/20'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            ? 'bg-amber-400 text-slate-950 shadow-sm ring-2 ring-white/40'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
                         }`}
                         title={file.file_name}
                       >
-                        <FileText className="w-2.5 h-2.5" />
-                        <span className="max-w-[110px] truncate">{idx + 1}. {file.file_name}</span>
+                        <FileText className="w-3 h-3 shrink-0" />
+                        <span className="max-w-[140px] truncate">{idx + 1}. {file.file_name}</span>
                       </button>
                     ))}
                   </div>
@@ -1014,15 +1058,40 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
                 {/* File Navigation Tabs */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                      <span>เลือกไฟล์ที่กำลังตรวจ:</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>เลือกไฟล์ที่กำลังตรวจ ({attachedFiles.length} ไฟล์):</span>
                     </label>
-                    <span className="text-[11px] text-indigo-600 font-semibold">
-                      ไฟล์ที่ {activeFileIndex + 1} จาก {attachedFiles.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
+                        ไฟล์ที่ {activeFileIndex + 1} จาก {attachedFiles.length}
+                      </span>
+                      {attachedFiles.length > 1 && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={activeFileIndex === 0}
+                            onClick={() => setActiveFileIndex((prev) => Math.max(0, prev - 1))}
+                            className="px-2 py-0.5 rounded text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
+                            title="ไฟล์ก่อนหน้า"
+                          >
+                            ◀ ก่อนหน้า
+                          </button>
+                          <button
+                            type="button"
+                            disabled={activeFileIndex >= attachedFiles.length - 1}
+                            onClick={() => setActiveFileIndex((prev) => Math.min(attachedFiles.length - 1, prev + 1))}
+                            className="px-2 py-0.5 rounded text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer font-bold"
+                            title="ไฟล์ถัดไป"
+                          >
+                            ถัดไป ▶
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-0.5 scrollbar-thin scrollbar-thumb-slate-300">
                     {attachedFiles.map((file, idx) => {
                       const fr = fileReviews[idx] || fileReviews[0];
                       const isApproved = fr?.status === 'approved';
@@ -1048,7 +1117,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                           }`}>
                             {idx + 1}
                           </span>
-                          <span className="truncate max-w-[130px]">{file.file_name}</span>
+                          <span className="truncate max-w-[150px]">{file.file_name}</span>
                           <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
                             isApproved
                               ? isSelected ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'

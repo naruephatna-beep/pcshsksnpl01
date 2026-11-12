@@ -629,9 +629,9 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                         <div className="flex-1 min-w-0 space-y-1">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-bold text-slate-900">{p.label}</span>
-                            {p.id === 'code_teacher_original' && (
+                            {p.id === 'original_code_teacher' && (
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                                ★ แนะนำ (ใช้งานเป็นหลัก)
+                                ★ แนะนำ (เอาชื่อไฟล์เดิมขึ้นก่อน)
                               </span>
                             )}
                           </div>
