@@ -99,6 +99,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isSendingDirectEmail, setIsSendingDirectEmail] = useState(false);
   const [directMailStatus, setDirectMailStatus] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const parsedFormFields = React.useMemo(() => {
     if (!plan.notes) return null;
@@ -436,6 +437,26 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationError(null);
+
+    // Item 4: Enforce feedback when rejecting/needs_revision
+    const isOverallRevision = status === 'needs_revision';
+    const hasRejectedFiles = attachedFiles.length > 1 && fileReviews.some((f) => f.status === 'needs_revision');
+
+    if (isOverallRevision || hasRejectedFiles) {
+      const hasGeneralComment = comment.trim().length > 0;
+      const hasAnyFileComment =
+        attachedFiles.length > 1 &&
+        fileReviews.some((f) => f.status === 'needs_revision' && f.comment && f.comment.trim().length > 0);
+
+      if (!hasGeneralComment && !hasAnyFileComment) {
+        setValidationError(
+          '⚠️ ไม่สามารถบันทึกได้: กรุณาระบุข้อเสนอแนะหรือจุดที่ต้องปรับปรุงแก้ไข เพื่อให้คุณครูทราบแนวทางแก้ไข'
+        );
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     const now = new Date();
@@ -1586,18 +1607,32 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
               </>
             )}
 
+          {/* Validation Error Banner (Item 4) */}
+          {validationError && (
+            <div className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center gap-2.5 text-xs text-rose-800 font-bold shadow-xs animate-in fade-in">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+              <span>{validationError}</span>
+            </div>
+          )}
+
           {/* Comment & Feedback */}
           <div>
             <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <MessageSquare className="w-4 h-4 text-indigo-600" />
                 <span>ข้อเสนอแนะและข้อคิดเห็นของฝ่ายวิชาการ</span>
+                {(status === 'needs_revision' || fileReviews.some((f) => f.status === 'needs_revision')) && (
+                  <span className="text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                    * บังคับระบุเมื่อส่งกลับแก้ไข
+                  </span>
+                )}
               </label>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
                   onClick={() => {
                     setStatus('needs_revision');
+                    setValidationError(null);
                     setComment(
                       'ไม่สามารถเปิดไฟล์ PDF ได้เนื่องจากยังไม่ได้เปิดสิทธิ์แชร์เป็น "ทุกคนที่มีลิงก์" (Anyone with the link) กรุณาเข้าไปใน Google Drive คลิกขวาที่ไฟล์ > แชร์ > การเข้าถึงทั่วไปเปลี่ยนเป็น "ทุกคนที่มีลิงก์" แล้วกดส่งใหม่อีกครั้งครับ/ค่ะ'
                     );
@@ -1614,6 +1649,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                       type="button"
                       onClick={() => {
                         setStatus('approved');
+                        setValidationError(null);
                         setComment(
                           'เห็นชอบประเด็นและกรอบการวิจัยในชั้นเรียน มีความชัดเจนและเหมาะสม สามารถดำเนินกิจกรรมวิจัยเพื่อพัฒนาคุณภาพผู้เรียนตามแผนได้ครับ/ค่ะ'
                         );
@@ -1626,6 +1662,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                       type="button"
                       onClick={() => {
                         setStatus('needs_revision');
+                        setValidationError(null);
                         setComment(
                           'แนะนำให้นิยามตัวแปร นวัตกรรมที่ใช้แก้ปัญหา และเครื่องมือวัดผลให้ชัดเจนและสอดคล้องกับกลุ่มเป้าหมายยิ่งขึ้น แล้วส่งใหม่อีกครั้งครับ/ค่ะ'
                         );
@@ -1640,6 +1677,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                     type="button"
                     onClick={() => {
                       setStatus('approved');
+                      setValidationError(null);
                       setComment(
                         'แผนการจัดการเรียนรู้เชิงรุกมีความสมบูรณ์ จัดกิจกรรม Active Learning ได้น่าสนใจ สื่อและเครื่องมือวัดผลสอดคล้องกับตัวชี้วัด อนุมัติครับ/ค่ะ'
                       );
@@ -1652,6 +1690,37 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
               </div>
             </div>
 
+            {/* Quick Rejection Presets Bar (Shown prominently when needs_revision) */}
+            {(status === 'needs_revision' || fileReviews.some((f) => f.status === 'needs_revision')) && (
+              <div className="mb-2 p-2 rounded-xl bg-rose-50/70 border border-rose-200 text-xs space-y-1.5">
+                <span className="text-[11px] font-bold text-rose-900 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>คลิกเลือกเหตุผลการตีกลับด่วน (ช่วยกรรมการประหยัดเวลาพิมพ์):</span>
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    '⚠️ ขอให้ปรับปรุงและระบุกิจกรรมการเรียนรู้ Active Learning ให้ละเอียดขึ้น',
+                    '⚠️ ขอให้ระบุเกณฑ์การวัดและประเมินผลรูบริก (Rubric Assessment) ให้ชัดเจน',
+                    '⚠️ ไม่สามารถเปิดดูไฟล์เอกสารได้เนื่องจากติดสิทธิ์แชร์ (Google Drive)',
+                    '⚠️ เนื้อหาและใบงานยังไม่สอดคล้องกับตัวชี้วัดและมาตรฐานการเรียนรู้',
+                    '⚠️ แนบไฟล์เอกสารไม่ครบถ้วน ขอให้แนบใบงาน/สื่อประกอบการสอนเพิ่มเติม',
+                  ].map((rst, rIdx) => (
+                    <button
+                      key={rIdx}
+                      type="button"
+                      onClick={() => {
+                        setValidationError(null);
+                        handleAppendPreset(rst);
+                      }}
+                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-rose-100 text-rose-800 border border-rose-200 transition-colors cursor-pointer text-left shadow-2xs"
+                    >
+                      {rst}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Quick Feedback Presets for Fast 1-Click Commenting */}
             <div className="flex items-center gap-1.5 flex-wrap mb-2">
               <span className="text-[10px] text-slate-400 font-semibold shrink-0">ข้อความแนะนำ:</span>
@@ -1659,7 +1728,10 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => handleAppendPreset(pst)}
+                  onClick={() => {
+                    setValidationError(null);
+                    handleAppendPreset(pst);
+                  }}
                   className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-900 border border-slate-200/80 hover:border-purple-300 transition-colors cursor-pointer text-left truncate max-w-[220px]"
                   title={pst}
                 >
@@ -1670,9 +1742,20 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
             <textarea
               rows={3}
               value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="ระบุข้อเสนอแนะ จุดเด่น หรือสิ่งที่ควรเพิ่มเติมปรับปรุง เพื่อพัฒนาการจัดการเรียนรู้..."
-              className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+              onChange={(e) => {
+                setComment(e.target.value);
+                if (validationError) setValidationError(null);
+              }}
+              placeholder={
+                status === 'needs_revision' || fileReviews.some((f) => f.status === 'needs_revision')
+                  ? '⚠️ บังคับระบุ: แจ้งคุณครูว่าควรแก้ไขจุดใด เช่น ปรับกิจกรรม Active Learning, แนบรูบริก, หรือเปิดสิทธิ์ Drive...'
+                  : 'ระบุข้อเสนอแนะ จุดเด่น หรือสิ่งที่ควรเพิ่มเติมปรับปรุง เพื่อพัฒนาการจัดการเรียนรู้...'
+              }
+              className={`w-full px-3.5 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 ${
+                status === 'needs_revision' || fileReviews.some((f) => f.status === 'needs_revision')
+                  ? 'border-2 border-rose-300 bg-rose-50/20 focus:border-rose-500 focus:ring-rose-500/20'
+                  : 'border border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-600'
+              }`}
             />
 
             {/* 1-Click Academic Email Notification Option */}
