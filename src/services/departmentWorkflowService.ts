@@ -1388,21 +1388,33 @@ export function resolveReviewersForStage(
       } else {
         // own_group_only: ตรวจเฉพาะคนในสาขาของตนเอง
         if (submitterBranchHeadId) {
-          const head = allTeachers.find((t) => t.Teacher_ID === submitterBranchHeadId);
-          if (head) result = [head];
+          // If the submitter is the branch head themselves, escalate to Department Head to avoid self-review
+          if (submitterBranchHeadId === plan.teacher_id) {
+            if (submitterDeptHeadId && submitterDeptHeadId !== plan.teacher_id) {
+              const deptHead = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
+              if (deptHead) result = [deptHead];
+            }
+            if (result.length === 0) {
+              result = allTeachers.filter((t) => isTeacherAdmin(t));
+            }
+          } else {
+            const head = allTeachers.find((t) => t.Teacher_ID === submitterBranchHeadId);
+            if (head) result = [head];
+          }
         }
 
         if (result.length === 0 && planBranch) {
           const fallbackBranchHead = allTeachers.find(
             (t) =>
               (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase() &&
-              (isBranchHead(t) || t.role === 'head_of_branch')
+              (isBranchHead(t) || t.role === 'head_of_branch') &&
+              t.Teacher_ID !== plan.teacher_id
           );
           if (fallbackBranchHead) result = [fallbackBranchHead];
         }
 
-        // Fallback to department head if branch head not yet appointed
-        if (result.length === 0 && submitterDeptHeadId) {
+        // Fallback to department head if branch head not yet appointed or is self
+        if (result.length === 0 && submitterDeptHeadId && submitterDeptHeadId !== plan.teacher_id) {
           const deptHead = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
           if (deptHead) result = [deptHead];
         }
@@ -1429,15 +1441,26 @@ export function resolveReviewersForStage(
       } else {
         // own_group_only: ตรวจเฉพาะคนในกลุ่มสาระของตนเอง
         if (submitterDeptHeadId) {
-          const head = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
-          if (head) result = [head];
+          // If submitter is the department head themselves, escalate to school leadership / admin
+          if (submitterDeptHeadId === plan.teacher_id) {
+            const leaders = allTeachers.filter(
+              (t) =>
+                (isTeacherExecutive(t) || t.role === 'academic_director' || isTeacherAdmin(t)) &&
+                t.Teacher_ID !== plan.teacher_id
+            );
+            if (leaders.length > 0) result = leaders;
+          } else {
+            const head = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
+            if (head) result = [head];
+          }
         }
 
         if (result.length === 0) {
           const fallbackHead = allTeachers.find(
             (t) =>
               t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase() &&
-              (isDepartmentHead(t) || t.role === 'head_of_department')
+              (isDepartmentHead(t) || t.role === 'head_of_department') &&
+              t.Teacher_ID !== plan.teacher_id
           );
           if (fallbackHead) result = [fallbackHead];
         }

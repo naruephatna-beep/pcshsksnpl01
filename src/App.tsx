@@ -1346,16 +1346,14 @@ export default function App() {
     // 3. Check if this is the teacher's own plan
     const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
     if (isOwner) {
-      const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
-      const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
-      const isAdm = isTeacherAdmin(teacher);
       const isDirectlyAssigned = isSameTeacherIdOrName(
         plan.assigned_reviewer_id,
         plan.assigned_reviewer_name,
         teacher
       );
 
-      if (!isBranchHead && !isDeptHead && !isAdm && !isDirectlyAssigned) {
+      // A submitter cannot peer-review their own plan unless an admin explicitly forced direct assignment
+      if (!isDirectlyAssigned) {
         return false;
       }
     }
@@ -2807,6 +2805,44 @@ export default function App() {
               />
             )}
 
+            {/* Prominent Assigned Review Alert for Reviewers & Branch Heads */}
+            {!isAdmin && currentTeacher && assignedToMeCount > 0 && (
+              <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-indigo-700/60 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shrink-0 shadow-md">
+                    <UserCheck className="w-6 h-6 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm sm:text-base text-white">
+                        คุณครูมีเอกสารวิชาการที่ได้รับมอบหมายให้ตรวจ {assignedToMeCount} รายการ
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-xs font-black">
+                        รอตรวจ {assignedToMeCount} รายการ
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-indigo-200/90 mt-0.5">
+                      ในฐานะหัวหน้ากลุ่มสาขาวิชา / กรรมการผู้ตรวจตามขั้นตอนการประเมิน กรุณาตรวจสอบและบันทึกผลการตรวจ
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMainView('plans');
+                    setViewTab('assigned_to_me');
+                    const targetEl = document.getElementById('lesson-plans-section');
+                    if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap shrink-0"
+                >
+                  <FileCheck2 className="w-4 h-4 stroke-[2.5]" />
+                  <span>เปิดคิวตรวจเอกสารทันที ({assignedToMeCount})</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             {/* Dashboard Statistics (Collapsible for teachers to prevent cognitive overload, full for Admin) */}
             <div id="dashboard-stats-section" className="scroll-mt-20">
               {!isAdmin ? (
@@ -2895,8 +2931,9 @@ export default function App() {
                       ? 'bg-white text-amber-950 shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
+                  title="แผนการสอนและเอกสารของฉันที่ส่งไปแล้วและกำลังรอผู้ตรวจประเมิน"
                 >
-                  <span>รอตรวจ</span>
+                  <span>แผนของฉันที่รอตรวจ</span>
                   <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                   <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'submitted').length})</span>
                 </button>
@@ -2938,7 +2975,9 @@ export default function App() {
                   onClick={() => setViewTab('assigned_to_me')}
                   className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     viewTab === 'assigned_to_me'
-                      ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                      ? 'bg-indigo-600 text-white shadow-xs font-bold ring-2 ring-indigo-400'
+                      : assignedToMeCount > 0
+                      ? 'text-indigo-950 bg-amber-300 hover:bg-amber-400 font-bold shadow-xs'
                       : 'text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 font-semibold'
                   }`}
                   title="เอกสารของคณะครูที่มอบหมายให้ฉันเป็นผู้ตรวจ / ประเมิน"
@@ -2946,7 +2985,7 @@ export default function App() {
                   <UserCheck className="w-3.5 h-3.5" />
                   <span>เอกสารที่รอฉันตรวจ</span>
                   {assignedToMeCount > 0 ? (
-                    <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
+                    <span className="px-1.5 py-0.2 rounded-full bg-indigo-950 text-white font-black text-[10px]">
                       {assignedToMeCount}
                     </span>
                   ) : (

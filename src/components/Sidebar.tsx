@@ -333,7 +333,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <span className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                    <span>รอการตรวจ</span>
+                    <span>แผนของฉันที่รอตรวจ</span>
                   </span>
                 </button>
 

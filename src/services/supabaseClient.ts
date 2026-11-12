@@ -363,6 +363,18 @@ export function getLocalPlans(): LessonPlan[] {
     try {
       const parsed: LessonPlan[] = JSON.parse(raw);
       if (Array.isArray(parsed)) {
+        // Auto-seed missing standard initial plans that were not explicitly deleted
+        const existingIds = new Set(parsed.map((p) => p.id));
+        let hasNew = false;
+        for (const initPlan of INITIAL_LESSON_PLANS) {
+          if (!existingIds.has(initPlan.id) && !deletedIds.has(initPlan.id)) {
+            parsed.push(initPlan);
+            hasNew = true;
+          }
+        }
+        if (hasNew) {
+          localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(parsed));
+        }
         return parsed.filter((p) => !deletedIds.has(p.id));
       }
     } catch {
@@ -764,23 +776,81 @@ export function filterPlansForTeacherScope(
   const myId = String(currentTeacher.Teacher_ID).toLowerCase().trim();
   const myName = String(currentTeacher.Name).trim();
 
+  // Load dynamic workflow assignments from localStorage if present
+  let assignmentMap: Record<string, any> = {};
+  try {
+    const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
+    if (rawAssign) assignmentMap = JSON.parse(rawAssign);
+  } catch {}
+
+  const isHeadOfBranch =
+    currentTeacher.is_head_of_branch === true ||
+    currentTeacher.role === 'head_of_branch' ||
+    Boolean(currentTeacher.position && currentTeacher.position.includes('หัวหน้าสาขา'));
+
+  const isHeadOfDept =
+    currentTeacher.is_head_of_department === true ||
+    currentTeacher.role === 'head_of_department' ||
+    Boolean(currentTeacher.position && currentTeacher.position.includes('หัวหน้ากลุ่มสาระ'));
+
+  const myBranchClean = (currentTeacher.branch || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^สาขาวิชา|^สาขา/, '')
+    .trim();
+
+  const myDeptClean = (currentTeacher.Learning_Area || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^กลุ่มสาระการเรียนรู้|^กลุ่มสาระ/, '')
+    .trim();
+
   return plans.filter((p) => {
     // 1. Own lesson plan
     if (String(p.teacher_id).toLowerCase().trim() === myId) return true;
 
-    // 2. Assigned reviewer
-    if (String(p.assigned_reviewer_id || '').toLowerCase().trim() === myId) return true;
-    if (p.assigned_reviewer_name && p.assigned_reviewer_name.includes(myName)) return true;
+    // 2. Assigned reviewer (direct on plan or in workflow assignments map)
+    const assignedId = String(p.assigned_reviewer_id || assignmentMap[p.id]?.assigned_reviewer_id || '').toLowerCase().trim();
+    if (assignedId && assignedId === myId) return true;
 
-    // 3. Department head or branch head
-    if (currentTeacher.is_head_of_department && currentTeacher.Learning_Area) {
-      if (p.learning_area === currentTeacher.Learning_Area) return true;
-    }
-    if (currentTeacher.is_head_of_branch && currentTeacher.branch) {
-      if (p.branch === currentTeacher.branch) return true;
+    const assignedName = String(p.assigned_reviewer_name || assignmentMap[p.id]?.assigned_reviewer_name || '').trim();
+    if (assignedName && myName && (assignedName.includes(myName) || myName.includes(assignedName))) return true;
+
+    // 3. Branch head scope (all plans within their branch discipline)
+    if (isHeadOfBranch && myBranchClean) {
+      const planBranchClean = (p.branch || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^สาขาวิชา|^สาขา/, '')
+        .trim();
+      if (
+        planBranchClean &&
+        (planBranchClean === myBranchClean ||
+          planBranchClean.includes(myBranchClean) ||
+          myBranchClean.includes(planBranchClean))
+      ) {
+        return true;
+      }
     }
 
-    // 4. Approved exemplar plans
+    // 4. Department head scope (all plans within their department/learning area)
+    if (isHeadOfDept && myDeptClean) {
+      const planDeptClean = (p.learning_area || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^กลุ่มสาระการเรียนรู้|^กลุ่มสาระ/, '')
+        .trim();
+      if (
+        planDeptClean &&
+        (planDeptClean === myDeptClean ||
+          planDeptClean.includes(myDeptClean) ||
+          myDeptClean.includes(planDeptClean))
+      ) {
+        return true;
+      }
+    }
+
+    // 5. Approved exemplar plans published for school reference
     if (p.status === 'approved') return true;
 
     return false;
