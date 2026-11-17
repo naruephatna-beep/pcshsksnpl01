@@ -64,12 +64,12 @@ export const ForcePasswordModal: React.FC<ForcePasswordModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white text-center">
-          <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
-            <ShieldAlert className="w-8 h-8 text-white" />
+        <div className="bg-[#0B1329] p-6 text-white text-center border-b border-slate-800">
+          <div className="w-12 h-12 bg-amber-400/15 ring-1 ring-amber-400/30 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <ShieldAlert className="w-6 h-6 text-amber-400" />
           </div>
-          <h2 className="text-xl font-bold">แจ้งเตือนเปลี่ยนรหัสผ่าน</h2>
-          <p className="text-amber-100 text-sm mt-1">
+          <h2 className="text-lg font-bold">แจ้งเตือนเปลี่ยนรหัสผ่าน</h2>
+          <p className="text-slate-400 text-xs mt-1">
             เพื่อความปลอดภัยของข้อมูลในระบบส่งเอกสารวิชาการ
           </p>
         </div>
@@ -143,7 +143,7 @@ export const ForcePasswordModal: React.FC<ForcePasswordModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium rounded-xl shadow-lg shadow-orange-500/25 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-70"
+              className="w-full py-3 px-4 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-70 cursor-pointer"
             >
               {isSubmitting ? (
                 <>

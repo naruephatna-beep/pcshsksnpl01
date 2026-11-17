@@ -146,11 +146,7 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
   };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 p-4 sm:p-5 shadow-lg shadow-amber-500/20 border-2 border-amber-300 transition-all animate-in fade-in slide-in-from-top-3 duration-300">
-      {/* Decorative Glow Elements */}
-      <div className="absolute -top-12 -right-12 w-44 h-44 bg-white/25 rounded-full blur-2xl pointer-events-none" />
-      <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-orange-400/30 rounded-full blur-2xl pointer-events-none" />
-
+    <div className="relative overflow-hidden rounded-2xl bg-amber-50/90 text-slate-950 p-4 sm:p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] border border-amber-200/90 transition-all animate-in fade-in slide-in-from-top-3 duration-300">
       <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         {/* Left Info: Icon & Message */}
         <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">

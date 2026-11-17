@@ -562,7 +562,7 @@ export const AcademicTermModal: React.FC<AcademicTermModalProps> = ({
                   type="button"
                   onClick={() => setConfirmSwitchOpen(true)}
                   disabled={isProcessing || !selectedYear}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-amber-500/20 flex items-center gap-2 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm shadow-xs flex items-center gap-2 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
                 >
                   <Calendar className="w-4 h-4" />
                   <span>

@@ -208,12 +208,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-indigo-700 via-indigo-600 to-sky-600 p-4 sm:p-6 text-white shrink-0">
+        <div className="relative bg-[#0B1329] p-4 sm:p-5 text-white shrink-0 border-b border-slate-800">
           <button
             onClick={onClose}
-            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer"
+            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 p-2 rounded-xl transition-colors active:scale-95 cursor-pointer"
             aria-label="ปิดหน้าต่าง"
           >
             <X className="w-5 h-5" />
@@ -222,7 +222,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="flex flex-col sm:flex-row items-center gap-3.5 sm:gap-4">
             {/* Avatar Preview */}
             <div className="relative group shrink-0">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden ring-4 ring-white/30 bg-indigo-900/40 flex items-center justify-center shadow-lg">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden ring-2 ring-white/20 bg-slate-800 flex items-center justify-center">
                 {previewPhotoUrl && !imageError ? (
                   <img
                     src={previewPhotoUrl}
@@ -231,7 +231,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-sky-500 flex items-center justify-center text-white text-lg sm:text-xl font-bold">
+                  <div className="w-full h-full bg-slate-800 flex items-center justify-center text-amber-400 text-lg sm:text-xl font-bold">
                     {getInitials(formData.Name)}
                   </div>
                 )}

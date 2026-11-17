@@ -153,6 +153,86 @@ body {
   }
 }
 
+/* Scientific Orbital Crest Loading Screen Keyframes */
+@keyframes orbit-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbit-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes crest-breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 36px rgba(251, 191, 36, 0.14), inset 0 0 18px rgba(251, 191, 36, 0.08);
+  }
+  50% {
+    transform: scale(1.025);
+    box-shadow: 0 0 56px rgba(251, 191, 36, 0.28), inset 0 0 24px rgba(251, 191, 36, 0.16);
+  }
+}
+
+@keyframes gold-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+@keyframes line-expand {
+  0% {
+    transform: scaleX(0.15);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.animate-orbit-slow {
+  animation: orbit-slow 32s linear infinite;
+  will-change: transform;
+}
+
+.animate-orbit-medium {
+  animation: orbit-slow 12s linear infinite;
+  will-change: transform;
+}
+
+.animate-orbit-reverse {
+  animation: orbit-reverse 20s linear infinite;
+  will-change: transform;
+}
+
+.animate-crest-breathe {
+  animation: crest-breathe 3.6s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
+.animate-gold-sweep {
+  animation: gold-sweep 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+.animate-line-expand {
+  animation: line-expand 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center;
+}
+
 /* Respect Reduced Motion Preference */
 @media (prefers-reduced-motion: reduce) {
   html {
@@ -160,7 +240,12 @@ body {
   }
   .animate-panel-enter,
   .animate-fade-up,
-  .card-interactive {
+  .card-interactive,
+  .animate-orbit-slow,
+  .animate-orbit-medium,
+  .animate-orbit-reverse,
+  .animate-crest-breathe,
+  .animate-gold-sweep {
     animation: none !important;
     transition: none !important;
   }

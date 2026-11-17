@@ -30,7 +30,7 @@ interface NavbarProps {
   onOpenProfileModal: () => void;
   onOpenDirectoryModal: () => void;
   onOpenFileStorageModal?: () => void;
-  onOpenAdminTrackerModal: (initialView?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
+  onOpenAdminTrackerModal: (initialView?: 'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
   onOpenDeadlineManager?: () => void;
   onOpenStaffStructure?: () => void;
   onOpenWorkflowManager?: () => void;
@@ -126,8 +126,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
 
                     <button
-                      onClick={() => onOpenAdminTrackerModal('table')}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
+                      onClick={() => onOpenAdminTrackerModal('overview')}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-200 hover:border-slate-300 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
                       title="ติดตามดูว่าใครยังไม่ส่งชิ้นงานไหนแยกตามภาระงานที่มอบหมาย"
                     >
                       <ClipboardList className="w-3.5 h-3.5 text-slate-600" />
@@ -224,7 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {!isAdmin && (
                   <button
                     onClick={onOpenSubmitModal}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-orange-500/20 transition-all active:scale-[0.98] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all active:scale-[0.98] cursor-pointer"
                   >
                     <Upload className="w-4 h-4 text-slate-950" />
                     <span>ส่งเอกสาร</span>
@@ -286,7 +286,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {currentTeacher && !isAdmin && (
               <button
                 onClick={onOpenSubmitModal}
-                className="inline-flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 rounded-xl text-xs font-bold shadow-xs active:scale-95"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold shadow-xs active:scale-95"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>ส่งงาน</span>
@@ -391,15 +391,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
                 <button
-                  onClick={() => handleMobileAction(() => onOpenAdminTrackerModal('table'))}
+                  onClick={() => handleMobileAction(() => onOpenAdminTrackerModal('overview'))}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50"
                 >
                   <ClipboardList className="w-4 h-4 text-slate-600" />
-                  <span>เปิดตารางติดตามการส่งแผน</span>
+                  <span>ติดตามการส่งงานรายบุคคล</span>
                 </button>
                 <button
                   onClick={() => handleMobileAction(() => onOpenAdminTrackerModal('breakdown'))}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-amber-950 bg-amber-50 border border-amber-300 hover:bg-amber-100"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-amber-950 bg-amber-50 border border-amber-200 hover:bg-amber-100"
                 >
                   <Layers className="w-4 h-4 text-amber-600" />
                   <span>สรุปประเภทเอกสารรายคน (Breakdown)</span>
@@ -414,9 +414,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {onOpenReviewerWorkload && (
                   <button
                     onClick={() => handleMobileAction(onOpenReviewerWorkload)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 shadow-xs"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100"
                   >
-                    <UserCheck className="w-4 h-4 text-emerald-200" />
+                    <UserCheck className="w-4 h-4 text-emerald-600" />
                     <span>ภาระงานผู้ตรวจ (ใครตรวจกี่อัน / ค้างกี่อัน)</span>
                   </button>
                 )}
@@ -437,7 +437,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="space-y-2 mb-3">
                 <button
                   onClick={() => handleMobileAction(onOpenSubmitModal)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold rounded-xl text-sm shadow-md active:scale-98 transition-all"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm shadow-xs active:scale-98 transition-all"
                 >
                   <Upload className="w-4 h-4" />
                   <span>ส่งเอกสารแผนการสอน</span>

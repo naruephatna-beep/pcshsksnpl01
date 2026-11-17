@@ -95,19 +95,19 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-4xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-800 via-indigo-700 to-blue-700 p-4 sm:p-6 text-white flex items-center justify-between shrink-0">
+        <div className="bg-[#0B1329] p-4 sm:p-5 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
           <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25 shrink-0">
-              <Users className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+            <div className="w-10 h-10 bg-amber-400/15 ring-1 ring-amber-400/30 rounded-xl flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 text-amber-400" />
             </div>
             <div className="min-w-0">
-              <span className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-indigo-200 block truncate">
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block truncate">
                 Staff Database · PCSHS Kalasin
               </span>
-              <h2 className="text-base sm:text-xl font-bold truncate">
+              <h2 className="text-base sm:text-lg font-bold truncate tabular-nums">
                 ทำเนียบบุคลากร ({teachers.length} ท่าน)
               </h2>
             </div>
@@ -120,16 +120,16 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                   onClose();
                   onOpenStaffStructure();
                 }}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-semibold border border-white/20 transition-all cursor-pointer active:scale-95"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold border border-white/15 transition-all cursor-pointer active:scale-95"
                 title="เปิดจัดการโครงสร้างสาขา และแต่งตั้งหัวหน้าสาระ/สาขา"
               >
-                <Building2 className="w-3.5 h-3.5 text-amber-300" />
-                <span>โครงสร้างสาขา & หัวหน้าสาระ</span>
+                <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>โครงสร้างสาขา &amp; หัวหน้าสาระ</span>
               </button>
             )}
             <button
               onClick={onClose}
-              className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer shrink-0"
+              className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 p-2 rounded-xl transition-colors active:scale-95 cursor-pointer shrink-0"
               aria-label="ปิดหน้าต่าง"
             >
               <X className="w-5 h-5" />
@@ -235,18 +235,18 @@ export const TeacherDirectoryModal: React.FC<TeacherDirectoryModalProps> = ({
                         </span>
                       )}
                       {isTeacherAdmin(t) && (
-                        <span className="text-[10px] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-2 py-0.5 rounded-full font-bold shadow-xs">
+                        <span className="text-[10px] bg-slate-900 text-amber-300 px-2 py-0.5 rounded-md font-bold">
                           {t.Teacher_ID === 'admin01' ? 'Super Admin' : 'Admin'}
                         </span>
                       )}
                       {isDeptH && (
-                        <span className="text-[10px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-bold shadow-2xs">
-                          👑 หัวหน้ากลุ่มสาระ
+                        <span className="text-[10px] bg-amber-50 text-amber-800 ring-1 ring-amber-200 px-2 py-0.5 rounded-md font-bold">
+                          หัวหน้ากลุ่มสาระ
                         </span>
                       )}
                       {isBranchH && (
-                        <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold shadow-2xs">
-                          🎖️ หัวหน้าสาขา
+                        <span className="text-[10px] bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 px-2 py-0.5 rounded-md font-bold">
+                          หัวหน้าสาขา
                         </span>
                       )}
                     </div>

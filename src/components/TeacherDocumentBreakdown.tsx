@@ -412,38 +412,40 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
 
   return (
     <div className="space-y-4">
-      {/* 1. Header Metrics Strip (Domain: SaaS & Academic Admin) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 flex flex-col justify-between">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            เอกสารที่ส่งทั้งหมด
+      {/* 1. Header Metrics Strip (Swiss Executive Bento) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col justify-between">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+            <span className="w-2 h-2 rounded-full bg-slate-900 shrink-0" />
+            <span>เอกสารที่ส่งทั้งหมด</span>
           </div>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-xl sm:text-2xl font-black text-slate-900 font-mono tabular-nums">
+          <div className="mt-1.5 flex items-baseline justify-between gap-2">
+            <span className="text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight">
               {overallStats.totalDocuments}
             </span>
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50/90 px-2 py-0.5 rounded-lg ring-1 ring-emerald-200/90 tabular-nums">
               อนุมัติ {overallStats.totalApproved}
             </span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">
+          <div className="text-[10px] text-slate-400 mt-1 tabular-nums">
             เฉลี่ย {overallStats.averagePerTeacher} ฉบับ / ท่าน
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 flex flex-col justify-between">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            ครูที่ส่งเอกสารแล้ว
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col justify-between">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span>ครูที่ส่งเอกสารแล้ว</span>
           </div>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-xl sm:text-2xl font-black text-emerald-700 font-mono tabular-nums">
+          <div className="mt-1.5 flex items-baseline justify-between gap-2">
+            <span className="text-xl sm:text-2xl font-extrabold text-emerald-700 tabular-nums tracking-tight">
               {overallStats.teachersWithSubmissions}
             </span>
-            <span className="text-xs text-slate-500 font-mono tabular-nums">
+            <span className="text-xs text-slate-500 tabular-nums">
               /{overallStats.totalTeachers} ท่าน
             </span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">
+          <div className="text-[10px] text-slate-400 mt-1 tabular-nums">
             คิดเป็น{' '}
             {overallStats.totalTeachers > 0
               ? Math.round(
@@ -456,33 +458,35 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 flex flex-col justify-between">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            ยังไม่มีการส่งเอกสาร
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col justify-between">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+            <span>ยังไม่มีการส่งเอกสาร</span>
           </div>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-xl sm:text-2xl font-black text-rose-600 font-mono tabular-nums">
+          <div className="mt-1.5 flex items-baseline justify-between gap-2">
+            <span className="text-xl sm:text-2xl font-extrabold text-rose-600 tabular-nums tracking-tight">
               {overallStats.teachersWithoutSubmissions}
             </span>
             <span className="text-xs text-slate-500">ท่าน</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">
+          <div className="text-[10px] text-slate-400 mt-1">
             รอการติดตามจากฝ่ายวิชาการ
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 flex flex-col justify-between">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            หมวดหมู่ประเภทเอกสาร
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col justify-between">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+            <span>หมวดหมู่ประเภทเอกสาร</span>
           </div>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-xl sm:text-2xl font-black text-amber-600 font-mono tabular-nums">
+          <div className="mt-1.5 flex items-baseline justify-between gap-2">
+            <span className="text-xl sm:text-2xl font-extrabold text-amber-600 tabular-nums tracking-tight">
               {documentTypes.length}
             </span>
             <span className="text-xs text-slate-500">ประเภท</span>
           </div>
           <div
-            className="text-[10px] text-slate-400 mt-0.5 truncate"
+            className="text-[10px] text-slate-400 mt-1 truncate"
             title={documentTypes.join(', ')}
           >
             {documentTypes[0] || '-'} ฯลฯ
@@ -491,7 +495,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
       </div>
 
       {/* 2. Filter & Actions Toolbar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-2.5">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] space-y-3">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-2.5">
           {/* Search input */}
           <div className="relative flex-1 w-full">
@@ -501,7 +505,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="ค้นหาชื่อครู, รหัส, กลุ่มสาระ หรือชื่อเอกสารที่ส่ง..."
-              className="w-full h-8 pl-9 pr-3 bg-slate-50/70 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+              className="w-full h-8.5 pl-9 pr-3 bg-slate-50/80 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
             />
           </div>
 
@@ -513,7 +517,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
             <select
               value={selectedDocTypeFilter}
               onChange={(e) => setSelectedDocTypeFilter(e.target.value)}
-              className="w-full sm:w-auto h-8 px-2.5 bg-slate-50/70 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer"
+              className="w-full sm:w-auto h-8.5 px-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 cursor-pointer"
             >
               <option value="all">ทุกประเภทเอกสาร ({documentTypes.length})</option>
               {documentTypes.map((t) => (
@@ -525,10 +529,10 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
           </div>
 
           {/* Submission Filter Segmented Tabs */}
-          <div className="flex h-8 bg-slate-100 p-0.5 rounded-lg text-xs font-semibold shrink-0 overflow-x-auto max-w-full touch-scroll w-full lg:w-auto">
+          <div className="flex h-8.5 bg-slate-100 p-0.5 rounded-xl text-xs font-semibold shrink-0 overflow-x-auto max-w-full touch-scroll w-full lg:w-auto">
             <button
               onClick={() => setSubmissionFilter('all')}
-              className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer ${
+              className={`px-3 rounded-lg transition-all shrink-0 cursor-pointer tabular-nums ${
                 submissionFilter === 'all'
                   ? 'bg-white shadow-2xs text-slate-900 font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -538,30 +542,30 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
             </button>
             <button
               onClick={() => setSubmissionFilter('has_submissions')}
-              className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer ${
+              className={`px-3 rounded-lg transition-all shrink-0 cursor-pointer tabular-nums ${
                 submissionFilter === 'has_submissions'
                   ? 'bg-emerald-600 text-white font-bold shadow-2xs'
-                  : 'text-emerald-700 hover:bg-white/50'
+                  : 'text-emerald-700 hover:bg-white/60'
               }`}
             >
               ส่งแล้ว ({overallStats.teachersWithSubmissions})
             </button>
             <button
               onClick={() => setSubmissionFilter('no_submissions')}
-              className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer ${
+              className={`px-3 rounded-lg transition-all shrink-0 cursor-pointer tabular-nums ${
                 submissionFilter === 'no_submissions'
                   ? 'bg-rose-600 text-white font-bold shadow-2xs'
-                  : 'text-rose-700 hover:bg-white/50'
+                  : 'text-rose-700 hover:bg-white/60'
               }`}
             >
               ยังไม่ส่ง ({overallStats.teachersWithoutSubmissions})
             </button>
             <button
               onClick={() => setSubmissionFilter('high_volume')}
-              className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer ${
+              className={`px-3 rounded-lg transition-all shrink-0 cursor-pointer tabular-nums ${
                 submissionFilter === 'high_volume'
                   ? 'bg-amber-500 text-slate-950 font-bold shadow-2xs'
-                  : 'text-amber-800 hover:bg-white/50'
+                  : 'text-amber-800 hover:bg-white/60'
               }`}
             >
               ≥ 3 ฉบับ
@@ -570,7 +574,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
         </div>
 
         {/* Second Row: Learning Area Filters + Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1 border-t border-slate-100">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-slate-100">
           {/* Learning Area Scrollable Chips */}
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-xs touch-scroll w-full sm:w-auto">
             <span className="text-[11px] font-semibold text-slate-400 shrink-0 mr-1">
@@ -578,10 +582,10 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
             </span>
             <button
               onClick={() => setSelectedArea('ทั้งหมด')}
-              className={`h-6.5 px-2 rounded-md shrink-0 font-medium transition-all cursor-pointer text-[11px] ${
+              className={`h-7 px-2.5 rounded-lg shrink-0 font-medium transition-all cursor-pointer text-[11px] ${
                 selectedArea === 'ทั้งหมด'
-                  ? 'bg-[#0B1329] text-amber-400 font-bold'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  ? 'bg-slate-900 text-white font-semibold'
+                  : 'bg-slate-100 hover:bg-slate-200/80 text-slate-600'
               }`}
             >
               ทั้งหมด
@@ -590,10 +594,10 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
               <button
                 key={area}
                 onClick={() => setSelectedArea(area)}
-                className={`h-6.5 px-2 rounded-md shrink-0 font-medium transition-all cursor-pointer text-[11px] whitespace-nowrap ${
+                className={`h-7 px-2.5 rounded-lg shrink-0 font-medium transition-all cursor-pointer text-[11px] whitespace-nowrap ${
                   selectedArea === area
-                    ? 'bg-[#0B1329] text-amber-400 font-bold'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    ? 'bg-slate-900 text-white font-semibold'
+                    : 'bg-slate-100 hover:bg-slate-200/80 text-slate-600'
                 }`}
               >
                 {area}
@@ -602,12 +606,12 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
           </div>
 
           {/* Action Tools: Sort, Expand/Collapse, Export CSV, Print */}
-          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto flex-wrap">
             {/* Sort Dropdown */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="h-7 px-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md text-[11px] font-semibold text-slate-700 cursor-pointer"
+              className="h-7.5 px-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 cursor-pointer"
               title="เรียงลำดับ"
             >
               <option value="total_desc">ส่งมากสุด → น้อยสุด</option>
@@ -619,7 +623,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
             {/* Expand / Collapse All */}
             <button
               onClick={toggleExpandAll}
-              className="h-7 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+              className="h-7.5 px-2.5 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
               title="ขยาย/ยุบรายละเอียดเอกสารของทุกคน"
             >
               {expandedTeacherIds.size === filteredRows.length ? (
@@ -638,7 +642,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
             {/* Export CSV */}
             <button
               onClick={handleExportCSV}
-              className="h-7 px-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+              className="h-7.5 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
               title="ส่งออกตารางสรุปเป็นไฟล์ Excel/CSV (UTF-8 BOM รองรับภาษาไทยสมบูรณ์)"
             >
               <Download className="w-3 h-3" />
@@ -649,7 +653,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
             {onOpenInfographicPrompt && (
               <button
                 onClick={onOpenInfographicPrompt}
-                className="h-7 px-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                className="h-7.5 px-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
                 title="ขอคำพรอมพ์ AI เพื่อนำไปสร้างภาพอินโฟกราฟิกสรุปการส่งงานรายบุคคล"
               >
                 <Sparkles className="w-3 h-3 text-amber-300" />
@@ -660,7 +664,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
             {/* Print Summary */}
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="h-7 px-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+              className="h-7.5 px-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
               title="พิมพ์หน้ารายงานสรุปจำแนกประเภทเอกสารรายบุคคล"
             >
               <Printer className="w-3 h-3" />
@@ -678,7 +682,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                     zeroSubTeachers.forEach((t) => onSendReminder(t, []));
                   }
                 }}
-                className="h-7 px-2.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white rounded-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                className="h-7.5 px-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
                 title={`คลิกเดียวส่งอีเมลแจ้งเตือนคุณครูที่ยังไม่ได้ส่งเอกสารทั้งหมด ${overallStats.teachersWithoutSubmissions} ท่าน จาก academics@pcshsksn.ac.th`}
               >
                 <Mail className="w-3 h-3" />
@@ -690,16 +694,16 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
       </div>
 
       {/* 3. Main Breakdown Matrix Table */}
-      <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-xs bg-white">
+      <div className="border border-slate-200/90 rounded-2xl overflow-x-auto shadow-[0_1px_3px_rgba(15,23,42,0.04)] bg-white">
         <table className="w-full text-left text-xs border-collapse min-w-[840px]">
-          <thead className="bg-[#0B1329] text-slate-200 font-bold sticky top-0 z-20 shadow-md">
+          <thead className="bg-slate-50/95 text-slate-600 font-semibold sticky top-0 z-20 border-b border-slate-200">
             <tr>
-              <th className="py-2.5 px-2 w-10 text-center border-b border-slate-800 text-slate-400">
+              <th className="py-3 px-2.5 w-10 text-center text-slate-400">
                 #
               </th>
-              <th className="py-2.5 px-3 min-w-[210px] border-b border-slate-800 sticky left-0 z-30 bg-[#0B1329] shadow-[2px_0_5px_rgba(0,0,0,0.15)]">
-                <div className="text-white font-extrabold text-xs">ครูผู้สอน</div>
-                <div className="text-[10px] text-amber-300 font-normal">
+              <th className="py-3 px-3 min-w-[210px] sticky left-0 z-30 bg-slate-50/95 border-r border-slate-200/80">
+                <div className="text-slate-900 font-bold text-xs">ครูผู้สอน</div>
+                <div className="text-[10px] text-slate-400 font-normal">
                   รหัส / กลุ่มสาระการเรียนรู้
                 </div>
               </th>
@@ -711,17 +715,17 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                 return (
                   <th
                     key={type}
-                    className={`py-2.5 px-2 text-center border-b border-slate-800 min-w-[125px] ${
-                      isSelected ? 'bg-indigo-950/90 text-amber-300' : ''
+                    className={`py-3 px-2 text-center min-w-[125px] ${
+                      isSelected ? 'bg-amber-50/80 text-amber-900' : ''
                     }`}
                   >
                     <div
-                      className="font-bold text-xs truncate max-w-[140px] mx-auto text-slate-100"
+                      className={`font-bold text-xs truncate max-w-[140px] mx-auto ${isSelected ? 'text-amber-950' : 'text-slate-800'}`}
                       title={type}
                     >
                       {type}
                     </div>
-                    <div className="text-[10px] text-slate-400 font-mono mt-0.5 font-normal">
+                    <div className="text-[10px] text-slate-400 tabular-nums mt-0.5 font-normal">
                       รวม {totalInType} ฉบับ
                     </div>
                   </th>
@@ -729,13 +733,13 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
               })}
 
               {/* Total Submissions Column */}
-              <th className="py-2.5 px-2.5 text-center min-w-[95px] border-b border-slate-800 bg-[#0B1329] font-bold text-amber-300">
+              <th className="py-3 px-2.5 text-center min-w-[95px] font-bold text-slate-800">
                 <div>รวมส่ง</div>
                 <div className="text-[10px] text-slate-400 font-normal">ทั้งหมด</div>
               </th>
 
               {/* Review Status Summary Column */}
-              <th className="py-2.5 px-2.5 text-center min-w-[120px] border-b border-slate-800 text-slate-300">
+              <th className="py-3 px-2.5 text-center min-w-[120px] text-slate-700">
                 <div>สถานะการตรวจ</div>
                 <div className="text-[10px] text-slate-400 font-normal">
                   อนุมัติ / รอ / แก้ไข
@@ -743,7 +747,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
               </th>
 
               {/* Expand / Action Column */}
-              <th className="py-2.5 px-3 text-right min-w-[110px] border-b border-slate-800 text-slate-300">
+              <th className="py-3 px-3 text-right min-w-[110px] text-slate-700">
                 รายการเอกสาร
               </th>
             </tr>
@@ -888,13 +892,13 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                       })}
 
                       {/* Total Count */}
-                      <td className="py-2.5 px-2.5 text-center font-mono tabular-nums">
+                      <td className="py-2.5 px-2.5 text-center tabular-nums">
                         {totalSubmitted > 0 ? (
-                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-black bg-indigo-50 text-indigo-900 border border-indigo-200">
+                          <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50/90 text-indigo-800 ring-1 ring-indigo-200/90">
                             {totalSubmitted}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50/90 text-rose-700 ring-1 ring-rose-200/90">
                             0 ฉบับ
                           </span>
                         )}
@@ -907,29 +911,32 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                             ยังไม่มีส่ง
                           </span>
                         ) : (
-                          <div className="flex items-center justify-center gap-1 text-[10px] font-mono tabular-nums">
+                          <div className="flex items-center justify-center gap-1 text-[10px] tabular-nums">
                             {approvedCount > 0 && (
                               <span
-                                className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-50/90 text-emerald-700 font-semibold ring-1 ring-emerald-200/90"
                                 title={`อนุมัติแล้ว ${approvedCount} ฉบับ`}
                               >
-                                ✓ {approvedCount}
+                                <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
+                                <span>{approvedCount}</span>
                               </span>
                             )}
                             {pendingCount > 0 && (
                               <span
-                                className="px-1.5 py-0.2 rounded bg-sky-50 text-sky-800 font-bold border border-sky-200"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-sky-50/90 text-sky-700 font-semibold ring-1 ring-sky-200/90"
                                 title={`รอตรวจ ${pendingCount} ฉบับ`}
                               >
-                                ⏳ {pendingCount}
+                                <Clock className="w-2.5 h-2.5 shrink-0" />
+                                <span>{pendingCount}</span>
                               </span>
                             )}
                             {needsRevisionCount > 0 && (
                               <span
-                                className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-800 font-bold border border-rose-200"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-rose-50/90 text-rose-700 font-semibold ring-1 ring-rose-200/90"
                                 title={`ส่งกลับแก้ไข ${needsRevisionCount} ฉบับ`}
                               >
-                                ⚠️ {needsRevisionCount}
+                                <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                <span>{needsRevisionCount}</span>
                               </span>
                             )}
                           </div>
@@ -944,10 +951,10 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                               onClick={() =>
                                 toggleExpandTeacher(teacher.Teacher_ID)
                               }
-                              className={`h-7 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                              className={`h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
                                 isExpanded
-                                  ? 'bg-[#0B1329] text-amber-400 shadow-2xs'
-                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
+                                  ? 'bg-slate-900 text-white shadow-2xs'
+                                  : 'bg-slate-100 hover:bg-slate-200/80 text-slate-800 border border-slate-200'
                               }`}
                               title={
                                 isExpanded
@@ -1018,9 +1025,9 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                                       [teacher.Teacher_ID]: 'all',
                                     }))
                                   }
-                                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
                                     activeTab === 'all'
-                                      ? 'bg-[#0B1329] text-amber-400 font-bold'
+                                      ? 'bg-slate-900 text-white'
                                       : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                                   }`}
                                 >
@@ -1038,9 +1045,9 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                                           [teacher.Teacher_ID]: type,
                                         }))
                                       }
-                                      className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                                         activeTab === type
-                                          ? 'bg-[#0B1329] text-amber-400 font-bold'
+                                          ? 'bg-slate-900 text-white'
                                           : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                                       }`}
                                     >
@@ -1186,7 +1193,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                                           {isApproved && onOpenCertificate && (
                                             <button
                                               onClick={() => onOpenCertificate(plan)}
-                                              className="h-7 px-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-lg text-[11px] transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                                              className="h-7 px-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
                                               title="เปิดดูและพิมพ์วุฒิบัตร / เกียรติบัตร ว.PA"
                                             >
                                               <Award className="w-3 h-3 text-slate-950" />

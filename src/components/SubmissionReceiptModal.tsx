@@ -53,7 +53,7 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
         setEmailSent(true);
         setEmailMsg(`ส่งหลักฐานเข้าอีเมล ${toEmail} ผ่าน Google Apps Script สำเร็จแล้ว!`);
       } else if (res.isLegacyScript) {
-        setEmailMsg('⚠️ Google Apps Script ของโรงเรียนยังไม่ได้อัปเดตคำสั่งส่งอีเมล');
+        setEmailMsg('Google Apps Script ของโรงเรียนยังไม่ได้อัปเดตคำสั่งส่งอีเมล');
       } else {
         setEmailMsg(`ส่งเมลไม่สำเร็จ: ${res.error || 'โปรดตรวจสอบการเชื่อมต่อ'}`);
       }
@@ -207,11 +207,11 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
                 <span className="col-span-2 font-semibold flex items-center gap-1.5">
                   {plan.is_late ? (
                     <span className="text-orange-700 font-bold">
-                      ⚠️ ส่งช้ากว่ากำหนด {plan.submission_delay_text ? `(${plan.submission_delay_text})` : ''}
+                      ส่งช้ากว่ากำหนด {plan.submission_delay_text ? `(${plan.submission_delay_text})` : ''}
                     </span>
                   ) : (
                     <span className="text-emerald-700 font-bold">
-                      ✓ ส่งตรงเวลาตามกำหนด
+                      ส่งตรงเวลาตามกำหนด
                     </span>
                   )}
                 </span>
@@ -324,7 +324,7 @@ export const SubmissionReceiptModal: React.FC<SubmissionReceiptModalProps> = ({
                   onClose();
                   onOpenCertificate(plan);
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-xl text-xs shadow-xs transition-all active:scale-[0.98] cursor-pointer"
                 title="เปิดดูวุฒิบัตร / เกียรติบัตร ว.PA ของแผนนี้"
               >
                 <Award className="w-4 h-4 text-slate-950" />

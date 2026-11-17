@@ -609,34 +609,34 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 p-4 sm:p-5 text-white shrink-0">
+        <div className="relative bg-[#0B1329] p-4 sm:p-5 text-white shrink-0 border-b border-slate-800">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer"
+            className="absolute top-4 right-4 text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 p-2 rounded-xl transition-colors active:scale-95 cursor-pointer"
             aria-label="ปิดหน้าต่าง"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25 shadow-inner shrink-0">
-              <Upload className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-amber-400/15 ring-1 ring-amber-400/30 rounded-xl flex items-center justify-center shrink-0">
+              <Upload className="w-5 h-5 text-amber-400" />
             </div>
             <div className="min-w-0 pr-8">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase tracking-wider font-semibold text-blue-200">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">
                   แบบฟอร์มส่งภาระงานวิชาการ
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
-                  รองรับหลายไฟล์ & หลายวิชา
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-400 text-slate-950">
+                  รองรับหลายไฟล์ &amp; หลายวิชา
                 </span>
                 {onSwitchToStandard && (
                   <button
                     type="button"
                     onClick={() => onSwitchToStandard(config.name)}
-                    className="text-[10px] text-sky-200 hover:text-white underline font-medium ml-1 transition-colors cursor-pointer"
+                    className="text-[10px] text-slate-300 hover:text-white underline font-medium ml-1 transition-colors cursor-pointer"
                     title="สลับไปยังแบบฟอร์มส่งแผนการสอนทั่วไป"
                   >
                     สลับไปฟอร์มทั่วไป
@@ -647,10 +647,10 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-2 sm:gap-3 text-xs bg-white/10 backdrop-blur-sm px-3.5 py-1.5 rounded-xl border border-white/15 flex-wrap">
-            <span className="font-semibold text-sky-200">ผู้ส่งงาน:</span>
+          <div className="mt-3 flex items-center gap-2 sm:gap-3 text-xs bg-slate-900/80 px-3.5 py-1.5 rounded-xl border border-slate-800 flex-wrap">
+            <span className="font-semibold text-amber-400">ผู้ส่งงาน:</span>
             <span className="font-bold truncate max-w-[150px]">{currentTeacher.Name}</span>
-            <span className="font-mono bg-white/20 px-1.5 py-0.2 rounded text-[10px]">
+            <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded text-[10px] text-slate-300">
               {currentTeacher.Teacher_ID}
             </span>
             <span className="hidden sm:inline">·</span>
@@ -787,17 +787,17 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
 
           {/* Sample Document & Admin Instructions Banner */}
           {(hasSampleOrDocs || config.description || config.notes) && (
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 via-indigo-50/50 to-blue-50 border border-sky-200/90 text-slate-800 space-y-2.5 shadow-2xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/60 pb-2">
+            <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200 text-slate-800 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center shadow-2xs shrink-0">
+                  <div className="w-7 h-7 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center shrink-0">
                     <LinkIcon className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-sky-950 flex items-center gap-1.5">
-                      <span>เอกสารตัวอย่าง & คำชี้แจงสำหรับภาระงานนี้</span>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>เอกสารตัวอย่าง &amp; คำชี้แจงสำหรับภาระงานนี้</span>
                     </h4>
-                    <p className="text-[11px] text-sky-800">
+                    <p className="text-[11px] text-slate-500">
                       โปรดศึกษาเอกสารตัวอย่างหรือคำแนะนำจากผู้ดูแลระบบก่อนส่ง
                     </p>
                   </div>
@@ -808,7 +808,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                     href={effectiveSample}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>{config.sample_title || 'เปิดดูตัวอย่างเอกสาร / แบบฟอร์ม'}</span>
@@ -1243,23 +1243,23 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
           </div>
 
           {/* Bottom Add-Item Button (เหมือนแผนย่อ) */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50/80 via-indigo-50/50 to-blue-50/80 border-2 border-dashed border-amber-300/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="p-4 rounded-2xl bg-slate-50/90 border border-dashed border-slate-300 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="space-y-0.5 text-center sm:text-left">
               <span className="text-xs sm:text-sm font-bold text-slate-900 flex items-center justify-center sm:justify-start gap-1.5">
                 <Sparkles className="w-4 h-4 text-amber-500" />
                 <span>ต้องการส่งภาระงานนี้สำหรับหลายวิชา / หลายเรื่องพร้อมกันหรือไม่?</span>
               </span>
               <p className="text-[11px] text-slate-600">
-                คุณครูสามารถกดปุ่ม "+ เพิ่มวิชา/รายการ" เพื่อส่งหลายงานได้ในรอบเดียวเหมือนหน้าส่งแผนการสอน
+                คุณครูสามารถกดปุ่ม &quot;+ เพิ่มวิชา/รายการ&quot; เพื่อส่งหลายงานได้ในรอบเดียวเหมือนหน้าส่งแผนการสอน
               </p>
             </div>
             <button
               type="button"
               onClick={handleAddItem}
-              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>+ เพิ่มวิชา / รายการที่ต้องส่งอีก</span>
+              <span>เพิ่มวิชา / รายการที่ต้องส่งอีก</span>
             </button>
           </div>
 
@@ -1276,7 +1276,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !!uploadingFieldId}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70 cursor-pointer"
+              className="px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm shadow-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70 cursor-pointer"
             >
               {isSubmitting ? (
                 <>

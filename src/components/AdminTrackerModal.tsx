@@ -112,7 +112,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   const [filterTask, setFilterTask] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'>(
-    initialViewMode || 'table'
+    initialViewMode || 'overview'
   );
   const [isOverviewFullscreen, setIsOverviewFullscreen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -661,31 +661,31 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
             : 'max-w-[98vw] 2xl:max-w-[1540px] rounded-2xl sm:rounded-3xl my-auto sm:my-2 max-h-[97vh]'
         }`}
       >
-        {/* Header (สีกรมท่าลึก #0B1329 อัตลักษณ์โรงเรียน พร้อมปุ่มขนาดเท่ากันและ Dropdown เมนู) */}
-        <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 p-3.5 sm:p-4 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 border-b border-slate-800">
-          {/* Brand & Sender Info (จัดเรียงสะอาด ไร้ข้อความซ้อนทับ) */}
-          <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="w-10 h-10 bg-amber-400/15 backdrop-blur-md rounded-xl flex items-center justify-center border border-amber-400/30 shrink-0">
-              <ShieldCheck className="w-6 h-6 text-amber-400" />
+        {/* Header (Matte Executive Navy #0B1329) */}
+        <div className="bg-[#0B1329] px-4 py-2.5 text-white flex flex-wrap items-center justify-between gap-2.5 shrink-0 border-b border-slate-800">
+          {/* Brand & Sender Info (จัดเรียงสะอาด ไม่โดนตัดคำ) */}
+          <div className="flex items-center gap-2.5 min-w-0 shrink-0">
+            <div className="w-9 h-9 bg-amber-400/15 rounded-xl flex items-center justify-center border border-amber-400/30 shrink-0">
+              <ShieldCheck className="w-5 h-5 text-amber-400" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2 py-0.5 rounded-md text-[11px] uppercase font-bold text-amber-300 tracking-wider bg-amber-400/15 border border-amber-400/30">
-                  Admin Matrix Hub
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/10 text-slate-200 border border-white/10">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-bold tracking-tight text-white whitespace-nowrap">
+                  ติดตามการส่งงานรายบุคคล
+                </h2>
+                <span className="hidden xl:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/10 text-slate-200 border border-white/10">
                   <Mail className="w-3 h-3 text-amber-300 shrink-0" />
-                  <span className="truncate max-w-[200px]">ส่งจาก: {ACADEMIC_SENDER_EMAIL}</span>
+                  <span>{ACADEMIC_SENDER_EMAIL}</span>
                 </span>
               </div>
-              <h2 className="text-base sm:text-lg font-bold tracking-tight text-white mt-1 truncate">
-                ติดตามการส่งงานรายบุคคล
-              </h2>
+              <span className="text-[10px] uppercase font-bold text-amber-300/90 tracking-wider block leading-tight">
+                Admin Matrix Hub · {stats.totalTeachers} ครู · ส่งครบ {stats.completedAllCount} ท่าน
+              </span>
             </div>
           </div>
 
-          {/* Action Buttons Toolbar (ความสูง h-9 เท่ากันทุกปุ่ม แบ่งความสำคัญชัดเจน ซ่อนปุ่มรองใน Dropdown) */}
-          <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+          {/* Action Buttons Toolbar */}
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {/* View Mode Segmented Control */}
             <div className="flex bg-white/10 p-1 rounded-xl border border-white/15 text-xs font-semibold">
               <button
@@ -803,7 +803,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                       className="w-full px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <Trophy className="w-4 h-4 text-amber-400" />
-                      <span>🏆 จัดอันดับกลุ่มสาระ</span>
+                      <span>จัดอันดับกลุ่มสาระ</span>
                     </button>
 
                     <button
@@ -814,7 +814,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                       className="w-full px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <Layers className="w-4 h-4 text-amber-400" />
-                      <span>📊 แยกประเภทเอกสาร (รายคน)</span>
+                      <span>แยกประเภทเอกสาร (รายคน)</span>
                     </button>
 
                     {onOpenDeadlineManager && (
@@ -839,7 +839,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                         className="w-full px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-white/10 flex items-center gap-2 cursor-pointer transition-colors"
                       >
                         <UserCheck className="w-4 h-4 text-amber-400" />
-                        <span>👥 ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
+                        <span>ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</span>
                       </button>
                     )}
 
@@ -859,7 +859,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                           : 'text-slate-200 hover:bg-white/10'
                       }`}
                     >
-                      <span>⚡ 1-Click Gmail (แนะนำ)</span>
+                      <span>1-Click Gmail (แนะนำ)</span>
                       {quickSendMode === 'gmail' && <Check className="w-3.5 h-3.5 text-amber-400" />}
                     </button>
 
@@ -882,32 +882,13 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                           : 'text-slate-200 hover:bg-white/10'
                       }`}
                     >
-                      <span>🚀 ส่งเบื้องหลัง (รหัสแอป 16 หลัก)</span>
+                      <span>ส่งเบื้องหลัง (รหัสแอป 16 หลัก)</span>
                       {quickSendMode === 'smtp' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                     </button>
                   </div>
                 </>
               )}
             </div>
-
-            {/* Collapse/Expand Dashboard Button */}
-            <button
-              onClick={() => setIsDashboardCollapsed(!isDashboardCollapsed)}
-              className="h-9 px-3 bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors border border-white/10"
-              title={isDashboardCollapsed ? 'ขยายสถิติแดชบอร์ดด้านบน' : 'ย่อสถิติเพื่อเพิ่มพื้นที่ตารางรายชื่อครู'}
-            >
-              {isDashboardCollapsed ? (
-                <>
-                  <ChevronDown className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">ขยายสถิติ</span>
-                </>
-              ) : (
-                <>
-                  <ChevronUp className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">ย่อสถิติ</span>
-                </>
-              )}
-            </button>
 
             {/* Close Button */}
             <button
@@ -933,16 +914,16 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           </div>
         )}
 
-        {/* COLLAPSIBLE DASHBOARD (Stats & Progress bar - เมื่อเลื่อนดูตารางสามารถกดย่อเพื่อขยายตารางได้เต็มจอ) */}
-        {!isDashboardCollapsed ? (
+        {/* COLLAPSIBLE DASHBOARD (ซ่อนในโหมดภาพรวมหน้าเดียวเพื่อคืนพื้นที่สูงสุด) */}
+        {viewMode !== 'overview' && (!isDashboardCollapsed ? (
           <div className="transition-all duration-300 shrink-0">
             {/* Top KPI Cards (4 Cards Grid ในระบบ Grid ที่สมดุล ตัวเลขเด่นชัด ลดขนาดคำอธิบาย) */}
             <div className="bg-slate-50/80 p-3.5 sm:p-4 border-b border-slate-200/90 grid grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Card 1: All Teachers */}
-              <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors">
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-slate-300 transition-colors">
                 <span className="text-xs text-slate-500 font-semibold block">ครูผู้สอนทั้งหมด</span>
                 <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-900 tracking-tight">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono tabular-nums text-slate-900 tracking-tight">
                     {stats.totalTeachers}
                   </span>
                   <span className="text-xs text-slate-500 font-medium">ท่าน</span>
@@ -953,28 +934,33 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               </div>
 
               {/* Card 2: Completed All */}
-              <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 shadow-2xs bg-gradient-to-br from-white to-emerald-50/30">
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-emerald-800 font-semibold block">🟢 ส่งครบทุกงานแล้ว</span>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span className="text-xs text-slate-600 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>ส่งครบทุกงานแล้ว</span>
+                  </span>
                 </div>
                 <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-700 tracking-tight">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono tabular-nums text-emerald-700 tracking-tight">
                     {stats.completedAllCount}
                   </span>
-                  <span className="text-xs text-emerald-600 font-bold">
+                  <span className="text-xs text-emerald-600 font-bold tabular-nums">
                     ({stats.totalTeachers > 0 ? Math.round((stats.completedAllCount / stats.totalTeachers) * 100) : 0}%)
                   </span>
                 </div>
-                <div className="mt-1 text-[11px] text-emerald-600 font-medium">
+                <div className="mt-1 text-[11px] text-slate-500 font-medium">
                   ผ่านเกณฑ์ครบทุกรายการ
                 </div>
               </div>
 
               {/* Card 3: Uncompleted */}
-              <div className="bg-white p-3.5 rounded-2xl border border-rose-200 shadow-2xs bg-gradient-to-br from-white to-rose-50/30">
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-rose-800 font-semibold block">🔴 ค้างส่งงาน</span>
+                  <span className="text-xs text-slate-600 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                    <span>ค้างส่งงาน</span>
+                  </span>
                   {stats.uncompletedCount > 0 && (
                     <button
                       onClick={() => setShowBulkReminderModal(true)}
@@ -985,26 +971,31 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                   )}
                 </div>
                 <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-rose-700 tracking-tight">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono tabular-nums text-rose-600 tracking-tight">
                     {stats.uncompletedCount}
                   </span>
                   <span className="text-xs text-rose-600 font-medium">ท่าน</span>
                 </div>
-                <div className="mt-1 text-[11px] text-rose-500 font-medium">
-                  มีช่องสีแดงที่ยังไม่ส่ง
+                <div className="mt-1 text-[11px] text-slate-500 font-medium">
+                  ยังมีรายการที่ค้างส่ง
                 </div>
               </div>
 
               {/* Card 4: Assignments Count */}
-              <div className="bg-white p-3.5 rounded-2xl border border-indigo-200 shadow-2xs bg-gradient-to-br from-white to-indigo-50/30">
-                <span className="text-xs text-indigo-800 font-semibold block">ภาระงานที่มอบหมาย</span>
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-600 font-semibold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                    <span>ภาระงานที่มอบหมาย</span>
+                  </span>
+                </div>
                 <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-indigo-700 tracking-tight">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono tabular-nums text-indigo-700 tracking-tight">
                     {activeAssignments.length}
                   </span>
                   <span className="text-xs text-indigo-600 font-medium">รายการ</span>
                 </div>
-                <div className="mt-1 text-[11px] text-indigo-500 font-medium">
+                <div className="mt-1 text-[11px] text-slate-500 font-medium">
                   งานที่แอดมินเปิดรับส่ง
                 </div>
               </div>
@@ -1028,9 +1019,9 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                         {ts.config.name}
                       </div>
                       <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                        <span className="font-semibold text-emerald-700">ส่งแล้ว {ts.submittedCount}/{stats.totalTeachers}</span>
+                        <span className="font-semibold text-emerald-700 tabular-nums">ส่งแล้ว {ts.submittedCount}/{stats.totalTeachers}</span>
                         <span>•</span>
-                        <span className={ts.unsubmittedCount > 0 ? 'text-rose-600 font-semibold' : 'text-slate-400'}>
+                        <span className={`tabular-nums ${ts.unsubmittedCount > 0 ? 'text-rose-600 font-semibold' : 'text-slate-400'}`}>
                           ยังไม่ส่ง {ts.unsubmittedCount}
                         </span>
                       </div>
@@ -1049,33 +1040,36 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           </div>
         ) : (
           /* Slim Executive Bar when Dashboard is Collapsed (คืนพื้นที่สูงสุดให้ตารางรายชื่อครู) */
-          <div className="bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs text-slate-700 shrink-0">
+          <div className="bg-slate-50/90 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs text-slate-700 shrink-0">
             <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200/80 shadow-2xs">
+              <span className="inline-flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200/80">
                 <span className="text-slate-500 font-medium">ครูทั้งหมด:</span>
-                <strong className="font-mono text-slate-900 font-black">{stats.totalTeachers}</strong>
+                <strong className="font-mono tabular-nums text-slate-900 font-bold">{stats.totalTeachers}</strong>
                 <span className="text-slate-400 text-[10px]">ท่าน</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 text-emerald-800 shadow-2xs font-bold">
-                <span>🟢 ส่งครบ:</span>
-                <span className="font-mono">{stats.completedAllCount}</span>
-                <span className="text-[10px] text-emerald-600 font-normal">({stats.totalTeachers > 0 ? Math.round((stats.completedAllCount / stats.totalTeachers) * 100) : 0}%)</span>
+              <span className="inline-flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg ring-1 ring-emerald-200/90 text-emerald-800 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>ส่งครบ:</span>
+                <span className="font-mono tabular-nums">{stats.completedAllCount}</span>
+                <span className="text-[10px] text-emerald-700 font-medium tabular-nums">({stats.totalTeachers > 0 ? Math.round((stats.completedAllCount / stats.totalTeachers) * 100) : 0}%)</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 text-rose-800 shadow-2xs font-bold">
-                <span>🔴 ค้างส่ง:</span>
-                <span className="font-mono">{stats.uncompletedCount}</span>
-                <span className="text-[10px] text-rose-600 font-normal">ท่าน</span>
+              <span className="inline-flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-lg ring-1 ring-rose-200/90 text-rose-700 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                <span>ค้างส่ง:</span>
+                <span className="font-mono tabular-nums">{stats.uncompletedCount}</span>
+                <span className="text-[10px] text-rose-600 font-medium">ท่าน</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 text-indigo-800 shadow-2xs font-bold">
-                <span>📋 ภาระงาน:</span>
-                <span className="font-mono">{activeAssignments.length}</span>
-                <span className="text-[10px] text-indigo-600 font-normal">รายการ</span>
+              <span className="inline-flex items-center gap-1.5 bg-indigo-50 px-2.5 py-1 rounded-lg ring-1 ring-indigo-200/90 text-indigo-700 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                <span>ภาระงาน:</span>
+                <span className="font-mono tabular-nums">{activeAssignments.length}</span>
+                <span className="text-[10px] text-indigo-600 font-medium">รายการ</span>
               </span>
             </div>
 
             <button
               onClick={() => setIsDashboardCollapsed(false)}
-              className="text-amber-700 hover:text-amber-800 text-xs font-bold flex items-center gap-1 cursor-pointer hover:underline bg-white px-2.5 py-1 rounded-lg border border-amber-200 shadow-2xs shrink-0 ml-2"
+              className="text-slate-700 hover:text-slate-900 text-xs font-bold flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-slate-200 shrink-0 ml-2"
               title="คลิกเพื่อขยายดูการ์ดสถิติ 4 ใบและแถบความก้าวหน้ารายงาน"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -1083,10 +1077,83 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
           </div>
-        )}
+        ))}
 
-        {/* Filter & Search Toolbar (กะทัดรัด ประหยัดพื้นที่แนวตั้ง - เฉพาะโหมด table, cards, matrix) */}
-        {viewMode !== 'ranking' && viewMode !== 'breakdown' && (
+        {/* Filter & Search Toolbar */}
+        {viewMode === 'overview' ? (
+          <div className="px-3 py-2 border-b border-slate-200/80 bg-white flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 flex-1 min-w-[220px]">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ค้นหาชื่อครู..."
+                  className="w-full h-7.5 pl-8 pr-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+              <select
+                value={filterArea}
+                onChange={(e) => setFilterArea(e.target.value)}
+                className="h-7.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer max-w-[190px]"
+              >
+                {areas.map((a) => (
+                  <option key={a} value={a}>
+                    {a === 'ทั้งหมด' ? 'ทุกกลุ่มสาระ (8 กลุ่ม)' : a}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filterTask}
+                onChange={(e) => setFilterTask(e.target.value)}
+                className="h-7.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer max-w-[200px]"
+              >
+                <option value="all">ดูทุกภาระงาน</option>
+                {activeAssignments.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    เฉพาะค้าง: {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex h-7.5 bg-slate-100 p-0.5 rounded-lg text-[11px] font-bold shrink-0">
+              <button
+                onClick={() => setFilterStatus('all')}
+                className={`px-2.5 rounded-md transition-all cursor-pointer ${
+                  filterStatus === 'all' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                ทั้งหมด ({teachingStaff.length})
+              </button>
+              <button
+                onClick={() => setFilterStatus('uncompleted')}
+                className={`px-2.5 rounded-md transition-all cursor-pointer ${
+                  filterStatus === 'uncompleted' ? 'bg-rose-600 text-white shadow-2xs' : 'text-rose-700 hover:bg-white/60'
+                }`}
+              >
+                ค้างส่ง ({stats.uncompletedCount})
+              </button>
+              <button
+                onClick={() => setFilterStatus('completed')}
+                className={`px-2.5 rounded-md transition-all cursor-pointer ${
+                  filterStatus === 'completed' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-emerald-700 hover:bg-white/60'
+                }`}
+              >
+                ครบ ({stats.completedAllCount})
+              </button>
+              <button
+                onClick={() => setFilterStatus('late')}
+                className={`px-2.5 rounded-md transition-all cursor-pointer ${
+                  filterStatus === 'late' ? 'bg-amber-400 text-slate-950 shadow-2xs' : 'text-amber-700 hover:bg-white/60'
+                }`}
+              >
+                ส่งช้า ({stats.lateCount})
+              </button>
+            </div>
+          </div>
+        ) : viewMode !== 'ranking' && viewMode !== 'breakdown' && (
           <div className="p-2 sm:p-2.5 border-b border-slate-200 space-y-1.5 shrink-0 bg-slate-50/80">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-2">
               {/* Search Input */}
@@ -1111,7 +1178,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                   <option value="all">ภาระงานทั้งหมด (ดูทุกช่อง)</option>
                   {activeAssignments.map((a) => (
                     <option key={a.id} value={a.id}>
-                      🔍 ดูเฉพาะคนยังไม่ส่ง: {a.name}
+                      เฉพาะคนยังไม่ส่ง: {a.name}
                     </option>
                   ))}
                 </select>
@@ -1147,11 +1214,12 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                 </button>
                 <button
                   onClick={() => setFilterStatus('late')}
-                  className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center ${
-                    filterStatus === 'late' ? 'bg-amber-500 text-slate-950 shadow-2xs' : 'text-amber-800 hover:bg-white/50'
+                  className={`px-2.5 rounded-md transition-all shrink-0 cursor-pointer flex items-center justify-center gap-1.5 ${
+                    filterStatus === 'late' ? 'bg-amber-400 text-slate-950 shadow-2xs' : 'text-amber-800 hover:bg-white/50'
                   }`}
                 >
-                  ⚠️ ส่งช้า ({stats.lateCount})
+                  <Clock className="w-3 h-3" />
+                  <span>ส่งช้า ({stats.lateCount})</span>
                 </button>
               </div>
             </div>
@@ -1179,7 +1247,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
         {/* Content: Main Assignment Matrix Grid / Cards / Department Ranking / Teacher Document Breakdown */}
         <div
           className={`flex-1 overflow-y-auto touch-scroll ${
-            viewMode === 'overview' ? 'p-2.5 sm:p-3' : 'p-3 sm:p-5'
+            viewMode === 'overview' ? 'p-2.5 sm:p-3 bg-slate-50/70' : 'p-3 sm:p-5'
           }`}
         >
           {viewMode === 'ranking' ? (
@@ -1229,28 +1297,28 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
             />
           ) : viewMode === 'table' ? (
             /* 1. TABLE LIST VIEW (ตารางรายการรายคน - หัวตาราง Sticky ติดขอบบนเสมอ และขยายเต็มตาเมื่อย่อแดชบอร์ด) */
-            <div className={`border border-slate-200 rounded-xl overflow-auto shadow-xs bg-white transition-all ${
+            <div className={`border border-slate-200/90 rounded-2xl overflow-auto shadow-[0_1px_3px_rgba(15,23,42,0.04)] bg-white transition-all ${
               isDashboardCollapsed ? 'max-h-[78vh] sm:max-h-[82vh]' : 'max-h-[60vh]'
             }`}>
               <table className="w-full text-left text-xs border-collapse min-w-full">
-                <thead className="bg-[#0B1329] text-slate-200 font-bold sticky top-0 z-20 shadow-md">
+                <thead className="bg-slate-50/95 text-slate-600 font-bold sticky top-0 z-20 border-b border-slate-200">
                   <tr>
-                    <th className="py-2 px-2.5 w-10 text-center border-b border-slate-700 text-slate-400 bg-[#0B1329]">#</th>
-                    <th className="py-2 px-3 min-w-[200px] border-b border-slate-700 bg-[#0B1329] sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.15)]">
-                      <div className="text-white font-extrabold text-xs">ครูผู้สอน</div>
-                      <div className="text-[10px] text-amber-300 font-normal">รหัสประจำตัว / อีเมล</div>
+                    <th className="py-2.5 px-2.5 w-10 text-center border-b border-slate-200 text-slate-400 bg-slate-50/95">#</th>
+                    <th className="py-2.5 px-3 min-w-[200px] border-b border-slate-200 bg-slate-50/95 sticky left-0 z-30 shadow-[2px_0_5px_rgba(15,23,42,0.04)]">
+                      <div className="text-slate-900 font-bold text-xs">ครูผู้สอน</div>
+                      <div className="text-[10px] text-slate-400 font-normal">รหัสประจำตัว / อีเมล</div>
                     </th>
-                    <th className="py-2 px-2.5 min-w-[130px] border-b border-slate-700">กลุ่มสาระการเรียนรู้</th>
-                    <th className="py-2 px-2 min-w-[95px] text-center border-b border-slate-700">
+                    <th className="py-2.5 px-2.5 min-w-[130px] border-b border-slate-200">กลุ่มสาระการเรียนรู้</th>
+                    <th className="py-2.5 px-2 min-w-[95px] text-center border-b border-slate-200">
                       <div>ความก้าวหน้า</div>
-                      <div className="text-[9px] text-slate-400 font-normal">ชิ้นงานที่ส่งแล้ว</div>
+                      <div className="text-[10px] text-slate-400 font-normal">ชิ้นงานที่ส่งแล้ว</div>
                     </th>
-                    <th className="py-2 px-3 min-w-[360px] border-b border-slate-700">
+                    <th className="py-2.5 px-3 min-w-[360px] border-b border-slate-200">
                       <div>สถานะภาระงานที่มอบหมาย</div>
-                      <div className="text-[9px] text-slate-400 font-normal">คลิกเพื่อดูเอกสารหรือส่งแจ้งเตือน</div>
+                      <div className="text-[10px] text-slate-400 font-normal">คลิกเพื่อดูเอกสารหรือส่งแจ้งเตือน</div>
                     </th>
-                    <th className="py-2 px-2.5 text-center min-w-[110px] border-b border-slate-700">สถานะรวม</th>
-                    <th className="py-2 px-3 text-right min-w-[115px] border-b border-slate-700">การดำเนินการ</th>
+                    <th className="py-2.5 px-2.5 text-center min-w-[110px] border-b border-slate-200">สถานะรวม</th>
+                    <th className="py-2.5 px-3 text-right min-w-[115px] border-b border-slate-200">การดำเนินการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1476,16 +1544,16 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
             </div>
           ) : viewMode === 'matrix' ? (
             /* Matrix Grid View (Desktop & Tablet with smooth horizontal scroll & sticky header) */
-            <div className={`border border-slate-200 rounded-xl overflow-auto shadow-xs bg-white transition-all ${
+            <div className={`border border-slate-200/90 rounded-2xl overflow-auto shadow-[0_1px_3px_rgba(15,23,42,0.04)] bg-white transition-all ${
               isDashboardCollapsed ? 'max-h-[78vh] sm:max-h-[82vh]' : 'max-h-[60vh]'
             }`}>
               <table className="w-full text-left text-xs border-collapse min-w-full">
-                <thead className="bg-[#0B1329] text-slate-200 font-bold sticky top-0 z-20 shadow-md">
+                <thead className="bg-slate-50/95 text-slate-600 font-bold sticky top-0 z-20 border-b border-slate-200">
                   <tr>
                     {/* Fixed Col 1: Teacher Info */}
-                    <th className="py-3 px-4 min-w-[230px] max-w-[270px] border-b border-slate-700 bg-[#0B1329] sticky left-0 z-30 shadow-[2px_0_5px_rgba(0,0,0,0.15)]">
-                      <div className="text-white font-extrabold text-sm">ครูผู้สอน</div>
-                      <div className="text-[10px] text-amber-300 font-medium">รหัส / กลุ่มสาระการเรียนรู้</div>
+                    <th className="py-3 px-4 min-w-[230px] max-w-[270px] border-b border-slate-200 bg-slate-50/95 sticky left-0 z-30 shadow-[2px_0_5px_rgba(15,23,42,0.04)]">
+                      <div className="text-slate-900 font-bold text-xs">ครูผู้สอน</div>
+                      <div className="text-[10px] text-slate-400 font-normal">รหัส / กลุ่มสาระการเรียนรู้</div>
                     </th>
 
                       {/* Columns 2..N+1: Assigned Tasks */}
@@ -1494,25 +1562,25 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                         return (
                           <th
                             key={config.id}
-                            className="py-3 px-3 min-w-[190px] border-b border-slate-700 text-center font-bold"
+                            className="py-3 px-3 min-w-[190px] border-b border-slate-200 text-center font-bold"
                           >
-                            <div className="text-white font-bold truncate max-w-[220px] mx-auto text-xs" title={config.name}>
+                            <div className="text-slate-900 font-bold truncate max-w-[220px] mx-auto text-xs" title={config.name}>
                               {config.name}
                             </div>
-                            <div className="text-[10px] text-slate-300 font-normal mt-0.5 flex items-center justify-center gap-1">
-                              <span className="bg-slate-800 text-amber-300 px-1 rounded font-mono">
+                            <div className="text-[10px] text-slate-500 font-normal mt-0.5 flex items-center justify-center gap-1 tabular-nums">
+                              <span className="bg-slate-200/70 text-slate-700 px-1.5 rounded font-mono">
                                 ภาค {config.semester}/{config.academic_year}
                               </span>
-                              <span>•</span>
+                              <span>·</span>
                               <span>ส่ง {config.end_date}</span>
                             </div>
                             {taskStat && (
-                              <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px]">
-                                <span className="text-emerald-400 font-bold">
+                              <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] tabular-nums">
+                                <span className="text-emerald-700 font-bold">
                                   {taskStat.submittedCount}/{stats.totalTeachers} ส่งแล้ว
                                 </span>
                                 {taskStat.unsubmittedCount > 0 && (
-                                  <span className="text-rose-400 font-bold">
+                                  <span className="text-rose-600 font-bold">
                                     (ค้าง {taskStat.unsubmittedCount})
                                   </span>
                                 )}
@@ -1523,13 +1591,13 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                       })}
 
                       {/* Summary Col: ความก้าวหน้ารวม */}
-                      <th className="py-3 px-3 text-center min-w-[110px] border-b border-slate-700 font-bold text-amber-300">
+                      <th className="py-3 px-3 text-center min-w-[110px] border-b border-slate-200 font-bold text-slate-700">
                         <div>ความก้าวหน้า</div>
                         <div className="text-[10px] text-slate-400 font-normal">ชิ้นงานที่ส่ง</div>
                       </th>
 
                       {/* Actions Col */}
-                      <th className="py-3 px-4 text-right min-w-[190px] border-b border-slate-700 font-bold text-slate-300">
+                      <th className="py-3 px-4 text-right min-w-[190px] border-b border-slate-200 font-bold text-slate-600">
                         แจ้งเตือน & จัดการ
                       </th>
                     </tr>
@@ -1543,7 +1611,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                       return (
                         <tr key={teacher.Teacher_ID} className="hover:bg-slate-50/80 transition-colors group">
                           {/* Col 1: Teacher Profile (Sticky left) */}
-                          <td className="py-3 px-4 bg-white group-hover:bg-slate-50/80 sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.04)] border-r border-slate-100">
+                          <td className="py-3 px-4 bg-white group-hover:bg-slate-50/80 sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.03)] border-r border-slate-100">
                             <div className="flex items-center gap-2.5">
                               <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
                                 {photoUrl ? (
@@ -1577,12 +1645,12 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                             </div>
                           </td>
 
-                          {/* Task Columns: GREEN if submitted, RED if not submitted */}
+                          {/* Task Columns: Soft-tinted 1px-ring Swiss cells */}
                           {taskResults.map((result) => {
                             const { config, isSubmitted, submittedPlan, matchingPlans, timeStatus } = result;
 
                             if (isSubmitted && submittedPlan) {
-                              /* GREEN CELL (ส่งแล้ว) */
+                              const isLateCell = !!submittedPlan.is_late;
                               return (
                                 <td
                                   key={config.id}
@@ -1597,47 +1665,50 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                                         allMatching: matchingPlans,
                                       })
                                     }
-                                    className="h-full min-h-[64px] bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-400 rounded-xl p-2 flex flex-col items-center justify-center gap-1 text-emerald-950 transition-all cursor-pointer shadow-2xs hover:scale-[1.01] active:scale-95"
+                                    className={`h-full min-h-[60px] rounded-xl p-2 flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer ${
+                                      isLateCell
+                                        ? 'bg-amber-50/90 hover:bg-amber-100/80 ring-1 ring-amber-300/90 text-amber-950'
+                                        : 'bg-emerald-50/90 hover:bg-emerald-100/80 ring-1 ring-emerald-200/90 text-emerald-950'
+                                    }`}
                                     title={`คลิกเพื่อดูรายละเอียด / ไฟล์ / แก้ไขการส่งงาน "${config.name}" ของคุณครู ${teacher.Name}`}
                                   >
-                                    <div className="flex items-center gap-1 font-extrabold text-[11px] text-emerald-800">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                      <span>ส่งแล้ว</span>
+                                    <div className={`flex items-center gap-1 font-bold text-[11px] ${isLateCell ? 'text-amber-800' : 'text-emerald-800'}`}>
+                                      {isLateCell ? (
+                                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                      ) : (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      )}
+                                      <span>{isLateCell ? 'ส่งช้า' : 'ส่งแล้ว'}</span>
                                       {matchingPlans.length > 1 && (
-                                        <span className="bg-emerald-600 text-white text-[9px] px-1 py-0.2 rounded-full font-bold">
+                                        <span className="bg-emerald-600 text-white text-[9px] px-1 py-0.2 rounded-full font-bold tabular-nums">
                                           {matchingPlans.length}
                                         </span>
                                       )}
                                     </div>
 
                                     {/* Status / Delay indicator */}
-                                    <div className="text-[10px] text-emerald-700 font-medium truncate max-w-[160px]">
+                                    <div className="text-[10px] text-slate-600 font-medium truncate max-w-[160px]">
                                       {submittedPlan.status === 'approved' ? (
-                                        <span className="font-bold text-emerald-700">✓ อนุมัติแล้ว</span>
+                                        <span className="font-bold text-emerald-700">อนุมัติแล้ว</span>
                                       ) : submittedPlan.status === 'needs_revision' ? (
                                         <span className="font-bold text-rose-600">แก้ไขใหม่</span>
                                       ) : (
                                         <span>รอตรวจ</span>
                                       )}
                                       {submittedPlan.total_score !== undefined && submittedPlan.total_score !== null && (
-                                        <span className="ml-1 font-bold text-indigo-700">({submittedPlan.total_score} คะแนน)</span>
+                                        <span className="ml-1 font-bold text-indigo-700 tabular-nums">({submittedPlan.total_score} คะแนน)</span>
                                       )}
                                     </div>
 
-                                    <div className="text-[9px] text-emerald-600/80 font-mono">
+                                    <div className="text-[9px] text-slate-500 font-mono tabular-nums">
                                       {submittedPlan.submitted_at?.split('T')[0] || ''}
-                                      {submittedPlan.is_late && (
-                                        <span className="ml-1 px-1 bg-amber-100 text-amber-800 rounded font-bold">
-                                          ช้า
-                                        </span>
-                                      )}
                                     </div>
                                   </div>
                                 </td>
                               );
                             }
 
-                            /* RED CELL (ยังไม่ส่ง) - Clearly displays days overdue or remaining time */
+                            /* RED CELL (ยังไม่ส่ง) */
                             return (
                               <td
                                 key={config.id}
@@ -1645,30 +1716,30 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                               >
                                 <div
                                   onClick={() => handleQuickClickSend(teacher, missingTasks, config)}
-                                  className="h-full min-h-[64px] bg-rose-50 hover:bg-rose-100 border-2 border-rose-300 rounded-xl p-2 flex flex-col items-center justify-center gap-1 text-rose-950 transition-all cursor-pointer shadow-2xs hover:scale-[1.01] active:scale-95 group/cell"
+                                  className="h-full min-h-[60px] bg-rose-50/90 hover:bg-rose-100/80 ring-1 ring-rose-200/90 rounded-xl p-2 flex flex-col items-center justify-center gap-1 text-rose-950 transition-colors cursor-pointer group/cell"
                                   title={`คลิกส่งอีเมลแจ้งเตือนงาน "${config.name}" จาก ${ACADEMIC_SENDER_EMAIL} (${timeStatus.statusText})`}
                                 >
-                                  <div className="flex items-center gap-1 font-black text-[11px] text-rose-700">
+                                  <div className="flex items-center gap-1 font-bold text-[11px] text-rose-700">
                                     <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                                     <span>ยังไม่ส่ง</span>
                                   </div>
 
                                   {/* Overdue Days vs Remaining Time Notice */}
-                                  <div className="text-[10px] font-bold truncate max-w-[160px]">
+                                  <div className="text-[10px] font-bold truncate max-w-[160px] tabular-nums">
                                     {timeStatus.isOverdue ? (
-                                      <span className="text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5">
+                                      <span className="text-rose-700 bg-rose-100/80 px-1.5 py-0.5 rounded-md inline-flex items-center gap-0.5">
                                         <Flame className="w-3 h-3 text-rose-600" />
                                         <span>เกิน {timeStatus.days} วัน</span>
                                       </span>
                                     ) : (
-                                      <span className="text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5">
+                                      <span className="text-amber-800 bg-amber-100/80 px-1.5 py-0.5 rounded-md inline-flex items-center gap-0.5">
                                         <Clock className="w-3 h-3 text-amber-700" />
                                         <span>เหลือ {timeStatus.days} วัน</span>
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="text-[9px] text-rose-600 font-black group-hover/cell:underline flex items-center gap-0.5">
+                                  <div className="text-[9px] text-rose-600 font-semibold group-hover/cell:underline flex items-center gap-0.5">
                                     {sendingTeacherId === teacher.Teacher_ID ? (
                                       <>
                                         <Loader2 className="w-2.5 h-2.5 animate-spin text-rose-600" />
@@ -2631,8 +2702,8 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           </div>
         )}
 
-        {/* Footer (hidden during fullscreen single-screen overview to maximize height) */}
-        {!(isOverviewFullscreen && viewMode === 'overview') && (
+        {/* Footer (hidden in overview mode to avoid duplicating legend and save vertical height) */}
+        {viewMode !== 'overview' && (
           <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 shrink-0">
             <div className="flex items-center gap-2 font-medium">
               <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">

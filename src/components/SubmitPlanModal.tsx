@@ -416,42 +416,42 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 p-4 sm:p-6 text-white shrink-0">
+        <div className="relative bg-[#0B1329] p-4 sm:p-5 text-white shrink-0 border-b border-slate-800">
           <button
             onClick={onClose}
-            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer"
+            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 p-2 rounded-xl transition-colors active:scale-95 cursor-pointer"
             aria-label="ปิดหน้าต่าง"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25 shadow-inner shrink-0">
-              <UploadCloud className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-amber-400/15 ring-1 ring-amber-400/30 rounded-xl flex items-center justify-center shrink-0">
+              <UploadCloud className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400" />
             </div>
             <div className="min-w-0 pr-8">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-blue-200 block truncate">
+                <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block truncate">
                   Lesson Plan Submission
                 </span>
-                <span className="bg-amber-400 text-slate-950 px-2 py-0.2 rounded-full text-[10px] font-black">
+                <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-md text-[10px] font-bold tabular-nums">
                   {items.length} วิชา / รายการ
                 </span>
               </div>
-              <h2 className="text-lg sm:text-xl font-bold truncate">
+              <h2 className="text-base sm:text-lg font-bold truncate">
                 ส่งแผนการจัดการเรียนรู้ (เพิ่มได้หลายวิชา)
               </h2>
             </div>
           </div>
 
-          <div className="mt-2.5 sm:mt-3 flex items-center gap-2 sm:gap-3 text-xs bg-white/10 backdrop-blur-sm px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-white/15 flex-wrap">
-            <span className="font-semibold text-sky-200">ผู้ส่ง:</span>
+          <div className="mt-3 flex items-center gap-2 sm:gap-3 text-xs bg-slate-900/80 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-slate-800 flex-wrap">
+            <span className="font-semibold text-amber-400">ผู้ส่ง:</span>
             <span className="font-medium truncate max-w-[150px]">
               {currentTeacher.Name}
             </span>
-            <span className="font-mono bg-white/20 px-1.5 py-0.2 rounded text-[10px]">
+            <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded text-[10px] text-slate-300">
               {currentTeacher.Teacher_ID}
             </span>
             <span className="hidden sm:inline">·</span>
@@ -719,7 +719,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                       const matchingTypeConfig = (deadlineConfigs || []).find((c) => c.name === item.planType);
                       if (matchingTypeConfig?.fields && matchingTypeConfig.fields.length > 0 && onSwitchToDynamic) {
                         return (
-                          <div className="mt-2.5 p-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 text-slate-800 flex items-center justify-between gap-3 text-xs shadow-2xs animate-in fade-in">
+                          <div className="mt-2.5 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-slate-800 flex items-center justify-between gap-3 text-xs animate-in fade-in">
                             <div className="flex items-center gap-2 min-w-0">
                               <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
                               <span className="truncate">
@@ -729,7 +729,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                             <button
                               type="button"
                               onClick={() => onSwitchToDynamic(matchingTypeConfig)}
-                              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold rounded-lg text-xs shrink-0 transition-all cursor-pointer shadow-xs active:scale-95"
+                              className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-lg text-xs shrink-0 transition-all cursor-pointer shadow-2xs active:scale-95"
                             >
                               เปิดแบบฟอร์มเฉพาะ
                             </button>
@@ -756,11 +756,11 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
                       }
 
                       return (
-                        <div className="mt-2.5 p-3.5 rounded-2xl bg-gradient-to-r from-sky-50 via-indigo-50/40 to-blue-50 border border-sky-200 text-slate-800 space-y-2.5 shadow-2xs">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/60 pb-2">
-                            <span className="font-bold text-sky-950 flex items-center gap-1.5 text-xs sm:text-sm">
-                              <LinkIcon className="w-3.5 h-3.5 text-sky-600" />
-                              <span>เอกสารตัวอย่าง & คำชี้แจงสำหรับ {item.planType}:</span>
+                        <div className="mt-2.5 p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200 text-slate-800 space-y-2.5">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+                            <span className="font-bold text-slate-900 flex items-center gap-1.5 text-xs sm:text-sm">
+                              <LinkIcon className="w-3.5 h-3.5 text-slate-600" />
+                              <span>เอกสารตัวอย่าง &amp; คำชี้แจงสำหรับ {item.planType}:</span>
                             </span>
                             {effectiveSample && (
                               <a
@@ -1030,7 +1030,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70 cursor-pointer"
+                className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm shadow-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>

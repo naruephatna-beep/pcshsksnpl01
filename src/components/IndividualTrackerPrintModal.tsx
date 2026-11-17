@@ -234,7 +234,7 @@ export const IndividualTrackerPrintModal: React.FC<IndividualTrackerPrintModalPr
             <button
               type="button"
               onClick={() => window.print()}
-              className="px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+              className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-950" />
               <span>พิมพ์เอกสาร / บันทึก PDF</span>

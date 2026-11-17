@@ -568,19 +568,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-300">
-      {/* Executive Header Banner */}
-      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-4 sm:p-5 shadow-lg border border-indigo-900/50">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      {/* Executive Header Banner (Matte #0B1329 Authority Surface) */}
+      <div className="rounded-2xl bg-[#0B1329] text-white p-4 sm:p-5 border border-slate-800 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1.5 min-w-0">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white/10 text-emerald-300 border border-white/15">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>ศูนย์บัญชาการข้อมูลผู้บริหาร • Executive Analytics</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <span>ศูนย์บัญชาการข้อมูลผู้บริหาร · Executive Analytics</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
               <span>แดชบอร์ดติดตามและประเมินผลฝ่ายบริหาร</span>
             </h2>
-            <p className="text-indigo-200/90 text-xs max-w-xl leading-relaxed">
+            <p className="text-slate-300 text-xs max-w-xl leading-relaxed">
               ภาพรวมการส่งเอกสารวิชาการ วิเคราะห์ความตรงต่อเวลา สรุปรายกลุ่มสาระและรายบุคคล
               โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
             </p>
@@ -592,18 +591,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={handleInstantCopyPrompt}
-              className="h-8.5 px-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer border border-amber-300 shrink-0"
+              className="h-8.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0"
               title="คลิกเดียวคัดลอก Prompt สถิติจริงเพื่อนำไปสร้างอินโฟกราฟิกด้วย AI ทันที"
             >
               <Sparkles className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-              <span>✨ คัดลอก Prompt AI</span>
+              <span>คัดลอก Prompt AI</span>
             </button>
 
             {/* Primary Action 2: Individual Printable Summary */}
             <button
               type="button"
               onClick={() => setIsIndividualPrintModalOpen(true)}
-              className="h-8.5 px-3 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="h-8.5 px-3 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
               title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล"
             >
               <Printer className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
@@ -615,11 +614,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <button
                 type="button"
                 onClick={onOpenReviewerWorkload}
-                className="h-8.5 px-3 bg-indigo-500/30 hover:bg-indigo-500/40 text-white rounded-xl text-xs font-bold border border-indigo-400/40 shadow-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0 backdrop-blur-xs"
+                className="h-8.5 px-3 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold border border-white/15 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
                 title="ตรวจสอบว่าใครตรวจงานไปกี่ฉบับ และมีงานรอตรวจกี่รายการ"
               >
                 <UserCheck className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span>👥 ภาระงานผู้ตรวจ</span>
+                <span>ภาระงานผู้ตรวจ</span>
               </button>
             )}
 
@@ -735,21 +734,17 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Decorative background glow */}
-        <div className="absolute top-0 right-1/4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
       </div>
 
       {/* Executive View Mode Switcher: Standard Operational vs Ranking Leaderboard vs Data-Driven Organization */}
-      <div className="bg-white rounded-xl p-1.5 sm:p-2 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-        <div className="flex flex-wrap items-center gap-1 p-0.5 bg-slate-100 rounded-lg">
+      <div className="bg-white rounded-2xl p-2 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-xl">
           <button
             type="button"
             onClick={() => handleModeChange('standard')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
               currentMode === 'standard'
-                ? 'bg-white text-slate-900 shadow-2xs'
+                ? 'bg-white text-slate-900 font-bold shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -760,31 +755,31 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           <button
             type="button"
             onClick={() => handleModeChange('ranking')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
               currentMode === 'ranking'
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow-2xs font-black'
-                : 'text-amber-800 hover:text-amber-950 hover:bg-amber-100/60'
+                ? 'bg-white text-slate-900 font-bold shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Trophy className="w-3.5 h-3.5 text-amber-900" />
+            <Trophy className="w-3.5 h-3.5 text-amber-500" />
             <span>ทำเนียบจัดอันดับกลุ่มสาระ</span>
-            <span className={`text-[9px] px-1.5 py-0.2 rounded font-black ${currentMode === 'ranking' ? 'bg-slate-950 text-amber-300' : 'bg-amber-200 text-amber-900'}`}>
-              เร็ว & ตรงเวลา
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${currentMode === 'ranking' ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/90' : 'bg-slate-200/80 text-slate-600'}`}>
+              เร็ว &amp; ตรงเวลา
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => handleModeChange('ddo')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
               currentMode === 'ddo'
-                ? 'bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-950 text-white shadow-2xs'
-                : 'text-slate-600 hover:text-indigo-950'
+                ? 'bg-slate-900 text-white font-bold shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
             <span>วิเคราะห์ Data-Driven</span>
-            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500 text-slate-950 font-black">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 font-bold">
               DDO
             </span>
           </button>
@@ -792,7 +787,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
         <div className="text-[11px] text-slate-500 px-2 flex items-center gap-1.5">
           <span className="font-semibold text-slate-700">มุมมอง:</span>
-          <span className="font-bold text-indigo-600">
+          <span className="font-semibold text-indigo-600">
             {currentMode === 'ddo'
               ? 'การวินิจฉัยจุดติดขัด · เรดาร์ความเสี่ยง · ข้อเสนอแนะเชิงยุทธศาสตร์'
               : currentMode === 'ranking'
@@ -820,60 +815,59 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         />
       ) : (
         <>
-          {/* Top 4 KPI Cards: Compact, Prominent Stats, Micro Labels */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+          {/* Top 4 KPI Cards: Swiss Executive Bento Surfaces */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* KPI 1: Submission Rate */}
-            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-indigo-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-default">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-slate-300 transition-colors cursor-default">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                <span className="text-[11px] font-semibold text-slate-500 truncate">
                   อัตราการส่งทั้งโรงเรียน
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
                   <FileCheck2 className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-slate-900">
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-slate-900">
                   <AnimatedCounter value={submissionRate} suffix="%" />
                 </span>
-                <span className="text-[11px] text-slate-400 font-medium">
+                <span className="text-[11px] text-slate-400 font-medium tabular-nums">
                   ({submittedTeachers.length}/{totalTeachersCount} ท่าน)
                 </span>
               </div>
               {/* Progress bar */}
-              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
                 <div
                   className="bg-indigo-600 h-1.5 rounded-full transition-all duration-700 ease-out"
                   style={{ width: `${submissionRate}%` }}
                 ></div>
               </div>
-              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
                 <span>ส่งแล้ว {totalPlansCount} ฉบับ</span>
-                <span className="font-semibold text-rose-600 font-mono">
+                <span className="font-semibold text-rose-600">
                   {pendingTeachers.length > 0 ? `ค้าง ${pendingTeachers.length} ท่าน` : 'ครบ 100%'}
                 </span>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500"></div>
             </div>
 
             {/* KPI 2: Punctuality Breakdown */}
-            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-emerald-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-default">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-emerald-300/80 transition-colors cursor-default">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                <span className="text-[11px] font-semibold text-slate-500 truncate">
                   ความตรงต่อเวลา
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-emerald-600">
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-emerald-600">
                   <AnimatedCounter value={onTimeRate} suffix="%" />
                 </span>
-                <span className="text-[11px] text-slate-400 font-medium">({onTimePlans.length} ฉบับ)</span>
+                <span className="text-[11px] text-slate-400 font-medium tabular-nums">({onTimePlans.length} ฉบับ)</span>
               </div>
               {/* Progress bar with ontime and late segments */}
-              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden flex">
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2.5 overflow-hidden flex">
                 <div
                   className="bg-emerald-500 h-1.5 transition-all duration-700 ease-out"
                   style={{ width: `${onTimeRate}%` }}
@@ -883,74 +877,72 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   style={{ width: `${lateRate}%` }}
                 ></div>
               </div>
-              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[11px]">
-                <span className="text-emerald-700 font-semibold font-mono">✓ ตรงเวลา: {onTimePlans.length}</span>
-                <span className="text-amber-700 font-semibold font-mono">⚠️ ช้า: {latePlans.length}</span>
+              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] tabular-nums">
+                <span className="text-emerald-700 font-semibold">ตรงเวลา {onTimePlans.length}</span>
+                <span className="text-amber-700 font-semibold">ช้า {latePlans.length}</span>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"></div>
             </div>
 
             {/* KPI 3: Average Quality Score */}
-            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-amber-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-default">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-amber-300/80 transition-colors cursor-default">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                <span className="text-[11px] font-semibold text-slate-500 truncate">
                   คะแนนคุณภาพเฉลี่ย
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
                   <Award className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-slate-900">{avgScore}</span>
-                {avgScore !== '-' && <span className="text-[11px] text-slate-400 font-medium">/ 100</span>}
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-slate-900">{avgScore}</span>
+                {avgScore !== '-' && <span className="text-[11px] text-slate-400 font-medium tabular-nums">/ 100</span>}
               </div>
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 font-semibold">
+              <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold">
                 {avgScore === '-' ? (
                   <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
                     รอผลประเมินจริง
                   </span>
                 ) : Number(avgScore) >= 90 ? (
-                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded-md shadow-2xs">
-                    ดีเยี่ยม (90+) ★★★★★
+                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 ring-1 ring-emerald-200/90 px-2 py-0.5 rounded-md">
+                    ระดับดีเยี่ยม (90+)
                   </span>
                 ) : Number(avgScore) >= 80 ? (
-                  <span className="text-[10px] text-blue-700 font-bold bg-blue-100/70 px-2 py-0.5 rounded-md shadow-2xs">
-                    ดีมาก (80-89) ★★★★☆
+                  <span className="text-[10px] text-blue-700 font-semibold bg-blue-50 ring-1 ring-blue-200/90 px-2 py-0.5 rounded-md">
+                    ระดับดีมาก (80-89)
                   </span>
                 ) : Number(avgScore) >= 70 ? (
-                  <span className="text-[10px] text-amber-700 font-bold bg-amber-100/70 px-2 py-0.5 rounded-md shadow-2xs">
-                    ดี (70-79) ★★★☆☆
+                  <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 ring-1 ring-amber-200/90 px-2 py-0.5 rounded-md">
+                    ระดับดี (70-79)
                   </span>
                 ) : (
-                  <span className="text-[10px] text-rose-700 font-bold bg-rose-100/70 px-2 py-0.5 rounded-md shadow-2xs">
-                    ปรับปรุง (&lt;70)
+                  <span className="text-[10px] text-rose-700 font-semibold bg-rose-50 ring-1 ring-rose-200/90 px-2 py-0.5 rounded-md">
+                    ควรปรับปรุง (&lt;70)
                   </span>
                 )}
               </div>
-              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[11px] text-slate-400 truncate">
-                <span>ประเมินแล้ว:</span>
-                <span className="font-mono font-bold text-slate-600">{plansWithScore.length} ฉบับ</span>
+              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 truncate tabular-nums">
+                <span>ประเมินแล้ว</span>
+                <span className="font-semibold text-slate-600">{plansWithScore.length} ฉบับ</span>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500"></div>
             </div>
 
             {/* KPI 4: Department Completion */}
-            <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs relative overflow-hidden group hover:border-sky-300 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-default">
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-sky-300/80 transition-colors cursor-default">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                <span className="text-[11px] font-semibold text-slate-500 truncate">
                   กลุ่มสาระส่งครบ 100%
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center text-sky-600 shrink-0">
                   <Layers className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-mono font-black tracking-tight text-sky-600">
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-sky-600">
                   <AnimatedCounter value={areaStats.filter((a) => a.isCompleted).length} />
                 </span>
-                <span className="text-[11px] text-slate-400 font-medium">/ {areaStats.length} กลุ่มสาระ</span>
+                <span className="text-[11px] text-slate-400 font-medium tabular-nums">/ {areaStats.length} กลุ่มสาระ</span>
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
                 <div
                   className="bg-sky-500 h-1.5 rounded-full transition-all duration-700 ease-out"
                   style={{
@@ -960,32 +952,31 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   }}
                 ></div>
               </div>
-              <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
                 <span>กลุ่มสาระดีเด่น</span>
-                <span className="font-semibold text-indigo-600 font-mono">
+                <span className="font-semibold text-indigo-600">
                   {areaStats.filter((a) => a.isCompleted).length} กลุ่มสำเร็จ
                 </span>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-500"></div>
             </div>
           </div>
 
-          {/* Quick Leaderboard Announcement Banner: Compact strip */}
-          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200/90 rounded-xl p-2.5 sm:p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-[#0B1329] text-amber-400 flex items-center justify-center shrink-0 shadow-2xs border border-amber-400/20">
-                <Trophy className="w-4 h-4 text-amber-400" />
+          {/* Quick Leaderboard Announcement Banner: Crisp Bento Strip */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 ring-1 ring-amber-200/80">
+                <Trophy className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
                     ทำเนียบจัดอันดับกลุ่มสาระยอดเยี่ยม (Leaderboard)
                   </h4>
-                  <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-amber-200 text-amber-950">
-                    ความเร็ว & ตรงเวลา
+                  <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-amber-50 text-amber-800 ring-1 ring-amber-200/90">
+                    ความเร็ว &amp; ตรงเวลา
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                <p className="text-[11px] text-slate-500 truncate mt-0.5">
                   เช็คกลุ่มสาระที่ส่งเอกสารครบ 100% ตรงเวลาทุกคนก่อนเป็นกลุ่มแรก พร้อมสถิติเวลาจริงและแท่นรางวัล
                 </p>
               </div>
@@ -994,7 +985,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => handleModeChange('ranking')}
-              className="h-8 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0 self-start sm:self-auto active:scale-95"
+              className="h-8 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 self-start sm:self-auto"
             >
               <Trophy className="w-3.5 h-3.5 text-slate-950" />
               <span>เปิดดูอันดับ</span>
@@ -1457,7 +1448,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-slate-200/70 pb-1.5">
                       <div className="flex items-center gap-2 min-w-0">
                         {stat.isCompleted && (
-                          <span className="text-amber-500 text-xs" title="ส่งครบทุกรายการ">🏆</span>
+                          <span className="text-amber-500 inline-flex items-center" title="ส่งครบทุกรายการ">
+                            <Trophy className="w-3.5 h-3.5" />
+                          </span>
                         )}
                         <span className="text-slate-900 font-bold text-xs truncate">{stat.name}</span>
                         <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.2 rounded-md font-mono shrink-0">
@@ -1578,7 +1571,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-800 flex items-center gap-1.5 truncate max-w-[240px]">
                         {stat.isCompleted && (
-                          <span className="text-amber-500 text-[11px]" title="ส่งครบ 100%">🏆</span>
+                          <span className="inline-flex items-center shrink-0" title="ส่งครบ 100%">
+                            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                          </span>
                         )}
                         <span>{stat.name}</span>
                       </span>
@@ -2175,7 +2170,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsIndividualPrintModalOpen(true)}
-                className="h-8 px-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black rounded-lg text-xs flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer border border-amber-300 shrink-0"
+                className="h-8 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
                 title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล"
               >
                 <Printer className="w-3.5 h-3.5 text-slate-950 shrink-0" />
@@ -2519,7 +2514,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => onOpenPlan(plan)}
-                                          className="px-2 py-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all shadow-2xs active:scale-95 cursor-pointer"
+                                          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                                           title="ตรวจและประเมิน / อนุมัติเอกสารนี้"
                                         >
                                           <UserCheck className="w-3 h-3 text-amber-300" />
@@ -2701,9 +2696,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         )}
       </div>
 
-      {/* SECTION 5: EXECUTIVE STRATEGIC INSIGHTS (ข้อเสนอแนะเชิงบริหาร) */}
-      <div className="bg-gradient-to-br from-indigo-50/70 via-blue-50/40 to-white rounded-xl p-3.5 sm:p-4 border border-indigo-100 shadow-2xs space-y-2.5">
-        <div className="flex items-center gap-2 text-indigo-900">
+      {/* SECTION 5: EXECUTIVE STRATEGIC INSIGHTS (Swiss Executive Bento) */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] space-y-3">
+        <div className="flex items-center gap-2 text-slate-900">
           <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
           <h3 className="text-xs sm:text-sm font-bold">
             ข้อสรุปและข้อเสนอแนะเชิงบริหาร (Executive Strategic Insights)

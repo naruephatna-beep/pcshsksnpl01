@@ -40,23 +40,23 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-rose-100 overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-rose-600 to-red-700 p-5 text-white flex items-center justify-between">
+        <div className="bg-[#0B1329] p-5 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/25">
-              <Trash2 className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-rose-500/15 ring-1 ring-rose-500/30 flex items-center justify-center">
+              <Trash2 className="w-5 h-5 text-rose-400" />
             </div>
             <div>
-              <h3 className="text-lg font-bold">ยืนยันการลบแผนการสอน</h3>
-              <p className="text-xs text-rose-100">โปรดยืนยันการลบข้อมูลนี้</p>
+              <h3 className="text-base font-bold">ยืนยันการลบแผนการสอน</h3>
+              <p className="text-xs text-slate-400">โปรดยืนยันการลบข้อมูลนี้</p>
             </div>
           </div>
           <button
             onClick={onClose}
             disabled={isDeleting}
-            className="p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -71,9 +71,9 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
               <p>
                 ข้อมูลจะถูกลบออกจากระบบ และจะซิงก์ลบออกจากฐานข้อมูล Cloudflare D1 (ตาราง <code className="font-mono bg-rose-100 px-1 rounded">lesson_plans</code>) โดยอัตโนมัติทันที
               </p>
-              <p className="mt-1.5 pt-1.5 border-t border-rose-200/60 text-[11px] text-emerald-800 font-medium flex items-center gap-1">
-                <span>🗑️</span>
-                <span>ไฟล์ PDF ใน Google Drive ของโรงเรียนจะถูกย้ายลง <strong>"ถังขยะ (Trash)"</strong> ให้อัตโนมัติ (สามารถกู้คืนได้ภายใน 30 วัน)</span>
+              <p className="mt-1.5 pt-1.5 border-t border-rose-200/60 text-[11px] text-emerald-800 font-medium flex items-center gap-1.5">
+                <Trash2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span>ไฟล์ PDF ใน Google Drive ของโรงเรียนจะถูกย้ายลง <strong>&quot;ถังขยะ (Trash)&quot;</strong> ให้อัตโนมัติ (สามารถกู้คืนได้ภายใน 30 วัน)</span>
               </p>
             </div>
           </div>

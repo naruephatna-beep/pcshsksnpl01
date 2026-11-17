@@ -598,7 +598,7 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
               type="button"
               onClick={handleSaveAllStructure}
               disabled={isSavingAll}
-              className="px-3.5 sm:px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-md hover:shadow-lg cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+              className="px-3.5 sm:px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-50"
               title="กดเพื่อบันทึกโครงสร้างกลุ่มสาระ สาขาวิชา และการจัดสังกัดครูทั้งหมดลงระบบ"
             >
               {isSavingAll ? (
@@ -861,7 +861,7 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
                     </div>
 
                     {/* Department Head Spotlight Card */}
-                    <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent rounded-2xl border border-amber-200/80 p-4 sm:p-5">
+                    <div className="bg-amber-50/70 rounded-2xl border border-amber-200/90 p-4 sm:p-5">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <Crown className="w-4 h-4 text-amber-500" />
@@ -1280,7 +1280,7 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
                     </div>
 
                     {/* Branch Head Spotlight Card */}
-                    <div className="bg-gradient-to-br from-indigo-500/10 via-indigo-500/5 to-transparent rounded-2xl border border-indigo-200/80 p-4 sm:p-5">
+                    <div className="bg-indigo-50/60 rounded-2xl border border-indigo-200/80 p-4 sm:p-5">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <Award className="w-4 h-4 text-indigo-600" />
@@ -1996,7 +1996,7 @@ export const StaffStructureManagerModal: React.FC<StaffStructureManagerModalProp
               type="button"
               onClick={handleSaveAllStructure}
               disabled={isSavingAll}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               {isSavingAll ? (
                 <>

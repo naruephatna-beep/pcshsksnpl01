@@ -118,25 +118,25 @@ export const EditPlanModal: React.FC<EditPlanModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="bg-gradient-to-r from-rose-700 via-purple-700 to-indigo-700 p-6 text-white flex items-center justify-between">
+        <div className="bg-[#0B1329] p-5 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25">
-              <Edit className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-amber-400/15 ring-1 ring-amber-400/30 rounded-xl flex items-center justify-center">
+              <Edit className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <span className="text-xs uppercase tracking-wider font-semibold text-rose-200">
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-amber-400">
                 {isAdmin ? 'Admin Control' : 'แก้ไขแผนการสอนของฉัน'}
               </span>
-              <h2 className="text-xl font-bold">
+              <h2 className="text-lg font-bold">
                 {isAdmin ? 'แก้ไขข้อมูลแผนการสอน (แอดมิน)' : 'แก้ไขข้อมูลแผนการจัดการเรียนรู้'}
               </h2>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors"
+            className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 p-2 rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

@@ -534,16 +534,16 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* 1. DDO Executive Strategic Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-[#0B1329] to-indigo-950 text-white p-6 sm:p-8 border border-indigo-900/60 shadow-xl">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
-              <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
+      {/* 1. DDO Executive Strategic Hero Banner (Matte #0B1329) */}
+      <div className="rounded-2xl bg-[#0B1329] text-white p-5 sm:p-6 border border-slate-800 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white/10 text-indigo-200 border border-white/15">
+              <BrainCircuit className="w-3.5 h-3.5 text-indigo-300" />
               <span>Data-Driven Organization (DDO) Executive Intelligence</span>
             </div>
-            <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
-              <span>ศูนย์วิเคราะห์ข้อมูลองค์กรขับเคลื่อนด้วยข้อมูล</span>
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+              ศูนย์วิเคราะห์ข้อมูลองค์กรขับเคลื่อนด้วยข้อมูล
             </h2>
             <p className="text-slate-300 text-xs sm:text-sm max-w-3xl leading-relaxed">
               การบริหารจัดการโรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์ ยุคดิจิทัลด้วยข้อมูลจริง
@@ -552,9 +552,9 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
           </div>
 
           {/* DDO Health Gauge Box */}
-          <div className="flex items-center gap-4 bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 shrink-0">
-            <div className="relative w-20 h-20 flex items-center justify-center">
-              <svg className="w-20 h-20 -rotate-90 transform" viewBox="0 0 100 100">
+          <div className="flex items-center gap-4 bg-white/5 p-3.5 rounded-2xl border border-white/10 shrink-0">
+            <div className="relative w-18 h-18 flex items-center justify-center">
+              <svg className="w-18 h-18 -rotate-90 transform" viewBox="0 0 100 100">
                 <circle
                   cx="50"
                   cy="50"
@@ -576,7 +576,7 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-black text-amber-400 font-mono">
+                <span className="text-lg font-extrabold text-amber-400 tabular-nums">
                   {ddoHealthScore}
                 </span>
                 <span className="text-[9px] font-bold text-slate-400 uppercase">Index</span>
@@ -584,16 +584,16 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
             </div>
 
             <div className="space-y-1">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 ดัชนีสุขภาพองค์กร DDO
               </div>
-              <div className="text-sm font-extrabold text-white flex items-center gap-1.5">
+              <div className="text-sm font-bold text-white flex items-center gap-1.5">
                 <span>{ddoMaturityLevel.name.split(':')[0]}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
                   {ddoHealthScore >= 85 ? 'เกรด A+' : 'เกรด A'}
                 </span>
               </div>
-              <p className="text-[11px] text-indigo-200 max-w-[200px] leading-tight">
+              <p className="text-[11px] text-slate-300 max-w-[200px] leading-tight">
                 ขับเคลื่อนด้วย 4 เสาหลัก: ความสมบูรณ์, ความเร็ว, คุณภาพ, และธรรมาภิบาล
               </p>
             </div>
@@ -601,7 +601,7 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
         </div>
 
         {/* Action Button Bar */}
-        <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-5 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
             <span className="font-semibold text-white">มุมมองการวิเคราะห์:</span>
             <span className="bg-white/10 px-2.5 py-1 rounded-lg border border-white/10">
@@ -612,7 +612,7 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsDdoPrintModalOpen(true)}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>พิมพ์รายงาน DDO Executive Brief</span>
@@ -620,7 +620,7 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
             {onOpenDirectoryModal && (
               <button
                 onClick={onOpenDirectoryModal}
-                className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-medium border border-white/20 transition-all flex items-center gap-2 cursor-pointer"
+                className="px-3.5 py-2 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold border border-white/15 transition-colors flex items-center gap-2 cursor-pointer"
               >
                 <Users className="w-3.5 h-3.5 text-sky-300" />
                 <span>ทำเนียบ ({totalTeachers} ท่าน)</span>
@@ -630,20 +630,20 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Four Pillars of DDO Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 2. Four Pillars of DDO Metric Cards (Swiss Executive Bento) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
         {/* Pillar 1: Data Completeness */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-indigo-400 hover:shadow-md transition-all">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-indigo-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500">
               1. ความสมบูรณ์ของคลังข้อมูล
             </span>
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
               <FileCheck className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900">{submissionRate}%</span>
+          <div className="mt-3 flex items-baseline gap-2 tabular-nums">
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{submissionRate}%</span>
             <span className="text-xs text-slate-500 font-medium">({submittedTeachers.length}/{totalTeachers} ท่าน)</span>
           </div>
           <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
@@ -652,25 +652,24 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
               style={{ width: `${submissionRate}%` }}
             ></div>
           </div>
-          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
+          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
             <span>เอกสารในระบบ: {totalPlans} ฉบับ</span>
             <span className="font-semibold text-emerald-600">ลิงก์ครบ {digitalIntegrityRate}%</span>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600"></div>
         </div>
 
         {/* Pillar 2: Turnaround Velocity & SLA */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-emerald-400 hover:shadow-md transition-all">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-emerald-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500">
               2. ความเร็วและการตรงต่อเวลา
             </span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
               <Zap className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-emerald-600">{onTimeRate}%</span>
+          <div className="mt-3 flex items-baseline gap-2 tabular-nums">
+            <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600">{onTimeRate}%</span>
             <span className="text-xs text-slate-500 font-medium">SLA Compliance</span>
           </div>
           <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
@@ -679,25 +678,24 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
               style={{ width: `${onTimeRate}%` }}
             ></div>
           </div>
-          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
+          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
             <span>ส่งตรงเวลา: {onTimePlans.length} ฉบับ</span>
             <span className="font-semibold text-amber-600">ล่าช้า: {latePlans.length}</span>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500"></div>
         </div>
 
         {/* Pillar 3: First-Time Approval Rate (FTAR) */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-blue-400 hover:shadow-md transition-all">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-blue-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500">
               3. อัตราผ่านเกณฑ์รอบแรก (FTAR)
             </span>
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
               <Target className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-blue-600">{ftaRate}%</span>
+          <div className="mt-3 flex items-baseline gap-2 tabular-nums">
+            <span className="text-2xl sm:text-3xl font-extrabold text-blue-600">{ftaRate}%</span>
             <span className="text-xs text-slate-500 font-medium">First-Time Pass</span>
           </div>
           <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
@@ -706,25 +704,24 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
               style={{ width: `${ftaRate}%` }}
             ></div>
           </div>
-          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
+          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
             <span>ไม่ต้องส่งแก้ซ้ำ: {totalPlans - revisionPlans.length}</span>
             <span className="font-semibold text-rose-500">ส่งกลับแก้: {revisionPlans.length}</span>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600"></div>
         </div>
 
         {/* Pillar 4: Pedagogical Quality Standard */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden group hover:border-amber-400 hover:shadow-md transition-all">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-amber-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500">
               4. ดัชนีคุณภาพการจัดการเรียนรู้
             </span>
-            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
               <Award className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-amber-600">{avgScore}</span>
+          <div className="mt-3 flex items-baseline gap-2 tabular-nums">
+            <span className="text-2xl sm:text-3xl font-extrabold text-amber-600">{avgScore}</span>
             <span className="text-xs text-slate-500 font-medium">/ 100 คะแนน</span>
           </div>
           <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
@@ -737,24 +734,23 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
             <span>มาตรฐาน จ.ภ. กาฬสินธุ์</span>
             <span className="font-semibold text-amber-700">เกณฑ์ดีเยี่ยม (5 มิติ)</span>
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500"></div>
         </div>
       </div>
 
-      {/* 2.5 ADVANCED DDO VISUAL ANALYTICS & GRAPHS HUB (ศูนย์รวม 4 กราฟวิเคราะห์ขั้นสูง) */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-sm space-y-6">
+      {/* 2.5 ADVANCED DDO VISUAL ANALYTICS & GRAPHS HUB */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] space-y-5">
         {/* Section Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-blue-600 text-white flex items-center justify-center shadow-md shrink-0">
-              <BarChart3 className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center shrink-0">
+              <BarChart3 className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
                   ศูนย์รวมกราฟวิเคราะห์เชิงลึก (Advanced DDO Visual Analytics Hub)
                 </h3>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/90">
                   4 กราฟยุทธศาสตร์
                 </span>
               </div>
@@ -768,9 +764,9 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
           <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
             <button
               onClick={() => setSelectedChartTab('all')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 selectedChartTab === 'all'
-                  ? 'bg-white text-slate-900 font-bold shadow-xs'
+                  ? 'bg-white text-slate-900 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -778,43 +774,43 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
             </button>
             <button
               onClick={() => setSelectedChartTab('scatter')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 selectedChartTab === 'scatter'
-                  ? 'bg-white text-emerald-700 font-bold shadow-xs'
+                  ? 'bg-white text-emerald-700 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-emerald-700'
               }`}
             >
-              🎯 เมทริกซ์ 2D
+              เมทริกซ์ 2D
             </button>
             <button
               onClick={() => setSelectedChartTab('radar')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 selectedChartTab === 'radar'
-                  ? 'bg-white text-indigo-700 font-bold shadow-xs'
+                  ? 'bg-white text-indigo-700 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-indigo-700'
               }`}
             >
-              🕸️ ใยแมงมุมรูบริก
+              ใยแมงมุมรูบริก
             </button>
             <button
               onClick={() => setSelectedChartTab('velocity')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 selectedChartTab === 'velocity'
-                  ? 'bg-white text-blue-700 font-bold shadow-xs'
+                  ? 'bg-white text-blue-700 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-blue-700'
               }`}
             >
-              📈 อัตราเร่ง Velocity
+              อัตราเร่ง Velocity
             </button>
             <button
               onClick={() => setSelectedChartTab('friction')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                 selectedChartTab === 'friction'
-                  ? 'bg-white text-amber-700 font-bold shadow-xs'
+                  ? 'bg-white text-amber-700 font-bold shadow-2xs'
                   : 'text-slate-600 hover:text-amber-700'
               }`}
             >
-              📑 ความเสียดทาน
+              ความเสียดทาน
             </button>
           </div>
         </div>

@@ -369,70 +369,67 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
 
   return (
     <div className={`space-y-6 ${embedded ? '' : 'p-4 sm:p-6 bg-slate-50/70 rounded-3xl border border-slate-200/90'}`}>
-      {/* 1. Header with Trophy Banner */}
-      <div className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 rounded-3xl p-6 sm:p-8 text-slate-950 shadow-md relative overflow-hidden">
-        {/* Subtle decorative background circles */}
-        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/15 rounded-full blur-xl pointer-events-none"></div>
-        <div className="absolute right-32 -top-10 w-36 h-36 bg-amber-200/20 rounded-full blur-lg pointer-events-none"></div>
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-black/10 rounded-full text-xs font-bold text-slate-950">
-              <Sparkles className="w-3.5 h-3.5 text-amber-900" />
+      {/* 1. Header with Trophy Banner (Swiss Executive Matte #0B1329) */}
+      <div className="bg-[#0B1329] rounded-2xl p-5 sm:p-6 text-white border border-slate-800 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-white/10 border border-white/15 rounded-full text-[11px] font-semibold text-amber-300">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span>การประเมินความเร็วและวินัยการส่งงานระดับกลุ่มสาระ (SLA Hall of Fame)</span>
             </div>
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-slate-950 flex items-center gap-2.5 flex-wrap">
-              <Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-amber-900 shrink-0" />
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white flex items-center gap-2.5 flex-wrap">
+              <Trophy className="w-6 h-6 text-amber-400 shrink-0" />
               <span>ทำเนียบจัดอันดับกลุ่มสาระยอดเยี่ยม</span>
             </h2>
-            <p className="text-xs sm:text-sm text-slate-800/90 max-w-2xl leading-relaxed">
-              จัดอันดับกลุ่มสาระการเรียนรู้ที่ครูผู้สอน<strong>ส่งเอกสารครบ 100% และตรงเวลาทุกคนก่อนเป็นกลุ่มแรก</strong> โดยบันทึกเวลาที่ครูคนสุดท้ายในกลุ่มส่งเข้าระบบสำเร็จจริง (Real-Time Finish Timestamp)
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              จัดอันดับกลุ่มสาระการเรียนรู้ที่ครูผู้สอน <strong className="text-white">ส่งเอกสารครบ 100% และตรงเวลาทุกคนก่อนเป็นกลุ่มแรก</strong> โดยบันทึกเวลาที่ครูคนสุดท้ายในกลุ่มส่งเข้าระบบสำเร็จจริง
             </p>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="px-4 py-2.5 bg-slate-950 hover:bg-black text-amber-300 rounded-2xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+              className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer"
             >
-              <Printer className="w-4 h-4 text-amber-400" />
+              <Printer className="w-4 h-4 text-slate-950" />
               <span>พิมพ์ประกาศเกียรติคุณ A4</span>
             </button>
           </div>
         </div>
 
         {/* Quick Highlights Strip */}
-        <div className="mt-6 pt-5 border-t border-slate-950/15 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div className="bg-white/30 backdrop-blur-xs p-3 rounded-2xl border border-white/20">
-            <span className="text-[11px] font-medium text-slate-800">กลุ่มที่ตรงเวลาครบ 100%</span>
-            <div className="text-2xl font-black text-slate-950 mt-0.5">
+        <div className="mt-5 pt-4 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+            <span className="text-[11px] font-medium text-slate-400">กลุ่มที่ตรงเวลาครบ 100%</span>
+            <div className="text-xl font-extrabold text-white mt-0.5 tabular-nums">
               {rankingData.filter((r) => r.isOnTimeAll).length}{' '}
-              <span className="text-xs font-bold text-slate-800">/ {rankingData.length} กลุ่ม</span>
+              <span className="text-xs font-medium text-slate-400">/ {rankingData.length} กลุ่ม</span>
             </div>
           </div>
-          <div className="bg-white/30 backdrop-blur-xs p-3 rounded-2xl border border-white/20">
-            <span className="text-[11px] font-medium text-slate-800">กลุ่มอันดับ 1 ชนะเลิศ</span>
-            <div className="text-base font-black text-slate-950 mt-1 truncate" title={top1 ? top1.areaName : '-'}>
-              🥇 {top1 && top1.isOnTimeAll ? top1.areaName : 'ยังรอผู้ชนะ 100%'}
+          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+            <span className="text-[11px] font-medium text-slate-400">กลุ่มอันดับ 1 ชนะเลิศ</span>
+            <div className="text-sm font-bold text-amber-300 mt-1 truncate flex items-center gap-1.5" title={top1 ? top1.areaName : '-'}>
+              <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="truncate">{top1 && top1.isOnTimeAll ? top1.areaName : 'ยังรอผู้ชนะ 100%'}</span>
             </div>
           </div>
-          <div className="bg-white/30 backdrop-blur-xs p-3 rounded-2xl border border-white/20">
-            <span className="text-[11px] font-medium text-slate-800">ภาระงานที่กำลังจัดอันดับ</span>
-            <div className="text-sm font-bold text-slate-950 mt-1 truncate" title={currentTaskTitle}>
+          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+            <span className="text-[11px] font-medium text-slate-400">ภาระงานที่กำลังจัดอันดับ</span>
+            <div className="text-sm font-bold text-white mt-1 truncate" title={currentTaskTitle}>
               {currentTaskTitle}
             </div>
           </div>
-          <div className="bg-white/30 backdrop-blur-xs p-3 rounded-2xl border border-white/20">
-            <span className="text-[11px] font-medium text-slate-800">กลุ่มสาระทั้งหมด</span>
-            <div className="text-2xl font-black text-slate-950 mt-0.5">
-              {rankingData.length} <span className="text-xs font-bold text-slate-800">กลุ่มสาระ</span>
+          <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+            <span className="text-[11px] font-medium text-slate-400">กลุ่มสาระทั้งหมด</span>
+            <div className="text-xl font-extrabold text-white mt-0.5 tabular-nums">
+              {rankingData.length} <span className="text-xs font-medium text-slate-400">กลุ่มสาระ</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 2. Control & Assignment Selection Bar */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-4">
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Assignment Selector */}
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -444,13 +441,13 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
             <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll pb-1 md:pb-0">
               <button
                 onClick={() => setSelectedTaskKey('all')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer shrink-0 ${
                   selectedTaskKey === 'all'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
                 }`}
               >
-                📑 ภาพรวมทุกภาระงาน
+                ภาพรวมทุกภาระงาน
               </button>
 
               {activeAssignments.map((cfg) => {
@@ -459,15 +456,15 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
                   <button
                     key={cfg.id}
                     onClick={() => setSelectedTaskKey(cfg.id)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                       isSelected
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
                     }`}
                   >
                     <span>{cfg.name}</span>
                     {cfg.end_date && (
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${isSelected ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-200 text-slate-600'}`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded tabular-nums ${isSelected ? 'bg-white/15 text-amber-300' : 'bg-slate-200 text-slate-600'}`}>
                         {cfg.end_date.split('-').slice(1).join('/')}
                       </span>
                     )}
@@ -506,10 +503,10 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
         </div>
       </div>
 
-      {/* 3. Top 3 Podium Showcase (แท่นเกียรติยศ 3 อันดับแรก) */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-6 sm:p-8 text-white shadow-lg space-y-6">
+      {/* 3. Top 3 Podium Showcase (Matte Swiss Executive Dark Card) */}
+      <div className="bg-[#0B1329] rounded-2xl p-5 sm:p-7 text-white border border-slate-800 shadow-sm space-y-6">
         <div className="text-center space-y-1">
-          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[11px] font-bold border border-amber-500/30">
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/10 text-amber-300 text-[11px] font-semibold border border-white/15">
             <Crown className="w-3.5 h-3.5 text-amber-400" />
             <span>เกียรติยศสูงสุด 3 อันดับแรก (Top 3 Department Podium)</span>
           </div>
@@ -522,22 +519,22 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
         </div>
 
         {/* 3-Column Podium */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 max-w-4xl mx-auto items-end">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 max-w-4xl mx-auto items-end">
           {/* SILVER - RANK 2 */}
-          <div className="order-2 md:order-1 bg-slate-800/80 rounded-2xl p-5 border border-slate-700 hover:border-slate-500 transition-all text-center flex flex-col justify-between h-full relative overflow-hidden group">
+          <div className="order-2 md:order-1 bg-white/5 rounded-2xl p-5 border border-white/10 hover:border-white/25 transition-colors text-center flex flex-col justify-between h-full">
             <div className="space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-slate-300 to-slate-100 text-slate-900 flex items-center justify-center font-black text-xl shadow-md border-2 border-slate-200">
-                🥈
+              <div className="w-11 h-11 mx-auto rounded-xl bg-slate-200 text-slate-900 flex items-center justify-center font-extrabold text-sm tabular-nums">
+                #2
               </div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 รองชนะเลิศอันดับ 1
               </div>
-              <div className="text-base font-extrabold text-white truncate px-2" title={top2?.areaName}>
+              <div className="text-base font-bold text-white truncate px-2" title={top2?.areaName}>
                 {top2 ? top2.areaName : 'ยังไม่มีผู้ได้รับ'}
               </div>
 
               {top2 && (
-                <div className="space-y-1.5 pt-2 border-t border-slate-700/80 text-xs">
+                <div className="space-y-1.5 pt-2 border-t border-white/10 text-xs tabular-nums">
                   <div className="flex items-center justify-between text-slate-400">
                     <span>ความสำเร็จ:</span>
                     <span className="font-bold text-white">{top2.submittedTeachersCount}/{top2.totalTeachers} ท่าน ({top2.completionRate}%)</span>
@@ -549,12 +546,12 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
                     </span>
                   </div>
                   {top2.completionDateFormatted ? (
-                    <div className="p-2 rounded-xl bg-slate-900/90 text-[11px] text-slate-300 text-left space-y-0.5">
+                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-white/10 text-[11px] text-slate-300 text-left space-y-0.5">
                       <div className="flex items-center gap-1 text-slate-400 font-medium">
                         <Clock className="w-3 h-3 text-slate-400" />
                         <span>สำเร็จสมบูรณ์เมื่อ:</span>
                       </div>
-                      <div className="font-bold text-slate-200">{top2.completionDateFormatted}</div>
+                      <div className="font-bold text-slate-100">{top2.completionDateFormatted}</div>
                       {top2.timeAheadText && (
                         <div className="text-[10px] text-emerald-400 font-semibold">{top2.timeAheadText}</div>
                       )}
@@ -570,47 +567,47 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
           </div>
 
           {/* GOLD - RANK 1 (CHAMPION) - Elevated */}
-          <div className="order-1 md:order-2 bg-gradient-to-b from-amber-500/20 via-slate-800 to-slate-900 rounded-3xl p-6 border-2 border-amber-400 shadow-xl text-center flex flex-col justify-between h-full relative overflow-hidden md:-translate-y-3 group">
-            <div className="absolute top-0 right-0 left-0 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-[10px] font-black py-1 tracking-wider uppercase">
-              ★ CHAMPION OF PUNCTUALITY ★
+          <div className="order-1 md:order-2 bg-white/10 rounded-2xl p-5 border border-amber-400/60 text-center flex flex-col justify-between h-full relative overflow-hidden md:-translate-y-2">
+            <div className="absolute top-0 right-0 left-0 bg-amber-400 text-slate-950 text-[10px] font-bold py-1 tracking-wider uppercase">
+              Champion of Punctuality
             </div>
 
-            <div className="space-y-3.5 pt-3">
-              <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-500 text-slate-950 flex items-center justify-center font-black text-3xl shadow-lg border-2 border-white">
-                🥇
+            <div className="space-y-3 pt-4">
+              <div className="w-13 h-13 mx-auto rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+                <Trophy className="w-6 h-6" />
               </div>
-              <div className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center justify-center gap-1.5">
-                <Crown className="w-4 h-4 text-amber-400" />
+              <div className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center justify-center gap-1.5">
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
                 <span>อันดับ 1 ชนะเลิศ</span>
               </div>
-              <div className="text-lg sm:text-xl font-black text-white px-2" title={top1?.areaName}>
+              <div className="text-lg font-extrabold text-white px-2" title={top1?.areaName}>
                 {top1 ? top1.areaName : 'ยังไม่มีผู้ทำสำเร็จ'}
               </div>
 
               {top1 && (
-                <div className="space-y-2 pt-2 border-t border-amber-500/30 text-xs">
+                <div className="space-y-2 pt-2 border-t border-white/15 text-xs tabular-nums">
                   <div className="flex items-center justify-between text-slate-300">
                     <span>ความสำเร็จ:</span>
-                    <span className="font-extrabold text-white text-sm">
+                    <span className="font-bold text-white">
                       {top1.submittedTeachersCount}/{top1.totalTeachers} ท่าน (100%)
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-300">
                     <span>ความตรงต่อเวลา:</span>
-                    <span className="font-extrabold text-emerald-400 text-sm">
+                    <span className="font-bold text-emerald-400">
                       {top1.onTimeRate}% ตรงเวลาทุกคน
                     </span>
                   </div>
 
                   {top1.completionDateFormatted ? (
-                    <div className="p-2.5 rounded-2xl bg-slate-950/90 border border-amber-500/40 text-[11px] text-slate-300 text-left space-y-1">
-                      <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                    <div className="p-2.5 rounded-xl bg-slate-950/90 border border-amber-400/30 text-[11px] text-slate-300 text-left space-y-1">
+                      <div className="flex items-center gap-1.5 text-amber-300 font-semibold">
                         <Clock className="w-3.5 h-3.5" />
                         <span>วัน-เวลาที่ส่งครบทุกคน:</span>
                       </div>
-                      <div className="font-black text-white text-xs">{top1.completionDateFormatted}</div>
+                      <div className="font-bold text-white text-xs">{top1.completionDateFormatted}</div>
                       {top1.timeAheadText && (
-                        <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                        <div className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
                           <span>{top1.timeAheadText}</span>
                         </div>
@@ -622,7 +619,7 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
                       )}
                     </div>
                   ) : (
-                    <div className="text-[11px] text-amber-400 font-bold pt-1">
+                    <div className="text-[11px] text-amber-300 font-semibold pt-1">
                       {top1.pendingTeachersCount > 0 ? `ค้างส่งอีก ${top1.pendingTeachersCount} ท่าน` : 'ยังไม่มีกลุ่มที่ส่งครบ 100%'}
                     </div>
                   )}
@@ -632,20 +629,20 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
           </div>
 
           {/* BRONZE - RANK 3 */}
-          <div className="order-3 bg-slate-800/80 rounded-2xl p-5 border border-slate-700 hover:border-slate-500 transition-all text-center flex flex-col justify-between h-full relative overflow-hidden group">
+          <div className="order-3 bg-white/5 rounded-2xl p-5 border border-white/10 hover:border-white/25 transition-colors text-center flex flex-col justify-between h-full">
             <div className="space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-amber-700 to-amber-600 text-amber-100 flex items-center justify-center font-black text-xl shadow-md border-2 border-amber-500">
-                🥉
+              <div className="w-11 h-11 mx-auto rounded-xl bg-amber-700/80 text-amber-100 flex items-center justify-center font-extrabold text-sm tabular-nums ring-1 ring-amber-500/50">
+                #3
               </div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 รองชนะเลิศอันดับ 2
               </div>
-              <div className="text-base font-extrabold text-white truncate px-2" title={top3?.areaName}>
+              <div className="text-base font-bold text-white truncate px-2" title={top3?.areaName}>
                 {top3 ? top3.areaName : 'ยังไม่มีผู้ได้รับ'}
               </div>
 
               {top3 && (
-                <div className="space-y-1.5 pt-2 border-t border-slate-700/80 text-xs">
+                <div className="space-y-1.5 pt-2 border-t border-white/10 text-xs tabular-nums">
                   <div className="flex items-center justify-between text-slate-400">
                     <span>ความสำเร็จ:</span>
                     <span className="font-bold text-white">{top3.submittedTeachersCount}/{top3.totalTeachers} ท่าน ({top3.completionRate}%)</span>
@@ -657,12 +654,12 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
                     </span>
                   </div>
                   {top3.completionDateFormatted ? (
-                    <div className="p-2 rounded-xl bg-slate-900/90 text-[11px] text-slate-300 text-left space-y-0.5">
+                    <div className="p-2.5 rounded-xl bg-slate-900/90 border border-white/10 text-[11px] text-slate-300 text-left space-y-0.5">
                       <div className="flex items-center gap-1 text-slate-400 font-medium">
                         <Clock className="w-3 h-3 text-slate-400" />
                         <span>สำเร็จสมบูรณ์เมื่อ:</span>
                       </div>
-                      <div className="font-bold text-slate-200">{top3.completionDateFormatted}</div>
+                      <div className="font-bold text-slate-100">{top3.completionDateFormatted}</div>
                       {top3.timeAheadText && (
                         <div className="text-[10px] text-emerald-400 font-semibold">{top3.timeAheadText}</div>
                       )}
@@ -716,70 +713,70 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
                   <div className="flex items-center gap-3.5 min-w-[280px]">
                     {/* Rank Badge */}
                     <div
-                      className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-base shrink-0 shadow-xs ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm tabular-nums shrink-0 ${
                         isTop1
-                          ? 'bg-gradient-to-tr from-amber-400 to-yellow-300 text-slate-950 border-2 border-white ring-2 ring-amber-400'
+                          ? 'bg-amber-400 text-slate-950 ring-1 ring-amber-500/60'
                           : isTop2
-                          ? 'bg-gradient-to-tr from-slate-200 to-slate-100 text-slate-800 border border-slate-300'
+                          ? 'bg-slate-200 text-slate-800 ring-1 ring-slate-300'
                           : isTop3
-                          ? 'bg-gradient-to-tr from-amber-700 to-amber-600 text-white border border-amber-500'
+                          ? 'bg-amber-700 text-white ring-1 ring-amber-600'
                           : dept.isOnTimeAll
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                          ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/90'
+                          : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/90'
                       }`}
                     >
-                      {isTop1 ? '🥇' : isTop2 ? '🥈' : isTop3 ? '🥉' : `#${dept.rank}`}
+                      #{dept.rank}
                     </div>
 
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-extrabold text-slate-900 text-sm sm:text-base">
+                        <span className="font-bold text-slate-900 text-sm sm:text-base">
                           {dept.areaName}
                         </span>
                         {dept.isOnTimeAll ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/90">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>ส่งครบตรงเวลา 100%</span>
                           </span>
                         ) : dept.isCompletedAll ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-200/90">
                             <Clock className="w-3 h-3 text-amber-600" />
                             <span>ครบ 100% (มีส่งช้า {dept.lateTeachersCount} ท่าน)</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 ring-1 ring-slate-200/90">
                             <span>กำลังส่ง (ขาด {dept.pendingTeachersCount} ท่าน)</span>
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-slate-500 flex items-center gap-2">
-                        <span>จำนวนครูผู้สอน: <strong>{dept.totalTeachers} ท่าน</strong></span>
-                        <span>•</span>
-                        <span>ส่งแล้ว: <strong>{dept.submittedTeachersCount} ท่าน</strong></span>
+                      <div className="text-xs text-slate-500 flex items-center gap-2 tabular-nums">
+                        <span>จำนวนครูผู้สอน: <strong className="text-slate-700">{dept.totalTeachers} ท่าน</strong></span>
+                        <span>·</span>
+                        <span>ส่งแล้ว: <strong className="text-slate-700">{dept.submittedTeachersCount} ท่าน</strong></span>
                       </div>
                     </div>
                   </div>
 
                   {/* Middle: Progress bars & Rates */}
-                  <div className="flex-1 max-w-md space-y-1.5">
+                  <div className="flex-1 max-w-md space-y-1.5 tabular-nums">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-500 font-medium">ความก้าวหน้าการส่งงาน</span>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-900">{dept.completionRate}%</span>
-                        <span className="text-slate-400">|</span>
+                        <span className="text-slate-300">|</span>
                         <span className="font-semibold text-emerald-700">ตรงเวลา {dept.onTimeRate}%</span>
                       </div>
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden flex shadow-2xs">
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden flex">
                       <div
-                        className="bg-emerald-500 h-2.5 transition-all"
+                        className="bg-emerald-500 h-2 transition-all"
                         style={{ width: `${dept.onTimeRate}%` }}
                         title={`ตรงเวลา ${dept.onTimeTeachersCount} ท่าน`}
                       ></div>
                       <div
-                        className="bg-amber-500 h-2.5 transition-all"
+                        className="bg-amber-500 h-2 transition-all"
                         style={{
                           width: `${Math.max(
                             0,
@@ -791,12 +788,12 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span className="text-emerald-700">✓ ตรงเวลา: {dept.onTimeTeachersCount}</span>
+                      <span className="text-emerald-700 font-medium">ตรงเวลา {dept.onTimeTeachersCount}</span>
                       {dept.lateTeachersCount > 0 && (
-                        <span className="text-amber-700">⚠️ ส่งช้า: {dept.lateTeachersCount}</span>
+                        <span className="text-amber-700 font-medium">ส่งช้า {dept.lateTeachersCount}</span>
                       )}
                       {dept.pendingTeachersCount > 0 && (
-                        <span className="text-rose-600 font-semibold">รอส่ง: {dept.pendingTeachersCount}</span>
+                        <span className="text-rose-600 font-semibold">รอส่ง {dept.pendingTeachersCount}</span>
                       )}
                     </div>
                   </div>
@@ -973,9 +970,9 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
 
               {/* Champion Citation */}
               {top1 && top1.isOnTimeAll && (
-                <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-center space-y-1">
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-center space-y-1">
                   <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-                    🏆 รางวัลชนะเลิศกลุ่มสาระการเรียนรู้ดีเด่นอันดับ 1
+                    รางวัลชนะเลิศกลุ่มสาระการเรียนรู้ดีเด่นอันดับ 1
                   </div>
                   <div className="text-2xl font-black text-amber-950">
                     กลุ่มสาระการเรียนรู้{top1.areaName}
@@ -1006,8 +1003,8 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
                   <tbody className="divide-y divide-slate-200">
                     {rankingData.map((d) => (
                       <tr key={d.areaName}>
-                        <td className="p-2 text-center border-r border-slate-200 font-bold font-mono">
-                          {d.rank === 1 && d.isOnTimeAll ? '🥇 1' : d.rank === 2 && d.isOnTimeAll ? '🥈 2' : d.rank === 3 && d.isOnTimeAll ? '🥉 3' : d.rank}
+                        <td className="p-2 text-center border-r border-slate-200 font-bold tabular-nums">
+                          #{d.rank}
                         </td>
                         <td className="p-2 border-r border-slate-200 font-medium">{d.areaName}</td>
                         <td className="p-2 text-center border-r border-slate-200 font-mono">{d.totalTeachers}</td>

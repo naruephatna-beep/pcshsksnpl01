@@ -50,7 +50,7 @@ interface SidebarProps {
   onOpenSubmitModal: () => void;
   onOpenProfileModal: () => void;
   onOpenDirectoryModal: () => void;
-  onOpenAdminTrackerModal: (initialView?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
+  onOpenAdminTrackerModal: (initialView?: 'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
   onOpenDeadlineManager: () => void;
   onOpenGoogleDriveConfig?: () => void;
   onOpenAcademicTerm?: () => void;
@@ -426,7 +426,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               {/* ติดตามงานรายบุคคล */}
               <button
-                onClick={() => handleNavClick(() => onOpenAdminTrackerModal('table'))}
+                onClick={() => handleNavClick(() => onOpenAdminTrackerModal('overview'))}
                 className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
               >
                 <div className="flex items-center gap-2.5 min-w-0">

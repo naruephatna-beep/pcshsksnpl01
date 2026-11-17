@@ -766,19 +766,19 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
           </div>
 
           {/* 2. Collapsible Live Routing Simulator (พับเก็บได้ ไม่เกะกะสายตา) */}
-          <div className="bg-gradient-to-r from-amber-50/70 via-white to-amber-50/40 rounded-2xl border border-amber-200/90 shadow-2xs overflow-hidden">
+          <div className="bg-amber-50/70 rounded-2xl border border-amber-200/90 shadow-2xs overflow-hidden">
             <button
               type="button"
               onClick={() => setIsSimulatorOpen(!isSimulatorOpen)}
               className="w-full p-3 sm:p-4 flex items-center justify-between text-left hover:bg-amber-100/40 transition-colors cursor-pointer select-none"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                   <Target className="w-4 h-4 text-amber-600" />
                 </div>
                 <div>
-                  <span className="text-xs font-black text-slate-900 block">
-                    🧪 ทดสอบจำลองเส้นทางตรวจจริง (Live Route Simulator)
+                  <span className="text-xs font-bold text-slate-900 block">
+                    ทดสอบจำลองเส้นทางตรวจจริง (Live Route Simulator)
                   </span>
                   <span className="text-[11px] text-slate-500 block">
                     คลิกเพื่อดูตัวอย่างว่าครูส่งงานแล้วจะถูกส่งไปยังผู้ตรวจท่านใด
@@ -1611,7 +1611,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                         });
 
                         return (
-                          <div className="bg-gradient-to-br from-indigo-50/70 to-blue-50/40 border border-indigo-200 rounded-2xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                          <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                             <div className="space-y-1.5 flex-1">
                               <div className="flex items-center gap-2">
                                 <Zap className="w-4 h-4 text-amber-500" />

@@ -219,10 +219,10 @@ export default function App() {
   const [isReviewerWorkloadModalOpen, setIsReviewerWorkloadModalOpen] = useState(false);
   const [adminTrackerInitialView, setAdminTrackerInitialView] = useState<
     'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'
-  >('table');
+  >('overview');
 
   const handleOpenAdminTracker = (
-    view: 'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown' = 'table'
+    view: 'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown' = 'overview'
   ) => {
     setAdminTrackerInitialView(view);
     setIsAdminTrackerModalOpen(true);
@@ -1857,7 +1857,7 @@ export default function App() {
         list.push({
           id: cfg.id,
           label: cfg.name,
-          short: `📑 ${cfg.name.length > 18 ? cfg.name.slice(0, 16) + '...' : cfg.name}`,
+          short: cfg.name.length > 18 ? cfg.name.slice(0, 16) + '...' : cfg.name,
           count,
         });
       });
@@ -1886,7 +1886,7 @@ export default function App() {
       list.push({
         id: `custom_${pType}`,
         label: pType,
-        short: `📋 ${pType.length > 18 ? pType.slice(0, 16) + '...' : pType}`,
+        short: pType.length > 18 ? pType.slice(0, 16) + '...' : pType,
         count,
       });
     });
@@ -2599,7 +2599,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => {
-                            handleOpenAdminTracker('table');
+                            handleOpenAdminTracker('overview');
                             setIsAdminTopMenuOpen(false);
                           }}
                           className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2.5 transition-colors cursor-pointer"
@@ -2796,9 +2796,8 @@ export default function App() {
           />
 
           {/* Welcome & Overview Header Card */}
-          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-80 h-40 bg-gradient-to-bl from-amber-100/40 via-indigo-50/30 to-transparent pointer-events-none rounded-bl-full" />
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
                   <span className="font-semibold text-amber-900 flex items-center gap-1.5">
@@ -2924,12 +2923,12 @@ export default function App() {
 
             <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
               <button
-                onClick={() => handleOpenAdminTracker('table')}
-                className="flex-1 sm:flex-initial px-3 py-1.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-95"
+                onClick={() => handleOpenAdminTracker('overview')}
+                className="flex-1 sm:flex-initial px-3 py-1.5 bg-[#0B1329] hover:bg-slate-900 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
                 title="ตารางติดตามดูสถานะการส่งเอกสารของบุคลากรทุกคน"
               >
                 <ClipboardList className="w-3.5 h-3.5 text-amber-400" />
-                <span>ตารางติดตามส่ง</span>
+                <span>ติดตามส่งรายบุคคล</span>
               </button>
               <button
                 onClick={() => setIsReviewerWorkloadModalOpen(true)}
@@ -2961,18 +2960,17 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* Role-Based Smart Overview Banner for Teachers */}
+            {/* Role-Based Smart Overview Banner for Teachers (Matte #0B1329 Executive Surface) */}
             {!isAdmin && currentTeacher && (
-              <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 rounded-3xl p-4 sm:p-6 text-white border border-indigo-900/60 shadow-xl relative overflow-hidden mb-5">
-                <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="bg-[#0B1329] rounded-2xl p-4 sm:p-5 text-white border border-slate-800 shadow-sm mb-5">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   {/* Teacher Info */}
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                    <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 overflow-hidden">
                       {currentTeacher.photo ? (
                         <img src={currentTeacher.photo} alt={currentTeacher.Name} className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-amber-400 font-bold text-lg">{currentTeacher.Name.substring(0, 2)}</span>
+                        <span className="text-amber-400 font-bold text-base">{currentTeacher.Name.substring(0, 2)}</span>
                       )}
                     </div>
                     <div className="min-w-0">
@@ -2980,11 +2978,11 @@ export default function App() {
                         <h2 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
                           สวัสดีครับ/ค่ะ, {currentTeacher.Name}
                         </h2>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30 font-mono">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/10 text-amber-300 border border-white/15 tabular-nums">
                           {currentTeacher.Teacher_ID}
                         </span>
                       </div>
-                      <p className="text-xs text-indigo-200 mt-0.5 truncate">
+                      <p className="text-xs text-slate-300 mt-0.5 truncate">
                         {currentTeacher.position} · กลุ่มสาระ{currentTeacher.Learning_Area} {currentTeacher.branch ? `(สาขา${currentTeacher.branch})` : ''}
                       </p>
                     </div>
@@ -2998,16 +2996,16 @@ export default function App() {
                         setSubmitModalInitialType(undefined);
                         setIsSubmitModalOpen(true);
                       }}
-                      className="flex-1 sm:flex-initial px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                      className="flex-1 sm:flex-initial px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
                     >
-                      <PlusCircle className="w-4 h-4 stroke-[2.5]" />
-                      <span>+ ส่งแผนการสอน / ภาระงาน</span>
+                      <PlusCircle className="w-4 h-4 stroke-[2.2]" />
+                      <span>ส่งแผนการสอน / ภาระงาน</span>
                     </button>
                     {assignedToMeCount > 0 && (
                       <button
                         type="button"
                         onClick={() => setViewTab('assigned_to_me')}
-                        className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                        className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-white/10 hover:bg-white/15 text-white border border-white/15 font-semibold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
                       >
                         <UserCheck className="w-4 h-4 text-amber-300" />
                         <span>เอกสารที่รอฉันตรวจ ({assignedToMeCount})</span>
@@ -3030,23 +3028,23 @@ export default function App() {
               />
             )}
 
-            {/* Prominent Assigned Review Alert for Reviewers & Branch Heads */}
+            {/* Prominent Assigned Review Alert for Reviewers & Branch Heads (Swiss Bento Alert) */}
             {!isAdmin && currentTeacher && assignedToMeCount > 0 && (
-              <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-indigo-700/60 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="bg-white rounded-2xl p-4 sm:p-5 border border-indigo-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shrink-0 shadow-md">
-                    <UserCheck className="w-6 h-6 stroke-[2.5]" />
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/90 flex items-center justify-center font-bold shrink-0">
+                    <UserCheck className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm sm:text-base text-white">
+                      <span className="font-bold text-sm sm:text-base text-slate-900">
                         คุณครูมีเอกสารวิชาการที่ได้รับมอบหมายให้ตรวจ {assignedToMeCount} รายการ
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-xs font-black">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-300/90 text-xs font-bold tabular-nums">
                         รอตรวจ {assignedToMeCount} รายการ
                       </span>
                     </div>
-                    <p className="text-xs sm:text-sm text-indigo-200/90 mt-0.5">
+                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                       ในฐานะหัวหน้ากลุ่มสาขาวิชา / กรรมการผู้ตรวจตามขั้นตอนการประเมิน กรุณาตรวจสอบและบันทึกผลการตรวจ
                     </p>
                   </div>
@@ -3059,9 +3057,9 @@ export default function App() {
                     const targetEl = document.getElementById('lesson-plans-section');
                     if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  className="px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap shrink-0"
+                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs sm:text-sm rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap shrink-0"
                 >
-                  <FileCheck2 className="w-4 h-4 stroke-[2.5]" />
+                  <FileCheck2 className="w-4 h-4 text-amber-400" />
                   <span>เปิดคิวตรวจเอกสารทันที ({assignedToMeCount})</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
@@ -3198,11 +3196,11 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setViewTab('assigned_to_me')}
-                  className={`px-3.5 py-2 rounded-lg transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                     viewTab === 'assigned_to_me'
-                      ? 'bg-indigo-600 text-white shadow-xs font-bold ring-2 ring-indigo-400'
+                      ? 'bg-slate-900 text-white shadow-2xs font-bold'
                       : assignedToMeCount > 0
-                      ? 'text-indigo-950 bg-amber-300 hover:bg-amber-400 font-bold shadow-xs'
+                      ? 'text-amber-900 bg-amber-100 hover:bg-amber-200/80 font-bold'
                       : 'text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 font-semibold'
                   }`}
                   title="เอกสารของคณะครูที่มอบหมายให้ฉันเป็นผู้ตรวจ / ประเมิน"
@@ -3241,7 +3239,7 @@ export default function App() {
                   const buttons: { id: string; label: string }[] = [];
                   buttons.push({ id: 'all', label: 'ทั้งหมด' });
                   seen.add('all');
-                  buttons.push({ id: 'late', label: '⚠️ ส่งช้า' });
+                  buttons.push({ id: 'late', label: 'ส่งช้า' });
                   seen.add('late');
 
                   (statusConfigs || []).forEach((s) => {
@@ -3486,11 +3484,11 @@ export default function App() {
 
         {/* Lesson Plans Grid & Table View */}
         <div>
-          {/* Review Queue Special Banner & Sub-filter (งานตรวจที่มอบหมาย) */}
+          {/* Review Queue Special Banner & Sub-filter (Matte #0B1329 Executive Strip) */}
           {viewTab === 'assigned_to_me' && (
-            <div className="mb-4 bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 sm:p-5 border border-indigo-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="mb-4 bg-[#0B1329] text-white rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-start sm:items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shrink-0 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shrink-0">
                   <UserCheck className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
@@ -3498,13 +3496,13 @@ export default function App() {
                     <h3 className="text-sm sm:text-base font-bold text-white">
                       เอกสารที่รอฉันตรวจ (Review Queue)
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/10 text-amber-300 border border-white/15">
                       {assignedReviewSubTab === 'pending' ? 'เอกสารที่ตรวจแล้วจะหายไปอัตโนมัติ' : 'ประวัติงานตรวจ'}
                     </span>
                   </div>
-                  <p className="text-xs text-indigo-200 mt-1 flex items-center gap-1.5 flex-wrap">
-                    <span>📁 เมื่อตรวจเสร็จ สำเนาไฟล์จะถูกจัดเก็บใน Google Drive:</span>
-                    <span className="font-mono bg-white/10 px-2 py-0.5 rounded border border-white/20 text-amber-300 font-bold">
+                  <p className="text-xs text-slate-300 mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span>เมื่อตรวจเสร็จ สำเนาไฟล์จะถูกจัดเก็บใน Google Drive:</span>
+                    <span className="font-mono bg-white/10 px-2 py-0.5 rounded border border-white/15 text-amber-300 font-semibold">
                       ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา
                     </span>
                   </p>
@@ -3512,41 +3510,41 @@ export default function App() {
               </div>
 
               {/* Sub-filter tab switcher */}
-              <div className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-indigo-700/60 shadow-inner self-start md:self-auto shrink-0">
+              <div className="flex items-center bg-white/10 p-1 rounded-xl border border-white/10 self-start md:self-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => setAssignedReviewSubTab('pending')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                     assignedReviewSubTab === 'pending'
-                      ? 'bg-amber-400 text-slate-950 shadow-xs'
+                      ? 'bg-amber-400 text-slate-950'
                       : 'text-slate-300 hover:text-white'
                   }`}
                 >
                   <span>รอตรวจ</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${assignedReviewSubTab === 'pending' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-amber-300 font-mono'}`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] tabular-nums ${assignedReviewSubTab === 'pending' ? 'bg-slate-950 text-white' : 'bg-white/10 text-amber-300'}`}>
                     {assignedPendingCount}
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setAssignedReviewSubTab('completed')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                     assignedReviewSubTab === 'completed'
-                      ? 'bg-emerald-500 text-slate-950 shadow-xs'
+                      ? 'bg-emerald-500 text-slate-950'
                       : 'text-slate-300 hover:text-white'
                   }`}
                 >
                   <span>ตรวจแล้ว</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${assignedReviewSubTab === 'completed' ? 'bg-slate-950 text-white' : 'bg-slate-800 text-emerald-300 font-mono'}`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] tabular-nums ${assignedReviewSubTab === 'completed' ? 'bg-slate-950 text-white' : 'bg-white/10 text-emerald-300'}`}>
                     {assignedCompletedCount}
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setAssignedReviewSubTab('all')}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                     assignedReviewSubTab === 'all'
-                      ? 'bg-white text-slate-950 shadow-xs'
+                      ? 'bg-white text-slate-950'
                       : 'text-slate-300 hover:text-white'
                   }`}
                 >
@@ -3971,8 +3969,7 @@ export default function App() {
                               <td colSpan={6} className="py-2.5 px-4 font-bold text-slate-800 text-xs">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
-                                    <span>{theme.icon}</span>
-                                    <span className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${theme.badge}`}>
+                                    <span className={`px-1.5 py-0.5 rounded font-mono text-[10px] ${theme.badge}`}>
                                       {group.code}
                                     </span>
                                     <span className="font-bold text-slate-900">{group.name}</span>
@@ -4036,7 +4033,7 @@ export default function App() {
               <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
                 <span>แสดงทั้งหมด {filteredPlans.length} รายการ</span>
                 <span className="text-[11px] text-slate-400">
-                  💡 บนจอมือถือสามารถเลื่อนซ้าย-ขวาเพื่อดูข้อมูลครบถ้วน
+                  บนจอมือถือสามารถเลื่อนซ้าย-ขวาเพื่อดูข้อมูลครบถ้วน
                 </span>
               </div>
             </div>
@@ -4455,7 +4452,7 @@ export default function App() {
               setSubmitModalInitialType(undefined);
               setIsSubmitModalOpen(true);
             }}
-            className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-lg shadow-amber-500/30 border-3 border-white active:scale-90 transition-transform cursor-pointer"
+            className="-mt-5 flex flex-col items-center justify-center w-12 h-12 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-md border-3 border-white active:scale-95 transition-all cursor-pointer"
             title="ส่งแผนการสอนหรือภาระงานใหม่"
           >
             <PlusCircle className="w-6 h-6 text-slate-950 stroke-[2.5]" />
@@ -4548,7 +4545,7 @@ export default function App() {
           onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
           onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
           onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
-          onOpenAdminTracker={() => handleOpenAdminTracker('table')}
+          onOpenAdminTracker={() => handleOpenAdminTracker('overview')}
         />
       )}
 

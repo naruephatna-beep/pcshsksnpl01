@@ -205,7 +205,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   <button
                     type="submit"
                     disabled={isVerifying}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-70 text-slate-950 font-bold rounded-xl shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer"
+                    className="w-full py-3 px-4 bg-amber-400 hover:bg-amber-300 disabled:opacity-70 text-slate-950 font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-sm cursor-pointer"
                   >
                     {isVerifying ? (
                       <>

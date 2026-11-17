@@ -633,24 +633,24 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2.5 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-4xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto sm:my-6 flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 p-4 sm:p-6 text-white shrink-0">
+        <div className="relative bg-[#0B1329] p-4 sm:p-5 text-white shrink-0 border-b border-slate-800">
           <button
             onClick={onClose}
-            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors cursor-pointer active:scale-95"
+            className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 p-2 rounded-xl transition-colors cursor-pointer active:scale-95"
             aria-label="ปิดหน้าต่าง"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3 min-w-0 pr-8">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shrink-0 shadow-inner">
-              <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-amber-400/15 ring-1 ring-amber-400/30 flex items-center justify-center shrink-0">
+              <Calendar className="w-5 h-5 text-amber-400" />
             </div>
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-white/20 backdrop-blur-md text-amber-100 border border-white/20 mb-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-200" />
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/30 mb-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                 <span>Admin Control</span>
               </div>
               <h2 className="text-base sm:text-xl font-bold tracking-tight text-white truncate">
@@ -972,7 +972,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   <button
                     type="button"
                     onClick={handleOpenAddTaskModal}
-                    className="px-4 py-2 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <Plus className="w-4 h-4 stroke-[2.5]" />
                     <span>+ เพิ่มภาระงานใหม่</span>
@@ -1024,7 +1024,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                       key={dl.id}
                       className={`bg-white rounded-2xl border transition-all p-4 sm:p-5 shadow-xs hover:shadow-md ${
                         isPastDeadline
-                          ? 'border-amber-200/90 bg-gradient-to-br from-white to-amber-50/20'
+                          ? 'border-amber-200/90 bg-amber-50/20'
                           : 'border-slate-200 hover:border-amber-300'
                       }`}
                     >
@@ -1099,16 +1099,16 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                               {evalType === 'rubric_score' ? (
                                 <>
                                   <Award className="w-3.5 h-3.5 text-amber-700" />
-                                  <span>🏆 รูบริก 100 คะแนน</span>
+                                  <span>รูบริก 100 คะแนน</span>
                                 </>
                               ) : (
                                 <>
                                   <CheckCircle2 className="w-3.5 h-3.5 text-indigo-700" />
-                                  <span>✅ ตรวจแค่อนุมัติ</span>
+                                  <span>ตรวจแค่อนุมัติ</span>
                                 </>
                               )}
                             </span>
-                            <span className="text-[10px] underline font-medium opacity-80">↺ สลับโหมด</span>
+                            <span className="text-[10px] underline font-medium opacity-80">สลับโหมด</span>
                           </button>
                           <div className="text-[10px] text-slate-500 line-clamp-1">
                             {evalType === 'rubric_score' ? 'เกณฑ์ 5 ด้าน 100% เหมาะสำหรับวิจัย/แผนสมบูรณ์' : 'อนุมัติ/ส่งกลับ ไม่คิดคะแนน เหมาะสำหรับแผนย่อ'}
@@ -1140,7 +1140,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                               </button>
                             ) : (
                               <span className="px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded-md text-xs font-medium">
-                                📄 แบบมาตรฐาน (วิชา+PDF)
+                                แบบมาตรฐาน (วิชา+PDF)
                               </span>
                             )}
 
@@ -1249,7 +1249,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   </button>
                   <button
                     onClick={() => setIsAddingStatus(!isAddingStatus)}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-bold text-xs shadow-sm flex items-center gap-1 cursor-pointer"
+                    className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs shadow-xs flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>เพิ่มสถานะใหม่</span>
@@ -1355,7 +1355,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-sm"
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
                     >
                       บันทึกสถานะใหม่
                     </button>
@@ -1481,7 +1481,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                     const buttons: { id: string; label: string }[] = [];
                     buttons.push({ id: 'all', label: 'ทั้งหมด' });
                     seen.add('all');
-                    buttons.push({ id: 'late', label: '⚠️ ส่งช้าเท่านั้น' });
+                    buttons.push({ id: 'late', label: 'ส่งช้าเท่านั้น' });
                     seen.add('late');
 
                     (statuses || []).forEach((s) => {
@@ -1606,7 +1606,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                                         onClose();
                                         onOpenReview(plan);
                                       }}
-                                      className="px-2 py-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95"
+                                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all shadow-2xs cursor-pointer active:scale-95"
                                       title="เปิดหน้าต่างตรวจประเมิน/อนุมัติเต็มรูปแบบ"
                                     >
                                       <UserCheck className="w-3 h-3 text-amber-300" />
@@ -1702,7 +1702,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                 type="button"
                 disabled={!jsonInput.trim()}
                 onClick={handleImportJson}
-                className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm"
+                className="px-4 py-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-slate-950 rounded-xl text-xs font-bold shadow-xs cursor-pointer"
               >
                 นำเข้าข้อมูลทันที
               </button>
@@ -1714,18 +1714,18 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       {/* Notification Prompt Modal (Centered Pop-up) */}
       {broadcastConfig && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 p-5 text-white flex items-center justify-between">
+            <div className="bg-[#0B1329] p-5 text-white flex items-center justify-between border-b border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-400/20 flex items-center justify-center text-amber-400 border border-amber-400/30 shrink-0">
-                  <Mail className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-amber-400/15 flex items-center justify-center text-amber-400 ring-1 ring-amber-400/30 shrink-0">
+                  <Mail className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-[10px] font-bold tracking-wider uppercase">
-                    ✨ บันทึกภาระงานสำเร็จแล้ว
+                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400/15 ring-1 ring-amber-400/30 text-amber-300 text-[10px] font-bold tracking-wider uppercase">
+                    บันทึกภาระงานสำเร็จแล้ว
                   </div>
-                  <h3 className="font-extrabold text-lg text-white mt-0.5 leading-tight">
+                  <h3 className="font-bold text-base text-white mt-0.5 leading-tight">
                     แจ้งเตือนครูในระบบหรือไม่?
                   </h3>
                 </div>
@@ -1878,7 +1878,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         setBroadcastProgress(null);
                       }, 2500);
                     }}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                   >
                     {isBroadcastingEmail ? (
                       <>
@@ -1913,19 +1913,19 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       {/* Dedicated Add/Edit Task Modal */}
       {taskModal && taskModal.isOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/70 p-3 sm:p-5 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh] my-auto">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh] my-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 p-4 sm:p-5 text-white shrink-0">
+            <div className="bg-[#0B1329] p-4 sm:p-5 text-white shrink-0 border-b border-slate-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white border border-white/30 shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-400/15 ring-1 ring-amber-400/30 flex items-center justify-center text-amber-400 shrink-0">
                     {taskModal.isNew ? <Plus className="w-5 h-5 stroke-[2.5]" /> : <Edit2 className="w-5 h-5" />}
                   </div>
                   <div className="min-w-0">
-                    <span className="text-[10px] uppercase font-bold text-amber-200 tracking-wider block">
+                    <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block">
                       {taskModal.isNew ? 'New Task & Deadline' : 'Edit Task & Deadline'}
                     </span>
-                    <h3 className="font-extrabold text-base sm:text-lg truncate">
+                    <h3 className="font-bold text-base sm:text-lg truncate">
                       {taskModal.isNew ? 'เพิ่มภาระงานและกำหนดเวลาส่งใหม่' : `แก้ไขภาระงาน: ${taskModal.name || 'ไม่ระบุชื่อ'}`}
                     </h3>
                   </div>
@@ -1933,21 +1933,21 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setTaskModal(null)}
-                  className="p-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 rounded-xl cursor-pointer transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Sub-Tabs for Task Modal */}
-              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/20">
+              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setTaskModal({ ...taskModal, activeSubTab: 'general' })}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                     taskModal.activeSubTab === 'general'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'bg-white/15 text-white hover:bg-white/25'
+                      ? 'bg-amber-400 text-slate-950 shadow-xs'
+                      : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
                   <Calendar className="w-3.5 h-3.5" />
@@ -1959,8 +1959,8 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                   onClick={() => setTaskModal({ ...taskModal, activeSubTab: 'form' })}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                     taskModal.activeSubTab === 'form'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'bg-white/15 text-white hover:bg-white/25'
+                      ? 'bg-amber-400 text-slate-950 shadow-xs'
+                      : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
                   <List className="w-3.5 h-3.5" />
@@ -2145,7 +2145,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         />
                         <div>
                           <div className="text-xs font-bold text-slate-900">
-                            🏆 ตรวจแบบให้คะแนนรูบริก (Rubric 100)
+                            ตรวจแบบให้คะแนนรูบริก (Rubric 100)
                           </div>
                           <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
                             มีเกณฑ์ประเมิน 5 ด้าน คำนวณเป็นร้อยละ 100 เหมาะสำหรับแผนฉบับสมบูรณ์ และงานวิจัยในชั้นเรียน
@@ -2170,7 +2170,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         />
                         <div>
                           <div className="text-xs font-bold text-slate-900">
-                            ✅ ตรวจแค่อนุมัติ / ส่งกลับแก้ไข
+                            ตรวจแค่อนุมัติ / ส่งกลับแก้ไข
                           </div>
                           <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
                             อนุมัติ หรือ ส่งกลับแก้ไข ไม่ต้องกรอกคะแนนรูบริก เหมาะสำหรับแผนย่อ หรือเอกสารส่งตามรอบ
@@ -2238,7 +2238,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                           const detectedUrl = descMatch[0].trim();
                           return (
                             <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-sky-200 text-sky-900 text-[11px]">
-                              <span className="truncate max-w-[280px]">✨ พบลิงก์ในคำชี้แจง: {detectedUrl}</span>
+                              <span className="truncate max-w-[280px]">พบลิงก์ในคำชี้แจง: {detectedUrl}</span>
                               <button
                                 type="button"
                                 onClick={() => setTaskModal({ ...taskModal, sample_url: detectedUrl })}
@@ -2284,7 +2284,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                           className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
                         />
                         <div>
-                          <div className="text-xs font-bold text-slate-900">📄 แบบฟอร์มมาตรฐาน</div>
+                          <div className="text-xs font-bold text-slate-900">แบบฟอร์มมาตรฐาน</div>
                           <div className="text-[11px] text-slate-500 font-normal mt-0.5">
                             กรอกรหัสวิชา, ชื่อวิชา, ระดับชั้น, และแนบไฟล์แผนการสอน PDF ทั่วไป
                           </div>
@@ -2313,7 +2313,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
                         />
                         <div>
                           <div className="text-xs font-bold text-purple-950 flex items-center gap-1">
-                            <span>📋 กำหนดช่องกรอก & Dropdown เอง</span>
+                            <span>กำหนดช่องกรอก &amp; Dropdown เอง</span>
                             <span className="text-[10px] bg-purple-200 text-purple-900 px-1.5 py-0.2 rounded font-bold">กำหนดเอง</span>
                           </div>
                           <div className="text-[11px] text-slate-500 font-normal mt-0.5">
@@ -2362,7 +2362,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
               <button
                 type="button"
                 onClick={handleSaveTaskModal}
-                className="px-5 py-2.5 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
+                className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-bold shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
               >
                 <Save className="w-4 h-4" />
                 <span>{taskModal.isNew ? 'บันทึกภาระงานใหม่' : 'บันทึกการแก้ไขภาระงาน'}</span>

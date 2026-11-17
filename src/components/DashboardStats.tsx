@@ -66,15 +66,15 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* Top 4 KPI Cards: Clean 60-30-10 Hierarchy & Tabular Figures */}
+      {/* Top 4 KPI Cards: Swiss Executive Bento Surfaces */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Total Plans */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-slate-300 card-interactive group cursor-default">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-slate-300 transition-colors group cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">
               {isAdmin ? 'แผนการสอนทั้งหมด' : 'แผนการสอนของฉัน'}
             </span>
-            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 group-hover:bg-[#0B1329] group-hover:text-amber-400 transition-colors">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 group-hover:bg-slate-900 group-hover:text-white transition-colors">
               <FileCheck2 className="w-4 h-4" />
             </div>
           </div>
@@ -92,7 +92,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
 
         {/* Card 2: Approved Plans with inline progress bar */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300/80 card-interactive group cursor-default">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-emerald-300/80 transition-colors group cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">
               อนุมัติแล้ว
@@ -112,7 +112,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
               <AnimatedCounter value={approvalRate} suffix="%" />
             </span>
           </div>
-          <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div className="mt-2.5 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-emerald-500 rounded-full transition-all duration-500"
               style={{ width: `${Math.min(100, approvalRate)}%` }}
@@ -121,7 +121,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
 
         {/* Card 3: Pending Review */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300/80 card-interactive group cursor-default">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-amber-300/80 transition-colors group cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">
               รอตรวจสอบ
@@ -142,7 +142,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
 
         {/* Card 4: Needs Revision */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-rose-300/80 card-interactive group cursor-default">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-rose-300/80 transition-colors group cursor-default">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">
               ส่งกลับแก้ไข
@@ -181,17 +181,17 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
         </div>
       )}
 
-      {/* Document Types Breakdown Strip (แยกประเภทเอกสารชัดเจน) */}
-      <div className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+      {/* Document Types Breakdown Strip (Swiss Executive Bento) */}
+      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+        <div className="flex items-center justify-between gap-2 mb-2.5">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
             <Layers className="w-3.5 h-3.5 text-indigo-600" />
             <span>จำแนกตามประเภทเอกสารวิชาการ:</span>
           </div>
           {selectedDocType && selectedDocType !== 'all' && onSelectDocType && (
             <button
               onClick={() => onSelectDocType('all')}
-              className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+              className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline cursor-pointer"
             >
               ล้างการกรองประเภท
             </button>
@@ -203,14 +203,15 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
               key: string;
               label: string;
               short: string;
+              dotColor?: string;
               config?: PlanTypeDeadlineConfig;
               planType?: string;
             }
 
             const categoriesList: CatDef[] = [
-              { key: 'summary_plan', label: 'แผนการจัดการเรียนรู้ฉบับย่อ', short: '📄 แผนฯ ฉบับย่อ' },
-              { key: 'full_plan', label: 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์', short: '📘 แผนฯ ฉบับสมบูรณ์' },
-              { key: 'classroom_research', label: 'ประเด็นการวิจัยในชั้นเรียน', short: '🔬 วิจัยในชั้นเรียน' },
+              { key: 'summary_plan', label: 'แผนการจัดการเรียนรู้ฉบับย่อ', short: 'แผนฯ ฉบับย่อ', dotColor: 'bg-sky-500' },
+              { key: 'full_plan', label: 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์', short: 'แผนฯ ฉบับสมบูรณ์', dotColor: 'bg-emerald-500' },
+              { key: 'classroom_research', label: 'ประเด็นการวิจัยในชั้นเรียน', short: 'วิจัยในชั้นเรียน', dotColor: 'bg-indigo-500' },
             ];
 
             // Add newly configured assignments from deadlineConfigs
@@ -232,7 +233,8 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
                 categoriesList.push({
                   key: cfg.id,
                   label: cfg.name,
-                  short: `📑 ${cfg.name.length > 18 ? cfg.name.slice(0, 16) + '...' : cfg.name}`,
+                  short: cfg.name.length > 18 ? cfg.name.slice(0, 16) + '...' : cfg.name,
+                  dotColor: 'bg-amber-500',
                   config: cfg,
                 });
               });
@@ -257,7 +259,8 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
               categoriesList.push({
                 key: `custom_${pType}`,
                 label: pType,
-                short: `📋 ${pType.length > 18 ? pType.slice(0, 16) + '...' : pType}`,
+                short: pType.length > 18 ? pType.slice(0, 16) + '...' : pType,
+                dotColor: 'bg-slate-400',
                 planType: pType,
               });
             });
@@ -302,7 +305,8 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
               categoriesList.push({
                 key: 'general_academic',
                 label: 'เอกสารวิชาการอื่นๆ',
-                short: '📑 เอกสารอื่นๆ',
+                short: 'เอกสารอื่นๆ',
+                dotColor: 'bg-slate-400',
               });
             }
 
@@ -315,17 +319,20 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
                   key={cat.key}
                   type="button"
                   onClick={() => onSelectDocType && onSelectDocType(isSelected ? 'all' : cat.key)}
-                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer flex flex-col justify-between ${
+                  className={`p-3 rounded-xl border text-left transition-colors cursor-pointer flex flex-col justify-between ${
                     isSelected
-                      ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
-                      : 'border-slate-200/90 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-100/70 text-slate-800'
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-2xs'
+                      : 'border-slate-200/90 hover:border-slate-300 bg-slate-50/60 hover:bg-slate-100/70 text-slate-800'
                   }`}
                   title={cat.label}
                 >
-                  <span className={`text-[11px] font-semibold truncate ${isSelected ? 'text-slate-200' : 'text-slate-700'}`} title={cat.label}>
-                    {cat.short}
-                  </span>
-                  <div className="mt-1.5 flex items-baseline justify-between">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSelected ? 'bg-amber-400' : cat.dotColor || 'bg-slate-400'}`} />
+                    <span className={`text-[11px] font-semibold truncate ${isSelected ? 'text-slate-100' : 'text-slate-700'}`} title={cat.label}>
+                      {cat.short}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-baseline justify-between">
                     <span className={`text-lg font-extrabold tabular-nums ${isSelected ? 'text-amber-300' : 'text-slate-900'}`}>
                       {count}
                     </span>
@@ -340,7 +347,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
 
       {/* Breakdown per Learning Area (Admin Only) or Privacy Note for Teachers */}
       {isAdmin ? (
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3.5">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-slate-700" />
@@ -351,14 +358,14 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
             {selectedArea && (
               <button
                 onClick={() => onSelectArea('')}
-                className="text-xs text-amber-700 hover:text-amber-900 font-bold underline self-start sm:self-auto"
+                className="text-xs text-amber-700 hover:text-amber-900 font-semibold underline self-start sm:self-auto cursor-pointer"
               >
                 แสดงทุกกลุ่มสาระ
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
             {learningAreas.map((area) => {
               const countTeachers = teachers.filter((t) => t.Learning_Area === area).length;
               const areaPlans = plans.filter((p) => p.learning_area === area);
@@ -368,18 +375,18 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
                 <button
                   key={area}
                   onClick={() => onSelectArea(isSelected ? '' : area)}
-                  className={`p-2.5 sm:p-3 rounded-lg border text-left transition-all ${
+                  className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
                     isSelected
-                      ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50 text-slate-800'
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-2xs'
+                      : 'border-slate-200/90 hover:border-slate-300 bg-slate-50/60 hover:bg-slate-100/70 text-slate-800'
                   }`}
                 >
                   <div className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-slate-800'}`} title={area}>
                     {area}
                   </div>
-                  <div className={`mt-1.5 flex items-center justify-between text-[11px] ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                  <div className={`mt-1.5 flex items-center justify-between text-[11px] tabular-nums ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
                     <span>ครู {countTeachers} คน</span>
-                    <span className={`font-bold tabular-nums ${isSelected ? 'text-amber-300' : 'text-slate-700'}`}>
+                    <span className={`font-bold ${isSelected ? 'text-amber-300' : 'text-slate-700'}`}>
                       {areaPlans.length} ฉบับ
                     </span>
                   </div>

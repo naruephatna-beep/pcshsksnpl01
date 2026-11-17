@@ -342,20 +342,20 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-amber-100 overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-5 sm:p-6 text-white flex items-center justify-between">
+        <div className="bg-[#0B1329] p-5 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30 shrink-0">
-              <RotateCcw className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-amber-400/15 ring-1 ring-amber-400/30 rounded-xl flex items-center justify-center shrink-0">
+              <RotateCcw className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <span className="text-xs uppercase tracking-wider font-semibold text-amber-100">
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-amber-400">
                 Resubmit Lesson Plan
               </span>
-              <h2 className="text-lg sm:text-xl font-bold">ส่งแผนการสอนใหม่อีกครั้ง</h2>
-              <p className="text-xs text-amber-100 mt-0.5">
+              <h2 className="text-lg font-bold">ส่งแผนการสอนใหม่อีกครั้ง</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
                 {isMultiMode
                   ? 'แก้ไขเฉพาะไฟล์ที่กรรมการตีกลับ โดยไฟล์ที่ผ่านแล้วจะถูกเก็บรักษาไว้โดยอัตโนมัติ'
                   : 'แผนจะถูกเปลี่ยนสถานะเป็น "รอตรวจ" เพื่อให้กรรมการตรวจใหม่อีกครั้ง'}
@@ -365,7 +365,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="p-2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
+            className="p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -422,20 +422,20 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
               ============================================================ */}
           {isMultiMode ? (
             <div className="space-y-3">
-              <div className="p-3 bg-gradient-to-r from-indigo-50 to-amber-50 rounded-2xl border border-indigo-200/80 flex items-center justify-between gap-2">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-2">
                 <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-indigo-950 flex items-center gap-1.5">
-                    <Award className="w-4 h-4 text-indigo-600" />
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-amber-600" />
                     <span>รายการไฟล์แนบที่ส่งตรวจ ({multiFiles.length} ไฟล์)</span>
                   </h4>
                   <p className="text-[11px] text-slate-600 mt-0.5">
-                    💡 ไฟล์ที่ <strong className="text-emerald-700">ผ่านแล้ว</strong> จะคงอยู่เดิม ท่านเพียงแค่วางลิงก์ใหม่สำหรับไฟล์ที่ <strong className="text-rose-600">ถูกตีกลับ</strong>
+                    ไฟล์ที่ <strong className="text-emerald-700">ผ่านแล้ว</strong> จะคงอยู่เดิม ท่านเพียงแค่วางลิงก์ใหม่สำหรับไฟล์ที่ <strong className="text-rose-600">ถูกตีกลับ</strong>
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddNewAttachment}
-                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 text-[11px] font-bold shadow-2xs flex items-center gap-1 shrink-0 cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-bold shadow-2xs flex items-center gap-1 shrink-0 cursor-pointer"
                   title="เพิ่มไฟล์แนบเพิ่มเติม"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -451,23 +451,23 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
                   return (
                     <div
                       key={idx}
-                      className={`p-3.5 rounded-2xl border-2 transition-all space-y-2.5 ${
+                      className={`p-3.5 rounded-2xl border transition-all space-y-2.5 ${
                         isApproved
-                          ? 'bg-emerald-50/50 border-emerald-300'
-                          : 'bg-white border-amber-300/90 shadow-2xs'
+                          ? 'bg-emerald-50/50 border-emerald-200'
+                          : 'bg-white border-amber-300 shadow-2xs'
                       }`}
                     >
                       {/* File Card Header */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <span
-                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ring-1 ${
                               isApproved
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-rose-600 text-white'
+                                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                                : 'bg-rose-50 text-rose-700 ring-rose-200'
                             }`}
                           >
-                            {isApproved ? '✓ ผ่านแล้ว' : '⚠️ ต้องแก้ไข'}
+                            {isApproved ? 'ผ่านแล้ว' : 'ต้องแก้ไข'}
                           </span>
                           <span className="text-xs font-bold text-slate-900 truncate">
                             ไฟล์ที่ {idx + 1}: {item.file_name}
@@ -548,7 +548,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
                             )}
                           </div>
                           <p className="text-[10px] text-slate-500 mt-1">
-                            💡 หากอัปโหลดทับไฟล์เดิมบน Google Drive สามารถใช้ลิงก์เดิมได้เลยครับ
+                            หากอัปโหลดทับไฟล์เดิมบน Google Drive สามารถใช้ลิงก์เดิมได้ทันที
                           </p>
                         </div>
                       ) : (
@@ -649,7 +649,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
                 <>

@@ -747,7 +747,7 @@ export function classifyDocumentType(planTypeOrName?: string): DocumentTypeMeta 
     return {
       key: 'classroom_research',
       label: 'ประเด็นการวิจัยในชั้นเรียน',
-      shortBadge: '🔬 วิจัยในชั้นเรียน',
+      shortBadge: 'วิจัยในชั้นเรียน',
       badgeClass: 'bg-purple-50 text-purple-800 border-purple-200',
       tagBg: 'bg-purple-600 text-white',
       accentColor: 'purple',
@@ -758,7 +758,7 @@ export function classifyDocumentType(planTypeOrName?: string): DocumentTypeMeta 
     return {
       key: 'full_plan',
       label: 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์',
-      shortBadge: '📘 แผนฯ ฉบับสมบูรณ์',
+      shortBadge: 'แผนฯ ฉบับสมบูรณ์',
       badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
       tagBg: 'bg-emerald-600 text-white',
       accentColor: 'emerald',
@@ -769,7 +769,7 @@ export function classifyDocumentType(planTypeOrName?: string): DocumentTypeMeta 
     return {
       key: 'summary_plan',
       label: 'แผนการจัดการเรียนรู้ฉบับย่อ',
-      shortBadge: '📄 แผนฯ ฉบับย่อ',
+      shortBadge: 'แผนฯ ฉบับย่อ',
       badgeClass: 'bg-sky-50 text-sky-800 border-sky-200',
       tagBg: 'bg-sky-600 text-white',
       accentColor: 'sky',
@@ -780,7 +780,7 @@ export function classifyDocumentType(planTypeOrName?: string): DocumentTypeMeta 
     return {
       key: 'syllabus',
       label: 'โครงการสอน / กำหนดการสอน',
-      shortBadge: '📅 โครงการสอน',
+      shortBadge: 'โครงการสอน',
       badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
       tagBg: 'bg-amber-600 text-white',
       accentColor: 'amber',
@@ -791,7 +791,7 @@ export function classifyDocumentType(planTypeOrName?: string): DocumentTypeMeta 
     return {
       key: 'post_teaching',
       label: 'บันทึกหลังการสอน',
-      shortBadge: '📝 บันทึกหลังสอน',
+      shortBadge: 'บันทึกหลังสอน',
       badgeClass: 'bg-rose-50 text-rose-800 border-rose-200',
       tagBg: 'bg-rose-600 text-white',
       accentColor: 'rose',
@@ -801,7 +801,7 @@ export function classifyDocumentType(planTypeOrName?: string): DocumentTypeMeta 
   return {
     key: 'general_academic',
     label: planTypeOrName || 'เอกสารวิชาการ',
-    shortBadge: '📑 เอกสารวิชาการ',
+    shortBadge: 'เอกสารวิชาการ',
     badgeClass: 'bg-indigo-50 text-indigo-800 border-indigo-200',
     tagBg: 'bg-indigo-600 text-white',
     accentColor: 'indigo',

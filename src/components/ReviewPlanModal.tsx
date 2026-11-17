@@ -568,30 +568,30 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4">
-      <div className={`w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in zoom-in-95 ${
+      <div className={`w-full bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in zoom-in-95 ${
         isSplitView && attachedFiles.length > 0 ? 'max-w-6xl w-full h-[92vh]' : 'max-w-2xl max-h-[92vh] sm:max-h-[88vh]'
       }`}>
         {/* Pinned Header */}
-        <div className="relative bg-gradient-to-r from-purple-700 via-indigo-700 to-indigo-800 p-4 sm:p-5 text-white shrink-0 shadow-xs">
+        <div className="relative bg-[#0B1329] p-4 sm:p-5 text-white shrink-0 border-b border-slate-800">
           <div className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 flex items-center gap-2">
             {attachedFiles.length > 0 && (
               <button
                 type="button"
                 onClick={() => setIsSplitView(!isSplitView)}
-                className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isSplitView
-                    ? 'bg-amber-400 text-slate-950 shadow-xs ring-2 ring-white/30'
-                    : 'bg-white/15 text-white hover:bg-white/25'
+                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                    : 'bg-white/10 text-slate-200 hover:bg-white/20'
                 }`}
                 title="สลับมุมมอง: ดูเอกสารคู่กับแบบตรวจข้างๆ กัน"
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>{isSplitView ? '🖥️ โหมดแยกจอคู่' : '📄 แยกจอเปิดไฟล์'}</span>
+                <span>{isSplitView ? 'โหมดแยกจอคู่' : 'แยกจอเปิดไฟล์'}</span>
               </button>
             )}
             <button
               onClick={onClose}
-              className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors active:scale-95 cursor-pointer"
+              className="text-slate-400 hover:text-white bg-white/5 hover:bg-white/15 p-2 rounded-xl transition-colors active:scale-95 cursor-pointer"
               aria-label="ปิดหน้าต่าง"
             >
               <X className="w-5 h-5" />
@@ -599,8 +599,8 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/25 shrink-0">
-              <UserCheck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <div className="w-10 h-10 bg-amber-400/15 ring-1 ring-amber-400/30 rounded-xl flex items-center justify-center shrink-0">
+              <UserCheck className="w-5 h-5 text-amber-400" />
             </div>
             <div className="min-w-0 pr-8">
               <span className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-purple-200 block truncate">
@@ -761,10 +761,10 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
             )}
 
             {/* 1-Click Quick Approve Banner */}
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 flex items-center justify-between gap-3 shadow-2xs">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/90 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   <h4 className="text-xs sm:text-sm font-bold text-emerald-950">
                     อนุมัติทันทีใน 1 คลิก (Quick Approve)
                   </h4>
@@ -951,7 +951,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                   </div>
                 )}
                 <span className="text-[10px] text-slate-400 mt-1">
-                  {activeExternalInfo.isInvalidHome ? '⚠️ ตรวจสอบลิงก์ก่อนอนุมัติ' : 'สิทธิ์: ทุกคนที่มีลิงก์'}
+                  {activeExternalInfo.isInvalidHome ? 'ตรวจสอบลิงก์ก่อนอนุมัติ' : 'สิทธิ์: ทุกคนที่มีลิงก์'}
                 </span>
               </div>
             </div>
@@ -1033,16 +1033,16 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                  ========================================================================= */
               <div className="space-y-4">
                 {/* Multi-File Header Bar */}
-                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border border-purple-200/90 shadow-2xs space-y-2.5">
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-2.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="p-1.5 bg-purple-600 text-white rounded-lg">
+                      <span className="p-1.5 bg-slate-900 text-amber-400 rounded-lg">
                         <FileText className="w-4 h-4" />
                       </span>
                       <div>
-                        <h4 className="text-xs sm:text-sm font-bold text-purple-950 flex items-center gap-1.5">
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
                           <span>ตรวจและประเมินแยกรายไฟล์ ({attachedFiles.length} ไฟล์)</span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-200/80 text-purple-800">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">
                             แบบ B: แยกคะแนนรูบริกและสถานะ
                           </span>
                         </h4>
@@ -1872,21 +1872,21 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
 
             {/* 1-Click Academic Email Notification Option */}
             <div className="pt-2 border-t border-slate-200/80">
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-50/90 via-indigo-50/90 to-amber-50/70 border border-purple-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                 <label className="flex items-center gap-2.5 cursor-pointer text-xs select-none">
                   <input
                     type="checkbox"
                     checked={sendEmailNotification}
                     onChange={(e) => setSendEmailNotification(e.target.checked)}
-                    className="w-4 h-4 text-purple-700 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+                    className="w-4 h-4 text-slate-900 rounded border-slate-300 focus:ring-slate-500 cursor-pointer"
                   />
                   <div className="min-w-0">
-                    <span className="font-bold text-purple-950 flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-purple-700" />
+                    <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-slate-700" />
                       <span>ส่งอีเมลแจ้งผลการตรวจให้ครูทันที (1 คลิกจากเมลวิชาการ)</span>
                     </span>
-                    <span className="text-[11px] text-purple-700 block truncate font-mono">
-                      {teacherEmail ? `ส่งไปที่: ${teacherEmail}` : '⚠️ ไม่พบอีเมลของคุณครูในระบบ'}
+                    <span className="text-[11px] text-slate-600 block truncate font-mono">
+                      {teacherEmail ? `ส่งไปที่: ${teacherEmail}` : 'ไม่พบอีเมลของคุณครูในระบบ'}
                     </span>
                   </div>
                 </label>
