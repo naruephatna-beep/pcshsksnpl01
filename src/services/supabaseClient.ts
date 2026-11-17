@@ -497,6 +497,9 @@ export async function saveAllTeachers(
       ...t,
       Pass: effectivePass,
       has_changed_password: effectivePass !== '12345',
+      Learning_Area: typeof t.Learning_Area === 'string' ? t.Learning_Area : (existing?.Learning_Area || ''),
+      branch: typeof t.branch === 'string' ? t.branch : (existing?.branch || ''),
+      department: typeof t.department === 'string' ? t.department : (existing?.department || ''),
       national_id: t.national_id || existing?.national_id || '',
       birth_date: t.birth_date || existing?.birth_date || '',
       signature_url: t.signature_url || existing?.signature_url || '',
@@ -507,21 +510,32 @@ export async function saveAllTeachers(
   // 1. Save locally with preserved passwords
   saveLocalTeachers(mergedTeachers);
 
-  // 2. Persist to system_settings 'school_teachers_all' with full preservation
-  const settingRes = await saveSystemSetting('school_teachers_all', mergedTeachers);
-
-  // 3. Upsert to Cloudflare or Supabase teachers table
+  // 2 & 3. Persist BOTH school_teachers_all and Cloudflare D1 teachers table concurrently
+  let cfBatchSuccess = false;
+  let cfBatchPromise: Promise<void> = Promise.resolve();
   try {
     if (getDatabaseProvider() === 'cloudflare') {
       const cf = getSavedCloudflareConfig();
       if (cf.workerUrl) {
-        // Send batch upsert in 1 network call
-        saveTeachersBatchToCloudflare(mergedTeachers).catch(() => {
-          // Fallback: save one by one
-          for (const t of mergedTeachers) {
-            saveTeacherToCloudflare(t).catch(() => {});
-          }
-        });
+        cfBatchPromise = saveTeachersBatchToCloudflare(mergedTeachers)
+          .then((res) => {
+            if (res.success) {
+              cfBatchSuccess = true;
+            } else {
+              return Promise.all(
+                mergedTeachers.map((t) => saveTeacherToCloudflare(t).catch(() => ({ success: false })))
+              ).then((results) => {
+                cfBatchSuccess = results.some((r) => r.success);
+              });
+            }
+          })
+          .catch(() =>
+            Promise.all(
+              mergedTeachers.map((t) => saveTeacherToCloudflare(t).catch(() => ({ success: false })))
+            ).then((results) => {
+              cfBatchSuccess = results.some((r) => r.success);
+            })
+          );
       }
     }
     const client = getSupabaseClient();
@@ -573,7 +587,16 @@ export async function saveAllTeachers(
     }
   } catch {}
 
-  return settingRes;
+  const [settingRes] = await Promise.all([
+    saveSystemSetting('school_teachers_all', mergedTeachers),
+    cfBatchPromise,
+  ]);
+
+  return {
+    success: settingRes.success || cfBatchSuccess,
+    isSupabase: settingRes.isSupabase || cfBatchSuccess,
+    error: settingRes.error,
+  };
 }
 
 function parseUpdatedAtMs(ts?: string): number {
@@ -675,12 +698,13 @@ export async function fetchTeachersRaw(): Promise<{ data: Teacher[]; isSupabase:
 
   // 3. Reconcile authoritative cloud setting 'school_teachers_all' by updated_at timestamp.
   // Note: D1 `teachers` table schema lacks branch / is_head_of_* / department_id / branch_id,
-  // so those structural fields always come from school_teachers_all regardless of timestamp.
+  // so those structural fields always come from school_teachers_all regardless of timestamp,
+  // and explicit empty strings ('') in school_teachers_all MUST be preserved (never reverted to INITIAL_TEACHERS).
   try {
     const cloudSetting = await fetchSystemSetting<Teacher[]>('school_teachers_all', []);
     if (cloudSetting.isSupabase && Array.isArray(cloudSetting.data) && cloudSetting.data.length > 0) {
       isRemote = true;
-      cloudSetting.data.forEach((rawCt) => {
+      cloudSetting.data.forEach((rawCt: any) => {
         const ct = normalizeTeacher(rawCt);
         const key = String(ct.Teacher_ID || '').trim().toLowerCase();
         if (!key) return;
@@ -691,19 +715,21 @@ export async function fetchTeachersRaw(): Promise<{ data: Teacher[]; isSupabase:
         }
         const rawTs = parseUpdatedAtMs(existing.updated_at);
         const settingTs = parseUpdatedAtMs(ct.updated_at);
-        const preferSetting = settingTs === 0 || rawTs === 0 || settingTs >= rawTs;
+        // Allow 5s tolerance for SQLite CURRENT_TIMESTAMP rounding vs JS ISO timestamps from the same save
+        const preferSetting = settingTs === 0 || rawTs === 0 || settingTs + 5000 >= rawTs;
+
+        const hasExplicitArea = rawCt && (rawCt.Learning_Area !== undefined || rawCt.learning_area !== undefined);
+        const hasExplicitBranch = rawCt && (rawCt.branch !== undefined || rawCt.Branch !== undefined);
+        const hasExplicitDept = rawCt && (rawCt.department !== undefined || rawCt.Department !== undefined);
 
         if (preferSetting) {
           teachersMap.set(key, {
             ...existing,
             ...ct,
             Pass: (ct.Pass && ct.Pass.trim()) ? ct.Pass : (existing.Pass || ''),
-            Learning_Area: (ct.Learning_Area && ct.Learning_Area.trim())
-              ? ct.Learning_Area
-              : (existing.Learning_Area || ''),
-            branch: typeof ct.branch === 'string' && ct.branch.trim()
-              ? ct.branch
-              : (existing.branch || ''),
+            Learning_Area: hasExplicitArea ? ct.Learning_Area : (existing.Learning_Area || ''),
+            branch: hasExplicitBranch ? (ct.branch || '') : (existing.branch || ''),
+            department: hasExplicitDept ? (ct.department || '') : (existing.department || ''),
             is_head_of_department: ct.is_head_of_department !== undefined
               ? Boolean(ct.is_head_of_department)
               : (existing.is_head_of_department || false),
@@ -717,7 +743,7 @@ export async function fetchTeachersRaw(): Promise<{ data: Teacher[]; isSupabase:
             ...ct,
             ...existing,
             Pass: (existing.Pass && existing.Pass.trim()) ? existing.Pass : (ct.Pass || ''),
-            branch: typeof ct.branch === 'string' && ct.branch.trim() ? ct.branch : (existing.branch || ''),
+            branch: hasExplicitBranch ? (ct.branch || '') : (existing.branch || ''),
             is_head_of_department: ct.is_head_of_department !== undefined
               ? Boolean(ct.is_head_of_department)
               : (existing.is_head_of_department || false),

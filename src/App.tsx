@@ -4080,7 +4080,11 @@ export default function App() {
               const me = updated.find(
                 (t) => String(t.Teacher_ID || '').trim().toLowerCase() === myKey
               );
-              if (me) setCurrentTeacher(sanitizeTeacherForClient(me));
+              if (me) {
+                const nextMe = sanitizeTeacherForClient(me);
+                currentTeacherRef.current = nextMe;
+                setCurrentTeacher(nextMe);
+              }
             }
           }}
           departments={departments}
