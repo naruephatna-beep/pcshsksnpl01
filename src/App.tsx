@@ -218,11 +218,11 @@ export default function App() {
   const [isAdminTrackerModalOpen, setIsAdminTrackerModalOpen] = useState(false);
   const [isReviewerWorkloadModalOpen, setIsReviewerWorkloadModalOpen] = useState(false);
   const [adminTrackerInitialView, setAdminTrackerInitialView] = useState<
-    'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'
+    'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'
   >('table');
 
   const handleOpenAdminTracker = (
-    view: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown' = 'table'
+    view: 'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown' = 'table'
   ) => {
     setAdminTrackerInitialView(view);
     setIsAdminTrackerModalOpen(true);

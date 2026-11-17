@@ -55,18 +55,20 @@ import {
   UserCheck,
   Award,
   Layers,
+  Monitor,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
 import { TeacherDocumentBreakdown } from './TeacherDocumentBreakdown';
 import { TrackerInfographicPromptModal } from './TrackerInfographicPromptModal';
+import { TrackerSingleScreenOverview } from './TrackerSingleScreenOverview';
 
 interface AdminTrackerModalProps {
   teachers: Teacher[];
   plans: LessonPlan[];
   deadlineConfigs?: PlanTypeDeadlineConfig[];
   statusConfigs?: PlanStatusConfig[];
-  initialViewMode?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown';
+  initialViewMode?: 'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown';
   isOpen: boolean;
   onClose: () => void;
   onEditTeacher: (teacher: Teacher) => void;
@@ -109,9 +111,10 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   const [filterStatus, setFilterStatus] = useState<'all' | 'uncompleted' | 'completed' | 'late'>('all');
   const [filterTask, setFilterTask] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'>(
+  const [viewMode, setViewMode] = useState<'overview' | 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown'>(
     initialViewMode || 'table'
   );
+  const [isOverviewFullscreen, setIsOverviewFullscreen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isPrintSummaryModalOpen, setIsPrintSummaryModalOpen] = useState(false);
@@ -646,8 +649,18 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-1.5 sm:p-3 overflow-y-auto">
-      <div className="w-full max-w-[98vw] 2xl:max-w-[1540px] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto sm:my-2 flex flex-col max-h-[97vh] animate-in fade-in zoom-in-95 duration-200">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm ${
+        isOverviewFullscreen && viewMode === 'overview' ? 'p-0' : 'p-1.5 sm:p-3 overflow-y-auto'
+      }`}
+    >
+      <div
+        className={`w-full bg-white shadow-2xl border border-slate-100 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 ${
+          isOverviewFullscreen && viewMode === 'overview'
+            ? 'h-screen max-h-screen max-w-none rounded-none my-0'
+            : 'max-w-[98vw] 2xl:max-w-[1540px] rounded-2xl sm:rounded-3xl my-auto sm:my-2 max-h-[97vh]'
+        }`}
+      >
         {/* Header (สีกรมท่าลึก #0B1329 อัตลักษณ์โรงเรียน พร้อมปุ่มขนาดเท่ากันและ Dropdown เมนู) */}
         <div className="bg-gradient-to-r from-[#0B1329] via-indigo-950 to-slate-900 p-3.5 sm:p-4 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 border-b border-slate-800">
           {/* Brand & Sender Info (จัดเรียงสะอาด ไร้ข้อความซ้อนทับ) */}
@@ -675,6 +688,16 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
             {/* View Mode Segmented Control */}
             <div className="flex bg-white/10 p-1 rounded-xl border border-white/15 text-xs font-semibold">
+              <button
+                onClick={() => setViewMode('overview')}
+                className={`h-7 px-2.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  viewMode === 'overview' ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'text-slate-300 hover:text-white'
+                }`}
+                title="แสดงครบทุกคนในหน้าจอเดียวโดยไม่ต้องเลื่อน"
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                <span>ภาพรวมหน้าเดียว</span>
+              </button>
               <button
                 onClick={() => setViewMode('table')}
                 className={`h-7 px-2.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
@@ -1154,7 +1177,11 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
         )}
 
         {/* Content: Main Assignment Matrix Grid / Cards / Department Ranking / Teacher Document Breakdown */}
-        <div className="p-3 sm:p-5 flex-1 overflow-y-auto touch-scroll">
+        <div
+          className={`flex-1 overflow-y-auto touch-scroll ${
+            viewMode === 'overview' ? 'p-2.5 sm:p-3' : 'p-3 sm:p-5'
+          }`}
+        >
           {viewMode === 'ranking' ? (
             <DepartmentRankingLeaderboard
               teachers={teachers}
@@ -1182,6 +1209,24 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               <p className="text-base font-bold text-slate-700">ไม่พบรายชื่อคุณครูตามเงื่อนไขที่เลือก</p>
               <p className="text-xs text-slate-400">ลองเปลี่ยนตัวกรองกลุ่มสาระหรือล้างคำค้นหา</p>
             </div>
+          ) : viewMode === 'overview' ? (
+            <TrackerSingleScreenOverview
+              rows={filteredRows}
+              activeAssignments={activeAssignments}
+              onClickSubmitted={(teacher, config, plan, allMatching) =>
+                setSelectedSubmittedPlan({
+                  teacher,
+                  config,
+                  plan,
+                  allMatching,
+                })
+              }
+              onClickMissing={(teacher, missingTasks, config) =>
+                handleQuickClickSend(teacher, missingTasks, config)
+              }
+              isFullscreen={isOverviewFullscreen}
+              onToggleFullscreen={() => setIsOverviewFullscreen((prev) => !prev)}
+            />
           ) : viewMode === 'table' ? (
             /* 1. TABLE LIST VIEW (ตารางรายการรายคน - หัวตาราง Sticky ติดขอบบนเสมอ และขยายเต็มตาเมื่อย่อแดชบอร์ด) */
             <div className={`border border-slate-200 rounded-xl overflow-auto shadow-xs bg-white transition-all ${
@@ -2586,29 +2631,31 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           </div>
         )}
 
-        {/* Footer */}
-        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 shrink-0">
-          <div className="flex items-center gap-2 font-medium">
-            <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> ช่องเขียว = ส่งแล้ว
-            </span>
-            <span>•</span>
-            <span className="inline-flex items-center gap-1 text-rose-700 font-bold">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> ช่องแดง = ยังไม่ส่ง
-            </span>
-            <span>•</span>
-            <span className="inline-flex items-center gap-1 text-amber-700 font-bold">
-              <Zap className="w-3 h-3 text-amber-600" /> กดส่งอีเมลได้ทันทีใน 1 วินาที
-            </span>
-          </div>
+        {/* Footer (hidden during fullscreen single-screen overview to maximize height) */}
+        {!(isOverviewFullscreen && viewMode === 'overview') && (
+          <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 shrink-0">
+            <div className="flex items-center gap-2 font-medium">
+              <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> ช่องเขียว = ส่งแล้ว
+              </span>
+              <span>•</span>
+              <span className="inline-flex items-center gap-1 text-rose-700 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> ช่องแดง = ยังไม่ส่ง
+              </span>
+              <span>•</span>
+              <span className="inline-flex items-center gap-1 text-amber-700 font-bold">
+                <Zap className="w-3 h-3 text-amber-600" /> กดส่งอีเมลได้ทันทีใน 1 วินาที
+              </span>
+            </div>
 
-          <button
-            onClick={onClose}
-            className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all cursor-pointer active:scale-95 shadow-2xs"
-          >
-            ปิดหน้าต่าง
-          </button>
-        </div>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all cursor-pointer active:scale-95 shadow-2xs"
+            >
+              ปิดหน้าต่าง
+            </button>
+          </div>
+        )}
 
         {/* MODAL: Printable Individual Tracker Summary with School Logo */}
         <IndividualTrackerPrintModal
