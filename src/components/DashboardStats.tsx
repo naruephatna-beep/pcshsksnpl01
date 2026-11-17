@@ -1,5 +1,5 @@
 import React from 'react';
-import { LessonPlan, Teacher, isTeacherAdmin, PlanTypeDeadlineConfig } from '../types';
+import { LessonPlan, Teacher, isTeacherAdmin, PlanTypeDeadlineConfig, isPlanOwnedByTeacher } from '../types';
 import { classifyDocumentType, isPlanMatchingAssignment } from '../utils/deadlineUtils';
 import {
   FileCheck2,
@@ -38,7 +38,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
   // Relevant plans based on role (admins see filtered or all, teachers see only their own)
   const relevantPlans = isAdmin
     ? plans
-    : plans.filter((p) => p.teacher_id === currentTeacher.Teacher_ID);
+    : plans.filter((p) => isPlanOwnedByTeacher(p, currentTeacher));
 
   const totalPlans = relevantPlans.length;
   const approvedPlans = relevantPlans.filter((p) => p.status === 'approved').length;

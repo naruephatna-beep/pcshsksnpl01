@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Teacher, BranchConfig, DepartmentConfig, isDepartmentHead, isBranchHead } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
@@ -68,11 +68,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   departments,
   branches,
 }) => {
-  const [formData, setFormData] = useState<Teacher>({ ...teacher });
+  const [formData, setFormData] = useState<Teacher>({ ...teacher, Pass: '' });
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && teacher) {
+      setFormData({ ...teacher, Pass: '' });
+      setSuccessMsg('');
+      setErrorMsg('');
+      setImageError(false);
+    }
+  }, [isOpen, teacher]);
 
   const effectiveAreas = useMemo(() => {
     if (departments && departments.length > 0) {
@@ -178,7 +187,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setSuccessMsg('');
 
     try {
-      await onSave(formData);
+      await onSave({
+        ...formData,
+        Pass: (formData.Pass || '').trim(),
+      });
       setSuccessMsg('บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว');
       setTimeout(() => {
         setSuccessMsg('');
@@ -322,21 +334,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  รหัสผ่าน (Pass) <span className="text-rose-500">*</span>
+                  รหัสผ่านใหม่ (Pass — เว้นว่างหากไม่เปลี่ยน)
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
-                    type="text"
-                    required
-                    value={formData.Pass}
+                    type="password"
+                    value={formData.Pass || ''}
                     onChange={(e) => setFormData({ ...formData, Pass: e.target.value })}
                     className="w-full pl-9 pr-3 py-2 font-mono border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
-                    placeholder="รหัสผ่านเข้าสู่ระบบ"
+                    placeholder="เว้นว่างหากใช้รหัสผ่านเดิม"
                   />
                 </div>
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  หากรหัสผ่านเป็น 12345 ระบบจะบังคับให้เปลี่ยนรหัส
+                  กรอกเฉพาะเมื่อต้องการเปลี่ยนรหัสผ่านใหม่ (บันทึกซิงค์เข้า Cloud ทันที)
                 </span>
               </div>
 

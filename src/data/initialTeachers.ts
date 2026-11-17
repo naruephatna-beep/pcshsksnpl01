@@ -1,4 +1,4 @@
-import { Teacher, LessonPlan } from '../types';
+import { Teacher, LessonPlan } from '../types.ts';
 
 export const INITIAL_TEACHERS: Teacher[] = [
   {

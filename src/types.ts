@@ -361,10 +361,67 @@ export function canTeacherViewAllDocuments(
   // 4. หากแอดมินเปิดให้หัวหน้ากลุ่มสาขาดูได้
   if (config.allow_branch_heads && isBranchHead(teacher)) return true;
   // 5. หากได้รับสิทธิ์เจาะจงเป็นรายบุคคล
-  if (Array.isArray(config.allowed_teacher_ids) && config.allowed_teacher_ids.includes(teacher.Teacher_ID)) {
+  const myId = String(teacher.Teacher_ID || (teacher as any).teacher_id || '').trim().toLowerCase();
+  if (
+    Array.isArray(config.allowed_teacher_ids) &&
+    config.allowed_teacher_ids.some((id) => String(id || '').trim().toLowerCase() === myId)
+  ) {
     return true;
   }
   return false;
+}
+
+/**
+ * ตรวจสอบว่าตัวตนของครู (รหัสครู / อีเมล / ชื่อ) ตรงกับครูที่ระบุหรือไม่ (ไม่ยึดติดตัวพิมพ์ใหญ่-เล็ก หรือกรณีเปลี่ยนอีเมล)
+ */
+export function isSameTeacherIdentity(
+  targetId?: string | null,
+  targetName?: string | null,
+  teacher?: Teacher | null
+): boolean {
+  if (!teacher) return false;
+  const tid = String(targetId || '').trim().toLowerCase();
+  const tname = String(targetName || '').trim().toLowerCase();
+  const myId = String(teacher.Teacher_ID || (teacher as any).teacher_id || '').trim().toLowerCase();
+  const myEmail = String(teacher.Email || (teacher as any).email || '').trim().toLowerCase();
+  const myName = String(teacher.Name || (teacher as any).name || '').trim().toLowerCase();
+
+  // 1. Canonical Teacher_ID match
+  if (tid && myId && tid === myId) return true;
+
+  // 2. Email or email-prefix match
+  if (tid && myEmail) {
+    const myPrefix = myEmail.split('@')[0];
+    if (tid === myEmail || (myPrefix && tid === myPrefix)) return true;
+  }
+
+  // 3. Name match with Thai prefix/note cleanup (only when targetId wasn't another explicit Teacher_ID)
+  if (tname && myName && (!tid || !myId || tid === myId || tid.includes('@'))) {
+    if (tname === myName) return true;
+    const cleanTarget = tname
+      .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .trim();
+    const cleanMine = myName
+      .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
+      .replace(/\s*\(.*?\)/g, '')
+      .trim();
+    if (cleanTarget && cleanMine && cleanTarget === cleanMine) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * ตรวจสอบว่าเอกสาร/แผนการสอนเป็นของครูท่านนี้หรือไม่ โดยยึดรหัสครู (Teacher_ID) เป็นหลัก
+ */
+export function isPlanOwnedByTeacher(
+  plan?: { teacher_id?: string; teacher_name?: string } | null,
+  teacher?: Teacher | null
+): boolean {
+  if (!plan || !teacher) return false;
+  return isSameTeacherIdentity(plan.teacher_id, plan.teacher_name, teacher);
 }
 
 /**

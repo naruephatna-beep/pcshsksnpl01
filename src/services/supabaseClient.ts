@@ -1,5 +1,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Teacher, LessonPlan, AssignmentSubmission } from '../types';
+import {
+  Teacher,
+  LessonPlan,
+  AssignmentSubmission,
+  AllDocumentsAccessConfig,
+  DEFAULT_ALL_DOCS_ACCESS_CONFIG,
+  canTeacherViewAllDocuments,
+  isSameTeacherIdentity,
+  isPlanOwnedByTeacher,
+} from '../types';
 import { INITIAL_TEACHERS, INITIAL_LESSON_PLANS } from '../data/initialTeachers';
 import { getSavedSubmissions, saveSubmissions } from '../utils/deadlineUtils';
 import { uploadPdfFileToGoogleDrive, getSavedGoogleDriveWebhookUrl } from './googleDriveService';
@@ -46,6 +55,52 @@ const STORAGE_KEY_CONFIG = 'lp_supabase_config';
 const STORAGE_KEY_TEACHERS = 'lp_local_teachers';
 const STORAGE_KEY_PLANS = 'lp_local_plans';
 const STORAGE_KEY_DELETED_PLAN_IDS = 'lp_deleted_plan_ids';
+const STORAGE_KEY_PENDING_SYNC_IDS = 'lp_pending_plan_sync_ids';
+const STORAGE_KEY_CLOUD_PLANS_SYNCED = 'lp_cloud_plans_synced';
+
+export function getPendingPlanSyncIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PENDING_SYNC_IDS);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.filter((id) => typeof id === 'string' && id));
+    }
+  } catch {}
+  return new Set();
+}
+
+export function addPendingPlanSyncId(id: string): void {
+  if (!id) return;
+  try {
+    const set = getPendingPlanSyncIds();
+    set.add(id);
+    localStorage.setItem(STORAGE_KEY_PENDING_SYNC_IDS, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+export function removePendingPlanSyncId(id: string): void {
+  if (!id) return;
+  try {
+    const set = getPendingPlanSyncIds();
+    if (set.delete(id)) {
+      localStorage.setItem(STORAGE_KEY_PENDING_SYNC_IDS, JSON.stringify(Array.from(set)));
+    }
+  } catch {}
+}
+
+function isCloudPlansSynced(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY_CLOUD_PLANS_SYNCED) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markCloudPlansSynced(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_CLOUD_PLANS_SYNCED, '1');
+  } catch {}
+}
 
 export function getDeletedPlanIds(): Set<string> {
   try {
@@ -391,31 +446,25 @@ export function getLocalPlans(): LessonPlan[] {
     try {
       const parsed: LessonPlan[] = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // Auto-seed missing standard initial plans that were not explicitly deleted
-        const existingIds = new Set(parsed.map((p) => p.id));
-        let hasNew = false;
-        for (const initPlan of INITIAL_LESSON_PLANS) {
-          if (!existingIds.has(initPlan.id) && !deletedIds.has(initPlan.id)) {
-            parsed.push(initPlan);
-            hasNew = true;
-          }
-        }
-        if (hasNew) {
-          localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(parsed));
-        }
-        return parsed.filter((p) => !deletedIds.has(p.id));
+        return parsed.filter((p) => p && !deletedIds.has(p.id) && p.status !== 'deleted');
       }
     } catch {
       // fallback
     }
+  }
+  if (isCloudPlansSynced()) {
+    return [];
   }
   const filteredInitials = INITIAL_LESSON_PLANS.filter((p) => !deletedIds.has(p.id));
   localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(filteredInitials));
   return filteredInitials;
 }
 
-export function saveLocalPlans(plans: LessonPlan[]) {
+export function saveLocalPlans(plans: LessonPlan[], fromCloud: boolean = false) {
   localStorage.setItem(STORAGE_KEY_PLANS, JSON.stringify(plans));
+  if (fromCloud) {
+    markCloudPlansSynced();
+  }
 }
 
 // Database API Facade (Cloudflare D1 / Supabase with LocalStorage fallback)
@@ -427,11 +476,16 @@ export async function saveAllTeachers(
   // We MUST preserve every teacher's actual Pass and personal credentials from local storage and initial list,
   // preventing user passwords from ever being overwritten with empty strings or reset to '12345'!
   const currentLocal = getLocalTeachers();
-  const localMap = new Map(currentLocal.map((lt) => [lt.Teacher_ID, lt]));
+  const localMap = new Map(
+    currentLocal.map((lt) => [String(lt.Teacher_ID || '').trim().toLowerCase(), lt])
+  );
 
   const mergedTeachers = teachers.map((t) => {
-    const existing = localMap.get(t.Teacher_ID);
-    const init = INITIAL_TEACHERS.find((it) => it.Teacher_ID === t.Teacher_ID);
+    const tKey = String(t.Teacher_ID || '').trim().toLowerCase();
+    const existing = localMap.get(tKey);
+    const init = INITIAL_TEACHERS.find(
+      (it) => String(it.Teacher_ID || '').trim().toLowerCase() === tKey
+    );
     const effectivePass = (t.Pass && String(t.Pass).trim())
       ? String(t.Pass).trim()
       : (existing?.Pass && String(existing.Pass).trim()
@@ -522,16 +576,33 @@ export async function saveAllTeachers(
   return settingRes;
 }
 
-export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: boolean; error?: string }> {
-  // 1. Build base in-memory map starting from INITIAL_TEACHERS
+function parseUpdatedAtMs(ts?: string): number {
+  if (!ts || typeof ts !== 'string') return 0;
+  const trimmed = ts.trim();
+  if (!trimmed) return 0;
+  // Normalize SQLite CURRENT_TIMESTAMP "YYYY-MM-DD HH:MM:SS" (UTC) into valid ISO 8601
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(trimmed)
+    ? trimmed.replace(' ', 'T') + 'Z'
+    : trimmed;
+  const parsed = Date.parse(normalized);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+/**
+ * Fetches cloud-authoritative teacher records (including credentials for auth verification)
+ * without ever letting stale localStorage overwrite cloud data when remote is reachable.
+ */
+export async function fetchTeachersRaw(): Promise<{ data: Teacher[]; isSupabase: boolean; error?: string }> {
+  // 1. Base in-memory map keyed by lowercase Teacher_ID
   const teachersMap = new Map<string, Teacher>();
-  INITIAL_TEACHERS.forEach((t) => teachersMap.set(t.Teacher_ID, { ...t }));
+  INITIAL_TEACHERS.forEach((t) => {
+    const key = String(t.Teacher_ID || '').trim().toLowerCase();
+    if (key) teachersMap.set(key, { ...t });
+  });
 
   let isRemote = false;
 
-  // 2. Fetch raw profiles from Database (Cloudflare D1 or Supabase) FIRST.
-  // Raw tables provide credentials, personal contact info, and profile pictures.
-  // CRITICAL: We DO NOT let empty strings or false flags from raw tables wipe out assignments or passwords!
+  // 2. Fetch raw profiles from Database (Cloudflare D1 or Supabase)
   if (getDatabaseProvider() === 'cloudflare') {
     const cf = getSavedCloudflareConfig();
     if (cf.workerUrl) {
@@ -541,19 +612,19 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
           isRemote = true;
           cfRes.data.forEach((row) => {
             const norm = normalizeTeacher(row);
-            const existing = teachersMap.get(norm.Teacher_ID);
-            teachersMap.set(norm.Teacher_ID, {
+            const key = String(norm.Teacher_ID || '').trim().toLowerCase();
+            if (!key) return;
+            const existing = teachersMap.get(key);
+            teachersMap.set(key, {
               ...existing,
               ...norm,
               Pass: (norm.Pass && norm.Pass.trim()) ? norm.Pass : (existing?.Pass || ''),
-              // Only overwrite Learning_Area / branch from raw DB table if the raw value is a non-empty string
               Learning_Area: (norm.Learning_Area && norm.Learning_Area.trim())
                 ? norm.Learning_Area
                 : (existing?.Learning_Area || ''),
               branch: (norm.branch && norm.branch.trim())
                 ? norm.branch
                 : (existing?.branch || ''),
-              // Never let false from raw DB table overwrite true
               is_head_of_department: norm.is_head_of_department || existing?.is_head_of_department || false,
               is_head_of_branch: norm.is_head_of_branch || existing?.is_head_of_branch || false,
             });
@@ -578,8 +649,10 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
           isRemote = true;
           data.forEach((row) => {
             const norm = normalizeTeacher(row);
-            const existing = teachersMap.get(norm.Teacher_ID);
-            teachersMap.set(norm.Teacher_ID, {
+            const key = String(norm.Teacher_ID || '').trim().toLowerCase();
+            if (!key) return;
+            const existing = teachersMap.get(key);
+            teachersMap.set(key, {
               ...existing,
               ...norm,
               Pass: (norm.Pass && norm.Pass.trim()) ? norm.Pass : (existing?.Pass || ''),
@@ -600,59 +673,100 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
     }
   }
 
-  // 3. Overlay authoritative cloud setting 'school_teachers_all'
-  // This JSON array stored in system_settings guarantees 100% preservation of:
-  // - Learning_Area (กลุ่มสาระการเรียนรู้)
-  // - branch (กลุ่มสาขาวิชา)
-  // - is_head_of_department (หัวหน้ากลุ่มสาระ)
-  // - is_head_of_branch (หัวหน้าสาขาวิชา)
-  // - department_id / branch_id
+  // 3. Reconcile authoritative cloud setting 'school_teachers_all' by updated_at timestamp.
+  // Note: D1 `teachers` table schema lacks branch / is_head_of_* / department_id / branch_id,
+  // so those structural fields always come from school_teachers_all regardless of timestamp.
   try {
     const cloudSetting = await fetchSystemSetting<Teacher[]>('school_teachers_all', []);
     if (cloudSetting.isSupabase && Array.isArray(cloudSetting.data) && cloudSetting.data.length > 0) {
       isRemote = true;
-      cloudSetting.data.forEach((ct) => {
-        const existing = teachersMap.get(ct.Teacher_ID) || ct;
-        teachersMap.set(ct.Teacher_ID, {
-          ...existing,
-          ...ct,
-          Pass: (ct.Pass && ct.Pass.trim()) ? ct.Pass : (existing.Pass || ''),
-          Learning_Area: typeof ct.Learning_Area === 'string' ? ct.Learning_Area : (existing.Learning_Area || ''),
-          branch: typeof ct.branch === 'string' ? ct.branch : (existing.branch || ''),
-          is_head_of_department: ct.is_head_of_department !== undefined ? Boolean(ct.is_head_of_department) : (existing.is_head_of_department || false),
-          is_head_of_branch: ct.is_head_of_branch !== undefined ? Boolean(ct.is_head_of_branch) : (existing.is_head_of_branch || false),
-        });
+      cloudSetting.data.forEach((rawCt) => {
+        const ct = normalizeTeacher(rawCt);
+        const key = String(ct.Teacher_ID || '').trim().toLowerCase();
+        if (!key) return;
+        const existing = teachersMap.get(key);
+        if (!existing) {
+          teachersMap.set(key, ct);
+          return;
+        }
+        const rawTs = parseUpdatedAtMs(existing.updated_at);
+        const settingTs = parseUpdatedAtMs(ct.updated_at);
+        const preferSetting = settingTs === 0 || rawTs === 0 || settingTs >= rawTs;
+
+        if (preferSetting) {
+          teachersMap.set(key, {
+            ...existing,
+            ...ct,
+            Pass: (ct.Pass && ct.Pass.trim()) ? ct.Pass : (existing.Pass || ''),
+            Learning_Area: (ct.Learning_Area && ct.Learning_Area.trim())
+              ? ct.Learning_Area
+              : (existing.Learning_Area || ''),
+            branch: typeof ct.branch === 'string' && ct.branch.trim()
+              ? ct.branch
+              : (existing.branch || ''),
+            is_head_of_department: ct.is_head_of_department !== undefined
+              ? Boolean(ct.is_head_of_department)
+              : (existing.is_head_of_department || false),
+            is_head_of_branch: ct.is_head_of_branch !== undefined
+              ? Boolean(ct.is_head_of_branch)
+              : (existing.is_head_of_branch || false),
+          });
+        } else {
+          // Raw DB row has a strictly newer updated_at (e.g. password/email updated directly in D1 teachers table)
+          teachersMap.set(key, {
+            ...ct,
+            ...existing,
+            Pass: (existing.Pass && existing.Pass.trim()) ? existing.Pass : (ct.Pass || ''),
+            branch: typeof ct.branch === 'string' && ct.branch.trim() ? ct.branch : (existing.branch || ''),
+            is_head_of_department: ct.is_head_of_department !== undefined
+              ? Boolean(ct.is_head_of_department)
+              : (existing.is_head_of_department || false),
+            is_head_of_branch: ct.is_head_of_branch !== undefined
+              ? Boolean(ct.is_head_of_branch)
+              : (existing.is_head_of_branch || false),
+            department_id: ct.department_id || existing.department_id || '',
+            branch_id: ct.branch_id || existing.branch_id || '',
+          });
+        }
       });
     }
   } catch (err) {
     console.warn('Error fetching school_teachers_all setting:', err);
   }
 
-  // 4. Overlay existing local storage data (user edits already saved locally)
-  // If user changed assignments or password locally, this ensures they are preserved
-  const localList = getLocalTeachers();
-  localList.forEach((lt) => {
-    const existing = teachersMap.get(lt.Teacher_ID) || lt;
-    teachersMap.set(lt.Teacher_ID, {
-      ...existing,
-      ...lt,
-      Pass: (lt.Pass && lt.Pass.trim()) ? lt.Pass : (existing.Pass || ''),
-      Learning_Area: typeof lt.Learning_Area === 'string' ? lt.Learning_Area : (existing.Learning_Area || ''),
-      branch: typeof lt.branch === 'string' ? lt.branch : (existing.branch || ''),
-      is_head_of_department: lt.is_head_of_department !== undefined ? Boolean(lt.is_head_of_department) : (existing.is_head_of_department || false),
-      is_head_of_branch: lt.is_head_of_branch !== undefined ? Boolean(lt.is_head_of_branch) : (existing.is_head_of_branch || false),
+  // 4. Offline fallback ONLY: Never let stale localStorage overwrite cloud data when remote succeeded
+  if (!isRemote) {
+    const localList = getLocalTeachers();
+    localList.forEach((lt) => {
+      const key = String(lt.Teacher_ID || '').trim().toLowerCase();
+      if (!key) return;
+      const existing = teachersMap.get(key) || lt;
+      teachersMap.set(key, {
+        ...existing,
+        ...lt,
+        Pass: (lt.Pass && lt.Pass.trim()) ? lt.Pass : (existing.Pass || ''),
+        Learning_Area: typeof lt.Learning_Area === 'string' ? lt.Learning_Area : (existing.Learning_Area || ''),
+        branch: typeof lt.branch === 'string' ? lt.branch : (existing.branch || ''),
+        is_head_of_department: lt.is_head_of_department !== undefined
+          ? Boolean(lt.is_head_of_department)
+          : (existing.is_head_of_department || false),
+        is_head_of_branch: lt.is_head_of_branch !== undefined
+          ? Boolean(lt.is_head_of_branch)
+          : (existing.is_head_of_branch || false),
+      });
     });
-  });
+  }
 
   // 5. Guarantee that admin01, admin02 & admin03 are always present with admin role
   const adminAccounts = INITIAL_TEACHERS.filter((t) =>
-    ['admin01', 'admin02', 'admin03'].includes(t.Teacher_ID)
+    ['admin01', 'admin02', 'admin03'].includes(t.Teacher_ID.toLowerCase())
   );
 
   adminAccounts.forEach((adm) => {
-    const existing = teachersMap.get(adm.Teacher_ID);
+    const key = adm.Teacher_ID.toLowerCase();
+    const existing = teachersMap.get(key);
     if (!existing) {
-      teachersMap.set(adm.Teacher_ID, adm);
+      teachersMap.set(key, adm);
     } else {
       existing.role = 'admin';
       if (!existing.Pass && adm.Pass) existing.Pass = adm.Pass;
@@ -661,13 +775,29 @@ export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: bo
 
   const merged = Array.from(teachersMap.values());
   saveLocalTeachers(merged);
-  return { data: merged.map(sanitizeTeacherForClient), isSupabase: isRemote };
+  return { data: merged, isSupabase: isRemote };
+}
+
+export async function fetchTeachers(): Promise<{ data: Teacher[]; isSupabase: boolean; error?: string }> {
+  const res = await fetchTeachersRaw();
+  return { data: res.data.map(sanitizeTeacherForClient), isSupabase: res.isSupabase, error: res.error };
 }
 
 export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
-  // Update local storage first
-  const teachers = getLocalTeachers();
-  const idx = teachers.findIndex((t) => t.Teacher_ID === teacher.Teacher_ID);
+  const targetKey = String(teacher.Teacher_ID || '').trim().toLowerCase();
+
+  // Pull latest cloud/local teacher list first so we never clobber other teachers when updating school_teachers_all
+  let teachers = getLocalTeachers();
+  try {
+    const rawRes = await fetchTeachersRaw();
+    if (rawRes.data && rawRes.data.length > 0) {
+      teachers = rawRes.data;
+    }
+  } catch {}
+
+  const idx = teachers.findIndex(
+    (t) => String(t.Teacher_ID || '').trim().toLowerCase() === targetKey
+  );
 
   // CRITICAL: Preserve existing password if teacher.Pass is sanitized (empty string)
   let effectivePass = teacher.Pass && String(teacher.Pass).trim() ? String(teacher.Pass).trim() : '';
@@ -675,13 +805,16 @@ export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: 
     effectivePass = String(teachers[idx].Pass).trim();
   }
   if (!effectivePass) {
-    const init = INITIAL_TEACHERS.find((t) => t.Teacher_ID === teacher.Teacher_ID);
+    const init = INITIAL_TEACHERS.find(
+      (t) => String(t.Teacher_ID || '').trim().toLowerCase() === targetKey
+    );
     effectivePass = init?.Pass || '12345';
   }
 
   const mergedTeacher: Teacher = {
     ...(idx !== -1 ? teachers[idx] : {}),
     ...teacher,
+    Teacher_ID: (idx !== -1 ? teachers[idx].Teacher_ID : teacher.Teacher_ID) || teacher.Teacher_ID,
     Pass: effectivePass,
     has_changed_password: effectivePass !== '12345',
     updated_at: new Date().toISOString(),
@@ -694,21 +827,28 @@ export async function updateTeacherRecord(teacher: Teacher): Promise<{ success: 
   }
   saveLocalTeachers(teachers);
 
-  // Synchronize school_teachers_all in system_settings in background so all branches and heads are permanent
-  saveSystemSetting('school_teachers_all', teachers).catch(() => {});
-
-  // If Cloudflare is active, update Cloudflare D1 with mergedTeacher preserving effectivePass
+  // If Cloudflare is active, update BOTH school_teachers_all and Cloudflare D1 teachers table
   if (getDatabaseProvider() === 'cloudflare') {
     const cf = getSavedCloudflareConfig();
     if (cf.workerUrl) {
       try {
-        const cfRes = await saveTeacherToCloudflare(mergedTeacher);
-        return { success: cfRes.success, isSupabase: true, error: cfRes.error };
+        const [settingRes, cfRes] = await Promise.all([
+          saveSystemSetting('school_teachers_all', teachers).catch(() => ({ success: false })),
+          saveTeacherToCloudflare(mergedTeacher),
+        ]);
+        return {
+          success: cfRes.success || settingRes.success,
+          isSupabase: true,
+          error: cfRes.error,
+        };
       } catch (err: any) {
         return { success: false, isSupabase: true, error: err?.message };
       }
     }
   }
+
+  // Synchronize school_teachers_all in system_settings for non-Cloudflare providers
+  saveSystemSetting('school_teachers_all', teachers).catch(() => {});
 
   // If Supabase is active, update remote
   const client = getSupabaseClient();
@@ -798,11 +938,21 @@ export function filterPlansForTeacherScope(
   const isAdm =
     currentTeacher.role === 'admin' ||
     currentTeacher.role === 'executive' ||
-    ['admin01', 'admin02', 'admin03'].includes(currentTeacher.Teacher_ID);
+    ['admin01', 'admin02', 'admin03'].includes(String(currentTeacher.Teacher_ID || '').toLowerCase().trim());
   if (isAdm) return plans;
 
+  // Respect Admin-granted "All Documents" access permission
+  try {
+    const rawAccess = localStorage.getItem('school_all_docs_access_config');
+    if (rawAccess) {
+      const parsedAccess = JSON.parse(rawAccess) as AllDocumentsAccessConfig;
+      if (canTeacherViewAllDocuments(currentTeacher, parsedAccess || DEFAULT_ALL_DOCS_ACCESS_CONFIG)) {
+        return plans;
+      }
+    }
+  } catch {}
+
   const myId = String(currentTeacher.Teacher_ID).toLowerCase().trim();
-  const myName = String(currentTeacher.Name).trim();
 
   // Load dynamic workflow assignments & workflows from localStorage if present
   let assignmentMap: Record<string, any> = {};
@@ -843,15 +993,13 @@ export function filterPlansForTeacherScope(
     .trim();
 
   return plans.filter((p) => {
-    // 1. Own lesson plan
-    if (String(p.teacher_id).toLowerCase().trim() === myId) return true;
+    // 1. Own lesson plan (anchors on canonical Teacher_ID + email alias fallback)
+    if (isPlanOwnedByTeacher(p, currentTeacher)) return true;
 
     // 2. Assigned reviewer (direct on plan or in workflow assignments map)
-    const assignedId = String(p.assigned_reviewer_id || assignmentMap[p.id]?.assigned_reviewer_id || '').toLowerCase().trim();
-    if (assignedId && assignedId === myId) return true;
-
-    const assignedName = String(p.assigned_reviewer_name || assignmentMap[p.id]?.assigned_reviewer_name || '').trim();
-    if (assignedName && myName && (assignedName.includes(myName) || myName.includes(assignedName))) return true;
+    const assignedId = p.assigned_reviewer_id || assignmentMap[p.id]?.assigned_reviewer_id || '';
+    const assignedName = p.assigned_reviewer_name || assignmentMap[p.id]?.assigned_reviewer_name || '';
+    if (isSameTeacherIdentity(assignedId, assignedName, currentTeacher)) return true;
 
     // 2.5 Reviewer who already reviewed a stage or is explicitly assigned in a matching workflow
     if (Array.isArray(p.stage_reviews) && p.stage_reviews.some((sr) => String(sr.reviewer_id || '').toLowerCase().trim() === myId)) {
@@ -970,11 +1118,11 @@ export async function fetchPlans(
                 current_stage_order: p.current_stage_order || meta?.current_stage_order || lp?.current_stage_order || 1,
                 workflow_id: p.workflow_id || meta?.workflow_id || lp?.workflow_id,
                 stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (meta?.stage_reviews || lp?.stage_reviews || []),
-                branch: p.branch || lp?.branch,
+                branch: p.branch || meta?.branch || lp?.branch,
               });
             });
 
-          saveLocalPlans(merged);
+          saveLocalPlans(merged, true);
           return { data: applyScope(merged), isSupabase: true };
         }
       } catch (err: any) {
@@ -1011,11 +1159,11 @@ export async function fetchPlans(
               current_stage_order: p.current_stage_order || meta?.current_stage_order || lp?.current_stage_order || 1,
               workflow_id: p.workflow_id || meta?.workflow_id || lp?.workflow_id,
               stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (meta?.stage_reviews || lp?.stage_reviews || []),
-              branch: p.branch || lp?.branch,
+              branch: p.branch || meta?.branch || lp?.branch,
             });
           });
 
-        saveLocalPlans(merged);
+        saveLocalPlans(merged, true);
         return { data: applyScope(merged), isSupabase: true };
       }
       if (error) {
@@ -1028,27 +1176,60 @@ export async function fetchPlans(
   return { data: applyScope(getLocalPlans()), isSupabase: false };
 }
 
+async function syncSinglePlanWorkflowMetaToCloud(plan: LessonPlan): Promise<void> {
+  if (
+    !plan.assigned_reviewer_id &&
+    !plan.current_stage_order &&
+    !plan.workflow_id &&
+    !(plan.stage_reviews && plan.stage_reviews.length > 0) &&
+    !plan.branch
+  ) {
+    return;
+  }
+
+  const entry = {
+    assigned_reviewer_id: plan.assigned_reviewer_id,
+    assigned_reviewer_name: plan.assigned_reviewer_name,
+    current_stage_order: plan.current_stage_order,
+    workflow_id: plan.workflow_id,
+    stage_reviews: plan.stage_reviews,
+    branch: plan.branch,
+  };
+
+  let assignments: Record<string, any> = {};
+  try {
+    const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
+    if (rawAssign) assignments = JSON.parse(rawAssign);
+  } catch {}
+  assignments[plan.id] = { ...(assignments[plan.id] || {}), ...entry };
+  try {
+    localStorage.setItem('plan_workflow_assignments_v1', JSON.stringify(assignments));
+  } catch {}
+
+  try {
+    const remoteRes = await fetchSystemSetting<Record<string, any>>('plan_workflow_assignments', {});
+    const remoteMap =
+      remoteRes?.data && typeof remoteRes.data === 'object' && !Array.isArray(remoteRes.data)
+        ? remoteRes.data
+        : {};
+    const mergedMap = {
+      ...remoteMap,
+      ...assignments,
+      [plan.id]: { ...(remoteMap[plan.id] || {}), ...entry },
+    };
+    localStorage.setItem('plan_workflow_assignments_v1', JSON.stringify(mergedMap));
+    await saveSystemSetting('plan_workflow_assignments', mergedMap);
+  } catch {}
+}
+
 export async function savePlanRecord(
   plan: LessonPlan
 ): Promise<{ success: boolean; isSupabase: boolean; error?: string; message?: string }> {
   // Clear from deleted IDs if being saved/resubmitted
   clearDeletedPlanId(plan.id);
 
-  // Update local workflow assignments map
-  if (plan.assigned_reviewer_id || plan.current_stage_order) {
-    try {
-      const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
-      const assignments = rawAssign ? JSON.parse(rawAssign) : {};
-      assignments[plan.id] = {
-        assigned_reviewer_id: plan.assigned_reviewer_id,
-        assigned_reviewer_name: plan.assigned_reviewer_name,
-        current_stage_order: plan.current_stage_order,
-        workflow_id: plan.workflow_id,
-        stage_reviews: plan.stage_reviews,
-      };
-      localStorage.setItem('plan_workflow_assignments_v1', JSON.stringify(assignments));
-    } catch {}
-  }
+  // Sync workflow assignments locally & to cloud system_settings (D1 lesson_plans table lacks workflow columns)
+  syncSinglePlanWorkflowMetaToCloud(plan).catch(() => {});
 
   // Update local plans
   const plans = getLocalPlans();
@@ -1062,9 +1243,13 @@ export async function savePlanRecord(
 
   // If Cloudflare is active, save to Cloudflare D1
   if (getDatabaseProvider() === 'cloudflare') {
-    const cf = getSavedCloudflareConfig();
     try {
       const cfRes = await savePlanToCloudflare(plan);
+      if (cfRes.success) {
+        removePendingPlanSyncId(plan.id);
+      } else {
+        addPendingPlanSyncId(plan.id);
+      }
       return {
         success: cfRes.success,
         isSupabase: true,
@@ -1074,6 +1259,7 @@ export async function savePlanRecord(
           : `บันทึกลง Cloudflare D1 ไม่สำเร็จ: ${cfRes.error}`,
       };
     } catch (e: any) {
+      addPendingPlanSyncId(plan.id);
       return { success: false, isSupabase: true, error: e?.message };
     }
   }
@@ -1421,8 +1607,14 @@ export async function saveAssignmentSubmissionRecord(
     if (cf.workerUrl) {
       try {
         const cfRes = await saveSubmissionToCloudflare(sanitizedSubmission);
+        if (cfRes.success) {
+          removePendingPlanSyncId(sanitizedSubmission.id);
+        } else {
+          addPendingPlanSyncId(sanitizedSubmission.id);
+        }
         return { success: cfRes.success, isSupabase: true, error: cfRes.error };
       } catch (e: any) {
+        addPendingPlanSyncId(sanitizedSubmission.id);
         return { success: false, isSupabase: true, error: e?.message };
       }
     }

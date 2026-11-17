@@ -256,7 +256,8 @@ export function sanitizeTeacherForCloudflare(t: Teacher): Record<string, any> {
   if (!effectivePass) {
     try {
       const local = JSON.parse(localStorage.getItem('lp_local_teachers') || '[]');
-      const found = local.find((item: any) => item.Teacher_ID === t.Teacher_ID);
+      const targetId = String(t.Teacher_ID || '').trim().toLowerCase();
+      const found = local.find((item: any) => String(item?.Teacher_ID || '').trim().toLowerCase() === targetId);
       if (found?.Pass && String(found.Pass).trim()) {
         effectivePass = String(found.Pass).trim();
       }
@@ -411,6 +412,7 @@ export async function deleteSubmissionFromCloudflare(id: string): Promise<{ succ
     body: JSON.stringify(sanitizedFallback),
   }).catch(() => {});
 
+  return { success: true };
 }
 
 export async function fetchSettingFromCloudflare<T = any>(key: string): Promise<{ data: T | null; success: boolean; error?: string }> {
@@ -464,10 +466,10 @@ export async function migrateAllDataToCloudflare(
   let sCount = 0;
 
   try {
-    // 1. Sync Teachers in batch or one-by-one
+    // 1. Sync Teachers in batch or one-by-one (always sanitized so Pass and zero-undefined policy hold)
     const batchRes = await cfFetch('/api/teachers/batch', {
       method: 'POST',
-      body: JSON.stringify(currentTeachers),
+      body: JSON.stringify(currentTeachers.map(sanitizeTeacherForCloudflare)),
     });
 
     if (batchRes.success) {

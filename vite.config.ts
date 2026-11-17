@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import nodemailer from 'nodemailer';
-import { INITIAL_TEACHERS } from './src/data/initialTeachers';
+import { INITIAL_TEACHERS } from './src/data/initialTeachers.ts';
 
 // Server-side authoritative credentials store (kept strictly on server)
 const serverCredentialsStore = new Map<string, string>();
@@ -26,12 +26,65 @@ function sanitizeServerTeacher(t: any) {
   };
 }
 
+const CF_WORKER_BASE =
+  process.env.VITE_CLOUDFLARE_WORKER_URL || 'https://pcshs-eduplan-db.naruephat-na.workers.dev';
+
+async function fetchCloudTeachersForServer(): Promise<any[]> {
+  const map = new Map<string, any>();
+  INITIAL_TEACHERS.forEach((t) => {
+    map.set(String(t.Teacher_ID).toLowerCase(), { ...t });
+  });
+
+  try {
+    const [teachersRes, settingsRes] = await Promise.all([
+      fetch(`${CF_WORKER_BASE}/api/teachers`).catch(() => null),
+      fetch(`${CF_WORKER_BASE}/api/settings?key=school_teachers_all`).catch(() => null),
+    ]);
+
+    if (teachersRes && teachersRes.ok) {
+      const cfData: any = await teachersRes.json();
+      const list = Array.isArray(cfData) ? cfData : cfData?.data || [];
+      list.forEach((row: any) => {
+        const id = String(row?.Teacher_ID || row?.teacher_id || '').trim().toLowerCase();
+        if (!id) return;
+        const prev = map.get(id) || {};
+        map.set(id, {
+          ...prev,
+          ...row,
+          Pass: row?.Pass && String(row.Pass).trim() ? row.Pass : prev.Pass || '',
+        });
+      });
+    }
+
+    if (settingsRes && settingsRes.ok) {
+      const sData: any = await settingsRes.json();
+      const sList = Array.isArray(sData?.data) ? sData.data : [];
+      sList.forEach((row: any) => {
+        const id = String(row?.Teacher_ID || row?.teacher_id || '').trim().toLowerCase();
+        if (!id) return;
+        const prev = map.get(id) || {};
+        const prevTs = prev.updated_at ? Date.parse(String(prev.updated_at).replace(' ', 'T') + (String(prev.updated_at).includes('T') ? '' : 'Z')) || 0 : 0;
+        const rowTs = row?.updated_at ? Date.parse(String(row.updated_at).replace(' ', 'T') + (String(row.updated_at).includes('T') ? '' : 'Z')) || 0 : 0;
+        if (rowTs === 0 || prevTs === 0 || rowTs >= prevTs) {
+          map.set(id, {
+            ...prev,
+            ...row,
+            Pass: row?.Pass && String(row.Pass).trim() ? row.Pass : prev.Pass || '',
+          });
+        }
+      });
+    }
+  } catch {}
+
+  return Array.from(map.values());
+}
+
 function emailApiPlugin(): Plugin {
   return {
     name: 'email-api-plugin',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        // 1. Server-side Authentication (verifies password on server without leaking to client)
+        // 1. Server-side Authentication (verifies password against latest Cloud D1 + INITIAL_TEACHERS)
         if (req.url === '/api/auth/login' && req.method === 'POST') {
           let body = '';
           req.on('data', (chunk) => {
@@ -50,11 +103,13 @@ function emailApiPlugin(): Plugin {
               const q = String(identifier).trim().toLowerCase();
               const p = String(password).trim();
 
-              const found = INITIAL_TEACHERS.find(
+              const allTeachers = await fetchCloudTeachersForServer();
+              const found = allTeachers.find(
                 (t) =>
-                  t.Teacher_ID.toLowerCase() === q ||
-                  t.Email.toLowerCase() === q ||
-                  (t.national_id && t.national_id.toLowerCase() === q)
+                  String(t.Teacher_ID || '').trim().toLowerCase() === q ||
+                  String(t.Email || '').trim().toLowerCase() === q ||
+                  (t.Email && String(t.Email).trim().toLowerCase().split('@')[0] === q) ||
+                  (t.national_id && String(t.national_id).trim().toLowerCase() === q)
               );
 
               if (!found) {
@@ -64,25 +119,12 @@ function emailApiPlugin(): Plugin {
                 return;
               }
 
-              let expectedPass = serverCredentialsStore.get(found.Teacher_ID.toLowerCase()) || found.Pass || '12345';
-              if (expectedPass !== p) {
-                // If in-memory store doesn't match, verify against persistent Cloudflare D1
-                try {
-                  const cfRes = await fetch('https://pcshs-eduplan-db.naruephat-na.workers.dev/api/teachers');
-                  if (cfRes.ok) {
-                    const cfData: any = await cfRes.json();
-                    const list = Array.isArray(cfData) ? cfData : (cfData.data || []);
-                    const cfTeacher = list.find((t: any) =>
-                      t.Teacher_ID?.toLowerCase() === found.Teacher_ID.toLowerCase()
-                    );
-                    if (cfTeacher && cfTeacher.Pass) {
-                      expectedPass = cfTeacher.Pass;
-                      serverCredentialsStore.set(found.Teacher_ID.toLowerCase(), cfTeacher.Pass);
-                      if (found.Email) serverCredentialsStore.set(found.Email.toLowerCase(), cfTeacher.Pass);
-                    }
-                  }
-                } catch {}
+              const idLower = String(found.Teacher_ID).trim().toLowerCase();
+              if (found.Pass) {
+                serverCredentialsStore.set(idLower, found.Pass);
+                if (found.Email) serverCredentialsStore.set(String(found.Email).trim().toLowerCase(), found.Pass);
               }
+              const expectedPass = found.Pass || serverCredentialsStore.get(idLower) || '12345';
 
               if (expectedPass !== p) {
                 res.statusCode = 401;
@@ -121,27 +163,32 @@ function emailApiPlugin(): Plugin {
               }
 
               const cleanPass = String(newPassword).trim();
-              const id = String(teacherId).toLowerCase();
+              const id = String(teacherId).trim().toLowerCase();
               serverCredentialsStore.set(id, cleanPass);
 
-              const found = INITIAL_TEACHERS.find((t) => t.Teacher_ID.toLowerCase() === id);
+              const allTeachers = await fetchCloudTeachersForServer();
+              const found = allTeachers.find((t) => String(t.Teacher_ID || '').trim().toLowerCase() === id);
               if (found && found.Email) {
-                serverCredentialsStore.set(found.Email.toLowerCase(), cleanPass);
+                serverCredentialsStore.set(String(found.Email).trim().toLowerCase(), cleanPass);
               }
 
-              // Persist permanently to Cloudflare D1
-              try {
-                await fetch('https://pcshs-eduplan-db.naruephat-na.workers.dev/api/teachers', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    Teacher_ID: found?.Teacher_ID || id,
-                    Name: found?.Name || '',
-                    Email: found?.Email || '',
-                    Pass: cleanPass,
-                  }),
-                });
-              } catch {}
+              // Persist permanently to Cloudflare D1 preserving all existing profile columns
+              if (found) {
+                try {
+                  await fetch(`${CF_WORKER_BASE}/api/teachers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      ...found,
+                      Teacher_ID: found.Teacher_ID || teacherId,
+                      Name: found.Name || '',
+                      Email: found.Email || '',
+                      Pass: cleanPass,
+                      Learning_Area: found.Learning_Area || '',
+                    }),
+                  });
+                } catch {}
+              }
 
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
@@ -172,8 +219,11 @@ function emailApiPlugin(): Plugin {
               }
 
               const q = String(email).trim().toLowerCase();
-              const found = INITIAL_TEACHERS.find(
-                (t) => t.Email.toLowerCase() === q || t.Teacher_ID.toLowerCase() === q.split('@')[0]
+              const allTeachers = await fetchCloudTeachersForServer();
+              const found = allTeachers.find(
+                (t) =>
+                  String(t.Email || '').trim().toLowerCase() === q ||
+                  String(t.Teacher_ID || '').trim().toLowerCase() === q.split('@')[0]
               );
 
               if (!found) {

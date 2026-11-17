@@ -5,6 +5,8 @@ import {
   isTeacherAdmin,
   PlanStatusConfig,
   PlanTypeDeadlineConfig,
+  isPlanOwnedByTeacher,
+  isSameTeacherIdentity,
 } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
@@ -65,11 +67,11 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
 }) => {
   const photoUrl = formatGoogleDriveImageUrl(plan.teacher_photo);
   const isAdmin = isTeacherAdmin(currentTeacher);
-  const isOwner = plan.teacher_id === currentTeacher.Teacher_ID;
-  const isDirectlyAssigned = Boolean(
-    currentTeacher &&
-      (plan.assigned_reviewer_id === currentTeacher.Teacher_ID ||
-        plan.assigned_reviewer_name === currentTeacher.Name)
+  const isOwner = isPlanOwnedByTeacher(plan, currentTeacher);
+  const isDirectlyAssigned = isSameTeacherIdentity(
+    plan.assigned_reviewer_id,
+    plan.assigned_reviewer_name,
+    currentTeacher
   );
   const canReview = canReviewProp !== undefined ? canReviewProp : (isAdmin || isDirectlyAssigned);
   const [showFileList, setShowFileList] = React.useState(false);

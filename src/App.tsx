@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Teacher,
   LessonPlan,
@@ -16,6 +16,8 @@ import {
   canTeacherViewAllDocuments,
   ActiveTermConfig,
   DEFAULT_ACTIVE_TERM_CONFIG,
+  isSameTeacherIdentity,
+  isPlanOwnedByTeacher,
 } from './types';
 import {
   getLocalActiveTerm,
@@ -41,6 +43,9 @@ import {
   recordDeletedPlanId,
   syncDeletedPlanIdsWithCloud,
   saveAssignmentSubmissionRecord,
+  getPendingPlanSyncIds,
+  filterPlansForTeacherScope,
+  sanitizeTeacherForClient,
 } from './services/supabaseClient';
 import { updateServerTeacherPassword } from './services/authService';
 import {
@@ -86,6 +91,7 @@ import {
   archiveReviewedPlanToGoogleDrive,
   trashGoogleDriveFile,
   syncLessonPlanDriveEditors,
+  fetchGoogleDriveNamingPattern,
 } from './services/googleDriveService';
 import {
   DEFAULT_DEPARTMENTS,
@@ -98,6 +104,8 @@ import {
   saveBranches,
   getLocalWorkflows,
   saveLocalWorkflows,
+  getLocalWorkflowAssignments,
+  saveLocalWorkflowAssignments,
   getWorkflowForPlan,
   assignWorkflowToPlan,
   resolveReviewersForStage,
@@ -155,6 +163,10 @@ import {
 export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>(() => getLocalTeachers());
   const [currentTeacher, setCurrentTeacher] = useState<Teacher | null>(null);
+  const currentTeacherRef = useRef<Teacher | null>(null);
+  useEffect(() => {
+    currentTeacherRef.current = currentTeacher;
+  }, [currentTeacher]);
   const [plans, setPlans] = useState<LessonPlan[]>([]);
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -260,14 +272,33 @@ export default function App() {
   const [lastSyncTime, setLastSyncTime] = useState<string>('เพิ่งเริ่มต้น');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // Silent sync and re-fetch from database
-  const syncWithDatabase = async (silent: boolean = true) => {
+  // Cloud-authoritative sync and re-fetch across all devices
+  const syncWithDatabase = async (silent: boolean = true, overrideTeacher?: Teacher | null) => {
     setIsSyncing(true);
     try {
-      // Execute all database fetches and cloud deleted IDs sync concurrently in a single parallel batch
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes, allDocsAccessRes, activeTermRes] = await Promise.all([
+      // Snapshot pending offline writes BEFORE fetchPlans overwrites lp_local_plans
+      const preSyncLocalPlans = getLocalPlans();
+      const pendingSyncIds = getPendingPlanSyncIds();
+      const localWorkflowAssignBefore = getLocalWorkflowAssignments();
+
+      // Execute all database fetches concurrently in a single parallel batch
+      const [
+        teachersRes,
+        plansRes,
+        dlSettingsRes,
+        statusSettingsRes,
+        submissionsRes,
+        gdriveRes,
+        deletedIds,
+        deptRes,
+        branchRes,
+        wfRes,
+        allDocsAccessRes,
+        activeTermRes,
+        wfAssignRes,
+      ] = await Promise.all([
         fetchTeachers(),
-        fetchPlans(currentTeacher),
+        fetchPlans(null),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
         fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
         fetchAssignmentSubmissionsList(),
@@ -278,9 +309,37 @@ export default function App() {
         fetchSystemSetting<ReviewWorkflowConfig[]>('review_workflows', getLocalWorkflows()),
         fetchSystemSetting<AllDocumentsAccessConfig>('school_all_docs_access_config', DEFAULT_ALL_DOCS_ACCESS_CONFIG),
         fetchSystemSetting<ActiveTermConfig>('school_active_term', getLocalActiveTerm()),
+        fetchSystemSetting<Record<string, any>>('plan_workflow_assignments', {}),
+        fetchGoogleDriveNamingPattern(),
       ]);
+
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
+
+      // Sync plan_workflow_assignments from Cloud into localStorage
+      const remoteWfAssign =
+        wfAssignRes?.data && typeof wfAssignRes.data === 'object' && !Array.isArray(wfAssignRes.data)
+          ? wfAssignRes.data
+          : {};
+      const mergedWfAssign: Record<string, any> = {};
+      if (wfAssignRes?.isSupabase) {
+        // Cloud is authoritative; only preserve local workflow metadata for pending offline plans
+        Object.keys(localWorkflowAssignBefore).forEach((pid) => {
+          if (pendingSyncIds.has(pid)) {
+            mergedWfAssign[pid] = localWorkflowAssignBefore[pid];
+          }
+        });
+        Object.entries(remoteWfAssign).forEach(([pid, meta]) => {
+          if (meta && typeof meta === 'object') {
+            mergedWfAssign[pid] = pendingSyncIds.has(pid) && mergedWfAssign[pid]
+              ? mergedWfAssign[pid]
+              : meta;
+          }
+        });
+      } else {
+        Object.assign(mergedWfAssign, localWorkflowAssignBefore);
+      }
+      saveLocalWorkflowAssignments(mergedWfAssign);
 
       let currentActiveTerm = getLocalActiveTerm();
       if (activeTermRes?.data && activeTermRes.data.academic_year && activeTermRes.data.semester) {
@@ -320,7 +379,6 @@ export default function App() {
         saveDeadlineConfigs(dlSettingsRes.data);
         setDeadlineConfigs(dlSettingsRes.data);
       } else if (dlSettingsRes.isSupabase && (!dlSettingsRes.data || (Array.isArray(dlSettingsRes.data) && dlSettingsRes.data.length === 0))) {
-        // Seed default deadline configs (แผนย่อ, แผนสมบูรณ์) to cloud if table is empty
         saveSystemSetting('deadline_configs', DEFAULT_DEADLINE_CONFIGS);
       }
 
@@ -344,12 +402,73 @@ export default function App() {
         // ignore
       }
 
-      // CRITICAL FIX: Merge remote plans with dynamic submissions and local storage
-      // ALWAYS exclude any deleted plans (from deletedIds and status === 'deleted') so they never resurface!
-      const remotePlans = (plansRes.data || []).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
+      // Resolve & refresh active user anchored by canonical Teacher_ID (fallback Email)
+      let resolvedTeacher: Teacher | null =
+        overrideTeacher !== undefined ? overrideTeacher : currentTeacherRef.current;
+
+      if (resolvedTeacher) {
+        const refreshed = teachersRes.data.find(
+          (t) =>
+            String(t.Teacher_ID || '').trim().toLowerCase() ===
+            String(resolvedTeacher!.Teacher_ID || '').trim().toLowerCase()
+        );
+        if (refreshed) {
+          resolvedTeacher = sanitizeTeacherForClient(refreshed);
+          currentTeacherRef.current = resolvedTeacher;
+          setCurrentTeacher(resolvedTeacher);
+          try {
+            localStorage.setItem('lp_current_user_id', resolvedTeacher.Teacher_ID);
+            localStorage.setItem('lp_current_user_email', resolvedTeacher.Email);
+          } catch {}
+        }
+      } else if (overrideTeacher === undefined) {
+        const savedUserId = localStorage.getItem('lp_current_user_id');
+        const savedUserEmail = localStorage.getItem('lp_current_user_email');
+        let found: Teacher | undefined;
+        if (savedUserId) {
+          const targetId = savedUserId.trim().toLowerCase();
+          found = teachersRes.data.find(
+            (t) => String(t.Teacher_ID || '').trim().toLowerCase() === targetId
+          );
+        }
+        if (!found && savedUserEmail) {
+          const targetEmail = savedUserEmail.trim().toLowerCase();
+          found = teachersRes.data.find(
+            (t) =>
+              String(t.Email || '').trim().toLowerCase() === targetEmail ||
+              String(t.Teacher_ID || '').trim().toLowerCase() === targetEmail
+          );
+        }
+        if (found) {
+          resolvedTeacher = sanitizeTeacherForClient(found);
+          currentTeacherRef.current = resolvedTeacher;
+          setCurrentTeacher(resolvedTeacher);
+          try {
+            localStorage.setItem('lp_current_user_id', resolvedTeacher.Teacher_ID);
+            localStorage.setItem('lp_current_user_email', resolvedTeacher.Email);
+          } catch {}
+        }
+      }
+
+      // Merge remote plans + dynamic submissions + cloud workflow metadata
+      const remotePlans = (plansRes.data || [])
+        .filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted')
+        .map((p) => {
+          const wfMeta = mergedWfAssign[p.id];
+          if (!wfMeta) return p;
+          return {
+            ...p,
+            assigned_reviewer_id: p.assigned_reviewer_id || wfMeta.assigned_reviewer_id,
+            assigned_reviewer_name: p.assigned_reviewer_name || wfMeta.assigned_reviewer_name,
+            current_stage_order: p.current_stage_order || wfMeta.current_stage_order || 1,
+            workflow_id: p.workflow_id || wfMeta.workflow_id,
+            stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (wfMeta.stage_reviews || []),
+            branch: p.branch || wfMeta.branch,
+          };
+        });
       const remotePlanIds = new Set(remotePlans.map((p) => p.id));
 
-      // 1. Convert dynamic submissions that might not yet be in lesson_plans table
+      // 1. Convert dynamic submissions that are not yet in lesson_plans table
       const convertedDynamicPlans: LessonPlan[] = (submissionsRes || [])
         .filter((sub) => !remotePlanIds.has(sub.id) && !deletedIds.has(sub.id) && sub.status !== 'deleted')
         .map((sub) => {
@@ -357,6 +476,7 @@ export default function App() {
           const dlConfig = effectiveDl.find((d) => d.id === sub.assignment_id || d.name === sub.assignment_name);
           const fields = dlConfig?.fields || [];
           const answers = sub.answers || {};
+          const wfMeta = mergedWfAssign[sub.id];
 
           const titleCandidate =
             answers['fld_title'] ||
@@ -372,6 +492,7 @@ export default function App() {
             teacher_name: sub.teacher_name,
             teacher_photo: '',
             learning_area: sub.learning_area || '',
+            branch: wfMeta?.branch || '',
             subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
             subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
             grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
@@ -386,96 +507,56 @@ export default function App() {
             status: sub.status || 'submitted',
             is_late: sub.is_late ?? false,
             submission_delay_text: sub.submission_delay_text,
+            reviewed_by: sub.reviewed_by || undefined,
+            reviewer_name: sub.reviewer_name || undefined,
+            reviewed_at: sub.reviewed_at || undefined,
+            review_comment: sub.review_comment || undefined,
+            admin_notes: sub.admin_notes || undefined,
             evaluation_type: dlConfig?.evaluation_type || 'approval_only',
             notes: JSON.stringify(answers),
+            assigned_reviewer_id: wfMeta?.assigned_reviewer_id,
+            assigned_reviewer_name: wfMeta?.assigned_reviewer_name,
+            current_stage_order: wfMeta?.current_stage_order || 1,
+            workflow_id: wfMeta?.workflow_id,
+            stage_reviews: wfMeta?.stage_reviews || [],
           };
         });
 
-      // 2. Also keep local storage plans that haven't been pushed or were saved recently (filtered strictly)
-      const localPlans = getLocalPlans().filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
+      // 2. Cloud-authoritative reconciliation:
+      // Only let local edits override cloud or stay in missingLocals if they are explicitly tracked in pendingSyncIds
+      // (meaning an earlier save failed to reach Cloudflare D1 and still needs to be flushed).
+      const localPlans = preSyncLocalPlans.filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
       const localPlanMap = new Map(localPlans.map((lp) => [lp.id, lp]));
 
-      // CRITICAL FIX: Smart merge conflict resolution
-      // If a local plan has been reviewed (e.g. status is approved, passed, needs_revision, or has reviewer info)
-      // but remote plan is still in unreviewed/submitted status, the local review MUST take precedence!
-      // This prevents the reviewed work from bouncing back to "waiting" when remote database update was delayed.
       const resolvedRemotePlans = remotePlans.map((rp) => {
+        if (!pendingSyncIds.has(rp.id)) return rp;
         const lp = localPlanMap.get(rp.id);
         if (!lp) return rp;
-
-        const isLocalReviewed =
-          lp.status === 'approved' ||
-          lp.status === 'passed' ||
-          lp.status === 'needs_revision' ||
-          lp.status === 'rejected' ||
-          Boolean(lp.reviewed_by) ||
-          Boolean(lp.reviewed_at) ||
-          (lp.stage_reviews && lp.stage_reviews.length > 0);
-
-        const isRemoteUnreviewed = rp.status === 'submitted' || !rp.reviewed_by;
-
-        if (isLocalReviewed && isRemoteUnreviewed) {
-          // Local review is more current; preserve local review and re-sync to Cloudflare D1
-          savePlanToCloudflare(lp).catch(() => {});
-          return {
-            ...rp,
-            ...lp,
-            status: lp.status,
-            reviewed_by: lp.reviewed_by,
-            reviewer_name: lp.reviewer_name,
-            reviewed_at: lp.reviewed_at,
-            review_comment: lp.review_comment,
-            rubric_scores: lp.rubric_scores,
-            total_score: lp.total_score,
-            stage_reviews: lp.stage_reviews,
-            current_stage_order: lp.current_stage_order || 1,
-            assigned_reviewer_id: rp.assigned_reviewer_id || lp.assigned_reviewer_id,
-            assigned_reviewer_name: rp.assigned_reviewer_name || lp.assigned_reviewer_name,
-            workflow_id: rp.workflow_id || lp.workflow_id,
-          };
-        }
-        return {
-          ...rp,
-          assigned_reviewer_id: rp.assigned_reviewer_id || lp.assigned_reviewer_id,
-          assigned_reviewer_name: rp.assigned_reviewer_name || lp.assigned_reviewer_name,
-          current_stage_order: rp.current_stage_order || lp.current_stage_order || 1,
-          workflow_id: rp.workflow_id || lp.workflow_id,
-          stage_reviews: (rp.stage_reviews && rp.stage_reviews.length > 0) ? rp.stage_reviews : (lp.stage_reviews || []),
-          branch: rp.branch || lp.branch,
-        };
+        savePlanRecord(lp).catch(() => {});
+        return { ...rp, ...lp };
       });
 
       const resolvedDynamicPlans = convertedDynamicPlans.map((dp) => {
+        if (!pendingSyncIds.has(dp.id)) return dp;
         const lp = localPlanMap.get(dp.id);
-        if (lp) {
-          const isLocalReviewed =
-            lp.status === 'approved' ||
-            lp.status === 'passed' ||
-            lp.status === 'needs_revision' ||
-            lp.status === 'rejected' ||
-            Boolean(lp.reviewed_by);
-          if (isLocalReviewed && dp.status === 'submitted') {
-            return {
-              ...dp,
-              ...lp,
-              status: lp.status,
-              reviewed_by: lp.reviewed_by,
-              reviewer_name: lp.reviewer_name,
-              reviewed_at: lp.reviewed_at,
-              review_comment: lp.review_comment,
-            };
-          }
-        }
-        return dp;
+        if (!lp) return dp;
+        savePlanRecord(lp).catch(() => {});
+        return { ...dp, ...lp };
       });
 
       const knownIds = new Set([...resolvedRemotePlans.map((p) => p.id), ...resolvedDynamicPlans.map((p) => p.id)]);
-      const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
+      const missingLocals = plansRes.isSupabase
+        ? localPlans.filter((lp) => !knownIds.has(lp.id) && pendingSyncIds.has(lp.id))
+        : localPlans.filter((lp) => !knownIds.has(lp.id));
+
+      if (plansRes.isSupabase && missingLocals.length > 0) {
+        missingLocals.forEach((lp) => savePlanRecord(lp).catch(() => {}));
+      }
 
       const mergedPlans = [...resolvedRemotePlans, ...resolvedDynamicPlans, ...missingLocals].filter(
         (p) => !deletedIds.has(p.id) && p.status !== 'deleted'
       );
-      saveLocalPlans(mergedPlans);
+      saveLocalPlans(mergedPlans, plansRes.isSupabase);
 
       const evaluated = mergedPlans.map((p) => {
         if (p.is_late === undefined) {
@@ -489,7 +570,11 @@ export default function App() {
         }
         return p;
       });
-      setPlans(evaluated);
+
+      const scopedPlans = resolvedTeacher
+        ? filterPlansForTeacherScope(evaluated, resolvedTeacher)
+        : [];
+      setPlans(scopedPlans);
 
       const now = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastSyncTime(now);
@@ -510,8 +595,7 @@ export default function App() {
     }
   };
 
-  // Load initial data
-  // Load initial data (single pass, zero redundant queries)
+  // Load initial data (single pass, zero destructive overwrite)
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -519,30 +603,6 @@ export default function App() {
         syncWithDatabase(true),
         new Promise((resolve) => setTimeout(resolve, 600)),
       ]);
-
-      // Restore active user session if previously logged in (uses cached teachers from syncWithDatabase, 0 network egress)
-      const savedUserEmail = localStorage.getItem('lp_current_user_email');
-      if (savedUserEmail) {
-        const teachers = getLocalTeachers();
-        const found = teachers.find(
-          (t) =>
-            t.Email.toLowerCase() === savedUserEmail.toLowerCase() ||
-            t.Teacher_ID.toLowerCase() === savedUserEmail.toLowerCase()
-        );
-        if (found) {
-          const sanitizedFound: Teacher = {
-            ...found,
-            Pass: '',
-            national_id: '',
-            birth_date: '',
-          };
-          setCurrentTeacher(sanitizedFound);
-          const scopedPlansRes = await fetchPlans(sanitizedFound);
-          if (scopedPlansRes.data) {
-            setPlans(scopedPlansRes.data);
-          }
-        }
-      }
     } catch (e) {
       console.error('Error loading data:', e);
     } finally {
@@ -550,17 +610,44 @@ export default function App() {
     }
   };
 
-  // Targeted Table Sync (only fetches the specific table that changed in Realtime, saving 80% Egress)
+  // Targeted Table Sync (uses latest active teacher & cloud-authoritative merge)
   const syncTable = async (table: string) => {
     try {
+      const activeUser = currentTeacherRef.current;
       if (table === 'lesson_plans') {
         const deletedIds = getDeletedPlanIds();
-        const plansRes = await fetchPlans(currentTeacher);
+        const preSyncLocalPlans = getLocalPlans();
+        const pendingSyncIds = getPendingPlanSyncIds();
+        const [plansRes, wfAssignRes] = await Promise.all([
+          fetchPlans(null),
+          fetchSystemSetting<Record<string, any>>('plan_workflow_assignments', {}),
+        ]);
         if (plansRes.data) {
           const effectiveDl = deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
-          const remotePlans = (plansRes.data || []).filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted');
+          const remoteWfAssign =
+            wfAssignRes?.data && typeof wfAssignRes.data === 'object' && !Array.isArray(wfAssignRes.data)
+              ? wfAssignRes.data
+              : getLocalWorkflowAssignments();
+          saveLocalWorkflowAssignments(remoteWfAssign);
+
+          const remotePlans = (plansRes.data || [])
+            .filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted')
+            .map((p) => {
+              const wfMeta = remoteWfAssign[p.id];
+              return wfMeta
+                ? {
+                    ...p,
+                    assigned_reviewer_id: p.assigned_reviewer_id || wfMeta.assigned_reviewer_id,
+                    assigned_reviewer_name: p.assigned_reviewer_name || wfMeta.assigned_reviewer_name,
+                    current_stage_order: p.current_stage_order || wfMeta.current_stage_order || 1,
+                    workflow_id: p.workflow_id || wfMeta.workflow_id,
+                    stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (wfMeta.stage_reviews || []),
+                    branch: p.branch || wfMeta.branch,
+                  }
+                : p;
+            });
           const remotePlanIds = new Set(remotePlans.map((p) => p.id));
-          const localSubmissions = getSavedSubmissions().filter((s) => !deletedIds.has(s.id) && s.status !== 'deleted');
+          const localSubmissions = await fetchAssignmentSubmissionsList();
           const convertedDynamicPlans: LessonPlan[] = (localSubmissions || [])
             .filter((sub: AssignmentSubmission) => !remotePlanIds.has(sub.id) && !deletedIds.has(sub.id) && sub.status !== 'deleted')
             .map((sub: AssignmentSubmission) => {
@@ -568,6 +655,7 @@ export default function App() {
               const dlConfig = effectiveDl.find((d) => d.id === sub.assignment_id || d.name === sub.assignment_name);
               const fields = dlConfig?.fields || [];
               const answers = sub.answers || {};
+              const wfMeta = remoteWfAssign[sub.id];
               const titleCandidate =
                 answers['fld_title'] ||
                 answers['fld_research_topic'] ||
@@ -579,6 +667,7 @@ export default function App() {
                 teacher_name: sub.teacher_name,
                 teacher_photo: '',
                 learning_area: sub.learning_area || '',
+                branch: wfMeta?.branch || '',
                 subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
                 subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
                 grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
@@ -595,81 +684,59 @@ export default function App() {
                 submission_delay_text: sub.submission_delay_text,
                 evaluation_type: dlConfig?.evaluation_type || 'approval_only',
                 notes: JSON.stringify(answers),
+                assigned_reviewer_id: wfMeta?.assigned_reviewer_id,
+                assigned_reviewer_name: wfMeta?.assigned_reviewer_name,
+                current_stage_order: wfMeta?.current_stage_order || 1,
+                workflow_id: wfMeta?.workflow_id,
+                stage_reviews: wfMeta?.stage_reviews || [],
               };
             });
-          const localPlans = getLocalPlans().filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
+
+          const localPlans = preSyncLocalPlans.filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
           const localPlanMap = new Map(localPlans.map((lp) => [lp.id, lp]));
 
           const resolvedRemotePlans = remotePlans.map((rp) => {
+            if (!pendingSyncIds.has(rp.id)) return rp;
             const lp = localPlanMap.get(rp.id);
             if (!lp) return rp;
-
-            const isLocalReviewed =
-              lp.status === 'approved' ||
-              lp.status === 'passed' ||
-              lp.status === 'needs_revision' ||
-              lp.status === 'rejected' ||
-              Boolean(lp.reviewed_by) ||
-              Boolean(lp.reviewed_at) ||
-              (lp.stage_reviews && lp.stage_reviews.length > 0);
-
-            const isRemoteUnreviewed = rp.status === 'submitted' || !rp.reviewed_by;
-
-            if (isLocalReviewed && isRemoteUnreviewed) {
-              savePlanToCloudflare(lp).catch(() => {});
-              return {
-                ...rp,
-                ...lp,
-                status: lp.status,
-                reviewed_by: lp.reviewed_by,
-                reviewer_name: lp.reviewer_name,
-                reviewed_at: lp.reviewed_at,
-                review_comment: lp.review_comment,
-                rubric_scores: lp.rubric_scores,
-                total_score: lp.total_score,
-                stage_reviews: lp.stage_reviews,
-                current_stage_order: lp.current_stage_order,
-              };
-            }
-            return rp;
+            savePlanRecord(lp).catch(() => {});
+            return { ...rp, ...lp };
           });
 
           const resolvedDynamicPlans = convertedDynamicPlans.map((dp) => {
+            if (!pendingSyncIds.has(dp.id)) return dp;
             const lp = localPlanMap.get(dp.id);
-            if (lp) {
-              const isLocalReviewed =
-                lp.status === 'approved' ||
-                lp.status === 'passed' ||
-                lp.status === 'needs_revision' ||
-                lp.status === 'rejected' ||
-                Boolean(lp.reviewed_by);
-              if (isLocalReviewed && dp.status === 'submitted') {
-                return {
-                  ...dp,
-                  ...lp,
-                  status: lp.status,
-                  reviewed_by: lp.reviewed_by,
-                  reviewer_name: lp.reviewer_name,
-                  reviewed_at: lp.reviewed_at,
-                  review_comment: lp.review_comment,
-                };
-              }
-            }
-            return dp;
+            if (!lp) return dp;
+            savePlanRecord(lp).catch(() => {});
+            return { ...dp, ...lp };
           });
 
           const knownIds = new Set([...resolvedRemotePlans.map((p) => p.id), ...resolvedDynamicPlans.map((p) => p.id)]);
-          const missingLocals = localPlans.filter((lp) => !knownIds.has(lp.id));
+          const missingLocals = plansRes.isSupabase
+            ? localPlans.filter((lp) => !knownIds.has(lp.id) && pendingSyncIds.has(lp.id))
+            : localPlans.filter((lp) => !knownIds.has(lp.id));
           const merged = [...resolvedRemotePlans, ...resolvedDynamicPlans, ...missingLocals].filter(
             (p) => !deletedIds.has(p.id) && p.status !== 'deleted'
           );
-          saveLocalPlans(merged);
-          setPlans(merged);
+          saveLocalPlans(merged, plansRes.isSupabase);
+          setPlans(activeUser ? filterPlansForTeacherScope(merged, activeUser) : []);
         }
       } else if (table === 'teachers') {
         const teachersRes = await fetchTeachers();
         if (teachersRes.data) {
           setTeachers(teachersRes.data);
+          if (activeUser) {
+            const refreshed = teachersRes.data.find(
+              (t) =>
+                String(t.Teacher_ID || '').trim().toLowerCase() ===
+                String(activeUser.Teacher_ID || '').trim().toLowerCase()
+            );
+            if (refreshed) {
+              const sanitized = sanitizeTeacherForClient(refreshed);
+              currentTeacherRef.current = sanitized;
+              setCurrentTeacher(sanitized);
+            }
+          }
         }
       } else if (table === 'system_settings') {
         const [dlRes, stRes, termRes] = await Promise.all([
@@ -703,72 +770,81 @@ export default function App() {
     }
   };
 
+  // Always point refs to latest sync functions so interval/focus listeners never capture stale closures
+  const syncWithDatabaseRef = useRef(syncWithDatabase);
+  syncWithDatabaseRef.current = syncWithDatabase;
+  const syncTableRef = useRef(syncTable);
+  syncTableRef.current = syncTable;
+
   useEffect(() => {
     loadData();
 
-    // 1. Supabase Realtime Subscription: listens to changes with targeted table sync
+    // 1. Supabase Realtime Subscription (no-op in Cloudflare mode)
     const unsubscribe = subscribeToDatabaseChanges((table) => {
-      console.log(`[App] Realtime event on table ${table}: targeted syncing...`);
-      syncTable(table);
+      syncTableRef.current(table);
     });
 
-    // 2. Bandwidth-optimized background sync: every 10 minutes (Realtime WebSocket already pushes instant updates!)
+    // 2. Cross-device polling every 60 seconds when tab is visible
     const interval = setInterval(() => {
-      syncWithDatabase(true);
-    }, 600000);
+      if (document.visibilityState === 'visible') {
+        syncWithDatabaseRef.current(true);
+      }
+    }, 60000);
 
-    // 3. Sync on window focus (debounced to 3 minutes to avoid burning egress on tab switches)
+    // 3. Sync immediately on focus or returning to tab (debounced to 15s)
     let lastFocusSync = Date.now();
-    const onFocus = () => {
-      if (Date.now() - lastFocusSync > 180000) {
+    const onFocusOrVisible = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (Date.now() - lastFocusSync > 15000) {
         lastFocusSync = Date.now();
-        syncWithDatabase(true);
+        syncWithDatabaseRef.current(true);
       }
     };
-    window.addEventListener('focus', onFocus);
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
 
     return () => {
       unsubscribe();
       clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
     };
   }, []);
 
-  // Update current user in storage when changed
+  // Update current user in storage when changed (anchored by canonical Teacher_ID)
   const handleSetCurrentUser = (teacher: Teacher) => {
     setIsLoading(true);
-    const sanitized: Teacher = {
-      ...teacher,
-      Pass: '',
-      national_id: '',
-      birth_date: '',
-    };
+    const sanitized = sanitizeTeacherForClient(teacher);
+    currentTeacherRef.current = sanitized;
     setCurrentTeacher(sanitized);
-    fetchPlans(sanitized).then((plansRes) => {
-      if (plansRes.data) {
-        setPlans(plansRes.data);
-      }
-    });
-    if (isTeacherExecutive(teacher)) {
+    if (isTeacherExecutive(sanitized)) {
       setMainView('executive');
     } else {
       setMainView('plans');
     }
-    localStorage.setItem('lp_current_user_email', teacher.Email);
+    try {
+      localStorage.setItem('lp_current_user_id', sanitized.Teacher_ID);
+      localStorage.setItem('lp_current_user_email', sanitized.Email);
+    } catch {}
     setIsLoginModalOpen(false);
-    setTimeout(() => {
+    Promise.all([
+      syncWithDatabase(true, sanitized),
+      new Promise((resolve) => setTimeout(resolve, 450)),
+    ]).finally(() => {
       setIsLoading(false);
-    }, 600);
+    });
   };
 
   const handleLogout = () => {
     setIsLoading(true);
+    localStorage.removeItem('lp_current_user_id');
     localStorage.removeItem('lp_current_user_email');
+    currentTeacherRef.current = null;
     setCurrentTeacher(null);
     setPlans([]);
     setTimeout(() => {
       setIsLoading(false);
-    }, 500);
+    }, 350);
   };
 
   // Password update enforcement (auto-updates in DB)
@@ -778,13 +854,16 @@ export default function App() {
     }
     const res = await updateTeacherRecord(updated);
     const sanitizedUpdated: Teacher = {
-      ...updated,
-      Pass: '',
+      ...sanitizeTeacherForClient(updated),
       has_changed_password: true,
     };
+    const updatedKey = String(updated.Teacher_ID || '').trim().toLowerCase();
     setTeachers((prev) =>
-      prev.map((t) => (t.Teacher_ID === updated.Teacher_ID ? sanitizedUpdated : t))
+      prev.map((t) =>
+        String(t.Teacher_ID || '').trim().toLowerCase() === updatedKey ? sanitizedUpdated : t
+      )
     );
+    currentTeacherRef.current = sanitizedUpdated;
     setCurrentTeacher(sanitizedUpdated);
 
     setToastNotice({
@@ -801,21 +880,34 @@ export default function App() {
   // Profile save (auto-updates in DB)
   const handleSaveProfile = async (updated: Teacher) => {
     const res = await updateTeacherRecord(updated);
+    const sanitizedUpdated = sanitizeTeacherForClient(updated);
+    const updatedKey = String(updated.Teacher_ID || '').trim().toLowerCase();
+
     setTeachers((prev) =>
-      prev.map((t) => (t.Teacher_ID === updated.Teacher_ID ? updated : t))
+      prev.map((t) =>
+        String(t.Teacher_ID || '').trim().toLowerCase() === updatedKey ? sanitizedUpdated : t
+      )
     );
-    if (currentTeacher?.Teacher_ID === updated.Teacher_ID) {
-      setCurrentTeacher(updated);
+    if (
+      currentTeacher &&
+      String(currentTeacher.Teacher_ID || '').trim().toLowerCase() === updatedKey
+    ) {
+      currentTeacherRef.current = sanitizedUpdated;
+      setCurrentTeacher(sanitizedUpdated);
+      try {
+        localStorage.setItem('lp_current_user_id', sanitizedUpdated.Teacher_ID);
+        localStorage.setItem('lp_current_user_email', sanitizedUpdated.Email);
+      } catch {}
     }
-    // Also sync teacher name in existing lesson plans if name changed
+    // Also sync teacher name in existing lesson plans if name/area changed
     setPlans((prev) =>
       prev.map((p) =>
-        p.teacher_id === updated.Teacher_ID
+        isPlanOwnedByTeacher(p, sanitizedUpdated)
           ? {
               ...p,
-              teacher_name: updated.Name,
-              teacher_photo: updated.photo,
-              learning_area: updated.Learning_Area,
+              teacher_name: sanitizedUpdated.Name,
+              teacher_photo: sanitizedUpdated.photo,
+              learning_area: sanitizedUpdated.Learning_Area,
             }
           : p
       )
@@ -1310,43 +1402,9 @@ export default function App() {
     }
   };
 
-  // Helper to check if two teacher identities match
+  // Helper to check if two teacher identities match (anchors on canonical Teacher_ID, supports email alias)
   const isSameTeacherIdOrName = (tId?: string, tName?: string, teacher?: Teacher | null) => {
-    if (!teacher) return false;
-    const targetId = String(tId || '').trim().toLowerCase();
-    const targetName = String(tName || '').trim().toLowerCase();
-    const myId = String(teacher.Teacher_ID || (teacher as any).teacher_id || '').trim().toLowerCase();
-    const myEmail = String(teacher.Email || (teacher as any).email || '').trim().toLowerCase();
-    const myName = String(teacher.Name || (teacher as any).name || '').trim().toLowerCase();
-
-    // 1. Direct ID match
-    if (targetId && myId && targetId === myId) return true;
-
-    // 2. Email match
-    if (targetId && myEmail && (targetId === myEmail || targetId.includes(myEmail) || myEmail.includes(targetId))) {
-      return true;
-    }
-
-    // 3. Name match with title & position cleanup
-    if (targetName && myName) {
-      if (targetName === myName) return true;
-      if (targetName.includes(myName) || myName.includes(targetName)) return true;
-
-      // Clean prefix (นาย, นางสาว, นาง, ดร., ครู) and parenthesized positions/notes
-      const cleanTarget = targetName
-        .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
-        .replace(/\s*\(.*?\)/g, '')
-        .trim();
-      const cleanMine = myName
-        .replace(/^(นาย|นางสาว|นาง|ดร\.|ครู)\s*/, '')
-        .replace(/\s*\(.*?\)/g, '')
-        .trim();
-
-      if (cleanTarget && cleanMine && (cleanTarget === cleanMine || cleanTarget.includes(cleanMine) || cleanMine.includes(cleanTarget))) {
-        return true;
-      }
-    }
-    return false;
+    return isSameTeacherIdentity(tId, tName, teacher);
   };
 
   // Helper to check if a teacher has already reviewed this plan
@@ -1951,11 +2009,10 @@ export default function App() {
       isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
       isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
       (Boolean(currentTeacher) &&
-        (plan.assigned_reviewer_id === currentTeacher?.Teacher_ID ||
-          plan.assigned_reviewer_name === currentTeacher?.Name) &&
+        isSameTeacherIdOrName(plan.assigned_reviewer_id, plan.assigned_reviewer_name, currentTeacher) &&
         (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches) ||
           isTeacherDeptHeadOfPlan(currentTeacher, plan, departments) ||
-          plan.teacher_id !== currentTeacher?.Teacher_ID))
+          !isPlanOwnedByTeacher(plan, currentTeacher)))
     );
   };
 
@@ -2213,7 +2270,7 @@ export default function App() {
           setViewTab={setViewTab}
           pendingAssignmentsCount={pendingAssignmentsCount}
           totalPlansCount={activeTermPlans.length}
-          myPlansCount={activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length}
+          myPlansCount={activeTermPlans.filter((p) => isPlanOwnedByTeacher(p, currentTeacher)).length}
           isMobileOpen={false}
           onCloseMobile={() => {}}
           onOpenSubmitModal={() => {
@@ -2263,7 +2320,7 @@ export default function App() {
               setViewTab={setViewTab}
               pendingAssignmentsCount={pendingAssignmentsCount}
               totalPlansCount={activeTermPlans.length}
-              myPlansCount={activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length}
+              myPlansCount={activeTermPlans.filter((p) => isPlanOwnedByTeacher(p, currentTeacher)).length}
               isMobileOpen={true}
               onCloseMobile={() => setIsMobileSidebarOpen(false)}
               onOpenSubmitModal={() => {
@@ -2995,7 +3052,7 @@ export default function App() {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  เอกสารของฉัน ({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
+                  เอกสารของฉัน ({activeTermPlans.filter((p) => isPlanOwnedByTeacher(p, currentTeacher)).length})
                 </button>
                 {canViewAllDocs && (
                   <button
@@ -3025,7 +3082,7 @@ export default function App() {
                 >
                   <span>แผนของฉันที่รอตรวจ</span>
                   <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'submitted').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => isPlanOwnedByTeacher(p, currentTeacher) && p.status === 'submitted').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('approved')}
@@ -3036,7 +3093,7 @@ export default function App() {
                   }`}
                 >
                   <span>อนุมัติแล้ว</span>
-                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'approved').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => isPlanOwnedByTeacher(p, currentTeacher) && p.status === 'approved').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('needs_revision')}
@@ -3047,7 +3104,7 @@ export default function App() {
                   }`}
                 >
                   <span>ส่งกลับแก้ไข</span>
-                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'needs_revision').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => isPlanOwnedByTeacher(p, currentTeacher) && p.status === 'needs_revision').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('late' as any)}
@@ -3059,7 +3116,7 @@ export default function App() {
                 >
                   <span>ส่งช้า</span>
                   <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.is_late).length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => isPlanOwnedByTeacher(p, currentTeacher) && p.is_late).length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('assigned_to_me')}
@@ -4019,10 +4076,11 @@ export default function App() {
           onUpdateTeachers={(updated) => {
             setTeachers(updated);
             if (currentTeacher) {
+              const myKey = String(currentTeacher.Teacher_ID || '').trim().toLowerCase();
               const me = updated.find(
-                (t) => t.Teacher_ID === currentTeacher.Teacher_ID || (t.Email && t.Email === currentTeacher.Email)
+                (t) => String(t.Teacher_ID || '').trim().toLowerCase() === myKey
               );
-              if (me) setCurrentTeacher(me);
+              if (me) setCurrentTeacher(sanitizeTeacherForClient(me));
             }
           }}
           departments={departments}
@@ -4055,7 +4113,7 @@ export default function App() {
       {selectedPlanForReceipt && (
         <SubmissionReceiptModal
           plan={selectedPlanForReceipt}
-          teacher={teachers.find((t) => t.Teacher_ID === selectedPlanForReceipt.teacher_id)}
+          teacher={teachers.find((t) => isSameTeacherIdOrName(selectedPlanForReceipt.teacher_id, selectedPlanForReceipt.teacher_name, t))}
           isOpen={!!selectedPlanForReceipt}
           onClose={() => setSelectedPlanForReceipt(null)}
         />
@@ -4382,7 +4440,10 @@ export default function App() {
 
           {/* Button 5: โปรไฟล์ */}
           <button
-            onClick={() => setIsProfileModalOpen(true)}
+            onClick={() => {
+              setTeacherToEdit(currentTeacher);
+              setIsProfileModalOpen(true);
+            }}
             className="flex flex-col items-center gap-0.5 py-1 px-1.5 rounded-xl transition-colors cursor-pointer active:scale-95 text-slate-500 hover:text-slate-900"
             title="ข้อมูลโปรไฟล์ของฉัน"
           >
