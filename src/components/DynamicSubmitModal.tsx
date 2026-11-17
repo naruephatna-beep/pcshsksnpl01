@@ -83,7 +83,10 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   const formRef = useRef<HTMLDivElement>(null);
 
   // Helper to create a pristine item with teacher profile defaults
-  const createNewItem = (inheritFrom?: Partial<DynamicSubmissionItem>): DynamicSubmissionItem => {
+  const createNewItem = (
+    inheritFrom?: Partial<DynamicSubmissionItem>,
+    includeAttachments = false
+  ): DynamicSubmissionItem => {
     const initialValues: Record<string, any> = {};
     fields.forEach((f) => {
       if (f.type === 'user_profile') {
@@ -96,6 +99,8 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
         } else {
           initialValues[f.id] = currentTeacher.Name || '';
         }
+      } else if (f.type === 'file') {
+        initialValues[f.id] = includeAttachments ? inheritFrom?.formValues?.[f.id] || '' : '';
       } else if (f.type === 'checkbox') {
         initialValues[f.id] = inheritFrom?.formValues?.[f.id] ? [...inheritFrom.formValues[f.id]] : [];
       } else {
@@ -106,8 +111,8 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
     return {
       id: Math.random().toString(36).substring(2, 9),
       formValues: initialValues,
-      attachments: inheritFrom?.attachments ? [...inheritFrom.attachments] : [],
-      isPermissionConfirmed: inheritFrom?.isPermissionConfirmed || false,
+      attachments: includeAttachments && inheritFrom?.attachments ? [...inheritFrom.attachments] : [],
+      isPermissionConfirmed: includeAttachments ? inheritFrom?.isPermissionConfirmed || false : false,
     };
   };
 
@@ -124,9 +129,28 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   const [error, setError] = useState('');
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
-  // Initialize form state
+  const wasOpenRef = useRef(false);
+  const initializedKeyRef = useRef<string>('');
+
+  // Initialize form state ONLY when opening the modal or switching task/submission context.
+  // Never wipe items when background sync refreshes `currentTeacher` (e.g. when OS file picker returns focus).
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      initializedKeyRef.current = '';
+      return;
+    }
+
+    const nextKey = `${config.id}__${existingSubmission?.id || 'new'}`;
+    const isOpeningFresh = !wasOpenRef.current;
+    const isContextChanged = initializedKeyRef.current !== nextKey;
+
+    if (!isOpeningFresh && !isContextChanged) {
+      return;
+    }
+
+    wasOpenRef.current = true;
+    initializedKeyRef.current = nextKey;
 
     setError('');
     setSuccessNotice(null);
@@ -161,21 +185,27 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   const hasSampleOrDocs = !!effectiveSample || exampleDocs.length > 0;
 
   // Update a form field value for current item
-  const handleUpdateFieldValue = (fieldId: string, value: any) => {
+  const handleUpdateFieldValue = (fieldId: string, value: any, targetItemId?: string) => {
+    const itemId = targetItemId || currentItem?.id;
     setItems((prev) =>
-      prev.map((it, idx) =>
-        idx === activeItemIndex
+      prev.map((it) =>
+        it.id === itemId
           ? { ...it, formValues: { ...it.formValues, [fieldId]: value } }
           : it
       )
     );
   };
 
-  // Add attachments to current item
-  const handleAddAttachments = (fieldId: string, newAttachments: DynamicAttachment[]) => {
+  // Add attachments to target item (pinned by itemId so async uploads never land on wrong item)
+  const handleAddAttachments = (
+    fieldId: string,
+    newAttachments: DynamicAttachment[],
+    targetItemId?: string
+  ) => {
+    const itemId = targetItemId || currentItem?.id;
     setItems((prev) =>
-      prev.map((it, idx) => {
-        if (idx !== activeItemIndex) return it;
+      prev.map((it) => {
+        if (it.id !== itemId) return it;
         const updated = [...it.attachments, ...newAttachments];
         return {
           ...it,
@@ -190,11 +220,12 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
     );
   };
 
-  // Remove a specific attachment
-  const handleRemoveAttachment = (attachmentToRemove: DynamicAttachment) => {
+  // Remove a specific attachment from target item
+  const handleRemoveAttachment = (attachmentToRemove: DynamicAttachment, targetItemId?: string) => {
+    const itemId = targetItemId || currentItem?.id;
     setItems((prev) =>
-      prev.map((it, idx) => {
-        if (idx !== activeItemIndex) return it;
+      prev.map((it) => {
+        if (it.id !== itemId) return it;
         const updated = it.attachments.filter(
           (a) => !(a.field_id === attachmentToRemove.field_id && a.file_url === attachmentToRemove.file_url)
         );
@@ -215,6 +246,9 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   const handleFileChange = async (field: DynamicFormField, e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = Array.from(e.target.files || []);
     if (fileList.length === 0) return;
+
+    const targetItemSnapshot = currentItem;
+    const targetItemId = targetItemSnapshot?.id;
 
     // Check size limit & extensions for all files
     const maxSizeMb = field.file_config?.max_size_mb || 25;
@@ -254,8 +288,8 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
         let formCourseCode = '';
         let formSubjectName = '';
         let formGradeLevel = '';
-        if (currentItem && currentItem.formValues) {
-          for (const [key, val] of Object.entries(currentItem.formValues)) {
+        if (targetItemSnapshot && targetItemSnapshot.formValues) {
+          for (const [key, val] of Object.entries(targetItemSnapshot.formValues)) {
             const fObj = fields.find((fld) => fld.id === key);
             const label = (fObj?.label || key).toLowerCase();
             const strVal = typeof val === 'string' ? val.trim() : '';
@@ -297,7 +331,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
       }
 
       if (uploaded.length > 0) {
-        handleAddAttachments(field.id, uploaded);
+        handleAddAttachments(field.id, uploaded, targetItemId);
       }
     } catch (err: any) {
       setError(`เกิดข้อผิดพลาดในการอัปโหลด: ${err?.message || 'ข้อผิดพลาดระบบ'}`);
@@ -328,6 +362,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
       return;
     }
 
+    const targetItemId = currentItem?.id;
     const currentFieldAtts = (currentItem.attachments || []).filter((a) => a.field_id === field.id);
     const newAtt: DynamicAttachment = {
       field_id: field.id,
@@ -336,7 +371,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
       file_size: 'PDF Cloud Link',
     };
 
-    handleAddAttachments(field.id, [newAtt]);
+    handleAddAttachments(field.id, [newAtt], targetItemId);
     setActiveLinkInputs((prev) => ({ ...prev, [field.id]: '' }));
     setError('');
   };
@@ -351,28 +386,41 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
     window.open(cleanUrl, '_blank', 'noopener,noreferrer');
   };
 
-  // Add new item (subject/class)
+  // Add new item (subject/class) — starts clean without copying item 1's attached files
   const handleAddItem = () => {
-    const newItem = createNewItem(currentItem);
-    setItems((prev) => [...prev, newItem]);
-    setActiveItemIndex(items.length);
+    const newItem = createNewItem(undefined, false);
+    setItems((prev) => {
+      const next = [...prev, newItem];
+      setActiveItemIndex(next.length - 1);
+      return next;
+    });
     setTimeout(() => {
       formRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }, 50);
   };
 
-  // Duplicate current item
+  // Duplicate current item (copies fields without overwriting existing items; user can attach separate files)
   const handleDuplicateItem = () => {
-    const duplicated = createNewItem(currentItem);
-    setItems((prev) => [...prev, duplicated]);
-    setActiveItemIndex(items.length);
+    const duplicated = createNewItem(currentItem, false);
+    setItems((prev) => {
+      const next = [...prev, duplicated];
+      setActiveItemIndex(next.length - 1);
+      return next;
+    });
   };
 
   // Remove an item
   const handleRemoveItem = (idxToRemove: number) => {
     if (items.length <= 1) return;
-    setItems((prev) => prev.filter((_, i) => i !== idxToRemove));
-    setActiveItemIndex((prev) => Math.max(0, prev - 1));
+    setItems((prev) => {
+      const next = prev.filter((_, i) => i !== idxToRemove);
+      setActiveItemIndex((curr) => {
+        if (curr >= next.length) return Math.max(0, next.length - 1);
+        if (curr > idxToRemove) return curr - 1;
+        return curr;
+      });
+      return next;
+    });
   };
 
   // Helper to generate label for tab pills
@@ -1176,9 +1224,10 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
                           url={fieldAttachments[0]?.file_url || activeLinkInputs[field.id]}
                           isConfirmed={currentItem.isPermissionConfirmed ?? false}
                           onConfirmChange={(confirmed) => {
+                            const itemId = currentItem.id;
                             setItems((prev) =>
-                              prev.map((it, idx) =>
-                                idx === activeItemIndex ? { ...it, isPermissionConfirmed: confirmed } : it
+                              prev.map((it) =>
+                                it.id === itemId ? { ...it, isPermissionConfirmed: confirmed } : it
                               )
                             );
                           }}

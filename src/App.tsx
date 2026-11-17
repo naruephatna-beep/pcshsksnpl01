@@ -438,9 +438,16 @@ export default function App() {
             String(resolvedTeacher!.Teacher_ID || '').trim().toLowerCase()
         );
         if (refreshed) {
-          resolvedTeacher = sanitizeTeacherForClient(refreshed);
-          currentTeacherRef.current = resolvedTeacher;
-          setCurrentTeacher(resolvedTeacher);
+          const sanitized = sanitizeTeacherForClient(refreshed);
+          const prevJson = currentTeacherRef.current ? JSON.stringify(currentTeacherRef.current) : '';
+          const nextJson = JSON.stringify(sanitized);
+          resolvedTeacher = prevJson === nextJson && currentTeacherRef.current
+            ? currentTeacherRef.current
+            : sanitized;
+          if (prevJson !== nextJson) {
+            currentTeacherRef.current = sanitized;
+            setCurrentTeacher(sanitized);
+          }
           try {
             localStorage.setItem('lp_current_user_id', resolvedTeacher.Teacher_ID);
             localStorage.setItem('lp_current_user_email', resolvedTeacher.Email);
@@ -758,8 +765,11 @@ export default function App() {
             );
             if (refreshed) {
               const sanitized = sanitizeTeacherForClient(refreshed);
-              currentTeacherRef.current = sanitized;
-              setCurrentTeacher(sanitized);
+              const prevJson = currentTeacherRef.current ? JSON.stringify(currentTeacherRef.current) : '';
+              if (prevJson !== JSON.stringify(sanitized)) {
+                currentTeacherRef.current = sanitized;
+                setCurrentTeacher(sanitized);
+              }
             }
           }
         }
