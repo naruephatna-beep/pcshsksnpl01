@@ -1701,3 +1701,91 @@ export function advancePlanStage(
     admin_notes: `ผ่านการอนุมัติเรียบร้อยแล้ว (${reviewRecord.stage_title})`,
   };
 }
+
+/**
+ * Checks whether a teacher (specifically an admin) is allowed to review a stage.
+ * Admins (admin01, admin02, admin03, etc.) are ONLY eligible when
+ * stage.reviewer_selection_type === 'individual' AND explicitly included in assigned_teacher_ids.
+ */
+export function isAdminAllowedOnStage(
+  stage: ReviewStageConfig | null | undefined,
+  teacher: Teacher | null | undefined
+): boolean {
+  if (!stage || !teacher) return false;
+  if (!isTeacherAdmin(teacher)) return true;
+  if (stage.reviewer_selection_type !== 'individual') return false;
+  return (stage.assigned_teacher_ids || []).some((id) =>
+    isSameTeacherIdOrName(id, undefined, teacher)
+  );
+}
+
+/**
+ * Clears stale admin assigned_reviewer_id/name on unapproved plans whose current workflow stage
+ * does NOT explicitly select that admin via 'individual' mode, and re-resolves if eligible non-admin exists.
+ */
+export function sanitizeStaleAdminAssignments(
+  plans: LessonPlan[],
+  workflows: ReviewWorkflowConfig[] = getLocalWorkflows(),
+  allTeachers: Teacher[] = getLocalTeachers(),
+  departments: DepartmentConfig[] = getLocalDepartments(),
+  branches: BranchConfig[] = getLocalBranches()
+): { updatedPlans: LessonPlan[]; modifiedPlans: LessonPlan[] } {
+  const modifiedPlans: LessonPlan[] = [];
+  const updatedPlans = plans.map((p) => {
+    if (!p || p.status === 'deleted' || isPlanReviewCompleted(p)) {
+      return p;
+    }
+    if (!p.assigned_reviewer_id && !p.assigned_reviewer_name) {
+      return p;
+    }
+
+    const matchedReviewer = allTeachers.find((t) =>
+      isSameTeacherIdOrName(p.assigned_reviewer_id, p.assigned_reviewer_name, t)
+    );
+    const rawIdLower = String(p.assigned_reviewer_id || '').trim().toLowerCase();
+    const isAdminAssignee =
+      (matchedReviewer && isTeacherAdmin(matchedReviewer)) ||
+      rawIdLower === 'admin01' ||
+      rawIdLower === 'admin02' ||
+      rawIdLower === 'admin03' ||
+      rawIdLower.startsWith('admin');
+
+    if (!isAdminAssignee) {
+      return p;
+    }
+
+    const wf = getWorkflowForPlan(p, workflows);
+    const totalStages = wf?.stages?.length || 1;
+    const stageOrder = Math.min(Math.max(p.current_stage_order || 1, 1), totalStages);
+    const stage = wf?.stages?.find((s) => s.order === stageOrder);
+
+    const allowed = matchedReviewer
+      ? isAdminAllowedOnStage(stage, matchedReviewer)
+      : stage?.reviewer_selection_type === 'individual' &&
+        (stage.assigned_teacher_ids || []).some(
+          (id) => String(id || '').trim().toLowerCase() === rawIdLower
+        );
+
+    if (allowed) {
+      return p;
+    }
+
+    const cleared: LessonPlan = {
+      ...p,
+      assigned_reviewer_id: undefined,
+      assigned_reviewer_name: undefined,
+    };
+    const reResolved = assignWorkflowToPlan(
+      cleared,
+      workflows,
+      allTeachers,
+      departments,
+      branches
+    );
+    modifiedPlans.push(reResolved);
+    return reResolved;
+  });
+
+  return { updatedPlans, modifiedPlans };
+}
+

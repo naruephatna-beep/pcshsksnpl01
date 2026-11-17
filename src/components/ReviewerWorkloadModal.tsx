@@ -5,6 +5,7 @@ import {
   ReviewWorkflowConfig,
   DepartmentConfig,
   BranchConfig,
+  isTeacherAdmin,
 } from '../types';
 import {
   X,
@@ -29,6 +30,8 @@ import {
   getWorkflowForPlan,
   resolveReviewersForStage,
   hasTeacherReviewedPlan,
+  isAdminAllowedOnStage,
+  isPlanReviewCompleted,
 } from '../services/departmentWorkflowService';
 
 interface ReviewerWorkloadModalProps {
@@ -84,13 +87,25 @@ export const ReviewerWorkloadModal: React.FC<ReviewerWorkloadModalProps> = ({
     plans.forEach((p) => {
       if (p.status === 'deleted') return;
 
-      // 1. Direct assigned reviewer (matches via isSameTeacherIdOrName)
+      const wf = getWorkflowForPlan(p, workflows);
+      const currentStageOrder = p.current_stage_order || 1;
+      const stage = wf?.stages?.find((s) => s.order === currentStageOrder);
+
+      // 1. Direct assigned reviewer (matches via isSameTeacherIdOrName), ignoring stale admin assignments
       let directlyAssignedTeacher: Teacher | null = null;
       if (p.assigned_reviewer_id || p.assigned_reviewer_name) {
-        directlyAssignedTeacher =
+        const matched =
           teachers.find((t) =>
             isSameTeacherIdOrName(p.assigned_reviewer_id, p.assigned_reviewer_name, t)
           ) || null;
+        if (
+          matched &&
+          (!isTeacherAdmin(matched) ||
+            isPlanReviewCompleted(p) ||
+            isAdminAllowedOnStage(stage, matched))
+        ) {
+          directlyAssignedTeacher = matched;
+        }
       }
 
       if (directlyAssignedTeacher) {
@@ -111,9 +126,6 @@ export const ReviewerWorkloadModal: React.FC<ReviewerWorkloadModalProps> = ({
         }
       } else {
         // 2. No direct reviewer assigned yet; resolve who is responsible based on the workflow stage!
-        const wf = getWorkflowForPlan(p, workflows);
-        const currentStageOrder = p.current_stage_order || 1;
-        const stage = wf?.stages?.find((s) => s.order === currentStageOrder);
 
         if (stage) {
           const candidates = resolveReviewersForStage(stage, p, teachers, departments, branches);

@@ -614,7 +614,7 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0B1329] hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5 text-amber-400" />
-              <span>{plan.status === 'submitted' ? 'ตรวจ' : 'ผลตรวจ'}</span>
+              <span>{plan.status === 'submitted' || plan.status === 'late' ? 'ตรวจ' : 'ผลตรวจ'}</span>
             </button>
           )}
 

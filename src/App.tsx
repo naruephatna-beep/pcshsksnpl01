@@ -112,6 +112,8 @@ import {
   isTeacherBranchHeadOfPlan,
   isTeacherDeptHeadOfPlan,
   isTeacherInDept,
+  isAdminAllowedOnStage,
+  sanitizeStaleAdminAssignments,
 } from './services/departmentWorkflowService';
 import { StaffStructureManagerModal } from './components/StaffStructureManagerModal';
 import { WorkflowManagerModal } from './components/WorkflowManagerModal';
@@ -1388,9 +1390,11 @@ export default function App() {
   };
 
   // Active Academic Year & Semester plans filter: web UI always shows only active term plans
+  // Also sanitize stale admin assignments on pending plans whose current stage does not select that admin via 'individual'
   const activeTermPlans = useMemo(() => {
-    return plans.filter((p) => p.status !== 'deleted' && isPlanInActiveTerm(p, activeTerm));
-  }, [plans, activeTerm]);
+    const termPlans = plans.filter((p) => p.status !== 'deleted' && isPlanInActiveTerm(p, activeTerm));
+    return sanitizeStaleAdminAssignments(termPlans, workflows, teachers, departments, branches).updatedPlans;
+  }, [plans, activeTerm, workflows, teachers, departments, branches]);
 
   const pendingAssignmentsCount = useMemo(() => {
     if (!currentTeacher || isAdmin) return 0;
@@ -1494,22 +1498,43 @@ export default function App() {
       }
     }
 
-    // 4. Check direct assignment
+    // 4. Resolve the exact workflow specifically designated for THIS plan's document type
+    const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
+    const currentStageOrder = plan.current_stage_order || 1;
+    const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
+
+    // Strict Admin Rule: Admins (admin01, admin02, admin03) are ONLY allowed to review a stage
+    // when that stage uses 'individual' selection AND explicitly selects that admin.
+    if (isTeacherAdmin(teacher) && !isAdminAllowedOnStage(stage, teacher)) {
+      return false;
+    }
+
+    // 5. Check direct assignment (ignoring stale admin assignments when current stage does not allow that admin)
     const isDirectlyAssigned = isSameTeacherIdOrName(
       plan.assigned_reviewer_id,
       plan.assigned_reviewer_name,
       teacher
     );
+    const assignedTeacherObj = plan.assigned_reviewer_id
+      ? allTeachers.find((t) =>
+          isSameTeacherIdOrName(plan.assigned_reviewer_id, plan.assigned_reviewer_name, t)
+        )
+      : undefined;
+    const isStaleAdminAssignment =
+      Boolean(plan.assigned_reviewer_id) &&
+      ((assignedTeacherObj && isTeacherAdmin(assignedTeacherObj) && !isAdminAllowedOnStage(stage, assignedTeacherObj)) ||
+        (!assignedTeacherObj &&
+          ['admin01', 'admin02', 'admin03'].includes(String(plan.assigned_reviewer_id || '').trim().toLowerCase()) &&
+          !(stage?.reviewer_selection_type === 'individual' &&
+            (stage.assigned_teacher_ids || []).some(
+              (id) => String(id || '').trim().toLowerCase() === String(plan.assigned_reviewer_id || '').trim().toLowerCase()
+            ))));
 
-    // If an assigned reviewer has been set specifically for this plan, only they should see it as pending
-    if (plan.assigned_reviewer_id) {
+    // If a valid assigned reviewer has been set specifically for this plan, only they should see it as pending
+    if (plan.assigned_reviewer_id && !isStaleAdminAssignment) {
       return isDirectlyAssigned;
     }
 
-    // 5. Resolve the exact workflow specifically designated for THIS plan's document type
-    const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
-    const currentStageOrder = plan.current_stage_order || 1;
-    const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
     if (!stage) return false;
 
     const candidates = resolveReviewersForStage(stage, plan, allTeachers, depts, branches);
@@ -1570,10 +1595,11 @@ export default function App() {
       return true;
     }
 
-    // 2. If this plan has completed review and this teacher is an admin or reviewer
+    // 2. If this plan has completed review and this teacher was an eligible/assigned reviewer
     if (isPlanReviewCompleted(plan)) {
+      const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
       if (isTeacherAdmin(teacher)) {
-        return true;
+        return (planWorkflow?.stages || []).some((stg) => isAdminAllowedOnStage(stg, teacher));
       }
       const isDirectlyAssigned = isSameTeacherIdOrName(
         plan.assigned_reviewer_id,
@@ -1584,7 +1610,6 @@ export default function App() {
         return isDirectlyAssigned;
       }
 
-      const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
       const isEligibleAnyStage = (planWorkflow?.stages || []).some((stg) =>
         resolveReviewersForStage(stg, plan, allTeachers, depts, branches).some((c) =>
           isSameTeacherIdOrName(c.Teacher_ID, c.Name, teacher)
@@ -2025,10 +2050,15 @@ export default function App() {
   ]);
 
   // Check if a plan can be reviewed by current teacher
+  // Admins can inspect completed results ('ผลตรวจ'), but only get active 'ตรวจ' on pending plans
+  // if they are explicitly selected via 'individual' mode on the current workflow stage.
   const checkCanReviewPlan = (plan: LessonPlan): boolean => {
+    const isCompleted = isPlanReviewCompleted(plan);
+    if (isAdmin) {
+      if (isCompleted) return true;
+      return isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments);
+    }
     return (
-      isAdmin ||
-      viewTab === 'assigned_to_me' ||
       isPlanPendingForMe(plan, currentTeacher, workflows, teachers, departments) ||
       isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
       (Boolean(currentTeacher) &&

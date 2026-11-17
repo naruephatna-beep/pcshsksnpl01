@@ -238,7 +238,7 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
               className="px-2.5 py-1.5 bg-[#0B1329] hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
             >
               <UserCheck className="w-3 h-3 text-amber-400" />
-              <span>{plan.status === 'submitted' ? 'ตรวจ' : 'ผล'}</span>
+              <span>{plan.status === 'submitted' || plan.status === 'late' ? 'ตรวจ' : 'ผล'}</span>
             </button>
           )}
 

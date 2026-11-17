@@ -20,6 +20,7 @@ import {
   resolveReviewersForStage,
   getLocalWorkflowAssignments,
   saveLocalWorkflowAssignments,
+  sanitizeStaleAdminAssignments,
 } from '../services/departmentWorkflowService';
 import { savePlanRecord, saveLocalPlans, saveSystemSetting } from '../services/supabaseClient';
 import { syncLessonPlanDriveEditors } from '../services/googleDriveService';
@@ -381,10 +382,37 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     showToast('รีเซ็ตสายงานเป็นค่ามาตรฐานเรียบร้อยแล้ว');
   };
 
-  // Save all workflow changes to state and database
+  // Save all workflow changes to state and database, and clear stale admin assignments on pending plans
   const handleSaveAll = async () => {
     onUpdateWorkflows(allWorkflows);
     await saveWorkflows(allWorkflows);
+
+    const { updatedPlans, modifiedPlans } = sanitizeStaleAdminAssignments(
+      plans,
+      allWorkflows,
+      teachers,
+      departments,
+      branches
+    );
+
+    if (modifiedPlans.length > 0) {
+      saveLocalPlans(updatedPlans);
+      const assignmentMap = getLocalWorkflowAssignments();
+      modifiedPlans.forEach((p) => {
+        assignmentMap[p.id] = {
+          assigned_reviewer_id: p.assigned_reviewer_id,
+          assigned_reviewer_name: p.assigned_reviewer_name,
+          current_stage_order: p.current_stage_order || 1,
+          workflow_id: p.workflow_id,
+          stage_reviews: p.stage_reviews,
+        };
+      });
+      saveLocalWorkflowAssignments(assignmentMap);
+      saveSystemSetting('plan_workflow_assignments', assignmentMap).catch(() => {});
+      onUpdatePlans(updatedPlans);
+      Promise.all(modifiedPlans.map((p) => savePlanRecord(p))).catch(() => {});
+    }
+
     showToast('บันทึกการตั้งค่าสายงานและผู้ตรวจของทุกประเภทเอกสารสำเร็จแล้ว!');
   };
 
@@ -1252,7 +1280,10 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                   desc: 'ผู้อำนวยการ / รองผู้อำนวยการ (หากต้องการให้แอดมินทั้ง 3 ตรวจ ให้ใช้โหมด "2. ระบุรายบุคคล")',
                                 },
                               ].map((item) => {
-                                const isChecked = stage.assigned_role === item.role;
+                                const isChecked =
+                                  stage.assigned_role === item.role ||
+                                  (item.role === 'submitter_branch_head' && stage.assigned_role === 'all_branch_heads') ||
+                                  (item.role === 'submitter_department_head' && stage.assigned_role === 'all_department_heads');
                                 return (
                                   <div
                                     key={item.role}
