@@ -129,19 +129,19 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
 
       {/* 4. Submission Date & Timeliness */}
       <td className="py-3 px-3 whitespace-nowrap hidden lg:table-cell">
-        <div className="text-slate-700 font-mono text-[11px]">
+        <div className="text-slate-700 font-mono tabular-nums text-[11px]">
           {plan.submitted_at.split(' ')[0]}
         </div>
         <div>
           {isLate ? (
-            <span className="text-amber-700 font-bold text-[10px] flex items-center gap-0.5">
+            <span className="text-amber-700 font-semibold text-[10px] inline-flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              ส่งช้า
+              <span>ส่งช้า</span>
             </span>
           ) : (
-            <span className="text-emerald-700 font-medium text-[10px] flex items-center gap-0.5">
+            <span className="text-emerald-700 font-medium text-[10px] inline-flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
-              ตรงเวลา
+              <span>ตรงเวลา</span>
             </span>
           )}
         </div>
@@ -150,16 +150,15 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
       {/* 5. Status Badge */}
       <td className="py-3 px-3 whitespace-nowrap">
         <span
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${statusInfo.style.badge}`}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${statusInfo.style.badge}`}
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.style.dot}`}></span>
           <span>{statusInfo.label}</span>
           {plan.status === 'approved' && plan.total_score ? (
-            <span className="font-mono text-[10px]">({plan.total_score}%)</span>
+            <span className="font-mono tabular-nums text-[10px]">({plan.total_score}%)</span>
           ) : null}
         </span>
         {plan.current_stage_order && plan.status !== 'approved' && (
-          <div className="text-[10px] text-amber-800 font-semibold mt-0.5">
+          <div className="text-[10px] text-amber-800 font-medium mt-0.5 tabular-nums">
             ขั้นที่ {plan.current_stage_order}
             {plan.assigned_reviewer_name ? ` · ${plan.assigned_reviewer_name.split(' ')[0]}` : ''}
           </div>

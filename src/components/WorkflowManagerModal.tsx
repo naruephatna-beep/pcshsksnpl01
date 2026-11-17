@@ -10,6 +10,7 @@ import {
   DepartmentConfig,
   BranchConfig,
   PlanTypeDeadlineConfig,
+  isTeacherAdmin,
 } from '../types';
 import {
   DEFAULT_WORKFLOWS,
@@ -54,6 +55,7 @@ import {
   Target,
   Play,
   Settings,
+  Search,
 } from 'lucide-react';
 
 interface WorkflowManagerModalProps {
@@ -233,6 +235,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     teachers[0]?.Teacher_ID || 'te028'
   );
   const [isSimulatorOpen, setIsSimulatorOpen] = useState<boolean>(false);
+  const [individualSearch, setIndividualSearch] = useState<string>('');
 
   // Auto-assign simulation / execution notice
   const [autoAssignResult, setAutoAssignResult] = useState<{
@@ -888,6 +891,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
               const mockPlan: any = {
                 id: 'preview',
                 learning_area: departments[0]?.name || 'วิทยาศาสตร์และเทคโนโลยี',
+                branch: branches[0]?.name || '',
               };
               const eligibleReviewers = resolveReviewersForStage(stage, mockPlan, teachers, departments, branches);
 
@@ -1191,11 +1195,43 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                         {/* Sub-form 1: เลือกจากตำแหน่ง (Role) */}
                         {selectionType === 'role' && (
                           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-                            <span className="text-xs font-bold text-slate-800 block">
-                              เลือกบทบาทตำแหน่งผู้ตรวจในขั้นนี้:
-                            </span>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                              <span className="text-xs font-bold text-slate-800 block">
+                                เลือกบทบาทตำแหน่งผู้ตรวจในขั้นนี้:
+                              </span>
+                              <span className="text-[11px] text-slate-500">
+                                แอดมินทั้ง 3 ท่านจะไม่ถูกสุ่มงานในโหมดนี้ (ให้เลือกที่ "2. ระบุรายบุคคล" เท่านั้น)
+                              </span>
+                            </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                            {(stage.assigned_role === 'all_admins' || (stage.assigned_role as string) === 'admin') && (
+                              <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-950">
+                                <div className="flex items-start gap-2">
+                                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                  <span>
+                                    ขั้นตอนนี้เคยตั้งค่าเป็น "แอดมินทั้งหมด" ระบบได้ปิดการสุ่มงานให้แอดมินแล้ว หากต้องการให้แอดมินตรวจ กรุณาเปลี่ยนเป็น <strong>"2. ระบุรายบุคคล"</strong> แล้วเลือกแอดมินที่ต้องการ
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const adminIds = teachers.filter((t) => isTeacherAdmin(t)).map((t) => t.Teacher_ID);
+                                    handleUpdateStage(stage.id, {
+                                      reviewer_selection_type: 'individual',
+                                      assigned_teacher_ids:
+                                        stage.assigned_teacher_ids && stage.assigned_teacher_ids.length > 0
+                                          ? stage.assigned_teacher_ids
+                                          : adminIds,
+                                    });
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shrink-0 cursor-pointer transition-colors"
+                                >
+                                  เปลี่ยนเป็น 2. ระบุรายบุคคล
+                                </button>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                               {[
                                 {
                                   role: 'submitter_branch_head' as ReviewerRoleType,
@@ -1213,18 +1249,10 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                                   role: 'school_leadership' as ReviewerRoleType,
                                   title: 'ฝ่ายบริหารสถานศึกษา',
                                   badge: 'ผู้บริหาร',
-                                  desc: 'ผู้อำนวยการสถานศึกษา, รองผู้อำนวยการ, และคณะผู้บริหาร',
-                                },
-                                {
-                                  role: 'all_admins' as ReviewerRoleType,
-                                  title: 'แอดมินวิชาการ / ระบบกลาง',
-                                  badge: 'แอดมิน',
-                                  desc: 'ผู้ดูแลระบบกลางและคณะทำงานวิชาการของโรงเรียน',
+                                  desc: 'ผู้อำนวยการ / รองผู้อำนวยการ (หากต้องการให้แอดมินทั้ง 3 ตรวจ ให้ใช้โหมด "2. ระบุรายบุคคล")',
                                 },
                               ].map((item) => {
-                                const isChecked =
-                                  stage.assigned_role === item.role ||
-                                  (item.role === 'all_admins' && (stage.assigned_role as string) === 'admin');
+                                const isChecked = stage.assigned_role === item.role;
                                 return (
                                   <div
                                     key={item.role}
@@ -1256,46 +1284,118 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                         )}
 
                         {/* Sub-form 2: ระบุชื่อรายบุคคล */}
-                        {selectionType === 'individual' && (
-                          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-slate-800">
-                                ติ๊กเลือกครูผู้ตรวจรายบุคคล ({stage.assigned_teacher_ids?.length || 0} คนที่เลือก):
-                              </span>
-                              <span className="text-slate-400 text-[11px]">ติ๊กถูกเพื่อเลือกหรือยกเลิก</span>
-                            </div>
+                        {selectionType === 'individual' && (() => {
+                          const adminTeachers = teachers.filter((t) => isTeacherAdmin(t));
+                          const currentIds = stage.assigned_teacher_ids || [];
+                          const allAdminsSelected =
+                            adminTeachers.length > 0 &&
+                            adminTeachers.every((a) => currentIds.includes(a.Teacher_ID));
+                          const query = individualSearch.trim().toLowerCase();
+                          const sortedAndFilteredTeachers = [...teachers]
+                            .sort((a, b) => Number(isTeacherAdmin(b)) - Number(isTeacherAdmin(a)))
+                            .filter((t) => {
+                              if (!query) return true;
+                              return (
+                                t.Name.toLowerCase().includes(query) ||
+                                t.Teacher_ID.toLowerCase().includes(query) ||
+                                (t.Learning_Area || '').toLowerCase().includes(query)
+                              );
+                            });
 
-                            <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-1">
-                              {teachers.map((t) => {
-                                const isChecked = (stage.assigned_teacher_ids || []).includes(t.Teacher_ID);
-                                return (
-                                  <label
-                                    key={t.Teacher_ID}
-                                    className={`p-2 rounded-xl border text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
-                                      isChecked
-                                        ? 'bg-indigo-50/60 border-indigo-300 text-indigo-950 font-bold'
-                                        : 'bg-slate-50/60 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={(e) => {
-                                        const currentIds = stage.assigned_teacher_ids || [];
-                                        const nextIds = e.target.checked
-                                          ? [...currentIds, t.Teacher_ID]
-                                          : currentIds.filter((id) => id !== t.Teacher_ID);
+                          return (
+                            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                <div>
+                                  <span className="font-bold text-slate-800 block">
+                                    ติ๊กเลือกครูหรือแอดมินผู้ตรวจรายบุคคล ({currentIds.length} คนที่เลือก)
+                                  </span>
+                                  <span className="text-[11px] text-slate-500">
+                                    แอดมินทั้ง 3 ท่านจะได้รับงานตรวจเฉพาะเมื่อเลือกในรายการนี้เท่านั้น
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {adminTeachers.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const adminIdSet = new Set(adminTeachers.map((a) => a.Teacher_ID));
+                                        const nextIds = allAdminsSelected
+                                          ? currentIds.filter((id) => !adminIdSet.has(id))
+                                          : Array.from(new Set([...currentIds, ...adminIdSet]));
                                         handleUpdateStage(stage.id, { assigned_teacher_ids: nextIds });
                                       }}
-                                      className="rounded text-indigo-600 focus:ring-indigo-500"
-                                    />
-                                    <span className="truncate">{t.Name}</span>
-                                  </label>
-                                );
-                              })}
+                                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                                        allAdminsSelected
+                                          ? 'bg-indigo-600 text-white border-indigo-600'
+                                          : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                                      }`}
+                                    >
+                                      {allAdminsSelected
+                                        ? `ยกเลิกเลือกแอดมิน (${adminTeachers.length})`
+                                        : `เลือกแอดมินทั้ง ${adminTeachers.length} ท่าน`}
+                                    </button>
+                                  )}
+                                  {currentIds.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateStage(stage.id, { assigned_teacher_ids: [] })}
+                                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-600 hover:text-rose-700 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+                                    >
+                                      ล้างที่เลือก
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="relative">
+                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                <input
+                                  type="text"
+                                  value={individualSearch}
+                                  onChange={(e) => setIndividualSearch(e.target.value)}
+                                  placeholder="ค้นหาชื่อครู รหัส หรือแอดมิน..."
+                                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 focus:bg-white"
+                                />
+                              </div>
+
+                              <div className="max-h-52 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-1">
+                                {sortedAndFilteredTeachers.map((t) => {
+                                  const isChecked = currentIds.includes(t.Teacher_ID);
+                                  const isAdm = isTeacherAdmin(t);
+                                  return (
+                                    <label
+                                      key={t.Teacher_ID}
+                                      className={`p-2 rounded-xl border text-xs flex items-center gap-2.5 transition-colors cursor-pointer ${
+                                        isChecked
+                                          ? 'bg-indigo-50/70 border-indigo-300 text-indigo-950 font-bold'
+                                          : 'bg-slate-50/60 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => {
+                                          const nextIds = e.target.checked
+                                            ? [...currentIds, t.Teacher_ID]
+                                            : currentIds.filter((id) => id !== t.Teacher_ID);
+                                          handleUpdateStage(stage.id, { assigned_teacher_ids: nextIds });
+                                        }}
+                                        className="rounded text-indigo-600 focus:ring-indigo-500 shrink-0"
+                                      />
+                                      <span className="truncate flex-1">{t.Name}</span>
+                                      {isAdm && (
+                                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
+                                          แอดมิน
+                                        </span>
+                                      )}
+                                    </label>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* Sub-form 3: เลือกยกทั้งกลุ่มสาระ */}
                         {selectionType === 'department' && (
@@ -1392,10 +1492,15 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                           {[
                             {
                               mode: 'own_group_only' as ReviewScopeMode,
-                              title: '1. ตรวจเฉพาะคนของตัวเอง',
-                              badge: 'สายตรงในสังกัด',
+                              title:
+                                selectionType === 'individual'
+                                  ? '1. ทุกคนที่เลือกตรวจได้ร่วมกัน'
+                                  : '1. ตรวจเฉพาะคนของตัวเอง',
+                              badge: selectionType === 'individual' ? 'ตามรายชื่อ' : 'สายตรงในสังกัด',
                               desc:
-                                stage.assigned_role === 'submitter_branch_head'
+                                selectionType === 'individual'
+                                  ? 'ผู้ตรวจที่ติ๊กเลือกไว้ทุกคนสามารถเห็นและเข้าตรวจเอกสารในขั้นนี้ได้โดยตรง'
+                                  : stage.assigned_role === 'submitter_branch_head'
                                   ? 'หัวหน้าสาขาตรวจเฉพาะครูในสาขาของตนเอง (เช่น หัวหน้าสาขาฟิสิกส์ตรวจเฉพาะครูฟิสิกส์)'
                                   : stage.assigned_role === 'submitter_department_head'
                                   ? 'หัวหน้ากลุ่มสาระตรวจเฉพาะครูในกลุ่มสาระของตนเอง (เช่น หัวหน้าวิทย์ฯ ตรวจเฉพาะครูวิทย์ฯ)'
@@ -1403,10 +1508,15 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
                             },
                             {
                               mode: 'random_all' as ReviewScopeMode,
-                              title: '2. ตรวจของทุกคนแบบสุ่ม',
+                              title:
+                                selectionType === 'individual'
+                                  ? '2. สุ่มแบ่งงานให้ผู้ที่เลือก'
+                                  : '2. ตรวจของทุกคนแบบสุ่ม',
                               badge: 'เกลี่ยงานเท่ากัน',
                               desc:
-                                stage.assigned_role === 'submitter_branch_head'
+                                selectionType === 'individual'
+                                  ? 'สุ่มกระจายเอกสารให้เฉพาะผู้ตรวจที่ติ๊กเลือกไว้คนละเท่าๆ กัน (1 เล่มต่อ 1 คน ไม่ซ้ำ)'
+                                  : stage.assigned_role === 'submitter_branch_head'
                                   ? 'หัวหน้าสาขาทุกคนช่วยกันตรวจทั้งโรงเรียน ระบบจะสุ่มและแบ่งจำนวนเล่มให้ทุกคนเท่าๆ กัน'
                                   : stage.assigned_role === 'submitter_department_head'
                                   ? 'หัวหน้ากลุ่มสาระทุกคนช่วยกันตรวจเอกสารทั้งโรงเรียน ระบบจะสุ่มกระจายงานให้เท่าๆ กัน'

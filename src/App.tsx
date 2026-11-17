@@ -158,7 +158,9 @@ import {
   UserCheck,
   Building2,
   Workflow as WorkflowIcon,
+  ArrowUp,
 } from 'lucide-react';
+import { CommandPaletteModal } from './components/CommandPaletteModal';
 
 export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>(() => getLocalTeachers());
@@ -230,7 +232,28 @@ export default function App() {
   const [isAllDocsPermissionModalOpen, setIsAllDocsPermissionModalOpen] = useState(false);
   const [isAcademicTermModalOpen, setIsAcademicTermModalOpen] = useState(false);
   const [isAdminTopMenuOpen, setIsAdminTopMenuOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [activeTerm, setActiveTerm] = useState<ActiveTermConfig>(() => getLocalActiveTerm());
+
+  // Global keyboard shortcut (Ctrl+K / Cmd+K) for Command Palette & scroll listener for Back-to-Top
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    const onScroll = () => {
+      setShowBackToTop(window.scrollY > 420);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
   const [allDocsAccessConfig, setAllDocsAccessConfig] = useState<AllDocumentsAccessConfig>(() => {
     try {
       const raw = localStorage.getItem('school_all_docs_access_config');
@@ -1512,8 +1535,8 @@ export default function App() {
 
     if (isEligible) return true;
 
-    // Direct check for branch head or dept head on their own plan when stage role matches
-    if (isOwner) {
+    // Direct check for branch head or dept head on their own plan when stage role matches (non-admins only)
+    if (isOwner && !isTeacherAdmin(teacher)) {
       const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
       const isBranchStage =
         stage.assigned_role === 'submitter_branch_head' ||
@@ -2380,7 +2403,16 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className="p-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-200 hover:text-white active:scale-95 transition-all cursor-pointer"
+              aria-label="ค้นหาด่วน"
+              title="ค้นหาด่วน"
+            >
+              <Search className="w-4 h-4 text-amber-400" />
+            </button>
             {isAdmin && (
               <button
                 onClick={() => setIsReviewerWorkloadModalOpen(true)}
@@ -2388,7 +2420,7 @@ export default function App() {
                 title="ตรวจสอบภาระงานผู้ตรวจ: ใครตรวจแล้วกี่อัน ค้างตรวจกี่อัน"
               >
                 <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
-                <span className="text-[11px]">ภาระงานผู้ตรวจ</span>
+                <span className="text-[11px]">ภาระงาน</span>
               </button>
             )}
             <button
@@ -2405,56 +2437,62 @@ export default function App() {
           </div>
         </header>
 
-        {/* Desktop Top Sub-header (Institutional Modern Academic Bar) */}
-        <div className="hidden md:flex sticky top-0 z-20 bg-white/95 backdrop-blur-md px-6 py-2.5 border-b border-slate-200/90 items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span className="font-semibold text-slate-700">จ.ภ. กาฬสินธุ์</span>
-              <span className="text-slate-300">/</span>
-              {isAdmin ? (
-                <button
-                  type="button"
-                  onClick={() => setIsAcademicTermModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300/80 text-amber-900 font-bold text-xs transition-colors cursor-pointer"
-                  title="คลิกเพื่อเปลี่ยนปีการศึกษา / ภาคเรียน และจัดการโฟลเดอร์ Google Drive"
-                >
-                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                  <span>ภาคเรียนที่ {activeTerm.semester}/{activeTerm.academic_year}</span>
-                </button>
-              ) : (
-                <span className="text-amber-800 font-semibold text-xs">
-                  ภาคเรียนที่ {activeTerm.semester}/{activeTerm.academic_year}
-                </span>
-              )}
-              <span className="text-slate-300">/</span>
-              <span className="font-bold text-slate-900">
-                {mainView === 'executive'
-                  ? executiveMode === 'ddo'
-                    ? 'วิเคราะห์ Data-Driven Org'
-                    : 'แดชบอร์ดภาพรวมผู้บริหาร'
-                  : 'รายการแผนการจัดการเรียนรู้'}
+        {/* Desktop Top Sub-header (Clean Academic Workspace Bar) */}
+        <div className="hidden md:flex sticky top-0 z-20 bg-white/90 backdrop-blur-md px-6 py-2.5 border-b border-slate-200/80 items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
+            <span className="font-semibold text-slate-700 whitespace-nowrap shrink-0">จ.ภ. กาฬสินธุ์</span>
+            <span className="text-slate-300" aria-hidden="true">/</span>
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => setIsAcademicTermModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-semibold text-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                title="คลิกเพื่อเปลี่ยนปีการศึกษา / ภาคเรียน และจัดการโฟลเดอร์ Google Drive"
+              >
+                <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                <span>ภาคเรียนที่ {activeTerm.semester}/{activeTerm.academic_year}</span>
+              </button>
+            ) : (
+              <span className="text-amber-800 font-semibold text-xs whitespace-nowrap shrink-0">
+                ภาคเรียนที่ {activeTerm.semester}/{activeTerm.academic_year}
               </span>
-            </div>
+            )}
+            <span className="text-slate-300" aria-hidden="true">/</span>
+            <span className="font-bold text-slate-900 truncate">
+              {mainView === 'executive'
+                ? executiveMode === 'ddo'
+                  ? 'วิเคราะห์ Data-Driven Org'
+                  : 'แดชบอร์ดภาพรวมผู้บริหาร'
+                : 'รายการแผนการจัดการเรียนรู้'}
+            </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Live Sync Indicator */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-mono text-slate-600">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-[11px] text-slate-500">ซิงค์:</span>
-              <span className="text-[11px] font-semibold text-slate-800">{lastSyncTime}</span>
-              <button
-                onClick={() => syncWithDatabase(false)}
-                disabled={isSyncing}
-                title="คลิกเพื่อซิงค์ข้อมูลกับ Cloud ทันที"
-                className="text-slate-400 hover:text-indigo-600 ml-1 p-0.5 transition-colors cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
-              </button>
-            </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* Modern Quick Command / Search Trigger (⌘K) */}
+            <button
+              type="button"
+              onClick={() => setIsCommandPaletteOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 hover:bg-slate-200/70 border border-slate-200/90 text-xs text-slate-500 hover:text-slate-800 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="เปิดค้นหาด่วนและคำสั่งลัด (Ctrl+K / ⌘K)"
+            >
+              <Search className="w-3.5 h-3.5 text-slate-400" />
+              <span className="hidden lg:inline">ค้นหา / คำสั่งลัด</span>
+              <kbd className="px-1.5 py-0.2 rounded bg-white border border-slate-200 font-mono text-[10px] text-slate-500">
+                ⌘K
+              </kbd>
+            </button>
+
+            {/* Clean Sync Control */}
+            <button
+              type="button"
+              onClick={() => syncWithDatabase(false)}
+              disabled={isSyncing}
+              title={`ซิงค์ล่าสุด ${lastSyncTime} (คลิกเพื่อซิงค์กับ Cloud ทันที)`}
+              className="flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs text-slate-600 hover:text-indigo-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : 'text-emerald-600'}`} />
+              <span className="font-mono tabular-nums text-[11px] font-medium text-slate-700">{lastSyncTime}</span>
+            </button>
 
             {/* Quick Button: งานที่ได้รับมอบหมายให้ตรวจ */}
             {assignedToMeCount > 0 && (
@@ -2463,12 +2501,12 @@ export default function App() {
                   setMainView('plans');
                   setViewTab('assigned_to_me' as any);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-950 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-950 text-xs font-bold transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
                 title="งานที่ได้รับมอบหมายให้ฉันตรวจ"
               >
                 <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                <span>งานที่ต้องตรวจ</span>
-                <span className="min-w-4 h-4 px-1 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-[10px] font-black">
+                <span>รอฉันตรวจ</span>
+                <span className="min-w-4 h-4 px-1 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center text-[10px] font-black tabular-nums">
                   {assignedToMeCount}
                 </span>
               </button>
@@ -3191,26 +3229,22 @@ export default function App() {
             )}
           </div>
 
-          {/* Document Type Category Filter */}
+          {/* Document Type Category Filter (Quiet Slate Surface -> Highlights Active Selection Only) */}
           <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-2 border-t border-slate-100 text-xs">
-            <span className="text-slate-500 font-medium text-xs shrink-0 mr-1 flex items-center gap-1">
+            <span className="text-slate-400 font-medium text-[11px] shrink-0 mr-1 flex items-center gap-1">
               <Layers className="w-3.5 h-3.5 text-slate-400" />
-              <span>ประเภทเอกสาร:</span>
+              <span>ประเภท:</span>
             </span>
             <button
               onClick={() => setDocTypeFilter('all')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'all'
                   ? 'bg-slate-900 text-white shadow-xs font-bold'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
               }`}
             >
               <span>ทุกประเภท</span>
-              <span
-                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                  docTypeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                }`}
-              >
+              <span className={`font-mono tabular-nums text-[10px] ${docTypeFilter === 'all' ? 'text-amber-300' : 'text-slate-400'}`}>
                 {docCategoryCounts.all}
               </span>
             </button>
@@ -3219,15 +3253,11 @@ export default function App() {
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'summary_plan'
                   ? 'bg-sky-600 text-white shadow-xs font-bold'
-                  : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/80'
+                  : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
               }`}
             >
-              <span>📄 แผนฯ ฉบับย่อ</span>
-              <span
-                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                  docTypeFilter === 'summary_plan' ? 'bg-white/20 text-white' : 'bg-sky-200/80 text-sky-900'
-                }`}
-              >
+              <span>แผนฯ ฉบับย่อ</span>
+              <span className={`font-mono tabular-nums text-[10px] ${docTypeFilter === 'summary_plan' ? 'text-white/90' : 'text-slate-400'}`}>
                 {docCategoryCounts.summary}
               </span>
             </button>
@@ -3236,15 +3266,11 @@ export default function App() {
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'full_plan'
                   ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80'
+                  : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
               }`}
             >
-              <span>📘 แผนฯ ฉบับสมบูรณ์</span>
-              <span
-                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                  docTypeFilter === 'full_plan' ? 'bg-white/20 text-white' : 'bg-emerald-200/80 text-emerald-900'
-                }`}
-              >
+              <span>แผนฯ ฉบับสมบูรณ์</span>
+              <span className={`font-mono tabular-nums text-[10px] ${docTypeFilter === 'full_plan' ? 'text-white/90' : 'text-slate-400'}`}>
                 {docCategoryCounts.full}
               </span>
             </button>
@@ -3252,16 +3278,12 @@ export default function App() {
               onClick={() => setDocTypeFilter((prev) => (prev === 'classroom_research' ? 'all' : 'classroom_research'))}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 docTypeFilter === 'classroom_research'
-                  ? 'bg-purple-600 text-white shadow-xs font-bold'
-                  : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/80'
+                  ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                  : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
               }`}
             >
-              <span>🔬 วิจัยในชั้นเรียน</span>
-              <span
-                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                  docTypeFilter === 'classroom_research' ? 'bg-white/20 text-white' : 'bg-purple-200/80 text-purple-900'
-                }`}
-              >
+              <span>วิจัยในชั้นเรียน</span>
+              <span className={`font-mono tabular-nums text-[10px] ${docTypeFilter === 'classroom_research' ? 'text-white/90' : 'text-slate-400'}`}>
                 {docCategoryCounts.research}
               </span>
             </button>
@@ -3274,17 +3296,13 @@ export default function App() {
                   onClick={() => setDocTypeFilter((prev) => (prev === cat.id ? 'all' : cat.id))}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                     isSelected
-                      ? 'bg-amber-500 text-slate-950 shadow-xs font-bold ring-1 ring-amber-600'
-                      : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80'
+                      ? 'bg-amber-500 text-slate-950 shadow-xs font-bold'
+                      : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
                   }`}
                   title={cat.label}
                 >
                   <span className="truncate max-w-[160px]">{cat.short}</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                      isSelected ? 'bg-black/20 text-slate-950 font-bold' : 'bg-amber-200/80 text-amber-950'
-                    }`}
-                  >
+                  <span className={`font-mono tabular-nums text-[10px] ${isSelected ? 'text-slate-950 font-bold' : 'text-slate-400'}`}>
                     {cat.count}
                   </span>
                 </button>
@@ -3297,25 +3315,21 @@ export default function App() {
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                   docTypeFilter === 'general_academic'
                     ? 'bg-indigo-600 text-white shadow-xs font-bold'
-                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/80'
+                    : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
                 }`}
               >
-                <span>📑 เอกสารอื่นๆ</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                    docTypeFilter === 'general_academic' ? 'bg-white/20 text-white' : 'bg-indigo-200/80 text-indigo-900'
-                  }`}
-                >
+                <span>เอกสารอื่นๆ</span>
+                <span className={`font-mono tabular-nums text-[10px] ${docTypeFilter === 'general_academic' ? 'text-white/90' : 'text-slate-400'}`}>
                   {docCategoryCounts.general}
                 </span>
               </button>
             )}
           </div>
 
-          {/* Grade Level Filter (แยกตามระดับชั้น ม.1 - ม.6) */}
+          {/* Grade Level Filter (Clean Segmented Row) */}
           <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-2 border-t border-slate-100 text-xs">
-            <span className="text-slate-500 font-medium text-xs shrink-0 mr-1 flex items-center gap-1">
-              <GraduationCap className="w-3.5 h-3.5 text-amber-500" />
+            <span className="text-slate-400 font-medium text-[11px] shrink-0 mr-1 flex items-center gap-1">
+              <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
               <span>ระดับชั้น:</span>
             </span>
             <button
@@ -3323,15 +3337,11 @@ export default function App() {
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                 gradeFilter === 'all'
                   ? 'bg-slate-900 text-white shadow-xs font-bold'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
               }`}
             >
               <span>ทุกระดับชั้น</span>
-              <span
-                className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                  gradeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                }`}
-              >
+              <span className={`font-mono tabular-nums text-[10px] ${gradeFilter === 'all' ? 'text-amber-300' : 'text-slate-400'}`}>
                 {gradeCounts.all}
               </span>
             </button>
@@ -3343,17 +3353,13 @@ export default function App() {
                   onClick={() => setGradeFilter((prev) => (prev === grade ? 'all' : grade))}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 flex items-center gap-1.5 ${
                     isSelected
-                      ? 'bg-amber-500 text-slate-950 shadow-xs font-bold ring-2 ring-amber-300'
-                      : 'bg-amber-50/70 hover:bg-amber-100/80 text-amber-900 border border-amber-200/80'
+                      ? 'bg-amber-500 text-slate-950 shadow-xs font-bold'
+                      : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
                   }`}
                   title={`กรองเฉพาะระดับชั้น ${grade}`}
                 >
                   <span>{grade}</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${
-                      isSelected ? 'bg-slate-950 text-amber-300 font-bold' : 'bg-amber-200/80 text-amber-900'
-                    }`}
-                  >
+                  <span className={`font-mono tabular-nums text-[10px] ${isSelected ? 'text-slate-950 font-bold' : 'text-slate-400'}`}>
                     {gradeCounts[grade] || 0}
                   </span>
                 </button>
@@ -3370,8 +3376,18 @@ export default function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ค้นหารหัสวิชา (ว31101), ชื่อวิชา, ชื่อแผน, หรือชื่อครูผู้สอน..."
-                className="w-full pl-10 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all placeholder:text-slate-400"
+                className="w-full pl-10 pr-9 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all placeholder:text-slate-400"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition-colors cursor-pointer"
+                  aria-label="ล้างคำค้นหา"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {gradeFilter !== 'all' && (
@@ -3616,31 +3632,27 @@ export default function App() {
 
           {/* Department Quick Jump Toolbar */}
           {groupByLearningArea && plansGroupedByArea.length > 1 && (
-            <div className="flex items-center gap-2 overflow-x-auto touch-scroll py-2.5 px-3 mb-5 bg-gradient-to-r from-slate-50 via-slate-100/60 to-slate-50 rounded-2xl border border-slate-200/80 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                <span>⚡ ทางลัดกลุ่มสาระ:</span>
+            <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll py-2 px-3 mb-5 bg-white rounded-xl border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-400 shrink-0 mr-1">
+                ทางลัดกลุ่มสาระ:
               </span>
-              {plansGroupedByArea.map((group) => {
-                const theme = getDeptTheme(group.code, group.name);
-                return (
-                  <button
-                    key={`jump-${group.id}`}
-                    type="button"
-                    onClick={() => {
-                      setCollapsedAreas((prev) => ({ ...prev, [group.id]: false }));
-                      const el = document.getElementById(`area-section-${group.id}`);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold whitespace-nowrap shadow-2xs hover:border-indigo-300 transition-all cursor-pointer"
-                  >
-                    <span>{theme.icon}</span>
-                    <span>{group.name}</span>
-                    <span className={`px-1.5 py-0.2 rounded-full font-mono text-[10px] ${theme.badge}`}>
-                      {group.plans.length}
-                    </span>
-                  </button>
-                );
-              })}
+              {plansGroupedByArea.map((group) => (
+                <button
+                  key={`jump-${group.id}`}
+                  type="button"
+                  onClick={() => {
+                    setCollapsedAreas((prev) => ({ ...prev, [group.id]: false }));
+                    const el = document.getElementById(`area-section-${group.id}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-900 text-slate-700 hover:text-white border border-slate-200/80 text-xs font-medium whitespace-nowrap transition-colors cursor-pointer group"
+                >
+                  <span className="truncate max-w-[140px]">{group.name}</span>
+                  <span className="font-mono tabular-nums text-[10px] text-slate-400 group-hover:text-amber-300">
+                    {group.plans.length}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
 
@@ -3690,62 +3702,52 @@ export default function App() {
                     <div
                       key={group.id}
                       id={`area-section-${group.id}`}
-                      className={`scroll-mt-24 bg-white rounded-3xl border ${theme.border} shadow-xs overflow-hidden transition-all`}
+                      className="scroll-mt-24 bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all"
                     >
-                      {/* Department Header Banner */}
-                      <div className={`p-4 sm:p-5 bg-gradient-to-r ${theme.gradient} border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3.5`}>
-                        <div className="flex items-start sm:items-center gap-3">
-                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-xs shrink-0 bg-white border border-slate-200/90">
-                            {theme.icon}
+                      {/* Clean Architectural Department Header */}
+                      <div className="px-4 sm:px-6 py-4 bg-slate-50/70 border-b border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono text-xs font-bold shrink-0 shadow-2xs ${theme.badge}`}>
+                            {group.code.slice(0, 4)}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-black ${theme.badge}`}>
-                                {group.code}
-                              </span>
-                              <h4 className="text-base sm:text-lg font-bold text-slate-900">
+                              <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">
                                 {group.name}
                               </h4>
-                              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-900 text-white shadow-2xs">
-                                {group.plans.length} รายการ
+                              <span className="text-xs font-mono tabular-nums font-semibold text-slate-500">
+                                ({group.plans.length} รายการ)
                               </span>
                             </div>
                             {group.headName && (
-                              <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5">
-                                <span className="text-slate-400 font-medium">หัวหน้ากลุ่มสาระ:</span>
-                                <span className="font-semibold text-slate-800">{group.headName}</span>
+                              <p className="text-xs text-slate-500 mt-0.5 truncate">
+                                หัวหน้ากลุ่มสาระ: <span className="font-medium text-slate-700">{group.headName}</span>
                               </p>
                             )}
                           </div>
                         </div>
 
-                        {/* Breakdown pills & Collapse button */}
-                        <div className="flex items-center gap-2 flex-wrap self-end md:self-center">
-                          {/* Document Type breakdown chips */}
-                          <div className="flex items-center gap-1.5 text-[11px] bg-white/90 p-1 rounded-xl border border-slate-200/80 shadow-2xs">
-                            {group.typeCounts.summary > 0 && (
-                              <span className="px-2 py-0.5 rounded-lg bg-sky-50 text-sky-800 font-semibold border border-sky-200/60 flex items-center gap-1">
-                                <span>📄 ย่อ:</span>
-                                <span className="font-bold">{group.typeCounts.summary}</span>
-                              </span>
-                            )}
+                        {/* Concise Breakdown Metadata & Collapse button */}
+                        <div className="flex items-center gap-3 flex-wrap self-end md:self-center">
+                          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 tabular-nums">
+                            {group.typeCounts.summary > 0 && <span>ย่อ {group.typeCounts.summary}</span>}
                             {group.typeCounts.full > 0 && (
-                              <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200/60 flex items-center gap-1">
-                                <span>📘 สมบูรณ์:</span>
-                                <span className="font-bold">{group.typeCounts.full}</span>
-                              </span>
+                              <>
+                                {group.typeCounts.summary > 0 && <span className="text-slate-300">·</span>}
+                                <span>สมบูรณ์ {group.typeCounts.full}</span>
+                              </>
                             )}
                             {group.typeCounts.research > 0 && (
-                              <span className="px-2 py-0.5 rounded-lg bg-purple-50 text-purple-800 font-semibold border border-purple-200/60 flex items-center gap-1">
-                                <span>🔬 วิจัย:</span>
-                                <span className="font-bold">{group.typeCounts.research}</span>
-                              </span>
+                              <>
+                                {(group.typeCounts.summary > 0 || group.typeCounts.full > 0) && <span className="text-slate-300">·</span>}
+                                <span>วิจัย {group.typeCounts.research}</span>
+                              </>
                             )}
                             {group.typeCounts.other > 0 && (
-                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-semibold border border-slate-200 flex items-center gap-1">
-                                <span>📑 อื่นๆ:</span>
-                                <span className="font-bold">{group.typeCounts.other}</span>
-                              </span>
+                              <>
+                                <span className="text-slate-300">·</span>
+                                <span>อื่นๆ {group.typeCounts.other}</span>
+                              </>
                             )}
                           </div>
 
@@ -3753,10 +3755,10 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => toggleAreaCollapse(group.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200/90 shadow-2xs transition-all cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                           >
                             <span>{isCollapsed ? 'ขยายดูการ์ด' : 'ย่อ'}</span>
-                            {isCollapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+                            {isCollapsed ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronUp className="w-3.5 h-3.5 text-slate-400" />}
                           </button>
                         </div>
                       </div>
@@ -3764,17 +3766,17 @@ export default function App() {
                       {/* Area Content (Cards Grid & Inner Type Filter) */}
                       {!isCollapsed && (
                         <div className="p-4 sm:p-5 space-y-4">
-                          {/* Inner Type Filter Pills */}
+                          {/* Inner Type Filter Segmented Controls */}
                           {(group.typeCounts.summary > 0 || group.typeCounts.full > 0 || group.typeCounts.research > 0 || group.typeCounts.other > 0) && (
                             <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll pb-1 text-xs">
-                              <span className="text-slate-400 text-[11px] font-semibold shrink-0">แยกประเภท:</span>
+                              <span className="text-slate-400 text-[11px] font-medium shrink-0 mr-1">ประเภท:</span>
                               <button
                                 type="button"
                                 onClick={() => handleSetAreaTypeFilter(group.id, 'all')}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 tabular-nums ${
                                   activeTypeFilter === 'all'
                                     ? 'bg-slate-900 text-white shadow-2xs font-bold'
-                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                    : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
                                 }`}
                               >
                                 ทั้งหมด ({group.plans.length})
@@ -3783,13 +3785,13 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleSetAreaTypeFilter(group.id, 'summary')}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 tabular-nums ${
                                     activeTypeFilter === 'summary'
                                       ? 'bg-sky-600 text-white shadow-2xs font-bold'
-                                      : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/70'
+                                      : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
                                   }`}
                                 >
-                                  <span>📄 แผนฯ ฉบับย่อ</span>
+                                  <span>แผนฯ ฉบับย่อ</span>
                                   <span className="font-mono text-[10px] opacity-80">({group.typeCounts.summary})</span>
                                 </button>
                               )}
@@ -3797,13 +3799,13 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleSetAreaTypeFilter(group.id, 'full')}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 tabular-nums ${
                                     activeTypeFilter === 'full'
                                       ? 'bg-emerald-600 text-white shadow-2xs font-bold'
-                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/70'
+                                      : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
                                   }`}
                                 >
-                                  <span>📘 แผนฯ ฉบับสมบูรณ์</span>
+                                  <span>แผนฯ ฉบับสมบูรณ์</span>
                                   <span className="font-mono text-[10px] opacity-80">({group.typeCounts.full})</span>
                                 </button>
                               )}
@@ -3811,13 +3813,13 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleSetAreaTypeFilter(group.id, 'research')}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 tabular-nums ${
                                     activeTypeFilter === 'research'
-                                      ? 'bg-purple-600 text-white shadow-2xs font-bold'
-                                      : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/70'
+                                      ? 'bg-indigo-600 text-white shadow-2xs font-bold'
+                                      : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
                                   }`}
                                 >
-                                  <span>🔬 วิจัยในชั้นเรียน</span>
+                                  <span>วิจัยในชั้นเรียน</span>
                                   <span className="font-mono text-[10px] opacity-80">({group.typeCounts.research})</span>
                                 </button>
                               )}
@@ -3825,13 +3827,13 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => handleSetAreaTypeFilter(group.id, 'other')}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 ${
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 tabular-nums ${
                                     activeTypeFilter === 'other'
                                       ? 'bg-indigo-600 text-white shadow-2xs font-bold'
-                                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200/70'
+                                      : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
                                   }`}
                                 >
-                                  <span>📑 เอกสารอื่นๆ</span>
+                                  <span>เอกสารอื่นๆ</span>
                                   <span className="font-mono text-[10px] opacity-80">({group.typeCounts.other})</span>
                                 </button>
                               )}
@@ -4455,6 +4457,72 @@ export default function App() {
             <span className="text-[10px]">โปรไฟล์</span>
           </button>
         </nav>
+      )}
+
+      {/* Command Palette (Ctrl+K / ⌘K) */}
+      {currentTeacher && (
+        <CommandPaletteModal
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          currentTeacher={currentTeacher}
+          isAdmin={isAdmin}
+          plans={activeTermPlans}
+          teachers={teachers}
+          assignedToMeCount={assignedToMeCount}
+          onOpenSubmit={() => {
+            setSubmitModalInitialType(undefined);
+            setIsSubmitModalOpen(true);
+          }}
+          onJumpToReviewQueue={() => {
+            setMainView('plans');
+            setViewTab('assigned_to_me');
+            setTimeout(() => {
+              document.getElementById('lesson-plans-section')?.scrollIntoView({ behavior: 'smooth' });
+            }, 80);
+          }}
+          onJumpToMyPlans={() => {
+            setMainView('plans');
+            setViewTab('all');
+            setTimeout(() => {
+              document.getElementById('lesson-plans-section')?.scrollIntoView({ behavior: 'smooth' });
+            }, 80);
+          }}
+          onOpenProfile={() => {
+            setTeacherToEdit(currentTeacher);
+            setIsProfileModalOpen(true);
+          }}
+          onOpenDirectory={() => setIsDirectoryModalOpen(true)}
+          onOpenPlanReview={(plan) => setSelectedPlanForReview(plan)}
+          onFilterBySearch={(q) => {
+            setMainView('plans');
+            setSearchQuery(q);
+            setTimeout(() => {
+              document.getElementById('lesson-plans-section')?.scrollIntoView({ behavior: 'smooth' });
+            }, 80);
+          }}
+          onOpenExecutive={() => {
+            setMainView('executive');
+            setExecutiveMode('standard');
+          }}
+          onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
+          onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
+          onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
+          onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
+          onOpenAdminTracker={() => handleOpenAdminTracker('table')}
+        />
+      )}
+
+      {/* Unobtrusive Floating Back-to-Top Button */}
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-30 w-10 h-10 rounded-full bg-slate-900 hover:bg-slate-800 text-amber-400 shadow-lg border border-slate-700/80 flex items-center justify-center transition-all duration-200 animate-fade-up cursor-pointer active:scale-95"
+          title="เลื่อนกลับขึ้นด้านบน"
+          aria-label="เลื่อนกลับขึ้นด้านบน"
+        >
+          <ArrowUp className="w-4 h-4" />
+        </button>
       )}
     </div>
   </div>

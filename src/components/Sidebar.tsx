@@ -141,11 +141,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="font-bold text-white text-sm tracking-tight truncate">
                   ส่งเอกสารวิชาการ
                 </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400 text-slate-950 shrink-0">
-                  จ.ภ.
-                </span>
               </div>
-              <p className="text-xs text-amber-300 font-medium truncate mt-0.5">
+              <p className="text-[11px] text-amber-400/90 font-medium truncate mt-0.5">
                 จ.ภ. กาฬสินธุ์
               </p>
             </div>
@@ -246,19 +243,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   setViewTab('all');
                 }, 'lesson-plans-section')
               }
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
                 mainView === 'plans' && viewTab === 'all'
-                  ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
+                  ? 'bg-white/10 text-amber-300 font-semibold ring-1 ring-amber-400/30 shadow-2xs'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <FileText className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0" />
+                <FileText className={`w-4 h-4 shrink-0 ${mainView === 'plans' && viewTab === 'all' ? 'text-amber-300' : 'text-slate-400'}`} />
                 <span className="truncate text-xs">
                   {isAdmin ? 'เอกสารทั้งหมด' : 'เอกสารของฉัน'}
                 </span>
               </div>
-              <span className="text-[11px] font-mono text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded shrink-0 border border-slate-700/60">
+              <span className="text-[11px] font-mono tabular-nums text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded-md shrink-0">
                 {isAdmin ? totalPlansCount : myPlansCount}
               </span>
             </button>
@@ -273,17 +270,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }, 'lesson-plans-section')
                 }
                 title="ดูเอกสารแผนการสอนและงานวิจัยของทั้งโรงเรียนแยกตามกลุ่มสาระ (ได้รับสิทธิ์)"
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
                   mainView === 'plans' && viewTab === 'school_all'
-                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
+                    ? 'bg-white/10 text-amber-300 font-semibold ring-1 ring-amber-400/30 shadow-2xs'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Layers className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0" />
+                  <Layers className={`w-4 h-4 shrink-0 ${mainView === 'plans' && viewTab === 'school_all' ? 'text-amber-300' : 'text-slate-400'}`} />
                   <span className="truncate text-xs">เอกสารทั้งโรงเรียน</span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded shrink-0 border border-slate-700/60">
+                <span className="text-[11px] font-mono tabular-nums text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded-md shrink-0">
                   {totalPlansCount}
                 </span>
               </button>
@@ -298,10 +295,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }, 'lesson-plans-section')
               }
               title="เอกสารของคณะครูที่ระบบหรือหัวหน้ามอบหมายให้ฉันเป็นผู้ตรวจ / ประเมิน"
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
                 mainView === 'plans' && viewTab === 'assigned_to_me'
-                  ? 'bg-indigo-600/20 text-indigo-300 font-semibold border-l-2 border-indigo-400 shadow-2xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/80 font-medium'
+                  ? 'bg-indigo-500/20 text-indigo-200 font-semibold ring-1 ring-indigo-400/40 shadow-2xs'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
@@ -309,11 +306,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="truncate text-xs">เอกสารที่รอฉันตรวจ</span>
               </div>
               {assignedToMeCount > 0 ? (
-                <span className="text-[11px] font-mono font-bold text-slate-950 bg-amber-400 px-2 py-0.5 rounded-full shrink-0 shadow-xs">
+                <span className="text-[11px] font-mono tabular-nums font-bold text-slate-950 bg-amber-400 px-2 py-0.5 rounded-full shrink-0 shadow-xs">
                   {assignedToMeCount}
                 </span>
               ) : (
-                <span className="text-[11px] font-mono text-slate-500 bg-slate-800/90 px-1.5 py-0.5 rounded shrink-0">
+                <span className="text-[11px] font-mono tabular-nums text-slate-500 bg-slate-800/80 px-2 py-0.5 rounded-md shrink-0">
                   0
                 </span>
               )}
@@ -399,9 +396,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     if (setExecutiveMode) setExecutiveMode('standard');
                   }, 'executive-dashboard-section')
                 }
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'standard'
-                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
+                    ? 'bg-white/10 text-amber-300 font-semibold ring-1 ring-amber-400/30 shadow-2xs'
                     : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
                 }`}
               >
@@ -459,9 +456,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     if (setExecutiveMode) setExecutiveMode('ranking');
                   }, 'executive-dashboard-section')
                 }
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'ranking'
-                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
+                    ? 'bg-white/10 text-amber-300 font-semibold ring-1 ring-amber-400/30 shadow-2xs'
                     : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
                 }`}
               >
@@ -480,9 +477,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     if (setExecutiveMode) setExecutiveMode('ddo');
                   }, 'executive-dashboard-section')
                 }
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
                   mainView === 'executive' && executiveMode === 'ddo'
-                    ? 'bg-amber-400/15 text-amber-300 font-semibold border-l-2 border-amber-400 shadow-2xs'
+                    ? 'bg-white/10 text-amber-300 font-semibold ring-1 ring-amber-400/30 shadow-2xs'
                     : 'text-slate-300 hover:text-white hover:bg-white/5 font-medium'
                 }`}
               >
@@ -608,19 +605,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Footer / System status & Logout */}
       <div className="p-3 border-t border-slate-800/80 shrink-0 space-y-2 bg-[#090F20]">
         <div className="flex items-center justify-between px-2 py-1 text-xs text-slate-400">
-          <div className="flex items-center gap-2 truncate text-emerald-400 font-medium">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          <div className="flex items-center gap-2 truncate text-emerald-400/90 font-medium">
+            <Cloud className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate text-[11px]">
+              {lastSyncTime ? `ซิงค์ล่าสุด ${lastSyncTime}` : 'เชื่อมต่อ Cloud แล้ว'}
             </span>
-            <span className="truncate font-mono text-[11px]">Cloudflare D1 Online</span>
           </div>
 
           {onManualSync && (
             <button
               onClick={onManualSync}
               disabled={isSyncing}
-              className="text-amber-300 hover:text-amber-200 flex items-center gap-1 font-semibold disabled:opacity-50 cursor-pointer shrink-0 ml-2 text-[10px] bg-slate-800 px-2 py-1 rounded-lg border border-slate-700/80 active:scale-95 transition-all"
+              className="text-amber-300 hover:text-amber-200 flex items-center gap-1 font-semibold disabled:opacity-50 cursor-pointer shrink-0 ml-2 text-[10px] bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700/80 active:scale-95 transition-all"
               title="ซิงค์ข้อมูลกับฐานข้อมูล Cloud ทันที"
             >
               <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />

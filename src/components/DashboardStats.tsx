@@ -66,114 +66,117 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* Top 4 KPI Cards: Compact 2x2 on mobile, 4-col on desktop */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+      {/* Top 4 KPI Cards: Clean 60-30-10 Hierarchy & Tabular Figures */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Total Plans */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-slate-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-slate-300 card-interactive group cursor-default">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-bold text-slate-500">
+            <span className="text-xs font-semibold text-slate-500">
               {isAdmin ? 'แผนการสอนทั้งหมด' : 'แผนการสอนของฉัน'}
             </span>
-            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 group-hover:bg-slate-900 group-hover:text-white transition-colors">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 group-hover:bg-[#0B1329] group-hover:text-amber-400 transition-colors">
               <FileCheck2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline gap-1.5">
+          <div className="mt-3 flex items-baseline gap-1.5">
             <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums tracking-tight">
               <AnimatedCounter value={totalPlans} />
             </span>
             <span className="text-xs text-slate-400 font-medium">ฉบับ</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">
+          <p className="text-[11px] text-slate-500 mt-1.5 truncate">
             {isAdmin
               ? `จากครูผู้สอน ${teachers.length} ท่าน`
-              : `${currentTeacher.Name}`}
+              : currentTeacher.Name}
           </p>
         </div>
 
-        {/* Card 2: Approved Plans */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-emerald-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
+        {/* Card 2: Approved Plans with inline progress bar */}
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-emerald-300/80 card-interactive group cursor-default">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-bold text-emerald-800">
+            <span className="text-xs font-semibold text-slate-500">
               อนุมัติแล้ว
             </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold text-emerald-700 tabular-nums tracking-tight">
-              <AnimatedCounter value={approvedPlans} />
-            </span>
-            <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+          <div className="mt-3 flex items-baseline justify-between gap-2">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-extrabold text-emerald-700 tabular-nums tracking-tight">
+                <AnimatedCounter value={approvedPlans} />
+              </span>
+              <span className="text-xs text-slate-400 font-medium">ฉบับ</span>
+            </div>
+            <span className="text-xs text-emerald-700 font-bold tabular-nums">
               <AnimatedCounter value={approvalRate} suffix="%" />
             </span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-emerald-600/90 mt-1 font-medium">
-            ผ่านเกณฑ์การประเมิน
-          </p>
+          <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, approvalRate)}%` }}
+            />
+          </div>
         </div>
 
         {/* Card 3: Pending Review */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-amber-200/90 shadow-2xs hover:shadow-md hover:border-amber-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-amber-300/80 card-interactive group cursor-default">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-bold text-amber-800">
+            <span className="text-xs font-semibold text-slate-500">
               รอตรวจสอบ
             </span>
             <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
               <Clock className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold text-amber-700 tabular-nums tracking-tight">
+          <div className="mt-3 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold text-amber-600 tabular-nums tracking-tight">
               <AnimatedCounter value={pendingPlans} />
             </span>
-            <span className="text-xs text-amber-600 font-medium">ฉบับ</span>
+            <span className="text-xs text-slate-400 font-medium">ฉบับ</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-amber-600/90 mt-1 font-medium">
-            {isAdmin ? 'รอฝ่ายวิชาการตรวจ' : 'อยู่ระหว่างรอการตรวจ'}
+          <p className="text-[11px] text-slate-500 mt-1.5 truncate">
+            {isAdmin ? 'รอผู้ตรวจประเมินตามลำดับขั้น' : 'อยู่ระหว่างรอการตรวจ'}
           </p>
         </div>
 
         {/* Card 4: Needs Revision */}
-        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-rose-200/90 shadow-2xs hover:shadow-md hover:border-rose-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-rose-300/80 card-interactive group cursor-default">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-bold text-rose-800">
+            <span className="text-xs font-semibold text-slate-500">
               ส่งกลับแก้ไข
             </span>
             <div className="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-colors">
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2.5 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-extrabold text-rose-700 tabular-nums tracking-tight">
+          <div className="mt-3 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-extrabold text-rose-600 tabular-nums tracking-tight">
               <AnimatedCounter value={revisionPlans} />
             </span>
-            <span className="text-xs text-rose-600 font-medium">ฉบับ</span>
+            <span className="text-xs text-slate-400 font-medium">ฉบับ</span>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-rose-600/90 mt-1 font-medium">
-            {isAdmin ? 'รอครูผู้สอนส่งใหม่' : 'มีข้อเสนอแนะให้ปรับปรุง'}
+          <p className="text-[11px] text-slate-500 mt-1.5 truncate">
+            {isAdmin ? 'รอครูผู้สอนปรับปรุงส่งใหม่' : 'มีข้อเสนอแนะให้ปรับปรุง'}
           </p>
         </div>
       </div>
 
-      {/* Late submissions notification pill with animated radar ping */}
+      {/* Late submissions concise warning bar */}
       {latePlans > 0 && (
-        <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 sm:px-4 flex items-center justify-between gap-2.5 text-xs text-amber-950 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+        <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-3 sm:px-4 flex items-center justify-between gap-2.5 text-xs text-amber-950">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="font-semibold">
+              {isAdmin ? 'พบแผนการสอนที่ส่งช้ากว่ากำหนด:' : 'แผนของท่านที่ส่งช้ากว่ากำหนด:'}
             </span>
-            <span className="font-bold">
-              {isAdmin ? 'ตรวจพบแผนการสอนที่ส่งช้ากว่ากำหนด:' : 'แผนของท่านที่ส่งช้ากว่ากำหนด:'}
-            </span>
-            <span className="tabular-nums font-semibold">
+            <span className="tabular-nums font-bold text-amber-800">
               {latePlans} ฉบับ
             </span>
           </div>
-          <span className="text-[11px] font-bold text-amber-800 bg-amber-200/60 px-2.5 py-0.5 rounded-md shrink-0">
-            ส่งช้า (Late)
+          <span className="text-[11px] font-semibold text-amber-800">
+            ส่งช้ากว่ากำหนด
           </span>
         </div>
       )}
@@ -312,21 +315,21 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
                   key={cat.key}
                   type="button"
                   onClick={() => onSelectDocType && onSelectDocType(isSelected ? 'all' : cat.key)}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`p-2.5 sm:p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer flex flex-col justify-between ${
                     isSelected
-                      ? 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50/60 shadow-xs'
-                      : 'border-slate-200/90 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
+                      : 'border-slate-200/90 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-100/70 text-slate-800'
                   }`}
                   title={cat.label}
                 >
-                  <span className="text-[11px] font-bold text-slate-800 truncate" title={cat.label}>
+                  <span className={`text-[11px] font-semibold truncate ${isSelected ? 'text-slate-200' : 'text-slate-700'}`} title={cat.label}>
                     {cat.short}
                   </span>
-                  <div className="mt-1 flex items-baseline justify-between">
-                    <span className="text-lg font-black text-slate-900 tabular-nums">
+                  <div className="mt-1.5 flex items-baseline justify-between">
+                    <span className={`text-lg font-extrabold tabular-nums ${isSelected ? 'text-amber-300' : 'text-slate-900'}`}>
                       {count}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">ฉบับ</span>
+                    <span className={`text-[10px] font-medium ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>ฉบับ</span>
                   </div>
                 </button>
               );

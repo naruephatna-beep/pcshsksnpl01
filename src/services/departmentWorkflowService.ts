@@ -605,12 +605,12 @@ export const DEFAULT_WORKFLOWS: ReviewWorkflowConfig[] = [
       {
         id: 'stage_gen_1',
         order: 1,
-        title: 'ขั้นที่ 1: ผู้ดูแลระบบหรือหัวหน้างานตรวจสอบและลงนามรับรอง',
-        description: 'ตรวจสอบความเรียบร้อยของเอกสารและอนุมัติรับรองผลงาน',
+        title: 'ขั้นที่ 1: หัวหน้ากลุ่มสาระตรวจสอบและลงนามรับรอง',
+        description: 'หัวหน้ากลุ่มสาระการเรียนรู้ตรวจสอบความเรียบร้อยของเอกสารและอนุมัติรับรองผลงาน',
         evaluation_mode: 'approval_only',
         reviewer_selection_type: 'role',
-        assigned_role: 'all_admins',
-        scope_mode: 'random_all',
+        assigned_role: 'submitter_department_head',
+        scope_mode: 'own_group_only',
         auto_assign_enabled: false,
       },
     ],
@@ -1212,13 +1212,18 @@ export function assignWorkflowToPlan(
   let assignedReviewerId = plan.assigned_reviewer_id;
   let assignedReviewerName = plan.assigned_reviewer_name;
 
-  // If first stage has own_group_only and candidates are available, resolve reviewer
+  // Resolve reviewer for the current stage if not already assigned
   if (!assignedReviewerId && allTeachers && departments) {
     const stage1 = targetWf?.stages?.find((s) => s.order === currentStageOrder);
     if (stage1) {
       const candidates = resolveReviewersForStage(stage1, plan, allTeachers, departments, branches);
       if (stage1.scope_mode === 'own_group_only' || !stage1.scope_mode) {
-        if (candidates.length >= 1) {
+        // In individual mode with multiple explicitly selected reviewers (e.g., all 3 admins),
+        // leave assigned_reviewer_id unset so any selected individual can review; otherwise assign single head
+        if (stage1.reviewer_selection_type !== 'individual' && candidates.length >= 1) {
+          assignedReviewerId = candidates[0].Teacher_ID;
+          assignedReviewerName = candidates[0].Name;
+        } else if (stage1.reviewer_selection_type === 'individual' && candidates.length === 1) {
           assignedReviewerId = candidates[0].Teacher_ID;
           assignedReviewerName = candidates[0].Name;
         }
@@ -1291,25 +1296,30 @@ export function resolveReviewersForStage(
   );
   const submitterBranchHeadId = submitterBranchObj?.head_teacher_id;
 
-  // Helper: All Department Heads
+  // Strict invariant: Admin accounts (admin01, admin02, admin03, etc.) must NEVER
+  // be included in role, department, branch, random, or fallback pools.
+  // They are eligible ONLY when reviewer_selection_type === 'individual' and explicitly selected.
+  const nonAdminTeachers = allTeachers.filter((t) => !isTeacherAdmin(t));
+
+  // Helper: All Department Heads (excluding admins)
   const deptHeadIds = new Set(
     departments.map((d) => d.head_teacher_id).filter(Boolean) as string[]
   );
-  const allDeptHeads = allTeachers.filter(
+  const allDeptHeads = nonAdminTeachers.filter(
     (t) => deptHeadIds.has(t.Teacher_ID) || isDepartmentHead(t)
   );
 
-  // Helper: All Branch Heads
+  // Helper: All Branch Heads (excluding admins)
   const branchHeadIds = new Set(
     branches.map((b) => b.head_teacher_id).filter(Boolean) as string[]
   );
-  const allBranchHeads = allTeachers.filter(
+  const allBranchHeads = nonAdminTeachers.filter(
     (t) => branchHeadIds.has(t.Teacher_ID) || isBranchHead(t)
   );
 
   let result: Teacher[] = [];
 
-  // 1. ระบุชื่อรายบุคคล (Specific Teachers)
+  // 1. ระบุชื่อรายบุคคล (Specific Teachers - ONLY mode allowed to select admins)
   if (stage.reviewer_selection_type === 'individual') {
     if (!stage.assigned_teacher_ids || stage.assigned_teacher_ids.length === 0) {
       result = [];
@@ -1319,22 +1329,22 @@ export function resolveReviewersForStage(
     }
   }
 
-  // 2. เลือกยกทั้งกลุ่มสาระการเรียนรู้ (Entire Learning Area)
+  // 2. เลือกยกทั้งกลุ่มสาระการเรียนรู้ (Entire Learning Area - non-admins only)
   else if (stage.reviewer_selection_type === 'department') {
     const targetDepts = new Set(stage.assigned_departments || []);
     const isSubmitterDept = targetDepts.has('submitter_department');
 
     if (scopeMode === 'own_group_only') {
-      result = allTeachers.filter(
+      result = nonAdminTeachers.filter(
         (t) => t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()
       );
     } else if (scopeMode === 'random_cross_only') {
-      result = allTeachers.filter(
+      result = nonAdminTeachers.filter(
         (t) => t.Learning_Area.trim().toLowerCase() !== planLearningArea.toLowerCase()
       );
     } else {
       // random_all or custom department list
-      result = allTeachers.filter((t) => {
+      result = nonAdminTeachers.filter((t) => {
         if (isSubmitterDept && t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()) {
           return true;
         }
@@ -1343,22 +1353,22 @@ export function resolveReviewersForStage(
     }
   }
 
-  // 3. เลือกยกทั้งสาขาวิชา (Entire Branch)
+  // 3. เลือกยกทั้งสาขาวิชา (Entire Branch - non-admins only)
   else if (stage.reviewer_selection_type === 'branch') {
     const assignedBranches = stage.assigned_branches || [];
     const targetBranches = new Set(assignedBranches);
     const isSubmitterBranch = targetBranches.has('submitter_branch');
 
     if (scopeMode === 'own_group_only') {
-      result = allTeachers.filter(
+      result = nonAdminTeachers.filter(
         (t) => planBranch && (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase()
       );
     } else if (scopeMode === 'random_cross_only') {
-      result = allTeachers.filter(
+      result = nonAdminTeachers.filter(
         (t) => !planBranch || (t.branch || '').trim().toLowerCase() !== planBranch.toLowerCase()
       );
     } else {
-      result = allTeachers.filter((t) => {
+      result = nonAdminTeachers.filter((t) => {
         const teacherBranch = (t.branch || '').trim();
         if (isSubmitterBranch && planBranch && teacherBranch.toLowerCase() === planBranch.toLowerCase()) {
           return true;
@@ -1368,7 +1378,7 @@ export function resolveReviewersForStage(
     }
   }
 
-  // 4. เลือกจากตำแหน่ง (Role / Position)
+  // 4. เลือกจากตำแหน่ง (Role / Position - non-admins only)
   else if (stage.reviewer_selection_type === 'role') {
     const role = stage.assigned_role;
 
@@ -1376,7 +1386,7 @@ export function resolveReviewersForStage(
     if (role === 'submitter_branch_head' || role === 'all_branch_heads') {
       if (scopeMode === 'random_all') {
         // หัวหน้าสาขาทุกคนมีสิทธิ์ตรวจ สุ่มกระจายงานเท่ากัน
-        result = allBranchHeads.length > 0 ? allBranchHeads : allTeachers.filter((t) => isTeacherAdmin(t));
+        result = allBranchHeads;
       } else if (scopeMode === 'random_cross_only') {
         // หัวหน้าสาขาทุกคน ยกเว้นสาขาของผู้ส่ง
         const crossHeads = allBranchHeads.filter(
@@ -1391,20 +1401,17 @@ export function resolveReviewersForStage(
           // If the submitter is the branch head themselves, escalate to Department Head to avoid self-review
           if (submitterBranchHeadId === plan.teacher_id) {
             if (submitterDeptHeadId && submitterDeptHeadId !== plan.teacher_id) {
-              const deptHead = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
+              const deptHead = nonAdminTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
               if (deptHead) result = [deptHead];
             }
-            if (result.length === 0) {
-              result = allTeachers.filter((t) => isTeacherAdmin(t));
-            }
           } else {
-            const head = allTeachers.find((t) => t.Teacher_ID === submitterBranchHeadId);
+            const head = nonAdminTeachers.find((t) => t.Teacher_ID === submitterBranchHeadId);
             if (head) result = [head];
           }
         }
 
         if (result.length === 0 && planBranch) {
-          const fallbackBranchHead = allTeachers.find(
+          const fallbackBranchHead = nonAdminTeachers.find(
             (t) =>
               (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase() &&
               (isBranchHead(t) || t.role === 'head_of_branch') &&
@@ -1415,12 +1422,8 @@ export function resolveReviewersForStage(
 
         // Fallback to department head if branch head not yet appointed or is self
         if (result.length === 0 && submitterDeptHeadId && submitterDeptHeadId !== plan.teacher_id) {
-          const deptHead = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
+          const deptHead = nonAdminTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
           if (deptHead) result = [deptHead];
-        }
-
-        if (result.length === 0) {
-          result = allTeachers.filter((t) => isTeacherAdmin(t));
         }
       }
     }
@@ -1429,7 +1432,7 @@ export function resolveReviewersForStage(
     else if (role === 'submitter_department_head' || role === 'all_department_heads') {
       if (scopeMode === 'random_all') {
         // หัวหน้ากลุ่มสาระทุกคนมีสิทธิ์ตรวจ สุ่มกระจายงานเท่ากัน
-        result = allDeptHeads.length > 0 ? allDeptHeads : allTeachers.filter((t) => isTeacherAdmin(t));
+        result = allDeptHeads;
       } else if (scopeMode === 'random_cross_only') {
         // หัวหน้ากลุ่มสาระทุกคน ยกเว้นกลุ่มสาระของผู้ส่ง (ประเมินข้ามกลุ่ม)
         const crossHeads = allDeptHeads.filter(
@@ -1441,22 +1444,22 @@ export function resolveReviewersForStage(
       } else {
         // own_group_only: ตรวจเฉพาะคนในกลุ่มสาระของตนเอง
         if (submitterDeptHeadId) {
-          // If submitter is the department head themselves, escalate to school leadership / admin
+          // If submitter is the department head themselves, escalate to non-admin school leadership
           if (submitterDeptHeadId === plan.teacher_id) {
-            const leaders = allTeachers.filter(
+            const leaders = nonAdminTeachers.filter(
               (t) =>
-                (isTeacherExecutive(t) || t.role === 'academic_director' || isTeacherAdmin(t)) &&
+                (isTeacherExecutive(t) || t.role === 'academic_director') &&
                 t.Teacher_ID !== plan.teacher_id
             );
             if (leaders.length > 0) result = leaders;
           } else {
-            const head = allTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
+            const head = nonAdminTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
             if (head) result = [head];
           }
         }
 
         if (result.length === 0) {
-          const fallbackHead = allTeachers.find(
+          const fallbackHead = nonAdminTeachers.find(
             (t) =>
               t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase() &&
               (isDepartmentHead(t) || t.role === 'head_of_department') &&
@@ -1464,33 +1467,28 @@ export function resolveReviewersForStage(
           );
           if (fallbackHead) result = [fallbackHead];
         }
-
-        if (result.length === 0) {
-          result = allTeachers.filter((t) => isTeacherAdmin(t));
-        }
       }
     }
 
-    // C. ฝ่ายบริหารสถานศึกษา (School Leadership / Director)
+    // C. ฝ่ายบริหารสถานศึกษา (Non-admin Executive / Academic Director)
     else if (role === 'school_leadership') {
-      const leaders = allTeachers.filter(
+      result = nonAdminTeachers.filter(
         (t) =>
           isTeacherExecutive(t) ||
-          t.Teacher_ID === 'admin03' ||
           t.position?.includes('ผู้อำนวยการ') ||
           t.role === 'academic_director'
       );
-      result = leaders.length > 0 ? leaders : allTeachers.filter((t) => isTeacherAdmin(t));
     }
 
-    // D. ผู้ดูแลระบบทุกคน (All Admins)
+    // D. Legacy 'all_admins' role is intentionally disabled (admins are only assigned via 'individual')
     else if (role === 'all_admins' || (role as string) === 'admin') {
-      result = allTeachers.filter((t) => isTeacherAdmin(t));
+      result = [];
     }
   }
 
-  if (result.length === 0) {
-    result = allTeachers.filter((t) => isTeacherAdmin(t));
+  // Enforce invariant: never return admins unless explicitly selected under 'individual'
+  if (stage.reviewer_selection_type !== 'individual') {
+    result = result.filter((t) => !isTeacherAdmin(t));
   }
 
   // Submitter should never evaluate their own plan, UNLESS they are the designated branch head or department head appointed for this stage
@@ -1655,7 +1653,10 @@ export function advancePlanStage(
     if (nextStage && allTeachers && departments) {
       const candidates = resolveReviewersForStage(nextStage, plan, allTeachers, departments, branches);
       if (nextStage.scope_mode === 'own_group_only' || !nextStage.scope_mode) {
-        if (candidates.length >= 1) {
+        if (nextStage.reviewer_selection_type !== 'individual' && candidates.length >= 1) {
+          nextAssignedId = candidates[0].Teacher_ID;
+          nextAssignedName = candidates[0].Name;
+        } else if (nextStage.reviewer_selection_type === 'individual' && candidates.length === 1) {
           nextAssignedId = candidates[0].Teacher_ID;
           nextAssignedName = candidates[0].Name;
         }

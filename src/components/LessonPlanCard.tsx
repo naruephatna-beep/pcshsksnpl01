@@ -110,159 +110,154 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
 
   return (
     <div
-      className={`bg-white rounded-xl border shadow-2xs hover:shadow-sm transition-all p-4 sm:p-5 flex flex-col justify-between group ${
+      className={`bg-white rounded-2xl border shadow-2xs hover:shadow-md card-interactive p-4 sm:p-5 flex flex-col justify-between group ${
         isLate ? 'border-amber-300/80 hover:border-amber-400' : 'border-slate-200/90 hover:border-slate-300'
       }`}
     >
       <div>
-        {/* Card Header: Subject Code & Status */}
+        {/* Card Header: Subject Code · Subject Name & Status */}
         <div className="flex items-start justify-between gap-2.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-slate-900 text-white shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0 text-xs">
+            <span className="font-mono font-bold text-slate-900 shrink-0">
               {plan.subject_code}
             </span>
-            <span className="text-xs font-bold text-slate-800 truncate">
+            <span aria-hidden="true" className="text-slate-300">·</span>
+            <span className="font-semibold text-slate-600 truncate">
               {plan.subject_name}
             </span>
           </div>
 
-          {/* Badges Container */}
+          {/* Semantic Status Indicator */}
           <div className="flex items-center gap-1.5 shrink-0 justify-end">
-            {/* LATE SUBMISSION BADGE */}
             {isLate && (
               <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                className="text-[11px] font-bold text-amber-700"
                 title={`ส่งช้ากว่ากำหนด: ${delayNote}`}
               >
-                <AlertTriangle className="w-3 h-3 text-amber-700" />
-                <span>ส่งช้า</span>
+                ส่งช้า
               </span>
             )}
-
-            {/* DYNAMIC STATUS BADGE */}
             <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${statusInfo.style.badge}`}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold border ${statusInfo.style.badge}`}
               title={statusInfo.id}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.style.dot}`}></span>
               <span>{statusInfo.label}</span>
               {plan.status === 'approved' && plan.total_score ? (
-                <span className="font-mono text-[10px]">({plan.total_score}%)</span>
+                <span className="font-mono tabular-nums text-[10px]">({plan.total_score}%)</span>
               ) : null}
             </span>
           </div>
         </div>
 
-        {/* Prominent Document Type Tag (แยกชนิดเอกสารชัดเจน) */}
-        <div className="mt-2.5 flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold border ${docMeta.badgeClass} shadow-2xs`}>
-              <span>{docMeta.shortBadge}</span>
-            </span>
-            <span className="text-[11px] text-slate-400 font-mono">
-              เทอม {plan.semester}/{plan.academic_year} · {plan.grade_level}
-            </span>
-          </div>
-
-          {plan.current_stage_order && plan.status !== 'approved' && (
-            <span className="text-[10px] font-bold text-amber-900 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-md">
-              ขั้นที่ {plan.current_stage_order}{plan.total_stages ? `/${plan.total_stages}` : ''}
-              {plan.assigned_reviewer_name ? ` · ${plan.assigned_reviewer_name.split(' ')[0]}` : ''}
-            </span>
-          )}
-        </div>
-
         {/* Title */}
-        <h3 className="mt-2 text-sm sm:text-base font-bold text-slate-900 group-hover:text-amber-600 transition-colors line-clamp-2 leading-snug">
+        <h3 className="mt-2.5 text-sm sm:text-[15px] font-bold text-slate-900 group-hover:text-indigo-950 transition-colors line-clamp-2 leading-snug">
           {plan.plan_title}
         </h3>
 
-        {/* Metadata */}
+        {/* Clean Unboxed Metadata Line */}
         <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-xs text-slate-500">
+          <span className="font-semibold text-slate-700 truncate max-w-[200px]" title={plan.plan_type}>
+            {docMeta.shortBadge}
+          </span>
+          <span aria-hidden="true" className="text-slate-300">·</span>
+          <span className="tabular-nums">{plan.grade_level}</span>
+          <span aria-hidden="true" className="text-slate-300">·</span>
+          <span className="tabular-nums font-mono text-[11px]">เทอม {plan.semester}/{plan.academic_year}</span>
           {plan.total_hours && !plan.plan_type.includes('วิจัย') ? (
             <>
-              <span>{plan.total_hours} ชม.</span>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true" className="text-slate-300">·</span>
+              <span className="tabular-nums">{plan.total_hours} ชม.</span>
             </>
           ) : null}
-          <span className="text-slate-600 font-medium truncate max-w-[220px]" title={plan.plan_type}>
-            {plan.plan_type}
-          </span>
         </div>
 
-        {/* Visual Workflow Timeline Progress Stepper */}
+        {/* Sleek Minimal Workflow Timeline Track */}
         {(() => {
           const hasBranch = Boolean(plan.branch);
           const steps = hasBranch
             ? [
-                { id: 1, label: 'หน.สาขาวิชา' },
-                { id: 2, label: 'หน.กลุ่มสาระ' },
+                { id: 1, label: 'หน.สาขา' },
+                { id: 2, label: 'หน.สาระ' },
                 { id: 3, label: 'ผอ.อนุมัติ' },
               ]
             : [
-                { id: 1, label: 'หน.กลุ่มสาระ' },
+                { id: 1, label: 'หน.สาระ' },
                 { id: 2, label: 'ผอ.อนุมัติ' },
               ];
 
           const isApproved = plan.status === 'approved';
           const isNeedsRevision = plan.status === 'needs_revision';
           const currentStage = isApproved ? 99 : (plan.current_stage_order || 1);
+          const completedCount = isApproved
+            ? steps.length
+            : Math.max(0, Math.min(steps.length, currentStage - 1));
+          const progressPct = isApproved
+            ? 100
+            : steps.length > 1
+            ? Math.round((completedCount / (steps.length - 1)) * 100)
+            : 0;
 
           return (
-            <div className="mt-2.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200/90 rounded-xl">
-              <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold mb-1.5">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-slate-400" />
-                  <span>ไทม์ไลน์ลำดับขั้น:</span>
+            <div className="mt-3 pt-2.5 border-t border-slate-100">
+              <div className="flex items-center justify-between text-[11px] mb-2">
+                <span className="text-slate-500 font-medium">
+                  ขั้นที่ {isApproved ? steps.length : Math.min(currentStage, steps.length)}/{steps.length}
                 </span>
                 {isApproved ? (
-                  <span className="text-emerald-700 font-black">อนุมัติครบทุกระดับ ✓</span>
+                  <span className="text-emerald-700 font-bold">อนุมัติครบทุกระดับ</span>
                 ) : isNeedsRevision ? (
-                  <span className="text-rose-600 font-bold">รอการปรับปรุง</span>
+                  <span className="text-rose-600 font-semibold">รอครูแก้ไขส่งใหม่</span>
                 ) : (
-                  <span className="text-amber-700 font-bold truncate max-w-[150px]">
+                  <span className="text-amber-700 font-semibold truncate max-w-[170px]">
                     {plan.assigned_reviewer_name ? `รอ: ${plan.assigned_reviewer_name}` : 'กำลังรอตรวจ'}
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-1">
-                {steps.map((st, idx) => {
+              <div className="relative flex items-center justify-between">
+                {/* Track Line Background */}
+                <div className="absolute left-3 right-3 top-2.5 h-0.5 bg-slate-200 rounded-full pointer-events-none" />
+                {/* Active Progress Fill */}
+                <div
+                  className={`absolute left-3 top-2.5 h-0.5 rounded-full transition-all duration-300 pointer-events-none ${
+                    isApproved ? 'bg-emerald-500' : isNeedsRevision ? 'bg-rose-400' : 'bg-amber-500'
+                  }`}
+                  style={{ width: `calc(${progressPct}% - ${progressPct > 0 ? 12 : 0}px)` }}
+                />
+
+                {steps.map((st) => {
                   const isDone = isApproved || currentStage > st.id;
                   const isCurrent = !isApproved && currentStage === st.id;
 
                   return (
-                    <React.Fragment key={st.id}>
-                      <div
-                        className={`flex-1 flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] font-bold border transition-colors ${
+                    <div key={st.id} className="relative z-10 flex flex-col items-center gap-1">
+                      <span
+                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono font-bold border transition-colors ${
                           isDone
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                            ? 'bg-emerald-600 border-emerald-600 text-white'
                             : isCurrent
                             ? isNeedsRevision
-                              ? 'bg-rose-50 border-rose-300 text-rose-800'
-                              : 'bg-amber-50 border-amber-300 text-amber-900 ring-1 ring-amber-300'
-                            : 'bg-white border-slate-200 text-slate-400'
+                              ? 'bg-rose-600 border-rose-600 text-white'
+                              : 'bg-amber-400 border-amber-500 text-slate-950'
+                            : 'bg-white border-slate-300 text-slate-400'
                         }`}
                       >
-                        <span
-                          className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] shrink-0 font-mono ${
-                            isDone
-                              ? 'bg-emerald-600 text-white'
-                              : isCurrent
-                              ? isNeedsRevision
-                                ? 'bg-rose-600 text-white'
-                                : 'bg-amber-500 text-slate-950 font-black animate-pulse'
-                              : 'bg-slate-200 text-slate-500'
-                          }`}
-                        >
-                          {isDone ? '✓' : st.id}
-                        </span>
-                        <span className="truncate">{st.label}</span>
-                      </div>
-                      {idx < steps.length - 1 && (
-                        <span className="text-slate-300 text-[10px] shrink-0">➔</span>
-                      )}
-                    </React.Fragment>
+                        {isDone ? '✓' : st.id}
+                      </span>
+                      <span
+                        className={`text-[10px] whitespace-nowrap ${
+                          isDone
+                            ? 'text-emerald-700 font-semibold'
+                            : isCurrent
+                            ? isNeedsRevision
+                              ? 'text-rose-700 font-semibold'
+                              : 'text-slate-900 font-bold'
+                            : 'text-slate-400'
+                        }`}
+                      >
+                        {st.label}
+                      </span>
+                    </div>
                   );
                 })}
               </div>

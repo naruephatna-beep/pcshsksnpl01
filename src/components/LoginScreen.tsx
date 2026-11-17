@@ -50,7 +50,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1329] flex flex-col justify-between relative font-['Prompt',sans-serif] px-3 sm:px-6 py-4 sm:py-8">
+    <div className="min-h-screen bg-[#070D1F] flex flex-col justify-between relative overflow-hidden font-['Prompt',sans-serif] px-3 sm:px-6 py-4 sm:py-8">
+      {/* Subtle Architectural Radial Backdrop */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-60"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 20% 20%, rgba(245, 158, 11, 0.12), transparent 45%), radial-gradient(circle at 80% 80%, rgba(79, 70, 229, 0.15), transparent 50%)',
+        }}
+      />
+
       {/* Top Header */}
       <header className="relative z-10 max-w-4xl w-full mx-auto flex items-center justify-between mb-4 sm:mb-6">
         <div className="flex items-center gap-2.5 sm:gap-3">
@@ -70,20 +79,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
+          <span className="hidden sm:inline-flex items-center text-xs font-medium text-slate-300">
             ระบบสารสนเทศวิชาการ
           </span>
         </div>
       </header>
 
       {/* Main Login Container */}
-      <main className="relative z-10 max-w-4xl w-full mx-auto my-auto">
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-800/50 overflow-hidden flex flex-col md:flex-row">
+      <main className="relative z-10 max-w-4xl w-full mx-auto my-auto animate-panel-enter">
+        <div className="bg-white rounded-2xl shadow-2xl border border-white/10 overflow-hidden flex flex-col md:flex-row">
           {/* Left Column: School Crest & System Overview */}
-          <div className="md:w-5/12 bg-slate-900 p-5 sm:p-8 text-white flex flex-col justify-between text-center relative border-b md:border-b-0 md:border-r border-slate-800">
+          <div className="md:w-5/12 bg-[#0B1329] p-5 sm:p-8 text-white flex flex-col justify-between text-center relative border-b md:border-b-0 md:border-r border-slate-800">
             <div className="my-auto py-2 flex flex-col items-center">
               {/* Official School Crest Logo */}
-              <div className="w-20 h-28 sm:w-28 sm:h-38 flex items-center justify-center p-1 mb-3">
+              <div className="w-20 h-28 sm:w-28 sm:h-38 flex items-center justify-center p-1 mb-3 transition-transform duration-300 hover:scale-105">
                 <img
                   src="/logo.svg"
                   alt="Logo PCSHS Kalasin"
@@ -91,20 +100,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 />
               </div>
 
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 mb-2">
+              <span className="text-[11px] font-semibold tracking-wide text-amber-400 mb-1.5">
                 กลุ่มบริหารวิชาการ
               </span>
 
               <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
                 ระบบส่งเอกสารวิชาการ
               </h2>
-              <p className="text-xs text-slate-400 mt-1 max-w-[240px] leading-relaxed">
+              <p className="text-xs text-slate-400 mt-1.5 max-w-[240px] leading-relaxed">
                 ระบบส่งและติดตามเอกสารวิชาการออนไลน์สำหรับครูและฝ่ายบริหาร
               </p>
             </div>
 
             <div className="text-[11px] text-slate-500 pt-2 hidden md:block">
-              จ.ภ. กาฬสินธุ์ • ภาคเรียนที่ 1/2569
+              จ.ภ. กาฬสินธุ์ · ภาคเรียนที่ 1/2569
             </div>
           </div>
 
