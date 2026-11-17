@@ -22,8 +22,10 @@ import {
 } from 'lucide-react';
 import {
   getSavedGoogleDriveWebhookUrl,
+  fetchGoogleDriveWebhookUrl,
   saveGoogleDriveWebhookUrl,
   testGoogleDriveConnection,
+  normalizeGoogleDriveWebhookInput,
   GOOGLE_APPS_SCRIPT_TEMPLATE,
   DEFAULT_GDRIVE_WEBHOOK_URL,
   getSavedNamingPattern,
@@ -82,6 +84,9 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setWebhookUrl(getSavedGoogleDriveWebhookUrl());
+      fetchGoogleDriveWebhookUrl().then((url) => {
+        if (url) setWebhookUrl(url);
+      });
       setTestResult(null);
       setEmailTestResult(null);
       setPatternSavedNotice(false);
@@ -187,17 +192,19 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
   };
 
   const handleTestConnection = async () => {
-    if (!webhookUrl.trim()) {
+    const normalized = normalizeGoogleDriveWebhookInput(webhookUrl);
+    if (!normalized) {
       setTestResult({
         success: false,
-        message: 'กรุณากรอก URL ของ Google Apps Script Web App ก่อนทดสอบ',
+        message: 'กรุณากรอก URL หรือ Deployment ID ของ Google Apps Script Web App ก่อนทดสอบ',
       });
       return;
     }
+    if (normalized !== webhookUrl) setWebhookUrl(normalized);
     setIsTesting(true);
     setTestResult(null);
     try {
-      const res = await testGoogleDriveConnection(webhookUrl);
+      const res = await testGoogleDriveConnection(normalized);
       setTestResult(res);
     } catch (err: any) {
       setTestResult({
@@ -210,10 +217,12 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
   };
 
   const handleSave = async () => {
+    const normalized = normalizeGoogleDriveWebhookInput(webhookUrl);
+    if (normalized !== webhookUrl) setWebhookUrl(normalized);
     setIsSaving(true);
     try {
-      await saveGoogleDriveWebhookUrl(webhookUrl);
-      if (onSaved) onSaved(webhookUrl);
+      await saveGoogleDriveWebhookUrl(normalized);
+      if (onSaved) onSaved(normalized);
       setTestResult({
         success: true,
         message: 'บันทึกการตั้งค่า Google Drive เชื่อมต่อกับระบบเรียบร้อยแล้ว!',

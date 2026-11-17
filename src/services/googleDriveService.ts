@@ -18,14 +18,30 @@ export const STORAGE_KEY_GDRIVE_FOLDER_NAME = 'pcshs_gdrive_folder_name';
  * ไม่ว่าจะเปิดจากเครื่องไหน เบราว์เซอร์ใด ระบบจะเชื่อมต่อกับ URL นี้เป็นค่าเริ่มต้นอัตโนมัติ
  */
 export const DEFAULT_GDRIVE_WEBHOOK_URL =
-  'https://script.google.com/macros/s/AKfycbz90JWFomtPUKUjPth7GNixvljFDqEvE29vSpwc4PcBA9TfR8ipStdhr_yD298V7Zuw4w/exec';
+  'https://script.google.com/macros/s/AKfycbzleO5yGzWkTGSZ5GvnFAXdaN7YOKXy6dgn0W8d4HH0nJx12i2X0KAvtb7ueKcWaoYfkw/exec';
+
+const LEGACY_GDRIVE_WEBHOOK_URLS = new Set<string>([
+  'https://script.google.com/macros/s/AKfycbz90JWFomtPUKUjPth7GNixvljFDqEvE29vSpwc4PcBA9TfR8ipStdhr_yD298V7Zuw4w/exec',
+]);
+
+export function normalizeGoogleDriveWebhookInput(rawInput: string): string {
+  const trimmed = (rawInput || '').trim();
+  if (!trimmed) return '';
+  if (/^AKfycb[-\w]+$/i.test(trimmed)) {
+    return `https://script.google.com/macros/s/${trimmed}/exec`;
+  }
+  return trimmed;
+}
 
 // คืนค่า URL ที่บันทึกไว้ หรือคืนค่า URL เริ่มต้นถาวรของโรงเรียน
 export function getSavedGoogleDriveWebhookUrl(): string {
   try {
-    const val = localStorage.getItem(STORAGE_KEY_GDRIVE_WEBHOOK);
-    if (val && val.trim() && val.trim().startsWith('https://script.google.com/')) {
-      return val.trim();
+    const val = normalizeGoogleDriveWebhookInput(localStorage.getItem(STORAGE_KEY_GDRIVE_WEBHOOK) || '');
+    if (val && val.startsWith('https://script.google.com/') && !LEGACY_GDRIVE_WEBHOOK_URLS.has(val)) {
+      return val;
+    }
+    if (LEGACY_GDRIVE_WEBHOOK_URLS.has(val)) {
+      localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, DEFAULT_GDRIVE_WEBHOOK_URL);
     }
     return DEFAULT_GDRIVE_WEBHOOK_URL;
   } catch {
@@ -38,7 +54,12 @@ export async function fetchGoogleDriveWebhookUrl(): Promise<string> {
   try {
     const res = await fetchSystemSetting<string>('gdrive_webhook_url', localUrl);
     if (res.data && typeof res.data === 'string' && res.data.trim()) {
-      const cleanRemote = res.data.trim();
+      const cleanRemote = normalizeGoogleDriveWebhookInput(res.data);
+      if (LEGACY_GDRIVE_WEBHOOK_URLS.has(cleanRemote)) {
+        localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, DEFAULT_GDRIVE_WEBHOOK_URL);
+        await saveSystemSetting('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL);
+        return DEFAULT_GDRIVE_WEBHOOK_URL;
+      }
       if (cleanRemote !== localUrl) {
         localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, cleanRemote);
       }
@@ -55,7 +76,7 @@ export async function fetchGoogleDriveWebhookUrl(): Promise<string> {
 }
 
 export async function saveGoogleDriveWebhookUrl(url: string): Promise<boolean> {
-  const cleanUrl = (url || '').trim();
+  const cleanUrl = normalizeGoogleDriveWebhookInput(url);
   try {
     localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, cleanUrl);
     // Sync to database system_settings so all teachers and computers use the exact same drive connection
@@ -281,7 +302,7 @@ function fileToBase64(file: File): Promise<string> {
 export async function testGoogleDriveConnection(
   webhookUrl?: string
 ): Promise<{ success: boolean; message: string; details?: any; isLegacyScript?: boolean; supportsArchive?: boolean }> {
-  const targetUrl = (webhookUrl || getSavedGoogleDriveWebhookUrl()).trim();
+  const targetUrl = normalizeGoogleDriveWebhookInput(webhookUrl || getSavedGoogleDriveWebhookUrl());
   if (!targetUrl) {
     return {
       success: false,
@@ -318,8 +339,9 @@ export async function testGoogleDriveConnection(
       // not json, but ok
     }
 
-    // Now test if the script has updated 'archive_reviewed_pdf' capability
+    // Now test if the script has updated 'archive_reviewed_pdf' & 'supportsTermFolders' capability
     let isLegacy = false;
+    let missingTermSupport = false;
     try {
       const probeRes = await fetch(targetUrl, {
         method: 'POST',
@@ -335,6 +357,16 @@ export async function testGoogleDriveConnection(
           probeText.includes('Exception: อาร์กิวเมนต์ต้องไม่เป็นนัล')
         ) {
           isLegacy = true;
+        } else {
+          try {
+            const probeJson = JSON.parse(probeText);
+            if (!probeJson.supportsTermFolders) {
+              isLegacy = true;
+              missingTermSupport = true;
+            }
+          } catch {
+            isLegacy = true;
+          }
         }
       }
     } catch {
@@ -345,16 +377,18 @@ export async function testGoogleDriveConnection(
       return {
         success: true,
         isLegacyScript: true,
-        supportsArchive: false,
-        message: 'เชื่อมต่อสำเร็จ แต่สคริปต์ในไดรฟ์ยังเป็นเวอร์ชันเดิม (ยังไม่รองรับการทำสำเนาไฟล์ที่ตรวจแล้ว)',
-        details: 'กรุณากดแท็บ "โค้ดสคริปต์ Google Apps Script" ด้านบน แล้วคัดลอกโค้ดไปวางใน script.google.com จากนั้น Deploy เวอร์ชันใหม่ เพื่อเปิดใช้งานการทำสำเนาเข้า Google Drive อัตโนมัติ',
+        supportsArchive: !missingTermSupport,
+        message: missingTermSupport
+          ? 'เชื่อมต่อสำเร็จ แต่สคริปต์ของ URL นี้ยังเป็นเวอร์ชันเก่า (ยังไม่รองรับโฟลเดอร์แยกปีการศึกษา/เทอม)'
+          : 'เชื่อมต่อสำเร็จ แต่สคริปต์ในไดรฟ์ยังเป็นเวอร์ชันเดิม (ยังไม่รองรับการทำสำเนาไฟล์ที่ตรวจแล้ว)',
+        details: 'กรุณาตรวจสอบว่าได้คัดลอกโค้ดใหม่จากแท็บ "โค้ดสคริปต์" ไปวาง และนำ URL ของ Deployment เวอร์ชันล่าสุดมาใส่และกดบันทึกแล้ว',
       };
     }
 
     return {
       success: true,
       supportsArchive: true,
-      message: 'เชื่อมต่อกับ Google Apps Script สำเร็จพร้อมใช้งาน! (รองรับทั้งอัปโหลด, ย้ายลงถังขยะ และทำสำเนาไฟล์ตรวจแล้วครบวงจร)',
+      message: 'เชื่อมต่อกับ Google Apps Script สำเร็จพร้อมใช้งาน! (รองรับโฟลเดอร์ปีการศึกษา/เทอม, อัปโหลด, ย้ายลงถังขยะ และทำสำเนาไฟล์ตรวจแล้วครบวงจร)',
       details: json || text,
     };
   } catch (err: any) {
@@ -1596,15 +1630,19 @@ function doPost(e) {
 }
 
 /**
- * ดึงหรือสร้างโฟลเดอร์ย่อยภายในโฟลเดอร์แม่
+ * ดึงหรือสร้างโฟลเดอร์ย่อยภายในโฟลเดอร์แม่ (ข้ามโฟลเดอร์ที่อยู่ในถังขยะ)
  */
 function getOrCreateSubfolder(parentFolder, folderName) {
   var cleanName = (folderName || "เอกสารทั่วไป").toString().replace(/[\\/\\\\:*?"<>|]/g, "_").trim();
-  var iter = parentFolder ? parentFolder.getFoldersByName(cleanName) : DriveApp.getFoldersByName(cleanName);
-  if (iter.hasNext()) {
-    return iter.next();
+  var baseParent = parentFolder || DriveApp.getRootFolder();
+  var iter = baseParent.getFoldersByName(cleanName);
+  while (iter.hasNext()) {
+    var existing = iter.next();
+    if (!existing.isTrashed()) {
+      return existing;
+    }
   }
-  return parentFolder ? parentFolder.createFolder(cleanName) : DriveApp.createFolder(cleanName);
+  return baseParent.createFolder(cleanName);
 }
 
 /**
@@ -1620,7 +1658,10 @@ function getOrCreateTermFolders(academicYear, semester) {
   var folderId = (TARGET_FOLDER_ID || "").trim();
   if (folderId && folderId !== "ใส่_FOLDER_ID_ของท่านที่นี่") {
     try {
-      rootParent = DriveApp.getFolderById(folderId);
+      var candidate = DriveApp.getFolderById(folderId);
+      if (candidate && !candidate.isTrashed()) {
+        rootParent = candidate;
+      }
     } catch (e) {
       rootParent = null;
     }
@@ -1645,19 +1686,21 @@ function getTargetFolder() {
   var folderId = (TARGET_FOLDER_ID || "").trim();
   if (folderId && folderId !== "ใส่_FOLDER_ID_ของท่านที่นี่") {
     try {
-      return DriveApp.getFolderById(folderId);
+      var cfgFolder = DriveApp.getFolderById(folderId);
+      if (cfgFolder && !cfgFolder.isTrashed()) return cfgFolder;
     } catch (e) {
       Logger.log("ไม่พบโฟลเดอร์จาก ID: " + folderId + ", กำลังใช้โฟลเดอร์เริ่มต้น");
     }
   }
 
-  // หากไม่ได้ระบุ หรือหาโฟลเดอร์ไม่พบ ให้ใช้โฟลเดอร์กลางชื่อนี้ใน Drive
+  // หากไม่ได้ระบุ หรือหาโฟลเดอร์ไม่พบ ให้ใช้โฟลเดอร์กลางชื่อนี้ใน My Drive Root
   var defaultName = "PCSHS_KSN_งานวิชาการ";
-  var folders = DriveApp.getFoldersByName(defaultName);
-  if (folders.hasNext()) {
-    return folders.next();
+  var folders = DriveApp.getRootFolder().getFoldersByName(defaultName);
+  while (folders.hasNext()) {
+    var f = folders.next();
+    if (!f.isTrashed()) return f;
   }
-  return DriveApp.createFolder(defaultName);
+  return DriveApp.getRootFolder().createFolder(defaultName);
 }
 
 /**
