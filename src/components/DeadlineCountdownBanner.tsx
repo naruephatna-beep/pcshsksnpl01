@@ -49,8 +49,12 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
     return (deadlineConfigs || []).filter((c) => c.is_active !== false);
   }, [deadlineConfigs]);
 
-  // Find target deadline to highlight
+  // Find target deadline to highlight (only shown when current user still has pending/unsubmitted work)
   const targetInfo = useMemo(() => {
+    if (isAdmin || activeConfigs.length === 0) {
+      return null;
+    }
+
     const normalize = (val?: string) => String(val || '').trim().toLowerCase();
     const currentId = normalize(currentTeacher.Teacher_ID || (currentTeacher as any).teacher_id);
     const currentName = normalize(currentTeacher.Name || (currentTeacher as any).name);
@@ -86,47 +90,37 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
       };
     });
 
-    if (!isAdmin) {
-      // Prioritize unsubmitted and not-yet-overdue, closest first
-      const pendingUpcoming = computed
-        .filter((c) => !c.hasSubmitted && !c.isOverdue)
-        .sort((a, b) => a.diffMs - b.diffMs);
+    // Prioritize unsubmitted and not-yet-overdue, closest first
+    const pendingUpcoming = computed
+      .filter((c) => !c.hasSubmitted && !c.isOverdue)
+      .sort((a, b) => a.diffMs - b.diffMs);
 
-      if (pendingUpcoming.length > 0) {
-        return pendingUpcoming[0];
-      }
-
-      // If overdue pending exists
-      const overduePending = computed
-        .filter((c) => !c.hasSubmitted && c.isOverdue)
-        .sort((a, b) => b.diffMs - a.diffMs);
-
-      if (overduePending.length > 0) {
-        return overduePending[0];
-      }
-
-      // If all submitted
-      return {
-        ...computed[0],
-        allCompleted: true,
-      };
-    } else {
-      // Admin: show closest upcoming deadline across the school
-      const upcoming = [...computed].sort((a, b) => a.diffMs - b.diffMs);
-      return upcoming[0];
+    if (pendingUpcoming.length > 0) {
+      return pendingUpcoming[0];
     }
+
+    // If overdue pending exists
+    const overduePending = computed
+      .filter((c) => !c.hasSubmitted && c.isOverdue)
+      .sort((a, b) => b.diffMs - a.diffMs);
+
+    if (overduePending.length > 0) {
+      return overduePending[0];
+    }
+
+    // No pending tasks left -> hide banner completely
+    return null;
   }, [activeConfigs, plans, currentTeacher, now, isAdmin]);
 
-  if (!targetInfo || isDismissed) return null;
-
-  const { config, isOverdue, days, hours, minutes, allCompleted } = targetInfo;
+  const config = targetInfo?.config;
 
   const sampleUrl = useMemo(() => {
-    if (config?.sample_url && config.sample_url.trim()) {
+    if (!config) return null;
+    if (config.sample_url && config.sample_url.trim()) {
       const u = config.sample_url.trim();
       return /^https?:\/\//i.test(u) ? u : `https://${u}`;
     }
-    const combined = `${config?.description || ''} ${config?.notes || ''}`;
+    const combined = `${config.description || ''} ${config.notes || ''}`;
     const m = combined.match(/(https?:\/\/[^\s]+|docs\.google\.com[^\s]+|drive\.google\.com[^\s]+)/i);
     if (m) {
       const u = m[0].trim();
@@ -134,6 +128,10 @@ export const DeadlineCountdownBanner: React.FC<DeadlineCountdownBannerProps> = (
     }
     return null;
   }, [config]);
+
+  if (!targetInfo || isDismissed) return null;
+
+  const { isOverdue, days, hours, minutes, allCompleted } = targetInfo;
 
   const handleScrollToPending = () => {
     window.dispatchEvent(new CustomEvent('filter-assignments', { detail: { filter: 'pending' } }));
