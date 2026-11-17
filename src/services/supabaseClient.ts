@@ -1482,6 +1482,8 @@ export async function uploadAssignmentAttachmentFile(
     semester?: string;
     academicYear?: string;
     customFileName?: string;
+    submitterEmail?: string;
+    reviewerEmail?: string;
   }
 ): Promise<{ success: boolean; url: string; fileName: string; fileSize: string; error?: string }> {
   const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
@@ -1501,6 +1503,8 @@ export async function uploadAssignmentAttachmentFile(
         semester: extraMeta?.semester,
         academicYear: extraMeta?.academicYear,
         customFileName: extraMeta?.customFileName,
+        submitterEmail: extraMeta?.submitterEmail,
+        reviewerEmail: extraMeta?.reviewerEmail,
       });
 
       if (driveRes.success && driveRes.fileUrl) {

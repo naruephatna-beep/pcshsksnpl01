@@ -21,6 +21,7 @@ import {
   saveLocalWorkflowAssignments,
 } from '../services/departmentWorkflowService';
 import { savePlanRecord, saveLocalPlans, saveSystemSetting } from '../services/supabaseClient';
+import { syncLessonPlanDriveEditors } from '../services/googleDriveService';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   X,
@@ -448,6 +449,10 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     if (modifiedList.length > 0) {
       Promise.all(modifiedList.map((p) => savePlanRecord(p))).catch((err) => {
         console.warn('Error persisting auto-assigned plans to cloud:', err);
+      });
+      // Sync Google Drive Editor permissions to updated submitter + assigned reviewer emails (Option B2)
+      Promise.all(modifiedList.map((p) => syncLessonPlanDriveEditors(p, teachers))).catch((err) => {
+        console.warn('Error syncing Google Drive permissions for assigned plans:', err);
       });
     }
 

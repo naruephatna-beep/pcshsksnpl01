@@ -163,6 +163,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
         learningArea: currentTeacher.Learning_Area,
         semester: item.semester,
         academicYear: item.academicYear,
+        submitterEmail: currentTeacher.Email,
       });
       if (res.success && res.fileUrl) {
         handleUpdateItem(itemId, 'fileUrl', res.fileUrl);

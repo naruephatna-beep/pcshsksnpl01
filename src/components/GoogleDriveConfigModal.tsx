@@ -821,9 +821,9 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                       </ul>
                     </div>
                     <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 space-y-1">
-                      <p className="font-bold">💡 สำหรับผู้ที่เคยติดตั้งสคริปต์ไว้แล้ว (ต้องการเปิดใช้ระบบส่งเมล 1-Click / ย้ายลงถังขยะ):</p>
+                      <p className="font-bold">💡 สำหรับผู้ที่เคยติดตั้งสคริปต์ไว้แล้ว (อัปเดตสิทธิ์แก้ไขเฉพาะผู้ส่งและคนตรวจ / ส่งเมล / ย้ายลงถังขยะ):</p>
                       <p className="text-[11.5px] text-blue-800 leading-relaxed">
-                        หลังจากนำโค้ดใหม่ไปวางทับใน <code>Code.gs</code> แล้ว ให้กด <strong>"ทำให้ใช้งานได้" (Deploy)</strong> &rarr; <strong>"จัดการการทำให้ใช้งานได้" (Manage deployments)</strong> &rarr; กดรูปดินสอแก้ไข &rarr; ตรงช่องเวอร์ชันเลือก <strong>"เวอร์ชันใหม่" (New version)</strong> &rarr; กด <strong>"ทำให้ใช้งานได้" (Deploy)</strong> เพื่อให้ URL เดิมรันระบบส่งอีเมลตัวใหม่ทันที
+                        หลังจากนำโค้ดใหม่จากแท็บ "โค้ดสคริปต์" ไปวางทับใน <code>Code.gs</code> แล้ว ให้กด <strong>"ทำให้ใช้งานได้" (Deploy)</strong> &rarr; <strong>"จัดการการทำให้ใช้งานได้" (Manage deployments)</strong> &rarr; กดรูปดินสอแก้ไข &rarr; ตรงช่องเวอร์ชันเลือก <strong>"เวอร์ชันใหม่" (New version)</strong> &rarr; กด <strong>"ทำให้ใช้งานได้" (Deploy)</strong> เพื่อเปิดใช้งานการมอบสิทธิ์แก้ไขเฉพาะเมลผู้ส่งและผู้ตรวจ (Option B2) ทันที
                       </p>
                     </div>
                   </div>

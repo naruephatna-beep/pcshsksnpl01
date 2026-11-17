@@ -7,6 +7,7 @@
  */
 
 import { fetchSystemSetting, saveSystemSetting } from './supabaseClient';
+import { LessonPlan, Teacher } from '../types';
 
 export const STORAGE_KEY_GDRIVE_WEBHOOK = 'pcshs_gdrive_webhook_url';
 export const STORAGE_KEY_GDRIVE_FOLDER_NAME = 'pcshs_gdrive_folder_name';
@@ -241,6 +242,9 @@ export interface GoogleDriveUploadOptions {
   subjectName?: string;
   gradeLevel?: string;
   customFileName?: string;
+  submitterEmail?: string;
+  reviewerEmail?: string;
+  editorEmails?: string[];
 }
 
 export interface GoogleDriveUploadResult {
@@ -404,6 +408,19 @@ export async function uploadPdfFileToGoogleDrive(
       else mimeType = 'application/pdf';
     }
 
+    const rawEditorEmails = [
+      ...(Array.isArray(meta.editorEmails) ? meta.editorEmails : []),
+      meta.submitterEmail,
+      meta.reviewerEmail,
+    ];
+    const validEditorEmails = Array.from(
+      new Set(
+        rawEditorEmails
+          .map((e) => (e || '').trim().toLowerCase())
+          .filter((e) => e && e.includes('@'))
+      )
+    );
+
     const payload = {
       action: 'upload',
       fileName: generatedFileName,
@@ -419,6 +436,9 @@ export async function uploadPdfFileToGoogleDrive(
       learningArea: meta.learningArea || '',
       semester: meta.semester || '',
       academicYear: meta.academicYear || '',
+      submitterEmail: (meta.submitterEmail || '').trim().toLowerCase(),
+      reviewerEmail: (meta.reviewerEmail || '').trim().toLowerCase(),
+      editorEmails: validEditorEmails,
     };
 
     // ส่งแบบ text/plain เพื่อป้องกัน Browser CORS preflight (OPTIONS) ปฏิเสธ
@@ -739,7 +759,186 @@ export async function archiveReviewedPlanToGoogleDrive(
 }
 
 /**
- * โค้ดแม่แบบ Google Apps Script ฉบับสมบูรณ์ที่พร้อมใช้งานทันที (รองรับทั้ง Upload, ย้ายลง Trash, ส่งอีเมล และจัดเก็บไฟล์ตรวจแล้ว)
+ * ดึง URL ไฟล์ Google Drive ทั้งหมดที่แนบมากับแผนการสอน (ทั้งไฟล์หลักและไฟล์แนบใน notes)
+ */
+export function extractGoogleDriveFileUrlsFromPlan(plan: LessonPlan): string[] {
+  const urls: string[] = [];
+  const seenIds = new Set<string>();
+
+  const tryAddUrl = (rawUrl?: string) => {
+    if (!rawUrl || typeof rawUrl !== 'string') return;
+    const trimmed = rawUrl.trim();
+    if (!trimmed || trimmed === '#') return;
+    const fileId = extractGoogleDriveFileId(trimmed);
+    if (fileId && !seenIds.has(fileId)) {
+      seenIds.add(fileId);
+      urls.push(trimmed);
+    }
+  };
+
+  tryAddUrl(plan.file_url);
+
+  if (plan.notes) {
+    try {
+      const parsed = JSON.parse(plan.notes);
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed._attachments)) {
+          parsed._attachments.forEach((att: any) => {
+            if (att && typeof att === 'object') tryAddUrl(att.file_url);
+          });
+        }
+        Object.entries(parsed).forEach(([key, val]) => {
+          if (key === '_attachments' || key === '_file_reviews') return;
+          if (typeof val === 'string') {
+            tryAddUrl(val);
+          } else if (Array.isArray(val)) {
+            val.forEach((item: any) => {
+              if (typeof item === 'string') tryAddUrl(item);
+              else if (item && typeof item === 'object' && item.file_url) tryAddUrl(item.file_url);
+            });
+          } else if (val && typeof val === 'object' && (val as any).file_url) {
+            tryAddUrl((val as any).file_url);
+          }
+        });
+      }
+    } catch {
+      // plain text notes
+    }
+  }
+
+  return urls;
+}
+
+/**
+ * คืนค่ารายชื่ออีเมลที่มีสิทธิ์แก้ไข (Editor) ของแผนการสอนนี้:
+ * เฉพาะอีเมลครูผู้ส่ง + อีเมลกรรมการผู้ตรวจที่ได้รับมอบหมายเท่านั้น
+ */
+export function resolveEmailsForPlanEditors(plan: LessonPlan, teachers: Teacher[]): string[] {
+  const emails = new Set<string>();
+
+  const addTeacherEmail = (id?: string, name?: string) => {
+    if (!id && !name) return;
+    const cleanId = (id || '').trim().toLowerCase();
+    const cleanName = (name || '').trim().toLowerCase();
+    const found = teachers.find((t) => {
+      const tId = (t.Teacher_ID || '').trim().toLowerCase();
+      const tName = (t.Name || '').trim().toLowerCase();
+      return (cleanId && tId === cleanId) || (cleanName && tName === cleanName);
+    });
+    const email = (found?.Email || '').trim().toLowerCase();
+    if (email && email.includes('@')) {
+      emails.add(email);
+    }
+  };
+
+  // 1. Submitter email
+  addTeacherEmail(plan.teacher_id, plan.teacher_name);
+
+  // 2. Assigned reviewer email (or reviewed_by fallback if assigned_reviewer_id is absent)
+  if (plan.assigned_reviewer_id || plan.assigned_reviewer_name) {
+    addTeacherEmail(plan.assigned_reviewer_id, plan.assigned_reviewer_name);
+  } else if (plan.reviewed_by || plan.reviewer_name) {
+    addTeacherEmail(plan.reviewed_by, plan.reviewer_name);
+  }
+
+  return Array.from(emails);
+}
+
+/**
+ * อัปเดตสิทธิ์ Google Drive ของไฟล์ (Option B2):
+ * เปิดให้ทุกคนที่มีลิงก์ดูได้ (VIEW) เพื่อให้พรีวิวบนหน้าเว็บได้ลื่น
+ * แต่มอบสิทธิ์แก้ไข (Editor) ให้เฉพาะอีเมลผู้ส่งและผู้ตรวจที่ระบุเท่านั้น
+ */
+export async function syncGoogleDriveFileEditors(options: {
+  fileUrls: string[];
+  editorEmails: string[];
+  removeUnauthorizedEditors?: boolean;
+}): Promise<{ success: boolean; updatedCount?: number; skipped?: boolean; error?: string }> {
+  const fileIds = Array.from(
+    new Set(
+      (options.fileUrls || [])
+        .map((u) => extractGoogleDriveFileId(u))
+        .filter((id): id is string => Boolean(id))
+    )
+  );
+
+  const editorEmails = Array.from(
+    new Set(
+      (options.editorEmails || [])
+        .map((e) => (e || '').trim().toLowerCase())
+        .filter((e) => e && e.includes('@'))
+    )
+  );
+
+  if (fileIds.length === 0 || editorEmails.length === 0) {
+    return { success: true, skipped: true };
+  }
+
+  const webhookUrl = (await fetchGoogleDriveWebhookUrl()).trim();
+  if (!webhookUrl) {
+    return { success: false, error: 'ยังไม่ได้ตั้งค่า Google Drive Webhook URL' };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        action: 'sync_permissions',
+        fileIds,
+        editorEmails,
+        removeUnauthorizedEditors: options.removeUnauthorizedEditors !== false,
+      }),
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+
+    const resText = await response.text();
+    try {
+      const resJson = JSON.parse(resText);
+      return {
+        success: Boolean(resJson.success),
+        updatedCount: resJson.updatedCount,
+        error: resJson.error,
+      };
+    } catch {
+      return { success: false, error: 'Invalid response from Google Apps Script' };
+    }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Network error' };
+  }
+}
+
+/**
+ * ซิงค์สิทธิ์แก้ไขไฟล์ Google Drive ให้ตรงกับผู้ส่งและผู้ตรวจคนปัจจุบันของแผนการสอน
+ */
+export async function syncLessonPlanDriveEditors(
+  plan: LessonPlan,
+  teachers: Teacher[]
+): Promise<void> {
+  try {
+    const fileUrls = extractGoogleDriveFileUrlsFromPlan(plan);
+    if (fileUrls.length === 0) return;
+    const editorEmails = resolveEmailsForPlanEditors(plan, teachers);
+    if (editorEmails.length === 0) return;
+
+    await syncGoogleDriveFileEditors({
+      fileUrls,
+      editorEmails,
+      removeUnauthorizedEditors: true,
+    });
+  } catch (err) {
+    console.warn('[Drive Sync Permissions Notice]', err);
+  }
+}
+
+/**
+ * โค้ดแม่แบบ Google Apps Script ฉบับสมบูรณ์ที่พร้อมใช้งานทันที (รองรับ Upload + มอบสิทธิ์ Editor เฉพาะผู้ส่งและคนตรวจ, ย้ายลง Trash, ส่งอีเมล และจัดเก็บไฟล์ตรวจแล้ว)
  */
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * =========================================================================
@@ -749,7 +948,8 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * 
  * ความสามารถของสคริปต์นี้:
  * 1. อัปโหลดไฟล์ PDF จากเว็บ เข้า Google Drive ของฝ่ายวิชาการอัตโนมัติ
- * 2. ตั้งสิทธิ์เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู (Viewer)" อัตโนมัติ
+ * 2. ตั้งสิทธิ์เป็น "ทุกคนที่มีลิงก์มีสิทธิ์ดู (Viewer)" เพื่อพรีวิวบนหน้าเว็บได้ลื่น
+ *    และมอบสิทธิ์ "แก้ไข (Editor)" เฉพาะอีเมลผู้ส่งและอีเมลผู้ตรวจที่ได้รับมอบหมายเท่านั้น (Option B2)
  * 3. เมื่อครูหรือแอดมินยกเลิก/ลบงานในเว็บ สคริปต์จะย้ายไฟล์ลง "ถังขยะ (Trash)" ให้อัตโนมัติ
  *    (กู้คืนได้ภายใน 30 วัน ป้องกันการลบข้อมูลผิดพลาด)
  * 4. ส่งอีเมลแจ้งเตือน / ผลตรวจ / ใบเสร็จ จากเมลฝ่ายวิชาการในคลิกเดียว (1-Click Academic Email)
@@ -758,7 +958,8 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * 1. เข้าไปที่ https://script.google.com ด้วยบัญชี Google ของฝ่ายวิชาการ
  * 2. กดปุ่ม "+ โครงการใหม่" (New Project) แล้วลบโค้ดเดิมออกทั้งหมด
  * 3. นำโค้ดด้านล่างนี้ทั้งหมดไปวางแทนที่
- * 4. แก้ไข TARGET_FOLDER_ID บรรทัดที่ 26 ให้เป็นไอดีโฟลเดอร์ Google Drive ของโรงเรียน
+ * 4. (ไม่บังคับ) หากต้องการกำหนดโฟลเดอร์ปลายทางเอง ให้ใส่ไอดีโฟลเดอร์ใน TARGET_FOLDER_ID
+ *    หากปล่อยว่างไว้ ระบบจะสร้าง/ใช้โฟลเดอร์ "PCSHS_KSN_งานวิชาการ" ให้อัตโนมัติ
  * 5. กดปุ่ม "ทำให้ใช้งานได้" (Deploy) -> "การทำให้ใช้งานได้รายการใหม่" (New deployment)
  * 6. เลือกประเภทเป็น "เว็บแอป" (Web app)
  * 7. ตั้งค่า:
@@ -767,10 +968,8 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * 8. กด "ทำให้ใช้งานได้" (Deploy) แล้วคัดลอก "URL ของเว็บแอป" มาวางในระบบของโรงเรียน
  */
 
-// ใส่ ID ของโฟลเดอร์ Google Drive กลางของโรงเรียนตรงนี้
-// (ดูได้จาก URL ของโฟลเดอร์ใน Google Drive เช่น https://drive.google.com/drive/folders/1ABCxyz...)
-// *หมายเหตุ*: หากเว้นว่างไว้หรือไม่ใส่ ระบบจะสร้างโฟลเดอร์ชื่อ "PCSHS_KSN_งานวิชาการ" ในไดรฟ์ของท่านให้อัตโนมัติทันที
-var TARGET_FOLDER_ID = "ใส่_FOLDER_ID_ของท่านที่นี่";
+// (ไม่บังคับ) ใส่ ID ของโฟลเดอร์ Google Drive กลางของโรงเรียนตรงนี้ หรือปล่อยว่าง "" เพื่อใช้โฟลเดอร์ "PCSHS_KSN_งานวิชาการ" อัตโนมัติ
+var TARGET_FOLDER_ID = "";
 
 /**
  * ฟังก์ชันหลักรับคำสั่ง POST จากระบบส่งงานของโรงเรียน
@@ -883,6 +1082,14 @@ function doPost(e) {
     // คำสั่งที่ 3: ทำสำเนาไฟล์ที่ตรวจแล้วเข้าโฟลเดอร์ "ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"
     // =========================================================================
     if (data.action === "archive_reviewed_pdf") {
+      if (data.probe === true) {
+        return responseJSON({
+          success: true,
+          probe: true,
+          supportsArchive: true,
+          supportsSyncPermissions: true
+        });
+      }
       var rootFolderName = "ตรวจแล้ว";
       var rootFolder;
       var rootIter = DriveApp.getFoldersByName(rootFolderName);
@@ -894,7 +1101,7 @@ function doPost(e) {
 
       var docType = (data.docType || data.planType || "เอกสารทั่วไป").toString().trim();
       var branch = (data.branch || data.learningArea || "ทั่วไป").toString().trim();
-      var subfolderName = (data.subfolderName || (docType + "_" + branch)).replace(/[\/\\:*?"<>|]/g, "_");
+      var subfolderName = (data.subfolderName || (docType + "_" + branch)).replace(/[\\/\\\\:*?"<>|]/g, "_");
 
       var targetSubfolder;
       var subIter = rootFolder.getFoldersByName(subfolderName);
@@ -905,7 +1112,7 @@ function doPost(e) {
       }
 
       var fileUrl = (data.fileUrl || "").toString().trim();
-      var newFileName = (data.fileName || ("[ตรวจแล้ว]_" + (data.teacherName || "ครู") + "_" + docType + ".pdf")).replace(/[\/\\:*?"<>|]/g, "_");
+      var newFileName = (data.fileName || ("[ตรวจแล้ว]_" + (data.teacherName || "ครู") + "_" + docType + ".pdf")).replace(/[\\/\\\\:*?"<>|]/g, "_");
       if (!newFileName.toLowerCase().endsWith(".pdf")) {
         newFileName += ".pdf";
       }
@@ -914,13 +1121,13 @@ function doPost(e) {
 
       // 3.1 ตรวจสอบกรณีเป็น Google Drive File ID หรือ URL
       var driveId = null;
-      var dMatch = fileUrl.match(/\/file\/d\/([-\w]+)/);
+      var dMatch = fileUrl.match(/\\/file\\/d\\/([-\\w]+)/);
       if (dMatch && dMatch[1]) driveId = dMatch[1];
       if (!driveId) {
-        var idMatch = fileUrl.match(/[?&]id=([-\w]+)/);
+        var idMatch = fileUrl.match(/[?&]id=([-\\w]+)/);
         if (idMatch && idMatch[1]) driveId = idMatch[1];
       }
-      if (!driveId && /^[-\w]{25,}$/.test(fileUrl)) {
+      if (!driveId && /^[-\\w]{25,}$/.test(fileUrl)) {
         driveId = fileUrl;
       }
 
@@ -980,7 +1187,89 @@ function doPost(e) {
     }
 
     // =========================================================================
-    // คำสั่งที่ 4: อัปโหลดไฟล์ PDF ใหม่เข้าสู่โฟลเดอร์ Google Drive (แยกตามประเภทงาน)
+    // คำสั่งที่ 4: อัปเดตสิทธิ์แก้ไข (Editor) เฉพาะอีเมลผู้ส่งและผู้ตรวจเท่านั้น (Option B2)
+    // =========================================================================
+    if (data.action === "sync_permissions") {
+      var rawFileIds = Array.isArray(data.fileIds) ? data.fileIds : [];
+      if (data.fileId) rawFileIds.push(data.fileId);
+
+      var allowedEmails = [];
+      if (Array.isArray(data.editorEmails)) {
+        for (var i = 0; i < data.editorEmails.length; i++) {
+          var em = (data.editorEmails[i] || "").toString().trim().toLowerCase();
+          if (em && em.indexOf("@") !== -1 && allowedEmails.indexOf(em) === -1) {
+            allowedEmails.push(em);
+          }
+        }
+      }
+
+      var removeOthers = data.removeUnauthorizedEditors !== false;
+      var updatedCount = 0;
+      var syncDetails = [];
+
+      for (var fIdx = 0; fIdx < rawFileIds.length; fIdx++) {
+        var fid = (rawFileIds[fIdx] || "").toString().trim();
+        if (!fid) continue;
+
+        try {
+          var targetFile = DriveApp.getFileById(fid);
+          // Option B2: ทุกคนที่มีลิงก์เปิดดูได้อย่างเดียว (เพื่อพรีวิวในเว็บได้โดยไม่ติดบัญชี)
+          targetFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+          var ownerEmail = "";
+          try {
+            var owner = targetFile.getOwner();
+            if (owner) ownerEmail = (owner.getEmail() || "").toLowerCase();
+          } catch (ownerErr) {}
+
+          var currentEditors = [];
+          try {
+            var editors = targetFile.getEditors();
+            for (var eIdx = 0; eIdx < editors.length; eIdx++) {
+              var edEmail = (editors[eIdx].getEmail() || "").toLowerCase();
+              if (edEmail) {
+                currentEditors.push(edEmail);
+                if (removeOthers && edEmail !== ownerEmail && allowedEmails.indexOf(edEmail) === -1) {
+                  try {
+                    targetFile.removeEditor(editors[eIdx]);
+                  } catch (remErr) {}
+                }
+              }
+            }
+          } catch (listErr) {}
+
+          var added = [];
+          var skipped = [];
+          for (var aIdx = 0; aIdx < allowedEmails.length; aIdx++) {
+            var allowEm = allowedEmails[aIdx];
+            if (allowEm === ownerEmail || currentEditors.indexOf(allowEm) !== -1) {
+              added.push(allowEm);
+              continue;
+            }
+            try {
+              targetFile.addEditor(allowEm);
+              added.push(allowEm);
+            } catch (addErr) {
+              skipped.push({ email: allowEm, error: addErr.toString() });
+            }
+          }
+
+          updatedCount++;
+          syncDetails.push({ fileId: fid, added: added, skipped: skipped });
+        } catch (fileErr) {
+          syncDetails.push({ fileId: fid, error: fileErr.toString() });
+        }
+      }
+
+      return responseJSON({
+        success: true,
+        updatedCount: updatedCount,
+        details: syncDetails
+      });
+    }
+
+    // =========================================================================
+    // คำสั่งที่ 5: อัปโหลดไฟล์ PDF ใหม่เข้าสู่โฟลเดอร์ Google Drive (แยกตามประเภทงาน)
     // =========================================================================
     var base64Payload = data.base64Data || data.data;
     if (!base64Payload) {
@@ -994,7 +1283,7 @@ function doPost(e) {
 
     // 3.1 แยกโฟลเดอร์ตามประเภทงาน (ถ้ายังไม่มี ให้ระบบสร้างโฟลเดอร์ใหม่ให้อัตโนมัติทันที)
     var taskFolderName = (data.assignmentName || data.planType || "เอกสารทั่วไป").toString().trim();
-    var cleanFolderName = taskFolderName.replace(/[\/\\:*?"<>|]/g, "_") || "เอกสารทั่วไป";
+    var cleanFolderName = taskFolderName.replace(/[\\/\\\\:*?"<>|]/g, "_") || "เอกสารทั่วไป";
     var targetFolder = baseFolder;
 
     try {
@@ -1017,10 +1306,55 @@ function doPost(e) {
     // 3.2 สร้างไฟล์ในโฟลเดอร์ประจำประเภทงาน
     var file = targetFolder.createFile(blob);
 
-    // 3.3 กำหนดสิทธิ์ให้ทุกคนที่มีลิงก์สามารถดูได้ (Viewer)
+    // 3.3 กำหนดสิทธิ์ให้ทุกคนที่มีลิงก์สามารถดูได้อย่างเดียว (Viewer) สำหรับพรีวิวหน้าเว็บ (Option B2)
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-    // 3.4 สร้างลิงก์สำหรับเปิดดู
+    // 3.4 มอบสิทธิ์แก้ไข (Editor) ให้เฉพาะอีเมลผู้ส่งและผู้ตรวจที่ส่งมาด้วยเท่านั้น
+    var editorList = [];
+    if (Array.isArray(data.editorEmails)) {
+      for (var ei = 0; ei < data.editorEmails.length; ei++) {
+        var emItem = (data.editorEmails[ei] || "").toString().trim().toLowerCase();
+        if (emItem && emItem.indexOf("@") !== -1 && editorList.indexOf(emItem) === -1) {
+          editorList.push(emItem);
+        }
+      }
+    }
+    if (data.submitterEmail) {
+      var subEm = data.submitterEmail.toString().trim().toLowerCase();
+      if (subEm && subEm.indexOf("@") !== -1 && editorList.indexOf(subEm) === -1) {
+        editorList.push(subEm);
+      }
+    }
+    if (data.reviewerEmail) {
+      var revEm = data.reviewerEmail.toString().trim().toLowerCase();
+      if (revEm && revEm.indexOf("@") !== -1 && editorList.indexOf(revEm) === -1) {
+        editorList.push(revEm);
+      }
+    }
+
+    var editorsAdded = [];
+    var editorErrors = [];
+    var fileOwnerEmail = "";
+    try {
+      var fOwner = file.getOwner();
+      if (fOwner) fileOwnerEmail = (fOwner.getEmail() || "").toLowerCase();
+    } catch (ownErr) {}
+
+    for (var ek = 0; ek < editorList.length; ek++) {
+      var targetEd = editorList[ek];
+      if (fileOwnerEmail && targetEd === fileOwnerEmail) {
+        editorsAdded.push(targetEd);
+        continue;
+      }
+      try {
+        file.addEditor(targetEd);
+        editorsAdded.push(targetEd);
+      } catch (edErr) {
+        editorErrors.push({ email: targetEd, error: edErr.toString() });
+      }
+    }
+
+    // 3.5 สร้างลิงก์สำหรับเปิดดู
     var fileId = file.getId();
     var viewUrl = "https://drive.google.com/file/d/" + fileId + "/view";
     var directUrl = "https://drive.google.com/uc?export=view&id=" + fileId;
@@ -1032,7 +1366,9 @@ function doPost(e) {
       directUrl: directUrl,
       fileName: file.getName(),
       fileSize: file.getSize(),
-      folderName: targetFolder.getName()
+      folderName: targetFolder.getName(),
+      editorsAdded: editorsAdded,
+      editorErrors: editorErrors
     });
 
   } catch (err) {

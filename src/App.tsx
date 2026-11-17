@@ -77,6 +77,7 @@ import {
   STORAGE_KEY_GDRIVE_WEBHOOK,
   archiveReviewedPlanToGoogleDrive,
   trashGoogleDriveFile,
+  syncLessonPlanDriveEditors,
 } from './services/googleDriveService';
 import {
   DEFAULT_DEPARTMENTS,
@@ -810,6 +811,8 @@ export default function App() {
     let lastRes: any = { success: true, isSupabase: false };
     for (const plan of plansList) {
       lastRes = await savePlanRecord(plan);
+      // Option B2: Sync Google Drive Editor permissions strictly to submitter + assigned reviewer emails
+      syncLessonPlanDriveEditors(plan, teachers);
     }
     setPlans((prev) => [...plansList, ...prev]);
 
@@ -867,6 +870,9 @@ export default function App() {
     setPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
+
+    // Option B2: Sync Google Drive Editor permissions when stage advances or reviewer changes
+    syncLessonPlanDriveEditors(updatedPlan, teachers);
 
     // Sync AssignmentSubmission if this plan originated from dynamic assignment submission
     try {
@@ -996,6 +1002,9 @@ export default function App() {
     setPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
+
+    // Option B2: Sync Google Drive Editor permissions on any resubmitted/newly attached Drive links
+    syncLessonPlanDriveEditors(updatedPlan, teachers);
 
     setToastNotice({
       type: 'success',
@@ -4068,8 +4077,21 @@ export default function App() {
           }}
           onSubmitted={async (submission, correspondingPlan) => {
             if (correspondingPlan) {
-              const plansToAdd = Array.isArray(correspondingPlan) ? correspondingPlan : [correspondingPlan];
-              setPlans((prev) => [...plansToAdd, ...prev]);
+              const rawAdded = Array.isArray(correspondingPlan) ? correspondingPlan : [correspondingPlan];
+              const resolvedAdded = rawAdded.map((p) => {
+                if (!p.assigned_reviewer_id) {
+                  const enriched = assignWorkflowToPlan(p, workflows, teachers, departments, branches);
+                  if (enriched.assigned_reviewer_id !== p.assigned_reviewer_id) {
+                    savePlanRecord(enriched).catch(() => {});
+                  }
+                  return enriched;
+                }
+                return p;
+              });
+              setPlans((prev) => [...resolvedAdded, ...prev]);
+              resolvedAdded.forEach((p) => {
+                syncLessonPlanDriveEditors(p, teachers);
+              });
             }
             const count = Array.isArray(correspondingPlan)
               ? correspondingPlan.length
@@ -4099,6 +4121,7 @@ export default function App() {
             setPlans((prev) =>
               prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
             );
+            syncLessonPlanDriveEditors(updatedPlan, teachers);
 
             setToastNotice({
               type: 'success',

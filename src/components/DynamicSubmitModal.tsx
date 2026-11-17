@@ -275,6 +275,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
             gradeLevel: formGradeLevel,
             semester: config.semester,
             academicYear: config.academic_year,
+            submitterEmail: currentTeacher.Email,
           }
         );
 
