@@ -337,7 +337,7 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                   </p>
                   <p className="text-[11px] text-emerald-900 font-semibold pt-1 border-t border-emerald-200/80 flex items-center gap-1.5">
                     <span>📁</span>
-                    <span>ระบบแยกไฟล์ตาม <strong>"โฟลเดอร์ประเภทงาน"</strong> ให้อัตโนมัติ (และจะสร้างโฟลเดอร์ใหม่ให้อัตโนมัติทันทีเมื่อแอดมินเปิดรับงานประเภทใหม่)</span>
+                    <span>ระบบจัดเรียงโฟลเดอร์เป็น <strong>"จภ_กาฬสินธุ์_ปีการศึกษา_.../เทอม_.../ประเภทเอกสาร"</strong> ให้อัตโนมัติ (สามารถย้ายไฟล์เดิมเข้าโฟลเดอร์ปี/เทอมได้ที่เมนู "ปีการศึกษา &amp; ภาคเรียน")</span>
                   </p>
                   <p className="text-[11px] text-emerald-900 font-semibold flex items-center gap-1.5">
                     <span>🗑️</span>
@@ -349,7 +349,7 @@ export const GoogleDriveConfigModal: React.FC<GoogleDriveConfigModalProps> = ({
                   </p>
                   <p className="text-[11px] text-emerald-900 font-semibold flex items-center gap-1.5">
                     <span>📑</span>
-                    <span>ระบบสำเนาไฟล์ที่ตรวจแล้วเข้าโฟลเดอร์ <strong>"ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"</strong> อัตโนมัติ (ดึงและดาวน์โหลดไฟล์ PDF จริงจากลิงก์มาเก็บเป็นสำเนา)</span>
+                    <span>ระบบสำเนาไฟล์ที่ตรวจแล้วเข้าโฟลเดอร์ <strong>"เทอม_.../ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"</strong> อัตโนมัติ (ดึงและดาวน์โหลดไฟล์ PDF จริงจากลิงก์มาเก็บเป็นสำเนา)</span>
                   </p>
                 </div>
               </div>

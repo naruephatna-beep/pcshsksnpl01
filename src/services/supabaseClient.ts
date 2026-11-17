@@ -112,6 +112,33 @@ export function recordDeletedPlanId(id: string) {
   }, 60);
 }
 
+export async function recordDeletedPlanIdsBatch(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const set = getDeletedPlanIds();
+  let changed = false;
+  ids.forEach((id) => {
+    if (id && !set.has(id)) {
+      set.add(id);
+      changed = true;
+    }
+  });
+  const arr = Array.from(set);
+  if (changed) {
+    localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(arr));
+  }
+  const idSet = new Set(ids);
+  try {
+    const localPlans = getLocalPlans().filter((p) => !idSet.has(p.id));
+    saveLocalPlans(localPlans);
+    const localSubs = getSavedSubmissions().filter((s) => !idSet.has(s.id));
+    saveSubmissions(localSubs);
+  } catch {}
+
+  await saveSystemSetting('deleted_document_ids', arr).catch((err) => {
+    console.warn('Push batch deleted_document_ids to cloud warning:', err);
+  });
+}
+
 export function clearDeletedPlanId(id: string) {
   if (!id) return;
   const set = getDeletedPlanIds();
@@ -1733,6 +1760,62 @@ export async function deletePlanRecord(planId: string): Promise<{ success: boole
     }
   }
   return { success: true, isSupabase: false };
+}
+
+/**
+ * ลบข้อมูลรายการส่งงานของเทอม/ปีการศึกษาเก่าออกจาก Database (Cloudflare D1 / Supabase / LocalStorage)
+ * โดย **ไม่แตะต้องและไม่ลบไฟล์ใน Google Drive** (เพราะไฟล์ถูกจัดเก็บเป็นคลังถาวรใน Drive แล้ว)
+ */
+export async function purgeOldTermRecordsFromDatabase(
+  planIdsToPurge: string[],
+  submissionIdsToPurge: string[] = []
+): Promise<{ success: boolean; deletedCount: number; isCloud: boolean; error?: string }> {
+  const allIds = Array.from(new Set([...planIdsToPurge, ...submissionIdsToPurge].filter(Boolean)));
+  if (allIds.length === 0) {
+    return { success: true, deletedCount: 0, isCloud: getDatabaseProvider() === 'cloudflare' };
+  }
+
+  // 1. บันทึกรหัสที่ลบลง deleted_document_ids และเคลียร์ออกจาก LocalStorage
+  await recordDeletedPlanIdsBatch(allIds);
+
+  // 2. เคลียร์ออกจาก dynamic_submissions_data ใน cloud system_settings
+  const idSet = new Set(allIds);
+  const remainingSubs = getSavedSubmissions().filter((s) => !idSet.has(s.id));
+  saveSubmissions(remainingSubs);
+  await saveSystemSetting('dynamic_submissions_data', remainingSubs).catch(() => {});
+
+  // 3. ลบออกจากฐานข้อมูล Cloudflare D1 (เฉพาะ Database, ไม่สั่งลบ Google Drive)
+  let isCloud = false;
+  if (getDatabaseProvider() === 'cloudflare') {
+    const cf = getSavedCloudflareConfig();
+    if (cf.workerUrl) {
+      isCloud = true;
+      try {
+        await Promise.all(
+          allIds.map(async (id) => {
+            await deletePlanFromCloudflare(id).catch(() => {});
+            await deleteSubmissionFromCloudflare(id).catch(() => {});
+          })
+        );
+      } catch (err: any) {
+        return { success: false, deletedCount: allIds.length, isCloud: true, error: err?.message };
+      }
+    }
+  }
+
+  // 4. ลบออกจาก Supabase (หากเชื่อมต่ออยู่)
+  const client = getSupabaseClient();
+  if (client) {
+    isCloud = true;
+    try {
+      await client.from('lesson_plans').delete().in('id', allIds);
+      await client.from('assignment_submissions').delete().in('id', allIds);
+    } catch (err: any) {
+      return { success: false, deletedCount: allIds.length, isCloud: true, error: err?.message };
+    }
+  }
+
+  return { success: true, deletedCount: allIds.length, isCloud };
 }
 
 // Generate SQL Schema and Seed for Supabase SQL Editor

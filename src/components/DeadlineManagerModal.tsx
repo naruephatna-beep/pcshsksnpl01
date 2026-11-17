@@ -7,6 +7,8 @@ import {
   Teacher,
   DynamicFormField,
   isTeacherAdmin,
+  ActiveTermConfig,
+  DEFAULT_ACTIVE_TERM_CONFIG,
 } from '../types';
 import { DynamicFormBuilder } from './DynamicFormBuilder';
 import {
@@ -80,6 +82,7 @@ interface DeadlineManagerModalProps {
   isSupabaseConnected?: boolean;
   currentTeacher?: Teacher | null;
   teachers?: Teacher[];
+  activeTerm?: ActiveTermConfig;
 }
 
 const COLOR_OPTIONS: { id: StatusColor; name: string; bg: string }[] = [
@@ -125,6 +128,7 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
   isSupabaseConnected,
   currentTeacher,
   teachers = [],
+  activeTerm = DEFAULT_ACTIVE_TERM_CONFIG,
 }) => {
   const [activeTab, setActiveTab] = useState<'deadlines' | 'statuses' | 'plans'>('deadlines');
 
@@ -368,8 +372,8 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       isNew: true,
       name: '',
       description: '',
-      academic_year: '2569',
-      semester: '2',
+      academic_year: activeTerm.academic_year || '2569',
+      semester: activeTerm.semester || '2',
       start_date: new Date().toISOString().split('T')[0],
       start_time: '08:30',
       end_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -392,8 +396,8 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       taskId: dl.id,
       name: dl.name,
       description: dl.description || '',
-      academic_year: dl.academic_year || '2569',
-      semester: dl.semester || '1',
+      academic_year: dl.academic_year || activeTerm.academic_year || '2569',
+      semester: dl.semester || activeTerm.semester || '2',
       start_date: dl.start_date || new Date().toISOString().split('T')[0],
       start_time: dl.start_time || '08:30',
       end_date: dl.end_date || new Date().toISOString().split('T')[0],
@@ -421,8 +425,8 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
       taskId: dl.id,
       name: dl.name,
       description: dl.description || '',
-      academic_year: dl.academic_year || '2569',
-      semester: dl.semester || '1',
+      academic_year: dl.academic_year || activeTerm.academic_year || '2569',
+      semester: dl.semester || activeTerm.semester || '2',
       start_date: dl.start_date || new Date().toISOString().split('T')[0],
       start_time: dl.start_time || '08:30',
       end_date: dl.end_date || new Date().toISOString().split('T')[0],
@@ -464,8 +468,8 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
         id,
         name: taskModal.name.trim(),
         description: taskModal.description.trim(),
-        academic_year: taskModal.academic_year || '2569',
-        semester: taskModal.semester || '1',
+        academic_year: taskModal.academic_year || activeTerm.academic_year || '2569',
+        semester: taskModal.semester || activeTerm.semester || '2',
         start_date: taskModal.start_date || new Date().toISOString().split('T')[0],
         start_time: taskModal.start_time || '08:30',
         end_date: taskModal.end_date || new Date().toISOString().split('T')[0],
@@ -491,8 +495,8 @@ export const DeadlineManagerModal: React.FC<DeadlineManagerModalProps> = ({
             ...dl,
             name: taskModal.name.trim(),
             description: taskModal.description.trim(),
-            academic_year: taskModal.academic_year || '2569',
-            semester: taskModal.semester || '1',
+            academic_year: taskModal.academic_year || activeTerm.academic_year || '2569',
+            semester: taskModal.semester || activeTerm.semester || '2',
             start_date: taskModal.start_date,
             start_time: taskModal.start_time,
             end_date: taskModal.end_date,

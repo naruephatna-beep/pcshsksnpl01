@@ -1,5 +1,5 @@
 import React from 'react';
-import { Teacher, isTeacherAdmin, isTeacherExecutive } from '../types';
+import { Teacher, isTeacherAdmin, isTeacherExecutive, ActiveTermConfig, DEFAULT_ACTIVE_TERM_CONFIG } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
   FileText,
@@ -53,6 +53,8 @@ interface SidebarProps {
   onOpenAdminTrackerModal: (initialView?: 'table' | 'cards' | 'matrix' | 'ranking' | 'breakdown') => void;
   onOpenDeadlineManager: () => void;
   onOpenGoogleDriveConfig?: () => void;
+  onOpenAcademicTerm?: () => void;
+  activeTerm?: ActiveTermConfig;
   onOpenStaffStructure?: () => void;
   onOpenWorkflowManager?: () => void;
   onOpenReviewerWorkload?: () => void;
@@ -86,6 +88,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAdminTrackerModal,
   onOpenDeadlineManager,
   onOpenGoogleDriveConfig,
+  onOpenAcademicTerm,
+  activeTerm = DEFAULT_ACTIVE_TERM_CONFIG,
   onOpenStaffStructure,
   onOpenWorkflowManager,
   onOpenReviewerWorkload,
@@ -563,6 +567,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span className="truncate text-xs">สิทธิ์ดูเอกสารทั้งโรงเรียน</span>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                </button>
+              )}
+
+              {/* ปีการศึกษา & ภาคเรียน */}
+              {onOpenAcademicTerm && (
+                <button
+                  onClick={() => handleNavClick(onOpenAcademicTerm)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                  title="เปลี่ยนปีการศึกษา / เทอม และจัดการโฟลเดอร์ Google Drive"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="truncate text-xs">ปีการศึกษา &amp; ภาคเรียน</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-slate-950 bg-amber-400 px-1.5 py-0.5 rounded shrink-0">
+                    {activeTerm.semester}/{activeTerm.academic_year}
+                  </span>
                 </button>
               )}
 

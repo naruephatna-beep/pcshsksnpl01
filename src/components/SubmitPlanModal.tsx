@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Teacher, LessonPlan, PlanType, PlanTypeDeadlineConfig } from '../types';
+import { Teacher, LessonPlan, PlanType, PlanTypeDeadlineConfig, ActiveTermConfig, DEFAULT_ACTIVE_TERM_CONFIG } from '../types';
 import {
   checkSubmissionTimeliness,
   getSavedDeadlineConfigs,
@@ -36,6 +36,7 @@ interface SubmitPlanModalProps {
   deadlineConfigs?: PlanTypeDeadlineConfig[];
   initialPlanType?: string;
   onSwitchToDynamic?: (config: PlanTypeDeadlineConfig) => void;
+  activeTerm?: ActiveTermConfig;
 }
 
 const DEFAULT_PLAN_TYPES: PlanType[] = [
@@ -77,6 +78,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
   deadlineConfigs,
   initialPlanType,
   onSwitchToDynamic,
+  activeTerm = DEFAULT_ACTIVE_TERM_CONFIG,
 }) => {
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -113,8 +115,8 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
     subjectCode: inheritFrom?.subjectCode || '',
     subjectName: inheritFrom?.subjectName || '',
     gradeLevel: inheritFrom?.gradeLevel || GRADE_LEVELS[3], // ม.4 default
-    semester: inheritFrom?.semester || '1',
-    academicYear: inheritFrom?.academicYear || '2569',
+    semester: inheritFrom?.semester || activeTerm.semester || '2',
+    academicYear: inheritFrom?.academicYear || activeTerm.academic_year || '2569',
     planTitle: inheritFrom?.planTitle || '',
     planType: (inheritFrom?.planType || type || defaultInitialType) as PlanType,
     totalHours: inheritFrom?.totalHours || 40,
@@ -185,7 +187,7 @@ export const SubmitPlanModal: React.FC<SubmitPlanModalProps> = ({
       setItems([createNewItem(defaultInitialType)]);
       setError('');
     }
-  }, [isOpen, initialPlanType]);
+  }, [isOpen, initialPlanType, activeTerm.academic_year, activeTerm.semester]);
 
   if (!isOpen) return null;
 

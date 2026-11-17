@@ -8,6 +8,7 @@
 
 import { fetchSystemSetting, saveSystemSetting } from './supabaseClient';
 import { LessonPlan, Teacher } from '../types';
+import { getLocalActiveTerm } from '../utils/academicTermUtils';
 
 export const STORAGE_KEY_GDRIVE_WEBHOOK = 'pcshs_gdrive_webhook_url';
 export const STORAGE_KEY_GDRIVE_FOLDER_NAME = 'pcshs_gdrive_folder_name';
@@ -421,6 +422,10 @@ export async function uploadPdfFileToGoogleDrive(
       )
     );
 
+    const activeTerm = getLocalActiveTerm();
+    const effectiveYear = (meta.academicYear || activeTerm.academic_year || '2569').trim();
+    const effectiveSemester = (meta.semester || activeTerm.semester || '2').trim();
+
     const payload = {
       action: 'upload',
       fileName: generatedFileName,
@@ -434,8 +439,8 @@ export async function uploadPdfFileToGoogleDrive(
       subjectName: meta.subjectName || '',
       gradeLevel: meta.gradeLevel || '',
       learningArea: meta.learningArea || '',
-      semester: meta.semester || '',
-      academicYear: meta.academicYear || '',
+      semester: effectiveSemester,
+      academicYear: effectiveYear,
       submitterEmail: (meta.submitterEmail || '').trim().toLowerCase(),
       reviewerEmail: (meta.reviewerEmail || '').trim().toLowerCase(),
       editorEmails: validEditorEmails,
@@ -631,6 +636,8 @@ export interface ArchiveReviewedOptions {
   fileName?: string;
   reviewerName?: string;
   reviewerId?: string;
+  academicYear?: string;
+  semester?: string;
 }
 
 export interface ArchiveReviewedResult {
@@ -679,6 +686,10 @@ export async function archiveReviewedPlanToGoogleDrive(
       cleanFileName = `[ตรวจแล้ว]_${cleanFileName}`;
     }
 
+    const activeTerm = getLocalActiveTerm();
+    const effectiveYear = (options.academicYear || activeTerm.academic_year || '2569').trim();
+    const effectiveSemester = (options.semester || activeTerm.semester || '2').trim();
+
     const payload: any = {
       action: 'archive_reviewed_pdf',
       planId: options.planId,
@@ -692,6 +703,8 @@ export async function archiveReviewedPlanToGoogleDrive(
       fileName: cleanFileName,
       reviewerName: options.reviewerName,
       reviewerId: options.reviewerId,
+      academicYear: effectiveYear,
+      semester: effectiveSemester,
       reviewedAt: new Date().toISOString(),
     };
 
@@ -754,6 +767,137 @@ export async function archiveReviewedPlanToGoogleDrive(
     return {
       success: false,
       error: err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ Google Drive',
+    };
+  }
+}
+
+/**
+ * สร้างโฟลเดอร์ปีการศึกษา/ภาคเรียนใหม่บน Google Drive ล่วงหน้า:
+ * จภ_กาฬสินธุ์_ปีการศึกษา_<year> / เทอม_<sem>
+ */
+export async function ensureDriveTermFolderExists(options: {
+  academicYear: string;
+  semester: string;
+}): Promise<{
+  success: boolean;
+  folderPath?: string;
+  folderUrl?: string;
+  isLegacyScript?: boolean;
+  error?: string;
+}> {
+  const webhookUrl = (await fetchGoogleDriveWebhookUrl()).trim();
+  if (!webhookUrl) {
+    return { success: false, error: 'ยังไม่ได้ตั้งค่า Webhook URL ของ Google Apps Script' };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'ensure_term_folder',
+        academicYear: options.academicYear,
+        semester: options.semester,
+      }),
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+
+    const resText = await response.text();
+    const resJson = JSON.parse(resText);
+    if (!resJson.success) {
+      const errStr = String(resJson.error || '');
+      const isLegacy =
+        errStr.includes('base64Data') ||
+        errStr.includes('อาร์กิวเมนต์ต้องไม่เป็นนัล') ||
+        errStr.includes('action');
+      return {
+        success: false,
+        isLegacyScript: isLegacy,
+        error: resJson.error || 'ไม่สามารถสร้างโฟลเดอร์ปีการศึกษาใน Google Drive ได้',
+      };
+    }
+
+    return {
+      success: true,
+      folderPath: resJson.folderPath,
+      folderUrl: resJson.folderUrl,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'ไม่สามารถเชื่อมต่อ Google Apps Script',
+    };
+  }
+}
+
+/**
+ * ย้ายไฟล์และโฟลเดอร์งานเดิมใน Google Drive เข้าสู่โครงสร้าง:
+ * จภ_กาฬสินธุ์_ปีการศึกษา_<year> / เทอม_<sem>
+ * โดยไม่ทำให้ File ID หรือ URL เดิมเปลี่ยนแปลง
+ */
+export async function migrateDriveFilesToTermStructure(options: {
+  academicYear: string;
+  semester: string;
+}): Promise<{
+  success: boolean;
+  movedFilesCount?: number;
+  movedFoldersCount?: number;
+  targetPath?: string;
+  folderUrl?: string;
+  isLegacyScript?: boolean;
+  error?: string;
+}> {
+  const webhookUrl = (await fetchGoogleDriveWebhookUrl()).trim();
+  if (!webhookUrl) {
+    return { success: false, error: 'ยังไม่ได้ตั้งค่า Webhook URL ของ Google Apps Script' };
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'migrate_to_term_folders',
+        academicYear: options.academicYear,
+        semester: options.semester,
+      }),
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+
+    const resText = await response.text();
+    const resJson = JSON.parse(resText);
+    if (!resJson.success) {
+      const errStr = String(resJson.error || '');
+      const isLegacy =
+        errStr.includes('base64Data') ||
+        errStr.includes('อาร์กิวเมนต์ต้องไม่เป็นนัล') ||
+        errStr.includes('action');
+      return {
+        success: false,
+        isLegacyScript: isLegacy,
+        error: resJson.error || 'ไม่สามารถย้ายไฟล์เข้าโฟลเดอร์ใหม่ได้',
+      };
+    }
+
+    return {
+      success: true,
+      movedFilesCount: resJson.movedFilesCount || 0,
+      movedFoldersCount: resJson.movedFoldersCount || 0,
+      targetPath: resJson.targetPath,
+      folderUrl: resJson.folderUrl,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ Google Apps Script',
     };
   }
 }
@@ -1079,7 +1223,100 @@ function doPost(e) {
     }
 
     // =========================================================================
-    // คำสั่งที่ 3: ทำสำเนาไฟล์ที่ตรวจแล้วเข้าโฟลเดอร์ "ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"
+    // คำสั่งที่ 2.5: สร้าง/ตรวจสอบโฟลเดอร์ปีการศึกษาและเทอม และย้ายไฟล์เดิมเข้าโครงสร้างใหม่
+    // =========================================================================
+    if (data.action === "ensure_term_folder") {
+      var ensureInfo = getOrCreateTermFolders(data.academicYear, data.semester);
+      return responseJSON({
+        success: true,
+        folderPath: ensureInfo.folderPath,
+        folderId: ensureInfo.termFolder.getId(),
+        folderUrl: ensureInfo.termFolder.getUrl()
+      });
+    }
+
+    if (data.action === "migrate_to_term_folders") {
+      var destInfo = getOrCreateTermFolders(data.academicYear, data.semester);
+      var destTermFolder = destInfo.termFolder;
+      var destReviewedFolder = getOrCreateSubfolder(destTermFolder, "ตรวจแล้ว");
+      var movedFilesCount = 0;
+      var movedFoldersCount = 0;
+
+      // ช่วยย้ายไฟล์ทั้งหมดจาก srcFolder ไปยัง destFolder (ไม่สร้างไฟล์ใหม่ ใช้ moveTo เพื่อรักษา URL เดิม)
+      var moveAllFiles = function(srcFolder, dstFolder) {
+        var fIter = srcFolder.getFiles();
+        while (fIter.hasNext()) {
+          var fItem = fIter.next();
+          try {
+            fItem.moveTo(dstFolder);
+            movedFilesCount++;
+          } catch (mvErr) {}
+        }
+        var subIter = srcFolder.getFolders();
+        while (subIter.hasNext()) {
+          var sFolder = subIter.next();
+          var sName = sFolder.getName();
+          if (sName.indexOf("จภ_กาฬสินธุ์_ปีการศึกษา_") === 0) continue;
+          var targetSub = getOrCreateSubfolder(dstFolder, sName);
+          movedFoldersCount++;
+          moveAllFiles(sFolder, targetSub);
+        }
+      };
+
+      // 1) ย้ายไฟล์/โฟลเดอร์จากโฟลเดอร์เก่า "PCSHS_KSN_งานวิชาการ" (หรือโฟลเดอร์ใน TARGET_FOLDER_ID)
+      var baseFolderId = (TARGET_FOLDER_ID || "").trim();
+      if (baseFolderId && baseFolderId !== "ใส่_FOLDER_ID_ของท่านที่นี่") {
+        try {
+          var configuredRoot = DriveApp.getFolderById(baseFolderId);
+          var rootChildren = configuredRoot.getFolders();
+          while (rootChildren.hasNext()) {
+            var childF = rootChildren.next();
+            var childName = childF.getName();
+            if (childName.indexOf("จภ_กาฬสินธุ์_ปีการศึกษา_") === 0) continue;
+            if (childName === "ตรวจแล้ว") {
+              moveAllFiles(childF, destReviewedFolder);
+            } else {
+              var destTaskFolder = getOrCreateSubfolder(destTermFolder, childName);
+              movedFoldersCount++;
+              moveAllFiles(childF, destTaskFolder);
+            }
+          }
+          var rootFiles = configuredRoot.getFiles();
+          while (rootFiles.hasNext()) {
+            var rf = rootFiles.next();
+            try {
+              rf.moveTo(destTermFolder);
+              movedFilesCount++;
+            } catch (rfErr) {}
+          }
+        } catch (cfgErr) {}
+      } else {
+        var oldLegacyIter = DriveApp.getFoldersByName("PCSHS_KSN_งานวิชาการ");
+        while (oldLegacyIter.hasNext()) {
+          var legacyFolder = oldLegacyIter.next();
+          moveAllFiles(legacyFolder, destTermFolder);
+        }
+      }
+
+      // 2) ย้ายไฟล์/โฟลเดอร์จากโฟลเดอร์ "ตรวจแล้ว" เก่าที่ระดับ Root (ถ้ามี)
+      var oldRevIter = DriveApp.getFoldersByName("ตรวจแล้ว");
+      while (oldRevIter.hasNext()) {
+        var oldRevFolder = oldRevIter.next();
+        if (oldRevFolder.getId() === destReviewedFolder.getId()) continue;
+        moveAllFiles(oldRevFolder, destReviewedFolder);
+      }
+
+      return responseJSON({
+        success: true,
+        movedFilesCount: movedFilesCount,
+        movedFoldersCount: movedFoldersCount,
+        targetPath: destInfo.folderPath,
+        folderUrl: destTermFolder.getUrl()
+      });
+    }
+
+    // =========================================================================
+    // คำสั่งที่ 3: ทำสำเนาไฟล์ที่ตรวจแล้วเข้าโฟลเดอร์ "จภ_กาฬสินธุ์_ปีการศึกษา_YYYY/เทอม_X/ตรวจแล้ว/ประเภทเอกสาร_สาขาวิชา"
     // =========================================================================
     if (data.action === "archive_reviewed_pdf") {
       if (data.probe === true) {
@@ -1087,29 +1324,19 @@ function doPost(e) {
           success: true,
           probe: true,
           supportsArchive: true,
-          supportsSyncPermissions: true
+          supportsSyncPermissions: true,
+          supportsTermFolders: true
         });
       }
+      var revTermInfo = getOrCreateTermFolders(data.academicYear, data.semester);
       var rootFolderName = "ตรวจแล้ว";
-      var rootFolder;
-      var rootIter = DriveApp.getFoldersByName(rootFolderName);
-      if (rootIter.hasNext()) {
-        rootFolder = rootIter.next();
-      } else {
-        rootFolder = DriveApp.createFolder(rootFolderName);
-      }
+      var rootFolder = getOrCreateSubfolder(revTermInfo.termFolder, rootFolderName);
 
       var docType = (data.docType || data.planType || "เอกสารทั่วไป").toString().trim();
       var branch = (data.branch || data.learningArea || "ทั่วไป").toString().trim();
       var subfolderName = (data.subfolderName || (docType + "_" + branch)).replace(/[\\/\\\\:*?"<>|]/g, "_");
 
-      var targetSubfolder;
-      var subIter = rootFolder.getFoldersByName(subfolderName);
-      if (subIter.hasNext()) {
-        targetSubfolder = subIter.next();
-      } else {
-        targetSubfolder = rootFolder.createFolder(subfolderName);
-      }
+      var targetSubfolder = getOrCreateSubfolder(rootFolder, subfolderName);
 
       var fileUrl = (data.fileUrl || "").toString().trim();
       var newFileName = (data.fileName || ("[ตรวจแล้ว]_" + (data.teacherName || "ครู") + "_" + docType + ".pdf")).replace(/[\\/\\\\:*?"<>|]/g, "_");
@@ -1174,7 +1401,7 @@ function doPost(e) {
           message: "บันทึกไฟล์สำเนาลงในโฟลเดอร์ตรวจแล้วสำเร็จ",
           fileId: copiedFile.getId(),
           fileUrl: "https://drive.google.com/file/d/" + copiedFile.getId() + "/view",
-          folderPath: rootFolderName + "/" + subfolderName,
+          folderPath: revTermInfo.folderPath + "/" + rootFolderName + "/" + subfolderName,
           folderName: subfolderName,
           fileName: copiedFile.getName()
         });
@@ -1279,24 +1506,13 @@ function doPost(e) {
       });
     }
 
-    var baseFolder = getTargetFolder();
+    var termInfo = getOrCreateTermFolders(data.academicYear, data.semester);
+    var baseFolder = termInfo.termFolder;
 
     // 3.1 แยกโฟลเดอร์ตามประเภทงาน (ถ้ายังไม่มี ให้ระบบสร้างโฟลเดอร์ใหม่ให้อัตโนมัติทันที)
     var taskFolderName = (data.assignmentName || data.planType || "เอกสารทั่วไป").toString().trim();
     var cleanFolderName = taskFolderName.replace(/[\\/\\\\:*?"<>|]/g, "_") || "เอกสารทั่วไป";
-    var targetFolder = baseFolder;
-
-    try {
-      var subfolders = baseFolder.getFoldersByName(cleanFolderName);
-      if (subfolders.hasNext()) {
-        targetFolder = subfolders.next();
-      } else {
-        // หากเป็นงานประเภทใหม่ที่แอดมินเพิ่งสร้าง ระบบจะสร้างโฟลเดอร์ใหม่ใน Drive ให้อัตโนมัติทันที
-        targetFolder = baseFolder.createFolder(cleanFolderName);
-      }
-    } catch (subfolderErr) {
-      targetFolder = baseFolder;
-    }
+    var targetFolder = getOrCreateSubfolder(baseFolder, cleanFolderName);
 
     // แปลง Base64 กลับเป็นไฟล์ PDF
     var contentType = data.mimeType || "application/pdf";
@@ -1377,6 +1593,49 @@ function doPost(e) {
       error: "เกิดข้อผิดพลาดในการประมวลผล: " + err.toString()
     });
   }
+}
+
+/**
+ * ดึงหรือสร้างโฟลเดอร์ย่อยภายในโฟลเดอร์แม่
+ */
+function getOrCreateSubfolder(parentFolder, folderName) {
+  var cleanName = (folderName || "เอกสารทั่วไป").toString().replace(/[\\/\\\\:*?"<>|]/g, "_").trim();
+  var iter = parentFolder ? parentFolder.getFoldersByName(cleanName) : DriveApp.getFoldersByName(cleanName);
+  if (iter.hasNext()) {
+    return iter.next();
+  }
+  return parentFolder ? parentFolder.createFolder(cleanName) : DriveApp.createFolder(cleanName);
+}
+
+/**
+ * สร้าง/ดึงโครงสร้างโฟลเดอร์: จภ_กาฬสินธุ์_ปีการศึกษา_<YYYY> / เทอม_<X>
+ */
+function getOrCreateTermFolders(academicYear, semester) {
+  var cleanYear = (academicYear || "2569").toString().replace(/[\\/\\\\:*?"<>|]/g, "").trim();
+  var cleanSem = (semester || "2").toString().replace(/[\\/\\\\:*?"<>|]/g, "").trim();
+  var yearFolderName = "จภ_กาฬสินธุ์_ปีการศึกษา_" + cleanYear;
+  var termFolderName = "เทอม_" + cleanSem;
+
+  var rootParent = null;
+  var folderId = (TARGET_FOLDER_ID || "").trim();
+  if (folderId && folderId !== "ใส่_FOLDER_ID_ของท่านที่นี่") {
+    try {
+      rootParent = DriveApp.getFolderById(folderId);
+    } catch (e) {
+      rootParent = null;
+    }
+  }
+
+  var yearFolder = getOrCreateSubfolder(rootParent, yearFolderName);
+  var termFolder = getOrCreateSubfolder(yearFolder, termFolderName);
+
+  return {
+    yearFolder: yearFolder,
+    termFolder: termFolder,
+    yearFolderName: yearFolderName,
+    termFolderName: termFolderName,
+    folderPath: yearFolderName + "/" + termFolderName
+  };
 }
 
 /**

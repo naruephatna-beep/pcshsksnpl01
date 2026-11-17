@@ -366,3 +366,19 @@ export function canTeacherViewAllDocuments(
   }
   return false;
 }
+
+/**
+ * การตั้งค่าปีการศึกษาและภาคเรียนปัจจุบันของระบบ
+ */
+export interface ActiveTermConfig {
+  academic_year: string; // เช่น "2569"
+  semester: string; // "1" | "2"
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export const DEFAULT_ACTIVE_TERM_CONFIG: ActiveTermConfig = {
+  academic_year: '2569',
+  semester: '2',
+};
+

@@ -5,6 +5,8 @@ import {
   DynamicFormField,
   AssignmentSubmission,
   LessonPlan,
+  ActiveTermConfig,
+  DEFAULT_ACTIVE_TERM_CONFIG,
 } from '../types';
 import { checkSubmissionTimeliness } from '../utils/deadlineUtils';
 import {
@@ -63,6 +65,7 @@ interface DynamicSubmitModalProps {
   ) => void;
   existingSubmission?: AssignmentSubmission | null;
   onSwitchToStandard?: (typeName: string) => void;
+  activeTerm?: ActiveTermConfig;
 }
 
 export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
@@ -73,6 +76,7 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   onSubmitted,
   existingSubmission,
   onSwitchToStandard,
+  activeTerm = DEFAULT_ACTIVE_TERM_CONFIG,
 }) => {
   const fields: DynamicFormField[] = config.fields || [];
   const formRef = useRef<HTMLDivElement>(null);
@@ -273,8 +277,8 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
             courseCode: formCourseCode,
             subjectName: formSubjectName,
             gradeLevel: formGradeLevel,
-            semester: config.semester,
-            academicYear: config.academic_year,
+            semester: config.semester || activeTerm.semester || '2',
+            academicYear: config.academic_year || activeTerm.academic_year || '2569',
             submitterEmail: currentTeacher.Email,
           }
         );
@@ -499,8 +503,8 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
           subject_code: String(subjectCodeCandidate),
           subject_name: String(subjectNameCandidate),
           grade_level: String(it.formValues['fld_grade_level'] || 'มัธยมศึกษา'),
-          semester: config.semester,
-          academic_year: config.academic_year,
+          semester: config.semester || activeTerm.semester || '2',
+          academic_year: config.academic_year || activeTerm.academic_year || '2569',
           plan_title: String(titleCandidate).substring(0, 120),
           plan_type: config.name,
           total_hours: Number(it.formValues['fld_hours']) || 1,

@@ -14,7 +14,15 @@ import {
   AllDocumentsAccessConfig,
   DEFAULT_ALL_DOCS_ACCESS_CONFIG,
   canTeacherViewAllDocuments,
+  ActiveTermConfig,
+  DEFAULT_ACTIVE_TERM_CONFIG,
 } from './types';
+import {
+  getLocalActiveTerm,
+  saveLocalActiveTerm,
+  isPlanInActiveTerm,
+} from './utils/academicTermUtils';
+import { AcademicTermModal } from './components/AcademicTermModal';
 import {
   fetchTeachers,
   getLocalTeachers,
@@ -206,7 +214,9 @@ export default function App() {
   const [isStaffStructureModalOpen, setIsStaffStructureModalOpen] = useState(false);
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   const [isAllDocsPermissionModalOpen, setIsAllDocsPermissionModalOpen] = useState(false);
+  const [isAcademicTermModalOpen, setIsAcademicTermModalOpen] = useState(false);
   const [isAdminTopMenuOpen, setIsAdminTopMenuOpen] = useState(false);
+  const [activeTerm, setActiveTerm] = useState<ActiveTermConfig>(() => getLocalActiveTerm());
   const [allDocsAccessConfig, setAllDocsAccessConfig] = useState<AllDocumentsAccessConfig>(() => {
     try {
       const raw = localStorage.getItem('school_all_docs_access_config');
@@ -253,7 +263,7 @@ export default function App() {
     setIsSyncing(true);
     try {
       // Execute all database fetches and cloud deleted IDs sync concurrently in a single parallel batch
-      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes, allDocsAccessRes] = await Promise.all([
+      const [teachersRes, plansRes, dlSettingsRes, statusSettingsRes, submissionsRes, gdriveRes, deletedIds, deptRes, branchRes, wfRes, allDocsAccessRes, activeTermRes] = await Promise.all([
         fetchTeachers(),
         fetchPlans(currentTeacher),
         fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
@@ -265,9 +275,22 @@ export default function App() {
         fetchSystemSetting<BranchConfig[]>('school_branches', getLocalBranches()),
         fetchSystemSetting<ReviewWorkflowConfig[]>('review_workflows', getLocalWorkflows()),
         fetchSystemSetting<AllDocumentsAccessConfig>('school_all_docs_access_config', DEFAULT_ALL_DOCS_ACCESS_CONFIG),
+        fetchSystemSetting<ActiveTermConfig>('school_active_term', getLocalActiveTerm()),
       ]);
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
+
+      let currentActiveTerm = getLocalActiveTerm();
+      if (activeTermRes?.data && activeTermRes.data.academic_year && activeTermRes.data.semester) {
+        currentActiveTerm = {
+          academic_year: String(activeTermRes.data.academic_year).trim(),
+          semester: String(activeTermRes.data.semester).trim(),
+          updated_at: activeTermRes.data.updated_at,
+          updated_by: activeTermRes.data.updated_by,
+        };
+        setActiveTerm(currentActiveTerm);
+        saveLocalActiveTerm(currentActiveTerm);
+      }
 
       if (allDocsAccessRes?.data && typeof allDocsAccessRes.data === 'object') {
         setAllDocsAccessConfig(allDocsAccessRes.data);
@@ -349,8 +372,8 @@ export default function App() {
             subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
             subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
             grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
-            semester: dlConfig?.semester || '1',
-            academic_year: dlConfig?.academic_year || '2567',
+            semester: dlConfig?.semester || currentActiveTerm.semester || DEFAULT_ACTIVE_TERM_CONFIG.semester,
+            academic_year: dlConfig?.academic_year || currentActiveTerm.academic_year || DEFAULT_ACTIVE_TERM_CONFIG.academic_year,
             plan_title: String(titleCandidate).substring(0, 120),
             plan_type: sub.assignment_name,
             total_hours: Number(answers['fld_hours']) || 1,
@@ -556,8 +579,8 @@ export default function App() {
                 subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
                 subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
                 grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
-                semester: dlConfig?.semester || '1',
-                academic_year: dlConfig?.academic_year || '2567',
+                semester: dlConfig?.semester || activeTerm.semester || DEFAULT_ACTIVE_TERM_CONFIG.semester,
+                academic_year: dlConfig?.academic_year || activeTerm.academic_year || DEFAULT_ACTIVE_TERM_CONFIG.academic_year,
                 plan_title: String(titleCandidate).substring(0, 120),
                 plan_type: sub.assignment_name,
                 total_hours: Number(answers['fld_hours']) || 1,
@@ -646,9 +669,10 @@ export default function App() {
           setTeachers(teachersRes.data);
         }
       } else if (table === 'system_settings') {
-        const [dlRes, stRes] = await Promise.all([
+        const [dlRes, stRes, termRes] = await Promise.all([
           fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
           fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
+          fetchSystemSetting<ActiveTermConfig>('school_active_term', getLocalActiveTerm()),
         ]);
         if (dlRes.data && Array.isArray(dlRes.data)) {
           setDeadlineConfigs(dlRes.data);
@@ -657,6 +681,16 @@ export default function App() {
         if (stRes.data && Array.isArray(stRes.data)) {
           setStatusConfigs(stRes.data);
           saveStatusConfigs(stRes.data);
+        }
+        if (termRes?.data && termRes.data.academic_year && termRes.data.semester) {
+          const syncedTerm: ActiveTermConfig = {
+            academic_year: String(termRes.data.academic_year).trim(),
+            semester: String(termRes.data.semester).trim(),
+            updated_at: termRes.data.updated_at,
+            updated_by: termRes.data.updated_by,
+          };
+          setActiveTerm(syncedTerm);
+          saveLocalActiveTerm(syncedTerm);
         }
       } else {
         syncWithDatabase(true);
@@ -921,6 +955,8 @@ export default function App() {
         fileName: updatedPlan.file_name,
         reviewerName: currentTeacher?.Name,
         reviewerId: currentTeacher?.Teacher_ID,
+        academicYear: updatedPlan.academic_year || activeTerm.academic_year,
+        semester: updatedPlan.semester || activeTerm.semester,
       }).then((archiveRes) => {
         if (archiveRes.success) {
           setToastNotice({
@@ -1173,6 +1209,8 @@ export default function App() {
         fileName: updatedPlan.file_name,
         reviewerName: currentTeacher?.Name,
         reviewerId: currentTeacher?.Teacher_ID,
+        academicYear: updatedPlan.academic_year || activeTerm.academic_year,
+        semester: updatedPlan.semester || activeTerm.semester,
       }).catch((err) => {
         console.warn('[Quick Status GoogleDrive Archive Error]', err);
       });
@@ -1231,6 +1269,11 @@ export default function App() {
     }
   };
 
+  // Active Academic Year & Semester plans filter: web UI always shows only active term plans
+  const activeTermPlans = useMemo(() => {
+    return plans.filter((p) => p.status !== 'deleted' && isPlanInActiveTerm(p, activeTerm));
+  }, [plans, activeTerm]);
+
   const pendingAssignmentsCount = useMemo(() => {
     if (!currentTeacher || isAdmin) return 0;
     const activeConfigs = (deadlineConfigs || []).filter((c) => c.is_active !== false);
@@ -1238,7 +1281,7 @@ export default function App() {
     const currentTeacherId = normalize(currentTeacher.Teacher_ID);
     const currentTeacherName = normalize(currentTeacher.Name);
 
-    const myPlans = plans.filter((p) => {
+    const myPlans = activeTermPlans.filter((p) => {
       const pId = normalize(p.teacher_id);
       const pName = normalize(p.teacher_name);
       return (currentTeacherId && pId === currentTeacherId) || (currentTeacherName && pName === currentTeacherName);
@@ -1252,7 +1295,7 @@ export default function App() {
       if (!submitted) pending++;
     }
     return pending;
-  }, [currentTeacher, isAdmin, deadlineConfigs, plans]);
+  }, [currentTeacher, isAdmin, deadlineConfigs, activeTermPlans]);
 
   const handleScrollToAssignments = (filter?: 'pending' | 'all' | React.MouseEvent) => {
     // Default to 'all' so teacher's submitted assignments don't disappear when clicking notification
@@ -1610,7 +1653,7 @@ export default function App() {
     const completedList: LessonPlan[] = [];
     const allList: LessonPlan[] = [];
 
-    for (const p of plans) {
+    for (const p of activeTermPlans) {
       if (p.status === 'deleted') continue;
 
       const isPending = isPlanPendingForMe(p, currentTeacher, workflows, teachers, departments);
@@ -1632,7 +1675,7 @@ export default function App() {
       assignedCompletedPlans: completedList,
       allAssignedReviewPlans: allList,
     };
-  }, [plans, currentTeacher, workflows, teachers, departments]);
+  }, [activeTermPlans, currentTeacher, workflows, teachers, departments]);
 
   const assignedPendingCount = assignedPendingPlans.length;
   const assignedCompletedCount = assignedCompletedPlans.length;
@@ -1646,10 +1689,10 @@ export default function App() {
       return allAssignedReviewPlans;
     }
     if (isAdmin || (canViewAllDocs && viewTab === 'school_all')) {
-      if (areaFilter) return plans.filter((p) => p.learning_area === areaFilter && p.status !== 'deleted');
-      return plans.filter((p) => p.status !== 'deleted');
+      if (areaFilter) return activeTermPlans.filter((p) => p.learning_area === areaFilter && p.status !== 'deleted');
+      return activeTermPlans.filter((p) => p.status !== 'deleted');
     }
-    return plans.filter(
+    return activeTermPlans.filter(
       (p) => isSameTeacherIdOrName(p.teacher_id, p.teacher_name, currentTeacher) && p.status !== 'deleted'
     );
   }, [
@@ -1661,7 +1704,7 @@ export default function App() {
     isAdmin,
     canViewAllDocs,
     areaFilter,
-    plans,
+    activeTermPlans,
     currentTeacher,
   ]);
 
@@ -1788,7 +1831,7 @@ export default function App() {
 
   // Filtered plans logic (memoized to eliminate redundant computations on every keystroke/render)
   const filteredPlans = useMemo(() => {
-    return plans.filter((plan) => {
+    return activeTermPlans.filter((plan) => {
       if (plan.status === 'deleted') return false;
 
       // 1. Tab-level filter
@@ -1881,7 +1924,7 @@ export default function App() {
       return true;
     });
   }, [
-    plans,
+    activeTermPlans,
     viewTab,
     assignedReviewSubTab,
     currentTeacher,
@@ -2166,8 +2209,8 @@ export default function App() {
           viewTab={viewTab}
           setViewTab={setViewTab}
           pendingAssignmentsCount={pendingAssignmentsCount}
-          totalPlansCount={plans.length}
-          myPlansCount={plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length}
+          totalPlansCount={activeTermPlans.length}
+          myPlansCount={activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length}
           isMobileOpen={false}
           onCloseMobile={() => {}}
           onOpenSubmitModal={() => {
@@ -2182,6 +2225,8 @@ export default function App() {
           onOpenAdminTrackerModal={handleOpenAdminTracker}
           onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
           onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
+          onOpenAcademicTerm={() => setIsAcademicTermModalOpen(true)}
+          activeTerm={activeTerm}
           onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
           onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
           onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
@@ -2214,8 +2259,8 @@ export default function App() {
               viewTab={viewTab}
               setViewTab={setViewTab}
               pendingAssignmentsCount={pendingAssignmentsCount}
-              totalPlansCount={plans.length}
-              myPlansCount={plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length}
+              totalPlansCount={activeTermPlans.length}
+              myPlansCount={activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length}
               isMobileOpen={true}
               onCloseMobile={() => setIsMobileSidebarOpen(false)}
               onOpenSubmitModal={() => {
@@ -2230,6 +2275,8 @@ export default function App() {
               onOpenAdminTrackerModal={handleOpenAdminTracker}
               onOpenDeadlineManager={() => setIsDeadlineModalOpen(true)}
               onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
+              onOpenAcademicTerm={() => setIsAcademicTermModalOpen(true)}
+              activeTerm={activeTerm}
               onOpenStaffStructure={() => setIsStaffStructureModalOpen(true)}
               onOpenWorkflowManager={() => setIsWorkflowModalOpen(true)}
               onOpenReviewerWorkload={() => setIsReviewerWorkloadModalOpen(true)}
@@ -2267,7 +2314,7 @@ export default function App() {
                   ระบบส่งเอกสารวิชาการ
                 </span>
                 <span className="text-[10px] text-amber-400 font-semibold block truncate">
-                  จ.ภ. กาฬสินธุ์ · ภาคเรียนที่ 2/2567
+                  จ.ภ. กาฬสินธุ์ · ภาคเรียนที่ {activeTerm.semester}/{activeTerm.academic_year}
                 </span>
               </div>
             </div>
@@ -2304,9 +2351,21 @@ export default function App() {
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span className="font-semibold text-slate-700">จ.ภ. กาฬสินธุ์</span>
               <span className="text-slate-300">/</span>
-              <span className="text-amber-800 font-semibold text-xs">
-                ภาคเรียนที่ 2/2567
-              </span>
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => setIsAcademicTermModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300/80 text-amber-900 font-bold text-xs transition-colors cursor-pointer"
+                  title="คลิกเพื่อเปลี่ยนปีการศึกษา / ภาคเรียน และจัดการโฟลเดอร์ Google Drive"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                  <span>ภาคเรียนที่ {activeTerm.semester}/{activeTerm.academic_year}</span>
+                </button>
+              ) : (
+                <span className="text-amber-800 font-semibold text-xs">
+                  ภาคเรียนที่ {activeTerm.semester}/{activeTerm.academic_year}
+                </span>
+              )}
               <span className="text-slate-300">/</span>
               <span className="font-bold text-slate-900">
                 {mainView === 'executive'
@@ -2434,6 +2493,25 @@ export default function App() {
                         <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           ตั้งค่าระบบ
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAcademicTermModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-amber-50 text-slate-700 hover:text-amber-950 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-xs flex items-center justify-between gap-2">
+                              <span>ปีการศึกษา &amp; ภาคเรียน</span>
+                              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900">
+                                {activeTerm.semester}/{activeTerm.academic_year}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-400">เปลี่ยนเทอม/ปี • จัดการโฟลเดอร์ Drive</div>
+                          </div>
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -2572,7 +2650,7 @@ export default function App() {
           {/* แถบนับถอยหลังเป็น สีแสดทอง (#F59E0B) โดดเด่น มองเห็นทันทีตั้งแต่เปิดเว็บ */}
           <DeadlineCountdownBanner
             currentTeacher={currentTeacher}
-            plans={plans}
+            plans={activeTermPlans}
             deadlineConfigs={deadlineConfigs}
             onOpenSubmitForType={handleOpenSubmitForType}
             isAdmin={isAdmin}
@@ -2609,7 +2687,7 @@ export default function App() {
                     ? 'ศูนย์บัญชาการข้อมูลฝ่ายบริหาร: ติดตามสถานะการส่งงานรายคน รายกลุ่มสาระ สรุปช้าเร็วตรงเวลา พร้อมกราฟและรายงานผู้บริหาร'
                     : isAdmin
                     ? 'ระบบจัดการและส่งแผนการจัดการเรียนรู้ออนไลน์ พร้อมระบบอนุมัติและประเมินคุณภาพทุกกลุ่มสาระการเรียนรู้'
-                    : `ระบบจัดส่งเอกสารและติดตามผลการตรวจแผนการจัดการเรียนรู้ ประจำภาคเรียนที่ 2/2567`}
+                    : `ระบบจัดส่งเอกสารและติดตามผลการตรวจแผนการจัดการเรียนรู้ ประจำภาคเรียนที่ ${activeTerm.semester}/${activeTerm.academic_year}`}
                 </p>
               </div>
 
@@ -2667,7 +2745,7 @@ export default function App() {
               >
                 <FileText className="w-4 h-4 text-indigo-600" />
                 <span>รายการเอกสารทั้งหมด</span>
-                <span className="font-mono text-[11px] text-slate-400">({plans.length})</span>
+                <span className="font-mono text-[11px] text-slate-400">({activeTermPlans.length})</span>
               </button>
             </div>
 
@@ -2732,7 +2810,7 @@ export default function App() {
           <div id="executive-dashboard-section" className="scroll-mt-20">
             <ExecutiveDashboard
               teachers={teachers}
-              plans={plans}
+              plans={activeTermPlans}
               currentTeacher={currentTeacher}
               deadlineConfigs={deadlineConfigs}
               executiveMode={executiveMode}
@@ -2806,7 +2884,7 @@ export default function App() {
             {!isAdmin && currentTeacher && (
               <TeacherAssignmentNotification
                 currentTeacher={currentTeacher}
-                plans={plans}
+                plans={activeTermPlans}
                 deadlineConfigs={deadlineConfigs}
                 statusConfigs={statusConfigs}
                 onOpenSubmitForType={handleOpenSubmitForType}
@@ -2874,7 +2952,7 @@ export default function App() {
                   {isTeacherStatsOpen && (
                     <div className="p-3 sm:p-4 border-t border-slate-100 bg-slate-50/50 animate-in fade-in duration-150">
                       <DashboardStats
-                        plans={plans}
+                        plans={activeTermPlans}
                         teachers={teachers}
                         currentTeacher={currentTeacher}
                         selectedArea={areaFilter}
@@ -2888,7 +2966,7 @@ export default function App() {
                 </div>
               ) : (
                 <DashboardStats
-                  plans={plans}
+                  plans={activeTermPlans}
                   teachers={teachers}
                   currentTeacher={currentTeacher}
                   selectedArea={areaFilter}
@@ -2914,7 +2992,7 @@ export default function App() {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  เอกสารของฉัน ({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
+                  เอกสารของฉัน ({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID).length})
                 </button>
                 {canViewAllDocs && (
                   <button
@@ -2929,7 +3007,7 @@ export default function App() {
                     <Layers className="w-3.5 h-3.5 text-indigo-600" />
                     <span>เอกสารทั้งโรงเรียน</span>
                     <span className="text-slate-500 font-mono text-xs">
-                      ({plans.filter((p) => p.status !== 'deleted').length})
+                      ({activeTermPlans.filter((p) => p.status !== 'deleted').length})
                     </span>
                   </button>
                 )}
@@ -2944,7 +3022,7 @@ export default function App() {
                 >
                   <span>แผนของฉันที่รอตรวจ</span>
                   <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                  <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'submitted').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'submitted').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('approved')}
@@ -2955,7 +3033,7 @@ export default function App() {
                   }`}
                 >
                   <span>อนุมัติแล้ว</span>
-                  <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'approved').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'approved').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('needs_revision')}
@@ -2966,7 +3044,7 @@ export default function App() {
                   }`}
                 >
                   <span>ส่งกลับแก้ไข</span>
-                  <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'needs_revision').length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.status === 'needs_revision').length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('late' as any)}
@@ -2978,7 +3056,7 @@ export default function App() {
                 >
                   <span>ส่งช้า</span>
                   <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                  <span className="text-slate-500 font-mono text-xs">({plans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.is_late).length})</span>
+                  <span className="text-slate-500 font-mono text-xs">({activeTermPlans.filter((p) => p.teacher_id === currentTeacher?.Teacher_ID && p.is_late).length})</span>
                 </button>
                 <button
                   onClick={() => setViewTab('assigned_to_me')}
@@ -3008,7 +3086,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <div className="px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-950 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-2xs">
                   <Layers className="w-4 h-4 text-indigo-600" />
-                  <span>เอกสารทั้งหมดในระบบ ({plans.length} รายการ)</span>
+                  <span>เอกสารทั้งหมดในระบบ ({activeTermPlans.length} รายการ)</span>
                 </div>
               </div>
             )}
@@ -3887,6 +3965,7 @@ export default function App() {
           isSupabaseConnected={isSupabaseConnected}
           deadlineConfigs={deadlineConfigs}
           initialPlanType={submitModalInitialType}
+          activeTerm={activeTerm}
           onSwitchToDynamic={(cfg) => {
             setIsSubmitModalOpen(false);
             setSubmitModalInitialType(undefined);
@@ -3998,7 +4077,7 @@ export default function App() {
       {/* File Storage Hub Info Modal */}
       {isFileStorageModalOpen && (
         <FileStorageInfoModal
-          plans={plans}
+          plans={activeTermPlans}
           isOpen={isFileStorageModalOpen}
           onClose={() => setIsFileStorageModalOpen(false)}
         />
@@ -4008,7 +4087,7 @@ export default function App() {
       {isAdminTrackerModalOpen && (
         <AdminTrackerModal
           teachers={teachers}
-          plans={plans}
+          plans={activeTermPlans}
           deadlineConfigs={deadlineConfigs}
           statusConfigs={statusConfigs}
           initialViewMode={adminTrackerInitialView}
@@ -4035,12 +4114,44 @@ export default function App() {
           onSaveDeadlineConfigs={handleSaveDeadlineConfigs}
           statusConfigs={statusConfigs}
           onSaveStatusConfigs={handleSaveStatusConfigs}
-          plans={plans}
+          plans={activeTermPlans}
           onUpdatePlanStatus={handleQuickChangePlanStatus}
           onOpenReview={(p) => setSelectedPlanForReview(p)}
           isSupabaseConnected={isSupabaseConnected}
           currentTeacher={currentTeacher}
           teachers={teachers}
+          activeTerm={activeTerm}
+        />
+      )}
+
+      {/* Academic Year & Semester Manager Modal (Admin) */}
+      {isAdmin && isAcademicTermModalOpen && (
+        <AcademicTermModal
+          isOpen={isAcademicTermModalOpen}
+          onClose={() => setIsAcademicTermModalOpen(false)}
+          activeTerm={activeTerm}
+          currentTeacher={currentTeacher}
+          allPlans={plans}
+          deadlineConfigs={deadlineConfigs}
+          onTermApplied={(nextTerm, purgedIds, updatedDeadlines) => {
+            setActiveTerm(nextTerm);
+            if (purgedIds && purgedIds.length > 0) {
+              const purgedSet = new Set(purgedIds);
+              setPlans((prev) => prev.filter((p) => !purgedSet.has(p.id)));
+            }
+            if (updatedDeadlines && updatedDeadlines.length > 0) {
+              handleSaveDeadlineConfigs(updatedDeadlines);
+            }
+            setToastNotice({
+              type: 'success',
+              message: `ตั้งค่าภาคเรียนที่ ${nextTerm.semester}/${nextTerm.academic_year} เรียบร้อยแล้ว`,
+              details:
+                purgedIds && purgedIds.length > 0
+                  ? `ล้างงานเก่าจากฐานข้อมูล ${purgedIds.length} รายการเรียบร้อย (ไฟล์ทั้งหมดใน Google Drive ยังคงอยู่ครบถ้วน)`
+                  : `ระบบแสดงเฉพาะเอกสารของปีการศึกษา ${nextTerm.academic_year} เทอม ${nextTerm.semester}`,
+            });
+          }}
+          onOpenGoogleDriveConfig={() => setIsGoogleDriveModalOpen(true)}
         />
       )}
 
@@ -4065,6 +4176,7 @@ export default function App() {
           currentTeacher={currentTeacher}
           config={selectedDynamicConfig}
           isOpen={isDynamicSubmitModalOpen}
+          activeTerm={activeTerm}
           onClose={() => {
             setIsDynamicSubmitModalOpen(false);
             setSelectedDynamicConfig(null);
@@ -4183,7 +4295,7 @@ export default function App() {
           isOpen={isReviewerWorkloadModalOpen}
           onClose={() => setIsReviewerWorkloadModalOpen(false)}
           teachers={teachers}
-          plans={plans}
+          plans={activeTermPlans}
           workflows={workflows}
           departments={departments}
           branches={branches}
