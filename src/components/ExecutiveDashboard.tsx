@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Teacher, LessonPlan, isTeacherAdmin, PlanTypeDeadlineConfig } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import { getSavedDeadlineConfigs } from '../utils/deadlineUtils';
+import { resolvePrimaryPlanFileUrl, isValidHttpFileUrl } from '../utils/fileLinkUtils';
 import { DataDrivenOrgView } from './DataDrivenOrgView';
 import {
   BarChart3,
@@ -2500,17 +2501,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0">
-                                      {plan.file_url && (
-                                        <a
-                                          href={plan.file_url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0 transition-colors"
-                                          title="เปิดดูไฟล์เอกสาร"
-                                        >
-                                          <ExternalLink className="w-3.5 h-3.5" />
-                                        </a>
-                                      )}
+                                      {(() => {
+                                        const resolvedUrl = resolvePrimaryPlanFileUrl(plan);
+                                        return isValidHttpFileUrl(resolvedUrl) ? (
+                                          <a
+                                            href={resolvedUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0 transition-colors"
+                                            title="เปิดดูไฟล์เอกสาร"
+                                          >
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                          </a>
+                                        ) : null;
+                                      })()}
                                       {onOpenPlan && (
                                         <button
                                           type="button"
@@ -2631,16 +2635,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                                   {plan.is_late ? 'ส่งล่าช้า' : 'ตรงเวลา'} • {new Date(plan.submitted_at).toLocaleDateString('th-TH')}
                                 </div>
                               </div>
-                              {plan.file_url && (
-                                <a
-                                  href={plan.file_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </a>
-                              )}
+                              {(() => {
+                                const resolvedUrl = resolvePrimaryPlanFileUrl(plan);
+                                return isValidHttpFileUrl(resolvedUrl) ? (
+                                  <a
+                                    href={resolvedUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                                    title="เปิดดูไฟล์เอกสาร"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                ) : null;
+                              })()}
                             </div>
                           ))}
                         </div>

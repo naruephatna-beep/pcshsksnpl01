@@ -1,5 +1,6 @@
 import React from 'react';
 import { LessonPlan } from '../types';
+import { resolvePrimaryPlanFileUrl, isValidHttpFileUrl } from '../utils/fileLinkUtils';
 import {
   X,
   HardDrive,
@@ -128,15 +129,24 @@ export const FileStorageInfoModal: React.FC<FileStorageInfoModalProps> = ({
                     </div>
                   </div>
 
-                  <a
-                    href={p.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 rounded-lg font-medium transition-colors shrink-0"
-                  >
-                    <span>เปิดดูไฟล์</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  {(() => {
+                    const resolvedUrl = resolvePrimaryPlanFileUrl(p);
+                    return isValidHttpFileUrl(resolvedUrl) ? (
+                      <a
+                        href={resolvedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 rounded-lg font-medium transition-colors shrink-0"
+                      >
+                        <span>เปิดดูไฟล์</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-rose-500 font-medium shrink-0">
+                        ไม่พบลิงก์ไฟล์
+                      </span>
+                    );
+                  })()}
                 </div>
               ))}
             </div>

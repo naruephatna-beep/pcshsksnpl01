@@ -97,6 +97,7 @@ import {
   saveLocalBranches,
   saveBranches,
   getLocalWorkflows,
+  saveLocalWorkflows,
   getWorkflowForPlan,
   assignWorkflowToPlan,
   resolveReviewersForStage,
@@ -310,6 +311,7 @@ export default function App() {
       }
       if (wfRes?.data && Array.isArray(wfRes.data) && wfRes.data.length > 0) {
         setWorkflows(wfRes.data);
+        saveLocalWorkflows(wfRes.data);
       }
 
       let effectiveDl = getSavedDeadlineConfigs();
@@ -3994,6 +3996,7 @@ export default function App() {
       {/* Review Plan Modal */}
       {selectedPlanForReview && (
         <ReviewPlanModal
+          key={selectedPlanForReview.id}
           plan={selectedPlanForReview}
           reviewer={currentTeacher || teachers.find(isTeacherAdmin) || teachers[0]}
           isOpen={!!selectedPlanForReview}

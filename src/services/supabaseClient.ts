@@ -804,11 +804,20 @@ export function filterPlansForTeacherScope(
   const myId = String(currentTeacher.Teacher_ID).toLowerCase().trim();
   const myName = String(currentTeacher.Name).trim();
 
-  // Load dynamic workflow assignments from localStorage if present
+  // Load dynamic workflow assignments & workflows from localStorage if present
   let assignmentMap: Record<string, any> = {};
   try {
     const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
     if (rawAssign) assignmentMap = JSON.parse(rawAssign);
+  } catch {}
+
+  let workflowsList: any[] = [];
+  try {
+    const rawWf = localStorage.getItem('lp_review_workflows');
+    if (rawWf) {
+      const parsedWf = JSON.parse(rawWf);
+      if (Array.isArray(parsedWf)) workflowsList = parsedWf;
+    }
   } catch {}
 
   const isHeadOfBranch =
@@ -843,6 +852,40 @@ export function filterPlansForTeacherScope(
 
     const assignedName = String(p.assigned_reviewer_name || assignmentMap[p.id]?.assigned_reviewer_name || '').trim();
     if (assignedName && myName && (assignedName.includes(myName) || myName.includes(assignedName))) return true;
+
+    // 2.5 Reviewer who already reviewed a stage or is explicitly assigned in a matching workflow
+    if (Array.isArray(p.stage_reviews) && p.stage_reviews.some((sr) => String(sr.reviewer_id || '').toLowerCase().trim() === myId)) {
+      return true;
+    }
+    if (workflowsList.length > 0) {
+      const pTypeLower = String(p.plan_type || p.plan_title || '').trim().toLowerCase();
+      const matchingWf = workflowsList.find((wf) => {
+        if (!wf || wf.is_active === false) return false;
+        if (p.workflow_id && wf.id === p.workflow_id) return true;
+        const wfType = String(wf.plan_type || '').trim().toLowerCase();
+        if (wfType && wfType !== 'all' && (pTypeLower === wfType || pTypeLower.includes(wfType) || wfType.includes(pTypeLower))) {
+          return true;
+        }
+        if (Array.isArray(wf.target_plan_types)) {
+          return wf.target_plan_types.some((t: string) => {
+            const lt = String(t || '').trim().toLowerCase();
+            return lt && (pTypeLower === lt || pTypeLower.includes(lt) || lt.includes(pTypeLower));
+          });
+        }
+        return false;
+      });
+      if (
+        matchingWf &&
+        Array.isArray(matchingWf.stages) &&
+        matchingWf.stages.some(
+          (st: any) =>
+            Array.isArray(st?.assigned_teacher_ids) &&
+            st.assigned_teacher_ids.some((tid: string) => String(tid).toLowerCase().trim() === myId)
+        )
+      ) {
+        return true;
+      }
+    }
 
     // 3. Branch head scope (all plans within their branch discipline)
     if (isHeadOfBranch && myBranchClean) {

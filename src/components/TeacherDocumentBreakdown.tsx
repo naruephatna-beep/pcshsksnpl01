@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import { formatThaiDateTime } from '../utils/deadlineUtils';
+import { resolvePrimaryPlanFileUrl, isValidHttpFileUrl } from '../utils/fileLinkUtils';
 import {
   FileText,
   Search,
@@ -1145,23 +1146,26 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
                                       {/* Action Buttons */}
                                       <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
                                         {/* View File Button */}
-                                        {plan.file_url && plan.file_url !== '#' ? (
-                                          <a
-                                            href={plan.file_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="h-7 px-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                                            title="เปิดดูเอกสาร / ไฟล์แนบ Google Drive"
-                                          >
-                                            <Eye className="w-3 h-3 text-amber-400" />
-                                            <span>เปิดดูเอกสาร</span>
-                                            <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-                                          </a>
-                                        ) : (
-                                          <span className="text-[10px] text-slate-400 italic">
-                                            ไม่มีไฟล์แนบ
-                                          </span>
-                                        )}
+                                        {(() => {
+                                          const resolvedUrl = resolvePrimaryPlanFileUrl(plan);
+                                          return isValidHttpFileUrl(resolvedUrl) ? (
+                                            <a
+                                              href={resolvedUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="h-7 px-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                              title="เปิดดูเอกสาร / ไฟล์แนบ Google Drive"
+                                            >
+                                              <Eye className="w-3 h-3 text-amber-400" />
+                                              <span>เปิดดูเอกสาร</span>
+                                              <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                                            </a>
+                                          ) : (
+                                            <span className="text-[10px] text-slate-400 italic">
+                                              ไม่มีไฟล์แนบ
+                                            </span>
+                                          );
+                                        })()}
 
                                         <div className="flex items-center gap-1">
                                           {/* Certificate Button for Approved Plans */}
