@@ -6,6 +6,7 @@ import {
   getPlanStatusInfo,
   isPlanMatchingAssignment,
 } from '../utils/deadlineUtils';
+import { resolvePrimaryPlanFileUrl } from '../utils/fileLinkUtils';
 import {
   Bell,
   Clock,
@@ -632,18 +633,21 @@ export const TeacherAssignmentNotification: React.FC<TeacherAssignmentNotificati
                     {isSubmitted ? (
                       <div className="flex items-center gap-2 w-full justify-between flex-wrap">
                         <div className="flex items-center gap-1.5">
-                          {submittedPlan?.file_url && (
-                            <a
-                              href={submittedPlan.file_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer"
-                              title="เปิดดูไฟล์ที่ส่ง"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              <span>ดู PDF</span>
-                            </a>
-                          )}
+                          {(() => {
+                            const resolvedUrl = resolvePrimaryPlanFileUrl(submittedPlan);
+                            return resolvedUrl ? (
+                              <a
+                                href={resolvedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer"
+                                title="เปิดดูไฟล์ที่ส่ง"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>ดู PDF</span>
+                              </a>
+                            ) : null;
+                          })()}
 
                           {effectiveSample && (
                             <a

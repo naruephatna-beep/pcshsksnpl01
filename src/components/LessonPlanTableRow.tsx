@@ -13,6 +13,7 @@ import {
   formatThaiDateTime,
   classifyDocumentType,
 } from '../utils/deadlineUtils';
+import { resolvePrimaryPlanFileUrl } from '../utils/fileLinkUtils';
 import {
   FileText,
   Clock,
@@ -68,6 +69,7 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
   const isLate = plan.is_late !== undefined ? plan.is_late : timeliness.isLate;
   const statusInfo = getPlanStatusInfo(plan.status, statusConfigs);
   const docMeta = classifyDocumentType(plan.plan_type);
+  const resolvedFileUrl = resolvePrimaryPlanFileUrl(plan);
 
   return (
     <tr className="hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-b-0 text-xs">
@@ -166,15 +168,24 @@ export const LessonPlanTableRow: React.FC<LessonPlanTableRowProps> = ({
       <td className="py-3 px-3 text-right whitespace-nowrap">
         <div className="inline-flex items-center gap-1.5 justify-end">
           {/* File link */}
-          <a
-            href={plan.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg transition-colors inline-flex items-center cursor-pointer"
-            title="เปิดดูไฟล์ PDF"
-          >
-            <FileText className="w-3.5 h-3.5" />
-          </a>
+          {resolvedFileUrl ? (
+            <a
+              href={resolvedFileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg transition-colors inline-flex items-center cursor-pointer"
+              title="เปิดดูไฟล์เอกสาร"
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </a>
+          ) : (
+            <span
+              className="p-2 bg-rose-50 text-rose-400 rounded-lg inline-flex items-center cursor-not-allowed"
+              title="ไม่พบลิงก์ไฟล์"
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </span>
+          )}
 
           {/* Receipt */}
           <button

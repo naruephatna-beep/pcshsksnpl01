@@ -3,6 +3,7 @@ import { Teacher, LessonPlan, AssignmentSubmission } from '../types';
 import { INITIAL_TEACHERS, INITIAL_LESSON_PLANS } from '../data/initialTeachers';
 import { getSavedSubmissions, saveSubmissions } from '../utils/deadlineUtils';
 import { uploadPdfFileToGoogleDrive, getSavedGoogleDriveWebhookUrl } from './googleDriveService';
+import { resolvePrimaryPlanFileUrl } from '../utils/fileLinkUtils';
 import {
   getDatabaseProvider,
   setDatabaseProvider,
@@ -888,8 +889,16 @@ export async function fetchPlans(
   currentTeacher?: Teacher | null
 ): Promise<{ data: LessonPlan[]; isSupabase: boolean; error?: string }> {
   const deletedIds = getDeletedPlanIds();
+  const healFileUrl = (p: LessonPlan): LessonPlan => {
+    const resolvedUrl = resolvePrimaryPlanFileUrl(p);
+    if (resolvedUrl && resolvedUrl !== p.file_url) {
+      return { ...p, file_url: resolvedUrl };
+    }
+    return p;
+  };
   const applyScope = (list: LessonPlan[]) => {
-    return currentTeacher ? filterPlansForTeacherScope(list, currentTeacher) : list;
+    const healed = list.map(healFileUrl);
+    return currentTeacher ? filterPlansForTeacherScope(healed, currentTeacher) : healed;
   };
 
   if (getDatabaseProvider() === 'cloudflare') {
@@ -911,7 +920,7 @@ export async function fetchPlans(
             .map((p) => {
               const lp = localMap.get(p.id);
               const meta = assignmentMap[p.id];
-              return {
+              return healFileUrl({
                 ...p,
                 assigned_reviewer_id: p.assigned_reviewer_id || meta?.assigned_reviewer_id || lp?.assigned_reviewer_id,
                 assigned_reviewer_name: p.assigned_reviewer_name || meta?.assigned_reviewer_name || lp?.assigned_reviewer_name,
@@ -919,7 +928,7 @@ export async function fetchPlans(
                 workflow_id: p.workflow_id || meta?.workflow_id || lp?.workflow_id,
                 stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (meta?.stage_reviews || lp?.stage_reviews || []),
                 branch: p.branch || lp?.branch,
-              };
+              });
             });
 
           saveLocalPlans(merged);
@@ -952,7 +961,7 @@ export async function fetchPlans(
           .map((p) => {
             const lp = localMap.get(p.id);
             const meta = assignmentMap[p.id];
-            return {
+            return healFileUrl({
               ...p,
               assigned_reviewer_id: p.assigned_reviewer_id || meta?.assigned_reviewer_id || lp?.assigned_reviewer_id,
               assigned_reviewer_name: p.assigned_reviewer_name || meta?.assigned_reviewer_name || lp?.assigned_reviewer_name,
@@ -960,7 +969,7 @@ export async function fetchPlans(
               workflow_id: p.workflow_id || meta?.workflow_id || lp?.workflow_id,
               stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (meta?.stage_reviews || lp?.stage_reviews || []),
               branch: p.branch || lp?.branch,
-            };
+            });
           });
 
         saveLocalPlans(merged);

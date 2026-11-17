@@ -22,6 +22,14 @@ import {
   advancePlanStage,
 } from '../services/departmentWorkflowService';
 import {
+  extractAllFileLinksFromPlan,
+  getEmbedPreviewUrl,
+  getExternalLinkDescription,
+  isHomeOrInvalidDriveUrl,
+  isValidHttpFileUrl,
+  resolvePrimaryPlanFileUrl,
+} from '../utils/fileLinkUtils';
+import {
   X,
   CheckCircle,
   AlertTriangle,
@@ -114,96 +122,23 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
     return null;
   }, [plan.notes]);
 
-  // Extract all attached files (scanning _attachments, file_url, and any dynamic form values containing URLs/files)
+  // Extract all attached files (scanning _attachments, file_url, dynamic form values, and title)
   const attachedFiles = React.useMemo(() => {
-    const list: { file_name: string; file_url: string; file_size?: string }[] = [];
-    const seenUrls = new Set<string>();
-
-    const addFile = (name: string, url: string, size?: string) => {
-      if (!url || url === '#' || url.trim() === '') return;
-      const cleanUrl = url.trim();
-      if (seenUrls.has(cleanUrl)) return;
-      seenUrls.add(cleanUrl);
-      list.push({
-        file_name: name || `ไฟล์แนบที่ ${list.length + 1}`,
-        file_url: cleanUrl,
-        file_size: size,
-      });
-    };
-
-    // 1. Check parsedFormFields._attachments
-    if (parsedFormFields && Array.isArray(parsedFormFields._attachments) && parsedFormFields._attachments.length > 0) {
-      parsedFormFields._attachments.forEach((att: any, idx: number) => {
-        if (att && att.file_url) {
-          addFile(att.file_name || `ไฟล์แนบที่ ${idx + 1}`, att.file_url, att.file_size);
-        }
-      });
-    }
-
-    // 2. Check all other fields in parsedFormFields for file objects, arrays of files, or drive/pdf links
-    if (parsedFormFields && typeof parsedFormFields === 'object') {
-      Object.entries(parsedFormFields).forEach(([key, val]) => {
-        if (key === '_attachments' || key === '_file_reviews') return;
-        if (!val) return;
-
-        // If field value is an array of attachments
-        if (Array.isArray(val)) {
-          val.forEach((item: any, itemIdx: number) => {
-            if (item && typeof item === 'object' && item.file_url) {
-              addFile(item.file_name || `${key} (ไฟล์ ${itemIdx + 1})`, item.file_url, item.file_size);
-            } else if (typeof item === 'string' && (item.startsWith('http://') || item.startsWith('https://'))) {
-              addFile(`${key} (ไฟล์ ${itemIdx + 1})`, item);
-            }
-          });
-        } else if (typeof val === 'object' && (val as any).file_url) {
-          addFile((val as any).file_name || key, (val as any).file_url, (val as any).file_size);
-        } else if (typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://'))) {
-          // If the string is a URL to Google Drive, PDF, or cloud storage
-          if (val.includes('drive.google.com') || val.includes('.pdf') || val.includes('storage') || key.toLowerCase().includes('file') || key.toLowerCase().includes('link')) {
-            addFile(key, val);
-          }
-        }
-      });
-    }
-
-    // 3. Fallback to main plan.file_url if not yet added
-    if (plan.file_url && plan.file_url !== '#') {
-      if (list.length === 0) {
-        addFile(plan.file_name || 'ไฟล์เอกสารหลัก', plan.file_url);
-      } else if (!seenUrls.has(plan.file_url.trim())) {
-        // Add as primary or additional file
-        addFile(plan.file_name || 'ไฟล์หลัก', plan.file_url);
-      }
-    }
-
-    return list;
-  }, [parsedFormFields, plan.file_url, plan.file_name]);
+    return extractAllFileLinksFromPlan(plan);
+  }, [plan]);
 
   const [activeFileIndex, setActiveFileIndex] = useState(0);
   const currentPreviewFile = attachedFiles[activeFileIndex] || attachedFiles[0] || null;
+  const primaryResolvedUrl = currentPreviewFile?.file_url || resolvePrimaryPlanFileUrl(plan);
+  const activeExternalInfo = React.useMemo(
+    () => getExternalLinkDescription(primaryResolvedUrl),
+    [primaryResolvedUrl]
+  );
 
   // User-Friendly: Side-by-Side Split View (PDF preview alongside review criteria)
   const embedPreviewUrl = React.useMemo(() => {
-    const rawUrl = currentPreviewFile?.file_url || plan.file_url;
-    if (!rawUrl || rawUrl === '#') return null;
-    const url = rawUrl.trim();
-    if (url.includes('drive.google.com/file/d/')) {
-      const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        return `https://drive.google.com/file/d/${match[1]}/preview`;
-      }
-    }
-    if (url.includes('drive.google.com/open?id=')) {
-      const match = url.match(/id=([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        return `https://drive.google.com/file/d/${match[1]}/preview`;
-      }
-    }
-    if (url.endsWith('.pdf')) {
-      return url;
-    }
-    return null;
-  }, [currentPreviewFile, plan.file_url]);
+    return getEmbedPreviewUrl(primaryResolvedUrl);
+  }, [primaryResolvedUrl]);
 
   const [isSplitView, setIsSplitView] = useState<boolean>(Boolean(embedPreviewUrl));
 
@@ -634,12 +569,12 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4">
       <div className={`w-full bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in zoom-in-95 ${
-        isSplitView && embedPreviewUrl ? 'max-w-6xl w-full h-[92vh]' : 'max-w-2xl max-h-[92vh] sm:max-h-[88vh]'
+        isSplitView && attachedFiles.length > 0 ? 'max-w-6xl w-full h-[92vh]' : 'max-w-2xl max-h-[92vh] sm:max-h-[88vh]'
       }`}>
         {/* Pinned Header */}
         <div className="relative bg-gradient-to-r from-purple-700 via-indigo-700 to-indigo-800 p-4 sm:p-5 text-white shrink-0 shadow-xs">
           <div className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 flex items-center gap-2">
-            {embedPreviewUrl && (
+            {attachedFiles.length > 0 && (
               <button
                 type="button"
                 onClick={() => setIsSplitView(!isSplitView)}
@@ -648,10 +583,10 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                     ? 'bg-amber-400 text-slate-950 shadow-xs ring-2 ring-white/30'
                     : 'bg-white/15 text-white hover:bg-white/25'
                 }`}
-                title="สลับมุมมอง: ดูเอกสาร PDF คู่กับแบบตรวจข้างๆ กัน"
+                title="สลับมุมมอง: ดูเอกสารคู่กับแบบตรวจข้างๆ กัน"
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>{isSplitView ? '🖥️ โหมดแยกจอคู่' : '📄 แยกจอเปิด PDF'}</span>
+                <span>{isSplitView ? '🖥️ โหมดแยกจอคู่' : '📄 แยกจอเปิดไฟล์'}</span>
               </button>
             )}
             <button
@@ -691,7 +626,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
         {/* Main Body with Split View option */}
         <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden bg-white">
           {/* Left Panel: Embedded PDF / Google Drive Viewer (Desktop Split View) */}
-          {isSplitView && embedPreviewUrl && (
+          {isSplitView && attachedFiles.length > 0 && (
             <div className="hidden lg:flex lg:w-1/2 flex-col border-r border-slate-200 bg-slate-900 shrink-0 h-full relative">
               <div className="flex flex-col bg-slate-950 text-white text-xs border-b border-slate-800 shrink-0">
                 <div className="flex items-center justify-between px-3.5 py-2.5">
@@ -706,15 +641,17 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                       </span>
                     )}
                   </div>
-                  <a
-                    href={currentPreviewFile?.file_url || plan.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0"
-                  >
-                    <span>เปิดเต็มจอ</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                  {primaryResolvedUrl && (
+                    <a
+                      href={primaryResolvedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0"
+                    >
+                      <span>เปิดเต็มจอ</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
                 </div>
 
                 {/* Multi-file preview tabs if > 1 attachment */}
@@ -742,21 +679,87 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                   </div>
                 )}
               </div>
-              <div className="flex-1 w-full h-full relative bg-slate-950">
-                <iframe
-                  key={embedPreviewUrl}
-                  src={embedPreviewUrl}
-                  title="PDF Preview"
-                  className="w-full h-full border-0"
-                  allow="autoplay"
-                  loading="lazy"
-                />
+              <div className="flex-1 w-full h-full relative bg-slate-950 flex items-center justify-center">
+                {embedPreviewUrl ? (
+                  <iframe
+                    key={embedPreviewUrl}
+                    src={embedPreviewUrl}
+                    title="PDF Preview"
+                    className="w-full h-full border-0"
+                    allow="autoplay"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="p-6 max-w-md text-center space-y-4">
+                    <div className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center ${
+                      activeExternalInfo.isInvalidHome ? 'bg-amber-500/20 text-amber-300' : 'bg-indigo-500/20 text-indigo-300'
+                    }`}>
+                      <ExternalLink className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h4 className="text-sm font-bold text-white">
+                        {activeExternalInfo.isInvalidHome ? 'ไม่สามารถพรีวิวไฟล์นี้ได้' : 'ลิงก์นี้ต้องเปิดดูในแท็บใหม่'}
+                      </h4>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {activeExternalInfo.label}
+                      </p>
+                    </div>
+                    {primaryResolvedUrl && (
+                      <a
+                        href={primaryResolvedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shadow-lg transition-all"
+                      >
+                        <span>เปิดดูงานในแท็บใหม่ทันที</span>
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {/* Right/Main Panel: Scrollable Review Controls */}
           <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4 sm:space-y-5 bg-white">
+            {/* Compact Mobile / Tablet File Access & Preview (< lg screens where split-pane is hidden) */}
+            {attachedFiles.length > 0 && (
+              <div className="lg:hidden rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span className="text-xs font-bold text-indigo-950 truncate">
+                      {currentPreviewFile?.file_name || plan.file_name || 'ไฟล์เอกสาร'}
+                    </span>
+                  </div>
+                  {primaryResolvedUrl && (
+                    <a
+                      href={primaryResolvedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 shadow-xs"
+                    >
+                      <span>เปิดไฟล์</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+                {isSplitView && embedPreviewUrl && (
+                  <div className="w-full h-64 rounded-xl overflow-hidden border border-slate-200 bg-slate-950">
+                    <iframe
+                      key={`mobile-${embedPreviewUrl}`}
+                      src={embedPreviewUrl}
+                      title="Mobile PDF Preview"
+                      className="w-full h-full border-0"
+                      allow="autoplay"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 1-Click Quick Approve Banner */}
             <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 flex items-center justify-between gap-3 shadow-2xs">
               <div className="min-w-0">
@@ -874,37 +877,61 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                 </p>
               </div>
               <div className="flex flex-col items-end shrink-0">
-                {attachedFiles.length <= 1 ? (
+                {attachedFiles.length === 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>ไม่พบลิงก์ไฟล์</span>
+                  </span>
+                ) : attachedFiles.length === 1 ? (
                   <a
-                    href={attachedFiles[0]?.file_url || plan.file_url}
+                    href={attachedFiles[0].file_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors active:scale-95 cursor-pointer"
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition-colors active:scale-95 cursor-pointer ${
+                      isHomeOrInvalidDriveUrl(attachedFiles[0].file_url)
+                        ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    }`}
+                    title={activeExternalInfo.label}
                   >
                     <FileText className="w-3.5 h-3.5" />
-                    <span>เปิดดูไฟล์</span>
+                    <span>{isHomeOrInvalidDriveUrl(attachedFiles[0].file_url) ? 'เปิดลิงก์ (หน้า Home Drive)' : 'เปิดดูไฟล์'}</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 ) : (
                   <div className="flex flex-col items-end gap-1.5">
-                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
-                      แนบทั้งหมด {attachedFiles.length} ไฟล์
-                    </span>
-                    <div className="flex items-center gap-1 flex-wrap justify-end max-w-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
+                        แนบทั้งหมด {attachedFiles.length} ไฟล์
+                      </span>
+                      {primaryResolvedUrl && (
+                        <a
+                          href={primaryResolvedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold shadow-xs transition-colors"
+                          title={`เปิดไฟล์ที่เลือกอยู่ (${activeFileIndex + 1}) ในแท็บใหม่`}
+                        >
+                          <span>เปิดดูไฟล์ที่ {activeFileIndex + 1}</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-xs">
                       {attachedFiles.map((file, idx) => (
-                        <div key={idx} className="flex items-center gap-1">
+                        <div key={idx} className="inline-flex items-center rounded-lg overflow-hidden border border-slate-200 bg-white shadow-2xs">
                           <button
                             type="button"
                             onClick={() => {
                               setActiveFileIndex(idx);
                               setIsSplitView(true);
                             }}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                            className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold transition-all cursor-pointer ${
                               activeFileIndex === idx
-                                ? 'bg-amber-400 text-slate-950 ring-1 ring-amber-500 shadow-2xs'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                ? 'bg-amber-400 text-slate-950'
+                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
                             }`}
-                            title={`คลิกเพื่อดูไฟล์ที่ ${idx + 1}: ${file.file_name}`}
+                            title={`เลือกพรีวิวไฟล์ที่ ${idx + 1}: ${file.file_name}`}
                           >
                             <FileText className="w-2.5 h-2.5" />
                             <span>ไฟล์ {idx + 1}</span>
@@ -913,17 +940,19 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                             href={file.file_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded transition-colors"
-                            title={`เปิดแท็บใหม่: ${file.file_name}`}
+                            className="px-1.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-l border-slate-200 transition-colors flex items-center"
+                            title={`เปิดแท็บใหม่ทันที: ${file.file_name}`}
                           >
-                            <ExternalLink className="w-2.5 h-2.5" />
+                            <ExternalLink className="w-3 h-3" />
                           </a>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-                <span className="text-[10px] text-slate-400 mt-1">สิทธิ์: ทุกคนที่มีลิงก์</span>
+                <span className="text-[10px] text-slate-400 mt-1">
+                  {activeExternalInfo.isInvalidHome ? '⚠️ ตรวจสอบลิงก์ก่อนอนุมัติ' : 'สิทธิ์: ทุกคนที่มีลิงก์'}
+                </span>
               </div>
             </div>
 
@@ -973,7 +1002,19 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                             }`}
                           >
                             <span className="font-bold text-slate-700 block mb-0.5">{fieldLabel}:</span>
-                            <span className="text-slate-800 break-words leading-relaxed">{String(value)}</span>
+                            {isValidHttpFileUrl(value) ? (
+                              <a
+                                href={String(value).trim()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-indigo-600 hover:text-indigo-800 underline font-semibold inline-flex items-center gap-1 break-all"
+                              >
+                                <span>{String(value)}</span>
+                                <ExternalLink className="w-3 h-3 shrink-0" />
+                              </a>
+                            ) : (
+                              <span className="text-slate-800 break-words leading-relaxed">{String(value)}</span>
+                            )}
                           </div>
                         );
                       })}

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Teacher, LessonPlan, PlanTypeDeadlineConfig, PlanStatusConfig, isTeacherAdmin } from '../types';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
+import { resolvePrimaryPlanFileUrl } from '../utils/fileLinkUtils';
 import {
   constructDateTime,
   formatThaiDateTime,
@@ -2393,17 +2394,20 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
 
                 {/* Actions */}
                 <div className="flex flex-wrap items-center gap-2 pt-2">
-                  {selectedSubmittedPlan.plan.file_url && (
-                    <a
-                      href={selectedSubmittedPlan.plan.file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 min-w-[140px] py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      <span>เปิดดูไฟล์เอกสาร</span>
-                    </a>
-                  )}
+                  {(() => {
+                    const resolvedUrl = resolvePrimaryPlanFileUrl(selectedSubmittedPlan.plan);
+                    return resolvedUrl ? (
+                      <a
+                        href={resolvedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 min-w-[140px] py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>เปิดดูไฟล์เอกสาร</span>
+                      </a>
+                    ) : null;
+                  })()}
                   {onOpenReview && (
                     <button
                       type="button"
@@ -2512,17 +2516,20 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                        {plan.file_url && (
-                          <a
-                            href={plan.file_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-semibold flex items-center gap-1 transition-colors"
-                            title="เปิดดูไฟล์"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        )}
+                        {(() => {
+                          const resolvedPlanUrl = resolvePrimaryPlanFileUrl(plan);
+                          return resolvedPlanUrl ? (
+                            <a
+                              href={resolvedPlanUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-semibold flex items-center gap-1 transition-colors"
+                              title="เปิดดูไฟล์"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          ) : null;
+                        })()}
                         {onOpenReview && (
                           <button
                             type="button"

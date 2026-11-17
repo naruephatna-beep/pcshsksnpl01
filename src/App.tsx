@@ -111,6 +111,7 @@ import { ReviewerWorkloadModal } from './components/ReviewerWorkloadModal';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
+import { findFirstHttpUrlInObject } from './utils/fileLinkUtils';
 import {
   Search,
   Filter,
@@ -377,7 +378,7 @@ export default function App() {
             plan_title: String(titleCandidate).substring(0, 120),
             plan_type: sub.assignment_name,
             total_hours: Number(answers['fld_hours']) || 1,
-            file_url: firstAtt?.file_url || answers[fields.find((f) => f.type === 'file')?.id || ''] || '#',
+            file_url: firstAtt?.file_url || answers[fields.find((f) => f.type === 'file')?.id || ''] || findFirstHttpUrlInObject(answers) || '#',
             file_name: firstAtt?.file_name || 'เอกสารภาระงาน',
             submitted_at: sub.submitted_at || new Date().toISOString(),
             status: sub.status || 'submitted',
@@ -584,7 +585,7 @@ export default function App() {
                 plan_title: String(titleCandidate).substring(0, 120),
                 plan_type: sub.assignment_name,
                 total_hours: Number(answers['fld_hours']) || 1,
-                file_url: firstAtt?.file_url || '#',
+                file_url: firstAtt?.file_url || answers[fields.find((f) => f.type === 'file')?.id || ''] || findFirstHttpUrlInObject(answers) || '#',
                 file_name: firstAtt?.file_name || 'เอกสารภาระงาน',
                 submitted_at: sub.submitted_at || new Date().toISOString(),
                 status: sub.status || 'submitted',

@@ -13,6 +13,10 @@ import {
   classifyDocumentType,
 } from '../utils/deadlineUtils';
 import {
+  extractAllFileLinksFromPlan,
+  isHomeOrInvalidDriveUrl,
+} from '../utils/fileLinkUtils';
+import {
   FileText,
   Clock,
   CheckCircle2,
@@ -70,33 +74,10 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
   const canReview = canReviewProp !== undefined ? canReviewProp : (isAdmin || isDirectlyAssigned);
   const [showFileList, setShowFileList] = React.useState(false);
 
-  // Extract all attached files if available in plan.notes
+  // Extract all attached files if available in plan.notes, file_url, or title
   const allAttachments = React.useMemo(() => {
-    const list: { file_name: string; file_url: string; file_size?: string }[] = [];
-    if (plan.notes) {
-      try {
-        const parsed = JSON.parse(plan.notes);
-        if (parsed && Array.isArray(parsed._attachments) && parsed._attachments.length > 0) {
-          parsed._attachments.forEach((att: any, idx: number) => {
-            if (att && att.file_url && att.file_url !== '#') {
-              list.push({
-                file_name: att.file_name || `ไฟล์แนบ ${idx + 1}`,
-                file_url: att.file_url,
-                file_size: att.file_size,
-              });
-            }
-          });
-        }
-      } catch {}
-    }
-    if (list.length === 0 && plan.file_url && plan.file_url !== '#') {
-      list.push({
-        file_name: plan.file_name || 'ดูไฟล์',
-        file_url: plan.file_url,
-      });
-    }
-    return list;
-  }, [plan.notes, plan.file_url, plan.file_name]);
+    return extractAllFileLinksFromPlan(plan);
+  }, [plan]);
 
   // Extract per-file review results (Form B)
   const planFileReviews = React.useMemo(() => {
@@ -509,15 +490,32 @@ export const LessonPlanCard: React.FC<LessonPlanCardProps> = ({
       <div className="mt-3.5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           {/* File link(s) */}
-          {allAttachments.length <= 1 ? (
+          {allAttachments.length === 0 ? (
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold cursor-not-allowed"
+              title="ไม่พบลิงก์ไฟล์ที่เปิดได้ในรายการนี้"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+              <span>ไม่พบลิงก์ไฟล์</span>
+            </span>
+          ) : allAttachments.length === 1 ? (
             <a
-              href={allAttachments[0]?.file_url || plan.file_url}
+              href={allAttachments[0].file_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                isHomeOrInvalidDriveUrl(allAttachments[0].file_url)
+                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+              title={
+                isHomeOrInvalidDriveUrl(allAttachments[0].file_url)
+                  ? 'ลิงก์นี้เป็นหน้าแรกของ Google Drive (อาจวางลิงก์ผิด)'
+                  : allAttachments[0].file_name
+              }
             >
               <FileText className="w-3.5 h-3.5 text-slate-600" />
-              <span>ดูไฟล์</span>
+              <span>{isHomeOrInvalidDriveUrl(allAttachments[0].file_url) ? 'ลิงก์หน้า Drive' : 'ดูไฟล์'}</span>
               <ExternalLink className="w-3 h-3 text-slate-400" />
             </a>
           ) : (

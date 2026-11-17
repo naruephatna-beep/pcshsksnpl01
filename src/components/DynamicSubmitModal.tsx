@@ -16,6 +16,7 @@ import {
 } from '../services/supabaseClient';
 import { assignWorkflowToPlan } from '../services/departmentWorkflowService';
 import { triggerSchoolCelebration } from '../utils/confettiUtils';
+import { findFirstHttpUrlInObject } from '../utils/fileLinkUtils';
 import {
   X,
   FileCheck2,
@@ -508,7 +509,11 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
           plan_title: String(titleCandidate).substring(0, 120),
           plan_type: config.name,
           total_hours: Number(it.formValues['fld_hours']) || 1,
-          file_url: firstAttachment?.file_url || (it.formValues[fields.find((f) => f.type === 'file')?.id || ''] || '#'),
+          file_url:
+            firstAttachment?.file_url ||
+            it.formValues[fields.find((f) => f.type === 'file')?.id || ''] ||
+            findFirstHttpUrlInObject(it.formValues) ||
+            '#',
           file_name:
             it.attachments.length > 1
               ? `${firstAttachment?.file_name || 'เอกสาร'} (+อีก ${it.attachments.length - 1} ไฟล์)`
