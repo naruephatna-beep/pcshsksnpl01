@@ -339,9 +339,10 @@ export async function testGoogleDriveConnection(
       // not json, but ok
     }
 
-    // Now test if the script has updated 'archive_reviewed_pdf' & 'supportsTermFolders' capability
+    // Now test if the script has updated 'archive_reviewed_pdf', 'supportsTermFolders', and 'supportsSilentPermissions' capabilities
     let isLegacy = false;
     let missingTermSupport = false;
+    let missingSilentPermissions = false;
     try {
       const probeRes = await fetch(targetUrl, {
         method: 'POST',
@@ -363,6 +364,9 @@ export async function testGoogleDriveConnection(
             if (!probeJson.supportsTermFolders) {
               isLegacy = true;
               missingTermSupport = true;
+            } else if (!probeJson.supportsSilentPermissions) {
+              isLegacy = true;
+              missingSilentPermissions = true;
             }
           } catch {
             isLegacy = true;
@@ -380,15 +384,17 @@ export async function testGoogleDriveConnection(
         supportsArchive: !missingTermSupport,
         message: missingTermSupport
           ? 'เชื่อมต่อสำเร็จ แต่สคริปต์ของ URL นี้ยังเป็นเวอร์ชันเก่า (ยังไม่รองรับโฟลเดอร์แยกปีการศึกษา/เทอม)'
+          : missingSilentPermissions
+          ? 'เชื่อมต่อสำเร็จ แต่สคริปต์ยังเป็นเวอร์ชันเดิม (ยังส่งเมลแจ้งเตือนแชร์ไฟล์เวลาเพิ่มสิทธิ์ผู้ตรวจ)'
           : 'เชื่อมต่อสำเร็จ แต่สคริปต์ในไดรฟ์ยังเป็นเวอร์ชันเดิม (ยังไม่รองรับการทำสำเนาไฟล์ที่ตรวจแล้ว)',
-        details: 'กรุณาตรวจสอบว่าได้คัดลอกโค้ดใหม่จากแท็บ "โค้ดสคริปต์" ไปวาง และนำ URL ของ Deployment เวอร์ชันล่าสุดมาใส่และกดบันทึกแล้ว',
+        details: 'กรุณาคัดลอกโค้ดใหม่จากแท็บ "โค้ดสคริปต์" ไปวางทับใน Code.gs แล้วกด Deploy > Manage deployments > รูปดินสอ > New version',
       };
     }
 
     return {
       success: true,
       supportsArchive: true,
-      message: 'เชื่อมต่อกับ Google Apps Script สำเร็จพร้อมใช้งาน! (รองรับโฟลเดอร์ปีการศึกษา/เทอม, อัปโหลด, ย้ายลงถังขยะ และทำสำเนาไฟล์ตรวจแล้วครบวงจร)',
+      message: 'เชื่อมต่อกับ Google Apps Script สำเร็จพร้อมใช้งาน! (รองรับโฟลเดอร์ปี/เทอม, เพิ่มสิทธิ์แบบไม่ส่งเมลรบกวน, ย้ายลงถังขยะ และทำสำเนาไฟล์ตรวจแล้วครบวงจร)',
       details: json || text,
     };
   } catch (err: any) {
@@ -1359,7 +1365,8 @@ function doPost(e) {
           probe: true,
           supportsArchive: true,
           supportsSyncPermissions: true,
-          supportsTermFolders: true
+          supportsTermFolders: true,
+          supportsSilentPermissions: true
         });
       }
       var revTermInfo = getOrCreateTermFolders(data.academicYear, data.semester);
@@ -1507,11 +1514,11 @@ function doPost(e) {
               added.push(allowEm);
               continue;
             }
-            try {
-              targetFile.addEditor(allowEm);
+            var silentRes = addEditorSilently(fid, allowEm);
+            if (silentRes.ok) {
               added.push(allowEm);
-            } catch (addErr) {
-              skipped.push({ email: allowEm, error: addErr.toString() });
+            } else {
+              skipped.push({ email: allowEm, error: silentRes.error });
             }
           }
 
@@ -1590,22 +1597,22 @@ function doPost(e) {
       if (fOwner) fileOwnerEmail = (fOwner.getEmail() || "").toLowerCase();
     } catch (ownErr) {}
 
+    var fileId = file.getId();
     for (var ek = 0; ek < editorList.length; ek++) {
       var targetEd = editorList[ek];
       if (fileOwnerEmail && targetEd === fileOwnerEmail) {
         editorsAdded.push(targetEd);
         continue;
       }
-      try {
-        file.addEditor(targetEd);
+      var silentUpRes = addEditorSilently(fileId, targetEd);
+      if (silentUpRes.ok) {
         editorsAdded.push(targetEd);
-      } catch (edErr) {
-        editorErrors.push({ email: targetEd, error: edErr.toString() });
+      } else {
+        editorErrors.push({ email: targetEd, error: silentUpRes.error });
       }
     }
 
     // 3.5 สร้างลิงก์สำหรับเปิดดู
-    var fileId = file.getId();
     var viewUrl = "https://drive.google.com/file/d/" + fileId + "/view";
     var directUrl = "https://drive.google.com/uc?export=view&id=" + fileId;
 
@@ -1626,6 +1633,39 @@ function doPost(e) {
       success: false,
       error: "เกิดข้อผิดพลาดในการประมวลผล: " + err.toString()
     });
+  }
+}
+
+/**
+ * เพิ่มสิทธิ์ Editor ให้ผู้ส่ง/ผู้ตรวจแบบเงียบ โดยไม่ส่งอีเมลแจ้งเตือนจาก Google Drive (sendNotificationEmails=false)
+ */
+function addEditorSilently(fileId, emailAddress) {
+  var cleanEmail = (emailAddress || "").toString().trim().toLowerCase();
+  if (!fileId || !cleanEmail || cleanEmail.indexOf("@") === -1) {
+    return { ok: false, error: "ข้อมูลไฟล์หรืออีเมลไม่ถูกต้อง" };
+  }
+  try {
+    var apiUrl = "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "/permissions?sendNotificationEmails=false&supportsAllDrives=true";
+    var resp = UrlFetchApp.fetch(apiUrl, {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        Authorization: "Bearer " + ScriptApp.getOAuthToken()
+      },
+      payload: JSON.stringify({
+        role: "writer",
+        type: "user",
+        emailAddress: cleanEmail
+      }),
+      muteHttpExceptions: true
+    });
+    var code = resp.getResponseCode();
+    if (code >= 200 && code < 300) {
+      return { ok: true };
+    }
+    return { ok: false, error: "Drive API HTTP " + code + ": " + resp.getContentText() };
+  } catch (err) {
+    return { ok: false, error: err.toString() };
   }
 }
 
