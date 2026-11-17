@@ -46,6 +46,7 @@ export interface TeacherDocumentBreakdownProps {
   onDeletePlan?: (planId: string) => void;
   onSendReminder?: (teacher: Teacher, missingTypes?: string[]) => void;
   onOpenCertificate?: (plan: LessonPlan) => void;
+  onOpenInfographicPrompt?: () => void;
   embedded?: boolean;
 }
 
@@ -70,6 +71,7 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
   onDeletePlan,
   onSendReminder,
   onOpenCertificate,
+  onOpenInfographicPrompt,
   embedded = false,
 }) => {
   // Filters & Search
@@ -642,6 +644,18 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
               <Download className="w-3 h-3" />
               <span>ส่งออก Excel</span>
             </button>
+
+            {/* AI Infographic Prompt */}
+            {onOpenInfographicPrompt && (
+              <button
+                onClick={onOpenInfographicPrompt}
+                className="h-7 px-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
+                title="ขอคำพรอมพ์ AI เพื่อนำไปสร้างภาพอินโฟกราฟิกสรุปการส่งงานรายบุคคล"
+              >
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span>พรอมพ์ AI อินโฟ</span>
+              </button>
+            )}
 
             {/* Print Summary */}
             <button

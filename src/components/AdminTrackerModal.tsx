@@ -59,6 +59,7 @@ import {
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
 import { TeacherDocumentBreakdown } from './TeacherDocumentBreakdown';
+import { TrackerInfographicPromptModal } from './TrackerInfographicPromptModal';
 
 interface AdminTrackerModalProps {
   teachers: Teacher[];
@@ -114,6 +115,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isPrintSummaryModalOpen, setIsPrintSummaryModalOpen] = useState(false);
+  const [isInfographicPromptOpen, setIsInfographicPromptOpen] = useState(false);
   const [isDashboardCollapsed, setIsDashboardCollapsed] = useState<boolean>(true);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
 
@@ -727,7 +729,17 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               </button>
             )}
 
-            {/* Primary Action 2: พิมพ์สรุปรายบุคคล */}
+            {/* Primary Action 2: ขอพรอมพ์ AI อินโฟ */}
+            <button
+              onClick={() => setIsInfographicPromptOpen(true)}
+              className="h-9 px-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 border border-indigo-400/50"
+              title="ขอคำพรอมพ์ AI เพื่อนำไปสร้างภาพอินโฟกราฟิกสรุปการส่งงานรายบุคคล"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>ขอพรอมพ์ AI อินโฟ</span>
+            </button>
+
+            {/* Primary Action 3: พิมพ์สรุปรายบุคคล */}
             <button
               onClick={() => setIsPrintSummaryModalOpen(true)}
               className="h-9 px-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 border border-amber-300"
@@ -1161,6 +1173,7 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
               onEditPlan={onEditPlan}
               onDeletePlan={onDeletePlan}
               onSendReminder={(t) => handleQuickClickSend(t, [])}
+              onOpenInfographicPrompt={() => setIsInfographicPromptOpen(true)}
               embedded={true}
             />
           ) : filteredRows.length === 0 ? (
@@ -2606,6 +2619,17 @@ export const AdminTrackerModal: React.FC<AdminTrackerModalProps> = ({
           deadlineConfigs={deadlineConfigs}
           initialArea={filterArea}
           initialStatus={filterStatus}
+        />
+
+        {/* MODAL: AI Infographic Prompt Generator */}
+        <TrackerInfographicPromptModal
+          isOpen={isInfographicPromptOpen}
+          onClose={() => setIsInfographicPromptOpen(false)}
+          allRows={matrixData}
+          filteredRows={filteredRows}
+          activeAssignments={activeAssignments}
+          currentAreaFilter={filterArea}
+          onCopied={(msg) => showToast(msg)}
         />
       </div>
     </div>
