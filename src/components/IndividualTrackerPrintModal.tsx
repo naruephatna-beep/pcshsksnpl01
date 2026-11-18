@@ -18,6 +18,7 @@ import {
   Check,
   Search,
 } from 'lucide-react';
+import { PrintModalShell } from './PrintModalShell';
 
 interface IndividualTrackerPrintModalProps {
   isOpen: boolean;
@@ -184,135 +185,102 @@ export const IndividualTrackerPrintModal: React.FC<IndividualTrackerPrintModalPr
     minute: '2-digit',
   });
 
+  const layoutSwitcher = (
+    <div className="flex bg-white/10 p-1 rounded-xl text-xs font-semibold">
+      <button
+        type="button"
+        onClick={() => setPrintLayout('table')}
+        className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+          printLayout === 'table' ? 'bg-amber-400 text-slate-950 font-bold' : 'text-slate-300 hover:text-white'
+        }`}
+      >
+        ตารางสรุปมาตรฐาน
+      </button>
+      <button
+        type="button"
+        onClick={() => setPrintLayout('cards')}
+        className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+          printLayout === 'cards' ? 'bg-amber-400 text-slate-950 font-bold' : 'text-slate-300 hover:text-white'
+        }`}
+      >
+        การ์ดแจกแจงรายบุคคล
+      </button>
+    </div>
+  );
+
+  const filterBar = (
+    <div className="bg-slate-100/95 p-3 px-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-bold text-slate-700 flex items-center gap-1">
+          <Filter className="w-3.5 h-3.5 text-slate-500" />
+          <span>ตัวกรองการพิมพ์:</span>
+        </span>
+
+        {/* Department Filter */}
+        <select
+          value={selectedArea}
+          onChange={(e) => setSelectedArea(e.target.value)}
+          className="bg-white px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium cursor-pointer"
+        >
+          {areas.map((area) => (
+            <option key={area} value={area}>
+              {area === 'ทั้งหมด' ? 'กลุ่มสาระ: ทั้งหมด' : area}
+            </option>
+          ))}
+        </select>
+
+        {/* Status Filter */}
+        <select
+          value={selectedStatus}
+          onChange={(e) => setSelectedStatus(e.target.value as any)}
+          className="bg-white px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium cursor-pointer"
+        >
+          <option value="all">สถานะ: ครูทุกคน</option>
+          <option value="uncompleted">เฉพาะผู้ที่ยังมีงานค้างส่ง</option>
+          <option value="completed">เฉพาะผู้ที่ส่งครบแล้ว</option>
+          <option value="late">เฉพาะผู้ที่มีงานส่งล่าช้า</option>
+        </select>
+
+        {/* Signature Toggle */}
+        <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium cursor-pointer hover:bg-slate-50 select-none">
+          <input
+            type="checkbox"
+            checked={showSignatures}
+            onChange={(e) => setShowSignatures(e.target.checked)}
+            className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+          />
+          <span className="text-[11px] whitespace-nowrap">ช่องลงนาม</span>
+        </label>
+      </div>
+
+      <div className="relative w-48 sm:w-60">
+        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          placeholder="ค้นหาชื่อครู หรือรหัส..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-white pl-8 pr-2.5 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none"
+        />
+      </div>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:static print:inset-auto">
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-4 sm:my-6 print:m-0 print:border-none print:shadow-none print:max-w-none print:rounded-none">
-        
-        {/* TOP CONTROL BAR (HIDDEN IN PRINT) */}
-        <div className="bg-slate-900 p-4 text-white flex flex-col md:flex-row md:items-center justify-between gap-3 print:hidden border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shrink-0">
-              <Printer className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                <span>พิมพ์รายงานสรุปการส่งเอกสารวิชาการรายบุคคล</span>
-                <span className="text-xs bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full font-mono">
-                  {filteredTeacherRows.length} ท่าน
-                </span>
-              </h2>
-              <p className="text-xs text-slate-400">
-                พร้อมตราโรงเรียนตรงกลางด้านบน แยกรายการงานที่ส่งและยังไม่ส่งชัดเจน
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Print Layout Toggle */}
-            <div className="flex bg-white/10 p-1 rounded-xl text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setPrintLayout('table')}
-                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  printLayout === 'table' ? 'bg-amber-400 text-slate-950 font-bold' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                ตารางสรุปมาตรฐาน
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrintLayout('cards')}
-                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  printLayout === 'cards' ? 'bg-amber-400 text-slate-950 font-bold' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                การ์ดแจกแจงรายบุคคล
-              </button>
-            </div>
-
-            {/* Print Action Button */}
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
-            >
-              <Printer className="w-4 h-4 text-slate-950" />
-              <span>พิมพ์เอกสาร / บันทึก PDF</span>
-            </button>
-
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
-              title="ปิดหน้าต่าง"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* SUB-FILTER BAR (HIDDEN IN PRINT) */}
-        <div className="bg-slate-100/90 p-3 px-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-700 flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-slate-500" />
-              <span>ตัวกรองการพิมพ์:</span>
-            </span>
-
-            {/* Department Filter */}
-            <select
-              value={selectedArea}
-              onChange={(e) => setSelectedArea(e.target.value)}
-              className="bg-white px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium cursor-pointer"
-            >
-              {areas.map((area) => (
-                <option key={area} value={area}>
-                  {area === 'ทั้งหมด' ? 'กลุ่มสาระ: ทั้งหมด' : area}
-                </option>
-              ))}
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value as any)}
-              className="bg-white px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium cursor-pointer"
-            >
-              <option value="all">สถานะ: ครูทุกคน</option>
-              <option value="uncompleted">เฉพาะผู้ที่ยังมีงานค้างส่ง</option>
-              <option value="completed">เฉพาะผู้ที่ส่งครบแล้ว</option>
-              <option value="late">เฉพาะผู้ที่มีงานส่งล่าช้า</option>
-            </select>
-
-            {/* Signature Toggle */}
-            <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium cursor-pointer hover:bg-slate-50 select-none">
-              <input
-                type="checkbox"
-                checked={showSignatures}
-                onChange={(e) => setShowSignatures(e.target.checked)}
-                className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-              />
-              <span className="text-[11px] whitespace-nowrap">ช่องลงนาม</span>
-            </label>
-          </div>
-
-          <div className="relative w-48 sm:w-60">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="ค้นหาชื่อครู หรือรหัส..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white pl-8 pr-2.5 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none"
-            />
-          </div>
-        </div>
-
-        {/* PRINTABLE REPORT CONTAINER */}
-        <div className="p-6 sm:p-10 md:p-12 space-y-6 text-slate-900 bg-white print:p-2 print:space-y-4">
+    <PrintModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      title="พิมพ์รายงานสรุปการส่งเอกสารวิชาการรายบุคคล"
+      subtitle="พร้อมตราโรงเรียนตรงกลางด้านบน แยกรายการงานที่ส่งและยังไม่ส่งชัดเจน"
+      badge={`${filteredTeacherRows.length} ท่าน`}
+      icon={<Printer className="w-4 h-4" />}
+      headerActions={layoutSwitcher}
+      subHeader={filterBar}
+    >
+      {/* PRINTABLE REPORT CONTAINER */}
+      <div className="space-y-6 text-slate-900 bg-white print:space-y-4">
           
-          {/* 1. SCHOOL EMBLEM AT THE VERY TOP CENTER (ตราโรงเรียนตรงกลางด้านบนสุด ตามภาพที่ 1) */}
+          {/* 1. SCHOOL EMBLEM AT THE VERY TOP CENTER (ตราโรงเรียนตรงกลางด้านบนสุด) */}
           <div className="text-center space-y-2 border-b-2 border-slate-900 pb-5">
             <div className="flex justify-center mb-1">
               <img
@@ -708,7 +676,6 @@ export const IndividualTrackerPrintModal: React.FC<IndividualTrackerPrintModalPr
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </PrintModalShell>
   );
 };

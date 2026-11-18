@@ -22,6 +22,7 @@ import {
   Send,
   Filter,
 } from 'lucide-react';
+import { PrintModalShell } from './PrintModalShell';
 
 export interface DepartmentRankingLeaderboardProps {
   teachers: Teacher[];
@@ -921,129 +922,109 @@ export const DepartmentRankingLeaderboard: React.FC<DepartmentRankingLeaderboard
       </div>
 
       {/* 5. Printable Certificate & Summary A4 Modal */}
-      {isPrintModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6">
-            <div className="bg-slate-900 p-4 text-white flex items-center justify-between print:hidden">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-amber-400" />
-                <span className="text-sm font-bold">ประกาศเกียรติคุณและผลการจัดอันดับกลุ่มสาระ (A4 Print / PDF)</span>
+      <PrintModalShell
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        title="ประกาศเกียรติคุณและผลการจัดอันดับกลุ่มสาระ"
+        subtitle={`ภาระงาน: ${currentTaskTitle}`}
+        icon={<Trophy className="w-4 h-4" />}
+      >
+        {/* Official Report Content (Printable Layout) */}
+        <div className="space-y-6 text-slate-900 bg-white">
+          <div className="text-center space-y-2 border-b-2 border-slate-900 pb-6">
+            <img
+              src="/logo.svg"
+              alt="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
+              className="h-20 mx-auto object-contain"
+            />
+            <h1 className="text-xl font-bold tracking-tight">
+              ประกาศเกียรติคุณและผลการจัดอันดับกลุ่มสาระการเรียนรู้ดีเด่นด้านวินัยการส่งงาน
+            </h1>
+            <p className="text-sm font-semibold text-slate-700">
+              โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+            </p>
+            <p className="text-xs text-slate-500">
+              ภาระงาน: {currentTaskTitle} • ภาคเรียนที่ 1 ปีการศึกษา 2569
+            </p>
+            <p className="text-xs text-slate-400">
+              วันที่ออกประกาศ: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+
+          {/* Champion Citation */}
+          {top1 && top1.isOnTimeAll && (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-center space-y-1 page-break-avoid">
+              <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                รางวัลชนะเลิศกลุ่มสาระการเรียนรู้ดีเด่นอันดับ 1
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>พิมพ์เอกสาร</span>
-                </button>
-                <button
-                  onClick={() => setIsPrintModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer"
-                >
-                  ✕
-                </button>
+              <div className="text-2xl font-black text-amber-950">
+                กลุ่มสาระการเรียนรู้{top1.areaName}
+              </div>
+              <p className="text-xs text-amber-900/90 leading-relaxed max-w-xl mx-auto">
+                สามารถดำเนินการส่งเอกสารครบถ้วน 100% ตรงเวลาทุกคนเป็นกลุ่มแรกของสถานศึกษา เมื่อวันที่ {top1.completionDateFormatted} {top1.timeAheadText ? `(${top1.timeAheadText})` : ''}
+              </p>
+            </div>
+          )}
+
+          {/* Table in Printout */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-800">
+              ตารางสรุปผลการจัดอันดับ 8 กลุ่มสาระการเรียนรู้
+            </h3>
+            <table className="w-full text-left text-xs border border-slate-300 border-collapse">
+              <thead className="bg-slate-100 border-b border-slate-300 font-bold">
+                <tr>
+                  <th className="p-2 text-center border-r border-slate-300">อันดับ</th>
+                  <th className="p-2 border-r border-slate-300">กลุ่มสาระการเรียนรู้</th>
+                  <th className="p-2 text-center border-r border-slate-300">จำนวนครู</th>
+                  <th className="p-2 text-center border-r border-slate-300">ส่งครบ</th>
+                  <th className="p-2 text-center border-r border-slate-300">ตรงเวลา</th>
+                  <th className="p-2 text-center border-r border-slate-300">วัน-เวลาที่ส่งครบ</th>
+                  <th className="p-2 text-center">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {rankingData.map((d) => (
+                  <tr key={d.areaName} className="page-break-avoid">
+                    <td className="p-2 text-center border-r border-slate-200 font-bold tabular-nums">
+                      #{d.rank}
+                    </td>
+                    <td className="p-2 border-r border-slate-200 font-medium">{d.areaName}</td>
+                    <td className="p-2 text-center border-r border-slate-200 font-mono">{d.totalTeachers}</td>
+                    <td className="p-2 text-center border-r border-slate-200 font-bold font-mono">{d.submittedTeachersCount} ({d.completionRate}%)</td>
+                    <td className="p-2 text-center border-r border-slate-200 text-emerald-700 font-bold font-mono">{d.onTimeRate}%</td>
+                    <td className="p-2 text-center border-r border-slate-200 text-[11px] font-mono">
+                      {d.completionDateFormatted || '-'}
+                    </td>
+                    <td className="p-2 text-center font-bold text-[11px]">
+                      {d.isOnTimeAll ? 'ตรงเวลา 100%' : d.isCompletedAll ? `ครบ (ช้า ${d.lateTeachersCount})` : `รอส่ง ${d.pendingTeachersCount}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Signature Line */}
+          <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs page-break-avoid">
+            <div className="space-y-14">
+              <p>ลงชื่อ............................................................</p>
+              <div>
+                <p className="font-bold">(ผู้อำนวยการสถานศึกษา)</p>
+                <p className="text-slate-500 mt-1">โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
               </div>
             </div>
 
-            {/* Official Report Content (Printable Layout) */}
-            <div className="p-8 sm:p-12 space-y-6 text-slate-900 bg-white">
-              <div className="text-center space-y-2 border-b-2 border-slate-900 pb-6">
-                <img
-                  src="/logo.svg"
-                  alt="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
-                  className="h-20 mx-auto object-contain"
-                />
-                <h1 className="text-xl font-bold tracking-tight">
-                  ประกาศเกียรติคุณและผลการจัดอันดับกลุ่มสาระการเรียนรู้ดีเด่นด้านวินัยการส่งงาน
-                </h1>
-                <p className="text-sm font-semibold text-slate-700">
-                  โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
-                </p>
-                <p className="text-xs text-slate-500">
-                  ภาระงาน: {currentTaskTitle} • ภาคเรียนที่ 1 ปีการศึกษา 2569
-                </p>
-                <p className="text-xs text-slate-400">
-                  วันที่ออกประกาศ: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-
-              {/* Champion Citation */}
-              {top1 && top1.isOnTimeAll && (
-                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-center space-y-1">
-                  <div className="text-xs font-bold text-amber-800 uppercase tracking-wider">
-                    รางวัลชนะเลิศกลุ่มสาระการเรียนรู้ดีเด่นอันดับ 1
-                  </div>
-                  <div className="text-2xl font-black text-amber-950">
-                    กลุ่มสาระการเรียนรู้{top1.areaName}
-                  </div>
-                  <p className="text-xs text-amber-900/90 leading-relaxed max-w-xl mx-auto">
-                    สามารถดำเนินการส่งเอกสารครบถ้วน 100% ตรงเวลาทุกคนเป็นกลุ่มแรกของสถานศึกษา เมื่อวันที่ {top1.completionDateFormatted} {top1.timeAheadText ? `(${top1.timeAheadText})` : ''}
-                  </p>
-                </div>
-              )}
-
-              {/* Table in Printout */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-800">
-                  ตารางสรุปผลการจัดอันดับ 8 กลุ่มสาระการเรียนรู้
-                </h3>
-                <table className="w-full text-left text-xs border border-slate-300">
-                  <thead className="bg-slate-100 border-b border-slate-300 font-bold">
-                    <tr>
-                      <th className="p-2 text-center border-r border-slate-300">อันดับ</th>
-                      <th className="p-2 border-r border-slate-300">กลุ่มสาระการเรียนรู้</th>
-                      <th className="p-2 text-center border-r border-slate-300">จำนวนครู</th>
-                      <th className="p-2 text-center border-r border-slate-300">ส่งครบ</th>
-                      <th className="p-2 text-center border-r border-slate-300">ตรงเวลา</th>
-                      <th className="p-2 text-center border-r border-slate-300">วัน-เวลาที่ส่งครบ</th>
-                      <th className="p-2 text-center">สถานะ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {rankingData.map((d) => (
-                      <tr key={d.areaName}>
-                        <td className="p-2 text-center border-r border-slate-200 font-bold tabular-nums">
-                          #{d.rank}
-                        </td>
-                        <td className="p-2 border-r border-slate-200 font-medium">{d.areaName}</td>
-                        <td className="p-2 text-center border-r border-slate-200 font-mono">{d.totalTeachers}</td>
-                        <td className="p-2 text-center border-r border-slate-200 font-bold font-mono">{d.submittedTeachersCount} ({d.completionRate}%)</td>
-                        <td className="p-2 text-center border-r border-slate-200 text-emerald-700 font-bold font-mono">{d.onTimeRate}%</td>
-                        <td className="p-2 text-center border-r border-slate-200 text-[11px] font-mono">
-                          {d.completionDateFormatted || '-'}
-                        </td>
-                        <td className="p-2 text-center font-bold text-[11px]">
-                          {d.isOnTimeAll ? 'ตรงเวลา 100%' : d.isCompletedAll ? `ครบ (ช้า ${d.lateTeachersCount})` : `รอส่ง ${d.pendingTeachersCount}`}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Signature Line */}
-              <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs">
-                <div className="space-y-14">
-                  <p>ลงชื่อ............................................................</p>
-                  <div>
-                    <p className="font-bold">(ผู้อำนวยการสถานศึกษา)</p>
-                    <p className="text-slate-500 mt-1">โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
-                  </div>
-                </div>
-
-                <div className="space-y-14">
-                  <p>ลงชื่อ............................................................</p>
-                  <div>
-                    <p className="font-bold">(รองผู้อำนวยการกลุ่มบริหารวิชาการ)</p>
-                    <p className="text-slate-500 mt-1">โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
-                  </div>
-                </div>
+            <div className="space-y-14">
+              <p>ลงชื่อ............................................................</p>
+              <div>
+                <p className="font-bold">(รองผู้อำนวยการกลุ่มบริหารวิชาการ)</p>
+                <p className="text-slate-500 mt-1">โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
               </div>
             </div>
           </div>
         </div>
-      )}
+      </PrintModalShell>
     </div>
   );
 };

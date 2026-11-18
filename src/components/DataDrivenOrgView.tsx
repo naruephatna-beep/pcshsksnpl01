@@ -31,6 +31,7 @@ import {
   PieChart,
   Activity,
 } from 'lucide-react';
+import { PrintModalShell } from './PrintModalShell';
 
 interface DataDrivenOrgViewProps {
   teachers: Teacher[];
@@ -1867,199 +1868,178 @@ export const DataDrivenOrgView: React.FC<DataDrivenOrgViewProps> = ({
       </div>
 
       {/* DDO PRINTABLE EXECUTIVE REPORT MODAL */}
-      {isDdoPrintModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
-            {/* Header Controls */}
-            <div className="bg-slate-900 p-4 text-white flex items-center justify-between print:hidden">
-              <div className="flex items-center gap-2">
-                <BrainCircuit className="w-5 h-5 text-indigo-400" />
-                <span className="text-sm font-bold">รายงานสรุปองค์กรขับเคลื่อนด้วยข้อมูล (DDO Executive Brief)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>พิมพ์เอกสาร A4</span>
-                </button>
-                <button
-                  onClick={() => setIsDdoPrintModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
+      <PrintModalShell
+        isOpen={isDdoPrintModalOpen}
+        onClose={() => setIsDdoPrintModalOpen(false)}
+        title="รายงานสรุปองค์กรขับเคลื่อนด้วยข้อมูล (DDO Executive Brief)"
+        subtitle="เอกสารประกอบการตัดสินใจเชิงยุทธศาสตร์ของผู้อำนวยการสถานศึกษา (Admin 03)"
+        icon={<BrainCircuit className="w-4 h-4" />}
+      >
+        {/* Printable Document */}
+        <div className="space-y-6 text-slate-900 bg-white">
+          <div className="text-center space-y-2 border-b-2 border-slate-900 pb-6">
+            <img
+              src="/logo.svg"
+              alt="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
+              className="h-20 mx-auto object-contain"
+            />
+            <h1 className="text-xl font-bold tracking-tight">
+              รายงานสรุปผลการประเมินองค์กรขับเคลื่อนด้วยข้อมูล (Data-Driven Organization Brief)
+            </h1>
+            <p className="text-sm font-semibold text-slate-700">
+              โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+            </p>
+            <p className="text-xs text-slate-500">
+              เอกสารประกอบการตัดสินใจเชิงยุทธศาสตร์ของผู้อำนวยการสถานศึกษา (Admin 03) • ภาคเรียนที่ 1/2569
+            </p>
+            <p className="text-xs text-slate-400">
+              วันที่จัดพิมพ์: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+
+          {/* DDO Score Overview in Printout */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center border-b border-slate-200 pb-6 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-slate-500">ดัชนีสุขภาพ DDO</div>
+              <div className="text-2xl font-black text-indigo-700 mt-1">{ddoHealthScore} / 100</div>
+              <div className="text-[10px] text-emerald-600 font-bold mt-0.5">ระดับยุทธศาสตร์</div>
             </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-slate-500">อัตราส่งงานสำเร็จ</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{submissionRate}%</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">{submittedTeachers.length}/{totalTeachers} ท่าน</div>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-slate-500">ความตรงต่อเวลา (SLA)</div>
+              <div className="text-2xl font-black text-emerald-600 mt-1">{onTimeRate}%</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">ตรงเวลา {onTimePlans.length} ฉบับ</div>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-slate-500">คะแนนคุณภาพเฉลี่ย</div>
+              <div className="text-2xl font-black text-amber-600 mt-1">{avgScore} / 100</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">เกณฑ์มาตรฐาน 5 มิติ</div>
+            </div>
+          </div>
 
-            {/* Printable Document */}
-            <div className="p-8 sm:p-12 space-y-6 text-slate-900 bg-white">
-              <div className="text-center space-y-2 border-b-2 border-slate-900 pb-6">
-                <img
-                  src="/logo.svg"
-                  alt="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
-                  className="h-20 mx-auto object-contain"
-                />
-                <h1 className="text-xl font-bold tracking-tight">
-                  รายงานสรุปผลการประเมินองค์กรขับเคลื่อนด้วยข้อมูล (Data-Driven Organization Brief)
-                </h1>
-                <p className="text-sm font-semibold text-slate-700">
-                  โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
-                </p>
-                <p className="text-xs text-slate-500">
-                  เอกสารประกอบการตัดสินใจเชิงยุทธศาสตร์ของผู้อำนวยการสถานศึกษา (Admin 03) • ภาคเรียนที่ 1/2569
-                </p>
-                <p className="text-xs text-slate-400">
-                  วันที่จัดพิมพ์: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
+          {/* Departmental Matrix in Printout */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-800">
+              1. ผลการวินิจฉัยเชิงกระบวนการ 8 กลุ่มสาระการเรียนรู้
+            </h3>
+            <table className="w-full text-left text-xs border border-slate-300 border-collapse">
+              <thead className="bg-slate-100 border-b border-slate-300 font-bold">
+                <tr>
+                  <th className="p-2 border-r border-slate-300">กลุ่มสาระการเรียนรู้</th>
+                  <th className="p-2 text-center border-r border-slate-300">จำนวนครู</th>
+                  <th className="p-2 text-center border-r border-slate-300">ความสำเร็จ (%)</th>
+                  <th className="p-2 text-center border-r border-slate-300">ความตรงต่อเวลา</th>
+                  <th className="p-2 text-center border-r border-slate-300">คะแนนเฉลี่ย</th>
+                  <th className="p-2 text-center">จตุภาคเชิงยุทธศาสตร์</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {departmentMatrix.map((d) => (
+                  <tr key={d.name} className="page-break-avoid">
+                    <td className="p-2 border-r border-slate-200 font-medium">{d.name}</td>
+                    <td className="p-2 text-center border-r border-slate-200">{d.totalTeachers}</td>
+                    <td className="p-2 text-center border-r border-slate-200 font-bold">{d.submissionRate}%</td>
+                    <td className="p-2 text-center border-r border-slate-200 text-emerald-700">{d.onTimeRate}%</td>
+                    <td className="p-2 text-center border-r border-slate-200 font-bold">{d.avgScore}</td>
+                    <td className="p-2 text-center font-semibold text-[11px]">{d.quadrantTitle}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-              {/* DDO Score Overview in Printout */}
-              <div className="grid grid-cols-4 gap-4 text-center border-b border-slate-200 pb-6 text-xs">
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <div className="text-slate-500">ดัชนีสุขภาพ DDO</div>
-                  <div className="text-2xl font-black text-indigo-700 mt-1">{ddoHealthScore} / 100</div>
-                  <div className="text-[10px] text-emerald-600 font-bold mt-0.5">ระดับยุทธศาสตร์</div>
+          {/* Prescriptive Directives in Printout */}
+          <div className="space-y-2 pt-2 page-break-avoid">
+            <h3 className="text-sm font-bold text-slate-800">
+              2. ข้อเสนอแนะเชิงยุทธศาสตร์เพื่อการตัดสินใจ
+            </h3>
+            <div className="space-y-2">
+              {prescriptiveActions.map((act, i) => (
+                <div key={act.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+                  <div className="font-bold text-slate-900">
+                    {i + 1}. {act.title}
+                  </div>
+                  <p className="text-slate-600">{act.recommendation}</p>
                 </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <div className="text-slate-500">อัตราส่งงานสำเร็จ</div>
-                  <div className="text-2xl font-black text-slate-900 mt-1">{submissionRate}%</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">{submittedTeachers.length}/{totalTeachers} ท่าน</div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <div className="text-slate-500">ความตรงต่อเวลา (SLA)</div>
-                  <div className="text-2xl font-black text-emerald-600 mt-1">{onTimeRate}%</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">ตรงเวลา {onTimePlans.length} ฉบับ</div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <div className="text-slate-500">คะแนนคุณภาพเฉลี่ย</div>
-                  <div className="text-2xl font-black text-amber-600 mt-1">{avgScore} / 100</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">เกณฑ์มาตรฐาน 5 มิติ</div>
-                </div>
-              </div>
+              ))}
+            </div>
+          </div>
 
-              {/* Departmental Matrix in Printout */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-800">
-                  1. ผลการวินิจฉัยเชิงกระบวนการ 8 กลุ่มสาระการเรียนรู้
-                </h3>
-                <table className="w-full text-left text-xs border border-slate-300">
-                  <thead className="bg-slate-100 border-b border-slate-300 font-bold">
-                    <tr>
-                      <th className="p-2 border-r border-slate-300">กลุ่มสาระการเรียนรู้</th>
-                      <th className="p-2 text-center border-r border-slate-300">จำนวนครู</th>
-                      <th className="p-2 text-center border-r border-slate-300">ความสำเร็จ (%)</th>
-                      <th className="p-2 text-center border-r border-slate-300">ความตรงต่อเวลา</th>
-                      <th className="p-2 text-center border-r border-slate-300">คะแนนเฉลี่ย</th>
-                      <th className="p-2 text-center">จตุภาคเชิงยุทธศาสตร์</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {departmentMatrix.map((d) => (
-                      <tr key={d.name}>
-                        <td className="p-2 border-r border-slate-200 font-medium">{d.name}</td>
-                        <td className="p-2 text-center border-r border-slate-200">{d.totalTeachers}</td>
-                        <td className="p-2 text-center border-r border-slate-200 font-bold">{d.submissionRate}%</td>
-                        <td className="p-2 text-center border-r border-slate-200 text-emerald-700">{d.onTimeRate}%</td>
-                        <td className="p-2 text-center border-r border-slate-200 font-bold">{d.avgScore}</td>
-                        <td className="p-2 text-center font-semibold text-[11px]">{d.quadrantTitle}</td>
+          {/* 5-Dimension Rubrics & Document Status Summary in Printout */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 page-break-avoid">
+            <div className="space-y-2 border border-slate-300 p-3 rounded-lg">
+              <h4 className="text-xs font-bold text-slate-800">
+                สมรรถนะการเขียนแผน 5 มิติ (Rubrics Evaluation)
+              </h4>
+              {plansWithRubrics.length === 0 ? (
+                <p className="text-[11px] text-slate-400 italic py-2 text-center">
+                  ยังไม่มีข้อมูลคะแนนประเมินจริงในระบบ
+                </p>
+              ) : (
+                <table className="w-full text-[11px] text-left border-collapse">
+                  <tbody>
+                    {rubricStats.map((r) => (
+                      <tr key={r.key} className="border-b border-slate-100">
+                        <td className="py-1">{r.label}</td>
+                        <td className="py-1 text-right font-bold text-indigo-700">{r.score > 0 ? `${r.score} / 5.0` : '-'}</td>
+                        <td className="py-1 text-right text-slate-400 font-mono">(เป้า 4.0)</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              )}
+            </div>
+
+            <div className="space-y-2 border border-slate-300 p-3 rounded-lg">
+              <h4 className="text-xs font-bold text-slate-800">
+                สถานะการส่งมอบจำแนกตามประเภทเอกสาร
+              </h4>
+              {docStatusStats.length === 0 ? (
+                <p className="text-[11px] text-slate-400 italic py-2 text-center">
+                  ยังไม่มีข้อมูลประเภทเอกสารในระบบ
+                </p>
+              ) : (
+                <table className="w-full text-[11px] text-left border-collapse">
+                  <tbody>
+                    {docStatusStats.map((d) => (
+                      <tr key={d.name} className="border-b border-slate-100">
+                        <td className="py-1 truncate max-w-[140px]">{d.name}</td>
+                        <td className="py-1 text-center font-bold text-slate-800">{d.total} ฉบับ</td>
+                        <td className="py-1 text-right font-mono text-emerald-600">
+                          ตรงเวลา {d.onTime} ({d.onTimePct}%)
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/* Signature Line */}
+          <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs page-break-avoid">
+            <div className="space-y-14">
+              <p>ลงชื่อ............................................................</p>
+              <div>
+                <p className="font-bold">({currentTeacher.Name})</p>
+                <p className="text-slate-500 mt-1">ผู้อำนวยการสถานศึกษา / ผู้กำกับนโยบาย DDO</p>
               </div>
+            </div>
 
-              {/* Prescriptive Directives in Printout */}
-              <div className="space-y-2 pt-2">
-                <h3 className="text-sm font-bold text-slate-800">
-                  2. ข้อเสนอแนะเชิงยุทธศาสตร์เพื่อการตัดสินใจ
-                </h3>
-                <div className="space-y-2">
-                  {prescriptiveActions.map((act, i) => (
-                    <div key={act.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
-                      <div className="font-bold text-slate-900">
-                        {i + 1}. {act.title}
-                      </div>
-                      <p className="text-slate-600">{act.recommendation}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 5-Dimension Rubrics & Document Status Summary in Printout */}
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="space-y-2 border border-slate-300 p-3 rounded-lg">
-                  <h4 className="text-xs font-bold text-slate-800">
-                    สมรรถนะการเขียนแผน 5 มิติ (Rubrics Evaluation)
-                  </h4>
-                  {plansWithRubrics.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 italic py-2 text-center">
-                      ยังไม่มีข้อมูลคะแนนประเมินจริงในระบบ
-                    </p>
-                  ) : (
-                    <table className="w-full text-[11px] text-left">
-                      <tbody>
-                        {rubricStats.map((r) => (
-                          <tr key={r.key} className="border-b border-slate-100">
-                            <td className="py-1">{r.label}</td>
-                            <td className="py-1 text-right font-bold text-indigo-700">{r.score > 0 ? `${r.score} / 5.0` : '-'}</td>
-                            <td className="py-1 text-right text-slate-400 font-mono">(เป้า 4.0)</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-
-                <div className="space-y-2 border border-slate-300 p-3 rounded-lg">
-                  <h4 className="text-xs font-bold text-slate-800">
-                    สถานะการส่งมอบจำแนกตามประเภทเอกสาร
-                  </h4>
-                  {docStatusStats.length === 0 ? (
-                    <p className="text-[11px] text-slate-400 italic py-2 text-center">
-                      ยังไม่มีข้อมูลประเภทเอกสารในระบบ
-                    </p>
-                  ) : (
-                    <table className="w-full text-[11px] text-left">
-                      <tbody>
-                        {docStatusStats.map((d) => (
-                          <tr key={d.name} className="border-b border-slate-100">
-                            <td className="py-1 truncate max-w-[140px]">{d.name}</td>
-                            <td className="py-1 text-center font-bold text-slate-800">{d.total} ฉบับ</td>
-                            <td className="py-1 text-right font-mono text-emerald-600">
-                              ตรงเวลา {d.onTime} ({d.onTimePct}%)
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-
-              {/* Signature Line */}
-              <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs">
-                <div className="space-y-14">
-                  <p>ลงชื่อ............................................................</p>
-                  <div>
-                    <p className="font-bold">({currentTeacher.Name})</p>
-                    <p className="text-slate-500 mt-1">ผู้อำนวยการสถานศึกษา / ผู้กำกับนโยบาย DDO</p>
-                  </div>
-                </div>
-
-                <div className="space-y-14">
-                  <p>ลงชื่อ............................................................</p>
-                  <div>
-                    <p className="font-bold">(ประธานคณะกรรมการสถานศึกษาขั้นพื้นฐาน)</p>
-                    <p className="text-slate-500 mt-1">โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
-                  </div>
-                </div>
+            <div className="space-y-14">
+              <p>ลงชื่อ............................................................</p>
+              <div>
+                <p className="font-bold">(ประธานคณะกรรมการสถานศึกษาขั้นพื้นฐาน)</p>
+                <p className="text-slate-500 mt-1">โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
               </div>
             </div>
           </div>
         </div>
-      )}
+      </PrintModalShell>
     </div>
   );
 };

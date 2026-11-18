@@ -340,14 +340,81 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 12mm 10mm 15mm 10mm;
+    margin: 12mm 10mm 14mm 10mm;
   }
+
+  html,
   body {
-    background: white !important;
-    color: black !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
+
+  /* Isolate active print portal so Sidebar/Header/Dashboard/Seasonal overlays never print */
+  body.has-print-modal > *:not(.print-modal-portal) {
+    display: none !important;
+  }
+
+  .print-modal-portal {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    backdrop-filter: none !important;
+    z-index: auto !important;
+  }
+
+  .print-scroll-container {
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .print-paper-sheet {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  .print-paper-sheet table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .print-paper-sheet thead {
+    display: table-header-group !important;
+  }
+
+  .print-paper-sheet tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
   .page-break-avoid {
-    page-break-inside: avoid;
-    break-inside: avoid;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }

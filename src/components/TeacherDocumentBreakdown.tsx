@@ -35,6 +35,7 @@ import {
   Zap,
   Mail,
 } from 'lucide-react';
+import { PrintModalShell } from './PrintModalShell';
 
 export interface TeacherDocumentBreakdownProps {
   teachers: Teacher[];
@@ -1253,182 +1254,168 @@ export const TeacherDocumentBreakdown: React.FC<TeacherDocumentBreakdownProps> =
       </div>
 
       {/* 5. PRINT MODAL: Official Academic Report (พร้อมแบบพิมพ์รายงาน) */}
-      {isPrintModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95">
-            {/* Modal Header */}
-            <div className="bg-[#0B1329] p-3.5 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <Printer className="w-4 h-4 text-amber-400" />
-                <h3 className="font-bold text-sm">
-                  พิมพ์รายงานสรุปการส่งเอกสารวิชาการจำแนกตามประเภทและรายบุคคล
-                </h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>พิมพ์ทันที</span>
-                </button>
-                <button
-                  onClick={() => setIsPrintModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+      <PrintModalShell
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        title="พิมพ์รายงานสรุปการส่งเอกสารวิชาการจำแนกตามประเภทและรายบุคคล"
+        subtitle={`จำนวนครูในรายงาน ${filteredRows.length} ท่าน • เอกสารรวม ${overallStats.totalDocuments} ฉบับ`}
+        badge={`${filteredRows.length} ท่าน`}
+        icon={<Printer className="w-4 h-4" />}
+        printButtonLabel="พิมพ์ทันที / บันทึก PDF"
+        paperClassName="p-6 sm:p-10 space-y-5"
+      >
+        <div className="font-sans text-slate-900 text-xs space-y-4">
+          {/* Document Letterhead */}
+          <div className="text-center space-y-1.5 border-b-2 border-slate-900 pb-4">
+            <img
+              src="/logo.svg"
+              alt="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
+              className="h-16 mx-auto object-contain"
+            />
+            <div className="font-extrabold text-base text-slate-900">
+              โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+            </div>
+            <div className="font-bold text-sm text-slate-800">
+              รายงานสรุปการส่งเอกสารวิชาการจำแนกตามประเภท (รายบุคคล)
+            </div>
+            <div className="text-xs text-slate-500">
+              ข้อมูล ณ วันที่{' '}
+              {new Date().toLocaleDateString('th-TH', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </div>
+          </div>
+
+          {/* Summary Stats Strip for Print */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center border border-slate-300 rounded-lg p-2.5 bg-slate-50 text-[11px]">
+            <div>
+              <div className="text-slate-500">ครูทั้งหมด</div>
+              <div className="font-bold text-slate-900 font-mono">
+                {overallStats.totalTeachers} ท่าน
               </div>
             </div>
-
-            {/* Printable Content Body */}
-            <div className="p-6 overflow-y-auto flex-1 font-sans text-slate-900 text-xs space-y-4 print:p-0">
-              {/* Document Letterhead */}
-              <div className="text-center space-y-1 border-b border-slate-300 pb-4">
-                <div className="font-extrabold text-base text-slate-900">
-                  โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
-                </div>
-                <div className="font-bold text-sm text-slate-800">
-                  รายงานสรุปการส่งเอกสารวิชาการจำแนกตามประเภท (รายบุคคล)
-                </div>
-                <div className="text-xs text-slate-500">
-                  ข้อมูล ณ วันที่{' '}
-                  {new Date().toLocaleDateString('th-TH', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </div>
+            <div>
+              <div className="text-slate-500">ส่งแล้ว</div>
+              <div className="font-bold text-emerald-700 font-mono">
+                {overallStats.teachersWithSubmissions} ท่าน
               </div>
-
-              {/* Summary Stats Strip for Print */}
-              <div className="grid grid-cols-4 gap-2 text-center border border-slate-300 rounded-lg p-2 bg-slate-50 text-[11px]">
-                <div>
-                  <div className="text-slate-500">ครูทั้งหมด</div>
-                  <div className="font-bold text-slate-900 font-mono">
-                    {overallStats.totalTeachers} ท่าน
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500">ส่งแล้ว</div>
-                  <div className="font-bold text-emerald-700 font-mono">
-                    {overallStats.teachersWithSubmissions} ท่าน
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500">ยังไม่ส่ง</div>
-                  <div className="font-bold text-rose-600 font-mono">
-                    {overallStats.teachersWithoutSubmissions} ท่าน
-                  </div>
-                </div>
-                <div>
-                  <div className="text-slate-500">เอกสารรวมทั้งหมด</div>
-                  <div className="font-bold text-indigo-700 font-mono">
-                    {overallStats.totalDocuments} ฉบับ
-                  </div>
-                </div>
+            </div>
+            <div>
+              <div className="text-slate-500">ยังไม่ส่ง</div>
+              <div className="font-bold text-rose-600 font-mono">
+                {overallStats.teachersWithoutSubmissions} ท่าน
               </div>
+            </div>
+            <div>
+              <div className="text-slate-500">เอกสารรวมทั้งหมด</div>
+              <div className="font-bold text-indigo-700 font-mono">
+                {overallStats.totalDocuments} ฉบับ
+              </div>
+            </div>
+          </div>
 
-              {/* Printable Table */}
-              <table className="w-full border-collapse border border-slate-300 text-[10px]">
-                <thead>
-                  <tr className="bg-slate-100 font-bold text-slate-800">
-                    <th className="border border-slate-300 p-1 text-center w-8">
-                      #
-                    </th>
-                    <th className="border border-slate-300 p-1 text-left">
-                      รหัส
-                    </th>
-                    <th className="border border-slate-300 p-1 text-left min-w-[120px]">
-                      ชื่อ-สกุลครู
-                    </th>
-                    <th className="border border-slate-300 p-1 text-left">
-                      กลุ่มสาระฯ
-                    </th>
-                    {documentTypes.map((type) => (
-                      <th
-                        key={type}
-                        className="border border-slate-300 p-1 text-center"
-                      >
-                        {type}
-                      </th>
-                    ))}
-                    <th className="border border-slate-300 p-1 text-center font-bold">
-                      รวม
-                    </th>
-                    <th className="border border-slate-300 p-1 text-center">
-                      สถานะ
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRows.map((row, index) => (
-                    <tr
-                      key={row.teacher.Teacher_ID}
-                      className="border-b border-slate-200"
+          {/* Printable Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border border-slate-300 text-[10px]">
+              <thead>
+                <tr className="bg-slate-100 font-bold text-slate-800">
+                  <th className="border border-slate-300 p-1.5 text-center w-8">
+                    #
+                  </th>
+                  <th className="border border-slate-300 p-1.5 text-left">
+                    รหัส
+                  </th>
+                  <th className="border border-slate-300 p-1.5 text-left min-w-[120px]">
+                    ชื่อ-สกุลครู
+                  </th>
+                  <th className="border border-slate-300 p-1.5 text-left">
+                    กลุ่มสาระฯ
+                  </th>
+                  {documentTypes.map((type) => (
+                    <th
+                      key={type}
+                      className="border border-slate-300 p-1.5 text-center"
                     >
-                      <td className="border border-slate-300 p-1 text-center font-mono">
-                        {index + 1}
-                      </td>
-                      <td className="border border-slate-300 p-1 font-mono">
-                        {row.teacher.Teacher_ID}
-                      </td>
-                      <td className="border border-slate-300 p-1 font-medium">
-                        {row.teacher.Name}
-                      </td>
-                      <td className="border border-slate-300 p-1">
-                        {row.teacher.Learning_Area || '-'}
-                      </td>
-                      {documentTypes.map((t) => (
-                        <td
-                          key={t}
-                          className="border border-slate-300 p-1 text-center font-mono"
-                        >
-                          {row.countsByType[t] > 0
-                            ? row.countsByType[t]
-                            : '-'}
-                        </td>
-                      ))}
-                      <td className="border border-slate-300 p-1 text-center font-bold font-mono">
-                        {row.totalSubmitted}
-                      </td>
-                      <td className="border border-slate-300 p-1 text-center">
-                        {row.totalSubmitted > 0 ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}
-                      </td>
-                    </tr>
+                      {type}
+                    </th>
                   ))}
-                </tbody>
-              </table>
+                  <th className="border border-slate-300 p-1.5 text-center font-bold">
+                    รวม
+                  </th>
+                  <th className="border border-slate-300 p-1.5 text-center">
+                    สถานะ
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map((row, index) => (
+                  <tr
+                    key={row.teacher.Teacher_ID}
+                    className="border-b border-slate-200 page-break-avoid"
+                  >
+                    <td className="border border-slate-300 p-1.5 text-center font-mono">
+                      {index + 1}
+                    </td>
+                    <td className="border border-slate-300 p-1.5 font-mono">
+                      {row.teacher.Teacher_ID}
+                    </td>
+                    <td className="border border-slate-300 p-1.5 font-medium">
+                      {row.teacher.Name}
+                    </td>
+                    <td className="border border-slate-300 p-1.5">
+                      {row.teacher.Learning_Area || '-'}
+                    </td>
+                    {documentTypes.map((t) => (
+                      <td
+                        key={t}
+                        className="border border-slate-300 p-1.5 text-center font-mono"
+                      >
+                        {row.countsByType[t] > 0
+                          ? row.countsByType[t]
+                          : '-'}
+                      </td>
+                    ))}
+                    <td className="border border-slate-300 p-1.5 text-center font-bold font-mono">
+                      {row.totalSubmitted}
+                    </td>
+                    <td className="border border-slate-300 p-1.5 text-center">
+                      {row.totalSubmitted > 0 ? 'ส่งแล้ว' : 'ยังไม่ส่ง'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-              {/* Signatures for Print */}
-              <div className="pt-8 grid grid-cols-2 gap-8 text-center text-xs">
-                <div>
-                  <div className="mb-12">
-                    ลงชื่อ......................................................
-                  </div>
-                  <div className="font-bold">
-                    (ผู้จัดทำรายงาน / เจ้าหน้าที่ฝ่ายวิชาการ)
-                  </div>
-                  <div className="text-slate-500">
-                    วันที่............/............/............
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-12">
-                    ลงชื่อ......................................................
-                  </div>
-                  <div className="font-bold">
-                    (หัวหน้าฝ่ายบริหารวิชาการ / ผู้อำนวยการ)
-                  </div>
-                  <div className="text-slate-500">
-                    วันที่............/............/............
-                  </div>
-                </div>
+          {/* Signatures for Print */}
+          <div className="pt-8 grid grid-cols-2 gap-8 text-center text-xs page-break-avoid">
+            <div>
+              <div className="mb-12">
+                ลงชื่อ......................................................
+              </div>
+              <div className="font-bold">
+                (ผู้จัดทำรายงาน / เจ้าหน้าที่ฝ่ายวิชาการ)
+              </div>
+              <div className="text-slate-500">
+                วันที่............/............/............
+              </div>
+            </div>
+            <div>
+              <div className="mb-12">
+                ลงชื่อ......................................................
+              </div>
+              <div className="font-bold">
+                (หัวหน้าฝ่ายบริหารวิชาการ / ผู้อำนวยการ)
+              </div>
+              <div className="text-slate-500">
+                วันที่............/............/............
               </div>
             </div>
           </div>
         </div>
-      )}
+      </PrintModalShell>
     </div>
   );
 };

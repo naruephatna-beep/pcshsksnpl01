@@ -14,6 +14,7 @@ import {
   FileCheck2,
 } from 'lucide-react';
 import { sendAcademicEmailOneClick } from '../services/emailService';
+import { PrintModalShell } from './PrintModalShell';
 
 interface AcademicCertificateModalProps {
   isOpen: boolean;
@@ -120,112 +121,83 @@ export const AcademicCertificateModal: React.FC<AcademicCertificateModalProps> =
     }
   };
 
+  const emailAction = (
+    <button
+      type="button"
+      onClick={handleSendEmailCertificate}
+      disabled={isSendingEmail || !teacherEmail}
+      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+      title={teacherEmail ? `ส่งวุฒิบัตรไปยัง ${teacherEmail}` : 'ไม่พบอีเมลผู้รับ'}
+    >
+      <Mail className="w-3.5 h-3.5" />
+      <span>{isSendingEmail ? 'กำลังส่งอีเมล...' : 'ส่งทางอีเมล'}</span>
+    </button>
+  );
+
+  const emailBanner = emailSentStatus ? (
+    <div className="bg-emerald-950/90 border-b border-emerald-500/30 px-6 py-2.5 text-xs text-emerald-300 flex items-center justify-between">
+      <span className="flex items-center gap-2 font-medium">
+        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        {emailSentStatus}
+      </span>
+      <button
+        type="button"
+        onClick={() => setEmailSentStatus(null)}
+        className="text-emerald-400 hover:text-white cursor-pointer"
+      >
+        ✕
+      </button>
+    </div>
+  ) : null;
+
+  const certFooter = (
+    <div className="bg-[#0B1329] px-4 sm:px-6 py-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+        <span>
+          วุฒิบัตรฉบับนี้มีเลขทะเบียนกำกับ สามารถบันทึกเป็น PDF และนำไปแนบเป็นหลักฐานการส่งแผนการสอนในแฟ้ม <strong>ว.PA</strong> หรือรายงาน <strong>SAR</strong> ได้ทันที
+        </span>
+      </div>
+      <div className="text-[11px] text-slate-400 shrink-0">
+        {teacherEmail ? `อีเมลครู: ${teacherEmail}` : 'ไม่มีอีเมลในระบบ'}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+    <PrintModalShell
+      isOpen={isOpen && Boolean(plan)}
+      onClose={onClose}
+      onPrint={handlePrint}
+      orientation="landscape"
+      title="วุฒิบัตรรับรองการส่งเอกสารวิชาการ (ว.PA / SAR)"
+      badge="A4 Landscape"
+      subtitle="ออกโดยกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
+      icon={<Award className="w-4 h-4" />}
+      headerActions={emailAction}
+      subHeader={emailBanner}
+      footer={certFooter}
+      paperClassName="p-3 sm:p-6 bg-slate-100 print:p-0 print:bg-white"
+    >
       <style>{`
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          #academic-certificate-print-area,
-          #academic-certificate-print-area * {
-            visibility: visible;
-          }
-          #academic-certificate-print-area {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 100vw;
-            height: 100vh;
-            margin: 0;
-            padding: 0;
-            box-shadow: none !important;
-            border: none !important;
-            background: white !important;
-            z-index: 999999;
-          }
           @page {
             size: A4 landscape;
-            margin: 10mm;
+            margin: 8mm;
           }
         }
       `}</style>
 
-      <div className="relative w-full max-w-5xl bg-slate-900 rounded-3xl shadow-2xl border border-slate-700/80 overflow-hidden my-auto flex flex-col">
-        {/* Modal Toolbar Header */}
-        <div className="bg-[#0B1329] px-6 py-4 border-b border-slate-800 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
-              <Award className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span>วุฒิบัตรรับรองการส่งเอกสารวิชาการ (ว.PA / SAR)</span>
-                <span className="text-[10px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-extrabold">
-                  A4 Landscape
-                </span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                ออกโดยกลุ่มบริหารวิชาการ โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSendEmailCertificate}
-              disabled={isSendingEmail || !teacherEmail}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
-              title={teacherEmail ? `ส่งวุฒิบัตรไปยัง ${teacherEmail}` : 'ไม่พบอีเมลผู้รับ'}
-            >
-              <Mail className="w-3.5 h-3.5" />
-              <span>{isSendingEmail ? 'กำลังส่งอีเมล...' : 'ส่งทางอีเมล'}</span>
-            </button>
-
-            <button
-              onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md cursor-pointer active:scale-95"
-            >
-              <Printer className="w-4 h-4 text-slate-950" />
-              <span>พิมพ์ / บันทึก PDF</span>
-            </button>
-
-            <button
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Email sent notification alert */}
-        {emailSentStatus && (
-          <div className="bg-emerald-950/80 border-b border-emerald-500/30 px-6 py-2.5 text-xs text-emerald-300 flex items-center justify-between">
-            <span className="flex items-center gap-2 font-medium">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              {emailSentStatus}
-            </span>
-            <button
-              onClick={() => setEmailSentStatus(null)}
-              className="text-emerald-400 hover:text-white"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Preview Container */}
-        <div className="p-4 sm:p-8 bg-slate-800/60 overflow-x-auto flex justify-center">
-          {/* Official Certificate Paper Sheet (A4 Aspect Ratio: 297mm x 210mm) */}
-          <div
-            id="academic-certificate-print-area"
-            ref={certificateRef}
-            className="w-full max-w-[850px] aspect-[1.414/1] bg-white text-slate-900 rounded-lg shadow-2xl p-6 sm:p-10 relative flex flex-col justify-between overflow-hidden select-none border-8 border-double border-[#0B1329]"
-            style={{
-              backgroundImage: 'radial-gradient(circle at center, rgba(245, 158, 11, 0.03) 0%, rgba(255, 255, 255, 1) 70%)',
-            }}
-          >
+      {/* Official Certificate Paper Sheet (A4 Aspect Ratio: 297mm x 210mm) */}
+      <div className="overflow-x-auto flex justify-center print:overflow-visible">
+        <div
+          id="academic-certificate-print-area"
+          ref={certificateRef}
+          className="w-full max-w-[850px] print:max-w-none print:w-full print:h-[192mm] aspect-[1.414/1] print:aspect-auto bg-white text-slate-900 rounded-lg print:rounded-none shadow-2xl print:shadow-none p-6 sm:p-10 relative flex flex-col justify-between overflow-hidden select-none border-8 border-double border-[#0B1329]"
+          style={{
+            backgroundImage: 'radial-gradient(circle at center, rgba(245, 158, 11, 0.03) 0%, rgba(255, 255, 255, 1) 70%)',
+          }}
+        >
             {/* Outer Thai Golden Ornamental Corner Accents */}
             <div className="absolute top-2 left-2 w-12 h-12 border-t-2 border-l-2 border-amber-500 pointer-events-none"></div>
             <div className="absolute top-2 right-2 w-12 h-12 border-t-2 border-r-2 border-amber-500 pointer-events-none"></div>
@@ -339,21 +311,7 @@ export const AcademicCertificateModal: React.FC<AcademicCertificateModalProps> =
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Footer info banner */}
-        <div className="bg-slate-900/90 p-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>
-              วุฒิบัตรฉบับนี้มีเลขทะเบียนกำกับ สามารถบันทึกเป็น PDF และนำไปแนบเป็นหลักฐานการส่งแผนการสอนในแฟ้ม <strong>ว.PA</strong> หรือรายงาน <strong>SAR</strong> ได้ทันที
-            </span>
-          </div>
-          <div className="text-[11px] text-slate-500 shrink-0">
-            {teacherEmail ? `อีเมลครู: ${teacherEmail}` : 'ไม่มีอีเมลในระบบ'}
-          </div>
-        </div>
       </div>
-    </div>
+    </PrintModalShell>
   );
 };

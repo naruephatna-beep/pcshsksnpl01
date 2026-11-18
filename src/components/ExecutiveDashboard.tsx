@@ -31,6 +31,7 @@ import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
 import { InfographicPromptModal } from './InfographicPromptModal';
 import { AnimatedCounter } from './AnimatedCounter';
+import { PrintModalShell } from './PrintModalShell';
 import {
   InfographicPromptPayload,
   generateEnglishInfographicPrompt,
@@ -1565,151 +1566,131 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       )}
 
       {/* PRINTABLE EXECUTIVE REPORT MODAL */}
-      {isPrintModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-slate-900 p-4 text-white flex items-center justify-between print:hidden">
-              <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-indigo-400" />
-                <span className="text-sm font-bold">รายงานสรุปผู้บริหาร (สำหรับพิมพ์ / บันทึก PDF)</span>
+      <PrintModalShell
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        title="รายงานสรุปผู้บริหาร (สำหรับพิมพ์ / บันทึก PDF)"
+        subtitle={`โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์ • ${activeTermLabel}`}
+        icon={<Printer className="w-4 h-4" />}
+      >
+        <div className="space-y-6 text-slate-900 bg-white">
+          <div className="text-center space-y-2 border-b-2 border-slate-900 pb-6">
+            <img
+              src="/logo.svg"
+              alt="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
+              className="h-20 mx-auto object-contain"
+            />
+            <h1 className="text-xl font-bold tracking-tight">
+              รายงานสรุปผลการส่งและประเมินคุณภาพแผนการจัดการเรียนรู้
+            </h1>
+            <p className="text-sm font-semibold text-slate-700">
+              โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
+            </p>
+            <p className="text-xs text-slate-500">
+              {activeTermLabel} • เอกสารสำหรับฝ่ายบริหารและคณะกรรมการสถานศึกษา
+            </p>
+            <p className="text-xs text-slate-400">
+              วันที่ออกรายงาน:{' '}
+              {new Date().toLocaleDateString('th-TH', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center border-b border-slate-200 pb-6 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-slate-500">จำนวนครูทั้งหมด</div>
+              <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">{totalTeachersCount} ท่าน</div>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-slate-500">ส่งแผนแล้ว</div>
+              <div className="text-xl font-bold text-indigo-600 mt-1 tabular-nums">
+                {submittedTeachers.length} ({submissionRate}%)
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>พิมพ์เอกสาร</span>
-                </button>
-                <button
-                  onClick={() => setIsPrintModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-slate-500">ส่งตรงเวลา</div>
+              <div className="text-xl font-bold text-emerald-600 mt-1 tabular-nums">
+                {onTimePlans.length} ({onTimeRate}%)
+              </div>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="text-slate-500">คะแนนเฉลี่ยรวม</div>
+              <div className="text-xl font-bold text-amber-600 mt-1 tabular-nums">{avgScore} / 100</div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-800">
+              1. ตารางสรุปการส่งงานจำแนกตามกลุ่มสาระการเรียนรู้
+            </h3>
+            <table className="w-full text-left text-xs border border-slate-300 border-collapse">
+              <thead className="bg-slate-100 border-b border-slate-300 font-bold">
+                <tr>
+                  <th className="p-2 border-r border-slate-300">กลุ่มสาระการเรียนรู้</th>
+                  <th className="p-2 text-center border-r border-slate-300">จำนวนครู</th>
+                  <th className="p-2 text-center border-r border-slate-300">ส่งแล้ว</th>
+                  <th className="p-2 text-center border-r border-slate-300">% ความสำเร็จ</th>
+                  <th className="p-2 text-center border-r border-slate-300">ตรงเวลา</th>
+                  <th className="p-2 text-center border-r border-slate-300">ส่งช้า</th>
+                  <th className="p-2 text-center">คะแนนเฉลี่ย</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 tabular-nums">
+                {areaStats.map((stat) => (
+                  <tr key={stat.name} className="page-break-avoid">
+                    <td className="p-2 border-r border-slate-200 font-medium">{stat.name}</td>
+                    <td className="p-2 text-center border-r border-slate-200">{stat.totalTeachers}</td>
+                    <td className="p-2 text-center border-r border-slate-200">{stat.submittedTeachers}</td>
+                    <td className="p-2 text-center border-r border-slate-200 font-bold">{stat.submissionRate}%</td>
+                    <td className="p-2 text-center border-r border-slate-200 text-emerald-700">{stat.onTimePlans}</td>
+                    <td className="p-2 text-center border-r border-slate-200 text-amber-700">{stat.latePlans}</td>
+                    <td className="p-2 text-center font-bold">{stat.avgScore}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {pendingTeachers.length > 0 && (
+            <div className="space-y-2 pt-2 page-break-avoid">
+              <h3 className="text-sm font-bold text-rose-800">
+                2. รายชื่อครูผู้สอนที่ยังค้างส่งแผนการจัดการเรียนรู้ ({pendingTeachers.length} ท่าน)
+              </h3>
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-1">
+                {pendingTeachers.map((t, i) => (
+                  <div key={t.Teacher_ID} className="flex items-center justify-between">
+                    <span>
+                      {i + 1}. {t.Name} ({t.Teacher_ID})
+                    </span>
+                    <span className="font-medium text-rose-700">{t.Learning_Area}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs page-break-avoid">
+            <div className="space-y-14">
+              <p>ลงชื่อ............................................................</p>
+              <div>
+                <p className="font-bold">({currentTeacher.Name})</p>
+                <p className="text-slate-500 mt-1">ผู้จัดทำรายงาน / ฝ่ายบริหารสถานศึกษา</p>
               </div>
             </div>
 
-            <div className="p-8 sm:p-12 space-y-6 text-slate-900 bg-white">
-              <div className="text-center space-y-2 border-b-2 border-slate-900 pb-6">
-                <img
-                  src="/logo.svg"
-                  alt="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
-                  className="h-20 mx-auto object-contain"
-                />
-                <h1 className="text-xl font-bold tracking-tight">
-                  รายงานสรุปผลการส่งและประเมินคุณภาพแผนการจัดการเรียนรู้
-                </h1>
-                <p className="text-sm font-semibold text-slate-700">
-                  โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
-                </p>
-                <p className="text-xs text-slate-500">
-                  {activeTermLabel} • เอกสารสำหรับฝ่ายบริหารและคณะกรรมการสถานศึกษา
-                </p>
-                <p className="text-xs text-slate-400">
-                  วันที่ออกรายงาน:{' '}
-                  {new Date().toLocaleDateString('th-TH', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-4 gap-4 text-center border-b border-slate-200 pb-6 text-xs">
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <div className="text-slate-500">จำนวนครูทั้งหมด</div>
-                  <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">{totalTeachersCount} ท่าน</div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <div className="text-slate-500">ส่งแผนแล้ว</div>
-                  <div className="text-xl font-bold text-indigo-600 mt-1 tabular-nums">
-                    {submittedTeachers.length} ({submissionRate}%)
-                  </div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <div className="text-slate-500">ส่งตรงเวลา</div>
-                  <div className="text-xl font-bold text-emerald-600 mt-1 tabular-nums">
-                    {onTimePlans.length} ({onTimeRate}%)
-                  </div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <div className="text-slate-500">คะแนนเฉลี่ยรวม</div>
-                  <div className="text-xl font-bold text-amber-600 mt-1 tabular-nums">{avgScore} / 100</div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-800">
-                  1. ตารางสรุปการส่งงานจำแนกตามกลุ่มสาระการเรียนรู้
-                </h3>
-                <table className="w-full text-left text-xs border border-slate-300">
-                  <thead className="bg-slate-100 border-b border-slate-300 font-bold">
-                    <tr>
-                      <th className="p-2 border-r border-slate-300">กลุ่มสาระการเรียนรู้</th>
-                      <th className="p-2 text-center border-r border-slate-300">จำนวนครู</th>
-                      <th className="p-2 text-center border-r border-slate-300">ส่งแล้ว</th>
-                      <th className="p-2 text-center border-r border-slate-300">% ความสำเร็จ</th>
-                      <th className="p-2 text-center border-r border-slate-300">ตรงเวลา</th>
-                      <th className="p-2 text-center border-r border-slate-300">ส่งช้า</th>
-                      <th className="p-2 text-center">คะแนนเฉลี่ย</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 tabular-nums">
-                    {areaStats.map((stat) => (
-                      <tr key={stat.name}>
-                        <td className="p-2 border-r border-slate-200 font-medium">{stat.name}</td>
-                        <td className="p-2 text-center border-r border-slate-200">{stat.totalTeachers}</td>
-                        <td className="p-2 text-center border-r border-slate-200">{stat.submittedTeachers}</td>
-                        <td className="p-2 text-center border-r border-slate-200 font-bold">{stat.submissionRate}%</td>
-                        <td className="p-2 text-center border-r border-slate-200 text-emerald-700">{stat.onTimePlans}</td>
-                        <td className="p-2 text-center border-r border-slate-200 text-amber-700">{stat.latePlans}</td>
-                        <td className="p-2 text-center font-bold">{stat.avgScore}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {pendingTeachers.length > 0 && (
-                <div className="space-y-2 pt-2">
-                  <h3 className="text-sm font-bold text-rose-800">
-                    2. รายชื่อครูผู้สอนที่ยังค้างส่งแผนการจัดการเรียนรู้ ({pendingTeachers.length} ท่าน)
-                  </h3>
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-1">
-                    {pendingTeachers.map((t, i) => (
-                      <div key={t.Teacher_ID} className="flex items-center justify-between">
-                        <span>
-                          {i + 1}. {t.Name} ({t.Teacher_ID})
-                        </span>
-                        <span className="font-medium text-rose-700">{t.Learning_Area}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs">
-                <div className="space-y-14">
-                  <p>ลงชื่อ............................................................</p>
-                  <div>
-                    <p className="font-bold">({currentTeacher.Name})</p>
-                    <p className="text-slate-500 mt-1">ผู้จัดทำรายงาน / ฝ่ายบริหารสถานศึกษา</p>
-                  </div>
-                </div>
-
-                <div className="space-y-14">
-                  <p>ลงชื่อ............................................................</p>
-                  <div>
-                    <p className="font-bold">(ผู้อำนวยการสถานศึกษา)</p>
-                    <p className="text-slate-500 mt-1">ผู้อำนวยการโรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
-                  </div>
-                </div>
+            <div className="space-y-14">
+              <p>ลงชื่อ............................................................</p>
+              <div>
+                <p className="font-bold">(ผู้อำนวยการสถานศึกษา)</p>
+                <p className="text-slate-500 mt-1">ผู้อำนวยการโรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
               </div>
             </div>
           </div>
         </div>
-      )}
+      </PrintModalShell>
 
       {/* MODAL: Printable Individual Tracker Summary */}
       <IndividualTrackerPrintModal
