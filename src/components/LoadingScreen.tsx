@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 
+import { SEASONAL_THEMES, SeasonalThemeMeta } from '../services/seasonalThemeService';
+
 interface LoadingScreenProps {
   message?: string;
   subMessage?: string;
+  seasonalTheme?: SeasonalThemeMeta;
 }
 
 const LOADING_PHASES = [
@@ -14,8 +17,10 @@ const LOADING_PHASES = [
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   message = 'กำลังโหลดข้อมูลระบบ...',
   subMessage = 'โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์',
+  seasonalTheme,
 }) => {
   const [phaseIdx, setPhaseIdx] = useState(0);
+  const theme = seasonalTheme || SEASONAL_THEMES.default;
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -25,17 +30,24 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#060A16] text-white font-['Prompt',sans-serif] px-6 overflow-hidden select-none">
+    <div
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center ${theme.loginBgClass} ${
+        theme.grayscaleRoot ? 'grayscale-[85%]' : ''
+      } text-white font-['Prompt',sans-serif] px-6 overflow-hidden select-none`}
+    >
       {/* Architectural Grid Stage with Soft Radial Vignette */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_65%_65%_at_50%_48%,#000_25%,transparent_100%)]"
       />
 
-      {/* Focused Ceremonial Amber Spotlight Behind Emblem */}
+      {/* Focused Ceremonial Seasonal Spotlight Behind Emblem */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(251,191,36,0.14)_0%,rgba(251,191,36,0.04)_28%,transparent_60%)]"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `radial-gradient(circle at 50% 42%, rgba(${theme.loginHaloRgb}, 0.16) 0%, rgba(${theme.loginHaloRgb}, 0.04) 28%, transparent 60%)`,
+        }}
       />
 
       {/* Corner Precision Reticles */}

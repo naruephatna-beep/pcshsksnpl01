@@ -30,8 +30,11 @@ import {
   Workflow,
   UserCheck,
   Crown,
+  Palette,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
+import { SeasonalThemeMeta } from '../services/seasonalThemeService';
+import { SeasonalThemeIcon } from './SeasonalDecorations';
 
 interface SidebarProps {
   currentTeacher: Teacher | null;
@@ -66,6 +69,8 @@ interface SidebarProps {
   lastSyncTime?: string;
   isSyncing?: boolean;
   onManualSync?: () => void;
+  seasonalTheme?: SeasonalThemeMeta;
+  onOpenSeasonalTheme?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -101,6 +106,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   lastSyncTime,
   isSyncing,
   onManualSync,
+  seasonalTheme,
+  onOpenSeasonalTheme,
 }) => {
   if (!currentTeacher) return null;
 
@@ -123,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="flex flex-col h-full bg-[#0B1329] text-slate-200 select-none">
       {/* Brand & School Header */}
-      <div className="p-4 sm:p-5 border-b border-slate-800/80 shrink-0">
+      <div className={`p-4 sm:p-5 border-b border-slate-800/80 shrink-0 transition-colors duration-300 ${seasonalTheme?.sidebarTopClass || ''}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-white/10 p-1.5 flex items-center justify-center shrink-0 border border-white/20 shadow-sm">
@@ -593,6 +600,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div className="flex items-center gap-2.5 min-w-0">
                     <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span className="truncate text-xs">ตั้งค่า Google Drive</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                </button>
+              )}
+
+              {/* ธีมตามเทศกาลสำคัญอัตโนมัติ */}
+              {onOpenSeasonalTheme && (
+                <button
+                  onClick={() => handleNavClick(onOpenSeasonalTheme)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer group font-medium"
+                  title="ตั้งค่าธีมตามวันสำคัญ/เทศกาลอัตโนมัติ"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {seasonalTheme && seasonalTheme.id !== 'default' ? (
+                      <SeasonalThemeIcon iconType={seasonalTheme.iconType} className="w-4 h-4 text-amber-300 shrink-0" />
+                    ) : (
+                      <Palette className="w-4 h-4 text-pink-400 shrink-0" />
+                    )}
+                    <span className="truncate text-xs">ธีมเทศกาลอัตโนมัติ</span>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all shrink-0" />
                 </button>

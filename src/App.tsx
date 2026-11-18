@@ -94,6 +94,20 @@ import {
   fetchGoogleDriveNamingPattern,
 } from './services/googleDriveService';
 import {
+  SeasonalThemeConfig,
+  DEFAULT_SEASONAL_THEME_CONFIG,
+  getLocalSeasonalThemeConfig,
+  saveLocalSeasonalThemeConfig,
+  resolveActiveSeasonalTheme,
+  getUserSeasonalMuted,
+  setUserSeasonalMuted,
+} from './services/seasonalThemeService';
+import {
+  SeasonalParticlesOverlay,
+  SeasonalBannerBar,
+} from './components/SeasonalDecorations';
+import { SeasonalThemeModal } from './components/SeasonalThemeModal';
+import {
   DEFAULT_DEPARTMENTS,
   DEFAULT_BRANCHES,
   DEFAULT_WORKFLOWS,
@@ -233,10 +247,20 @@ export default function App() {
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   const [isAllDocsPermissionModalOpen, setIsAllDocsPermissionModalOpen] = useState(false);
   const [isAcademicTermModalOpen, setIsAcademicTermModalOpen] = useState(false);
+  const [isSeasonalThemeModalOpen, setIsSeasonalThemeModalOpen] = useState(false);
+  const [seasonalThemeConfig, setSeasonalThemeConfig] = useState<SeasonalThemeConfig>(() =>
+    getLocalSeasonalThemeConfig()
+  );
+  const [isSeasonalMuted, setIsSeasonalMuted] = useState<boolean>(() => getUserSeasonalMuted());
   const [isAdminTopMenuOpen, setIsAdminTopMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [activeTerm, setActiveTerm] = useState<ActiveTermConfig>(() => getLocalActiveTerm());
+
+  const activeSeasonalTheme = useMemo(
+    () => resolveActiveSeasonalTheme(seasonalThemeConfig),
+    [seasonalThemeConfig]
+  );
 
   // Global keyboard shortcut (Ctrl+K / Cmd+K) for Command Palette & scroll listener for Back-to-Top
   useEffect(() => {
@@ -321,6 +345,8 @@ export default function App() {
         allDocsAccessRes,
         activeTermRes,
         wfAssignRes,
+        _gdrivePat,
+        seasonalThemeRes,
       ] = await Promise.all([
         fetchTeachers(),
         fetchPlans(null),
@@ -336,6 +362,7 @@ export default function App() {
         fetchSystemSetting<ActiveTermConfig>('school_active_term', getLocalActiveTerm()),
         fetchSystemSetting<Record<string, any>>('plan_workflow_assignments', {}),
         fetchGoogleDriveNamingPattern(),
+        fetchSystemSetting<SeasonalThemeConfig>('seasonal_theme_config', DEFAULT_SEASONAL_THEME_CONFIG),
       ]);
 
       setTeachers(teachersRes.data);
@@ -383,6 +410,11 @@ export default function App() {
         try {
           localStorage.setItem('school_all_docs_access_config', JSON.stringify(allDocsAccessRes.data));
         } catch {}
+      }
+
+      if (seasonalThemeRes?.data && typeof seasonalThemeRes.data === 'object' && seasonalThemeRes.data.mode) {
+        setSeasonalThemeConfig(seasonalThemeRes.data);
+        saveLocalSeasonalThemeConfig(seasonalThemeRes.data);
       }
 
       if (deptRes?.data && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
@@ -1234,12 +1266,36 @@ export default function App() {
         details: `เกิดข้อผิดพลาด: ${dbRes.error || 'ตาราง system_settings ยังไม่ถูกสร้าง'} — กรุณาสร้างตาราง system_settings ใน Cloudflare D1`,
       });
     } else {
-      setToastNotice({
-        type: 'info',
-        message: 'บันทึกการปรับแต่งสถานะในเครื่องนี้เรียบร้อย',
-        details: `อัปเดตข้อมูลสถานะ ${newConfigs.length} สถานะ ใน Local Storage ของเบราว์เซอร์นี้`,
-      });
+    setToastNotice({
+      type: 'info',
+      message: 'บันทึกการปรับแต่งสถานะในเครื่องนี้เรียบร้อย',
+      details: `อัปเดตข้อมูลสถานะ ${newConfigs.length} สถานะ ใน Local Storage ของเบราว์เซอร์นี้`,
+    });
+  }
+  };
+
+  // Save seasonal theme configuration (Admin)
+  const handleSaveSeasonalThemeConfig = async (newConfig: SeasonalThemeConfig) => {
+    setSeasonalThemeConfig(newConfig);
+    saveLocalSeasonalThemeConfig(newConfig);
+    if (isSeasonalMuted && newConfig.mode === 'manual') {
+      setIsSeasonalMuted(false);
+      setUserSeasonalMuted(false);
     }
+    const dbRes = await saveSystemSetting('seasonal_theme_config', newConfig);
+    const resolved = resolveActiveSeasonalTheme(newConfig);
+    setToastNotice({
+      type: 'success',
+      message:
+        newConfig.mode === 'off'
+          ? 'ปิดธีมตามเทศกาลแล้ว (ใช้ธีมมาตรฐานโรงเรียน)'
+          : newConfig.mode === 'manual'
+          ? `เปลี่ยนธีมเป็น "${resolved.name}" แล้ว!`
+          : 'เปิดโหมดเปลี่ยนธีมตามเทศกาลอัตโนมัติแล้ว!',
+      details: dbRes.isSupabase
+        ? 'ซิงค์การตั้งค่าธีมไปยังอุปกรณ์ของครูทุกคนในโรงเรียนเรียบร้อย'
+        : 'บันทึกการตั้งค่าธีมในเบราว์เซอร์เรียบร้อย',
+    });
   };
 
   // Save All Documents access permissions (Admin)
@@ -2300,16 +2356,25 @@ export default function App() {
 
   // If data is initializing, show full-page LoadingScreen with dancing dinosaur
   if (isLoading) {
-    return <LoadingScreen message="กำลังโหลดข้อมูลระบบ..." subMessage="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์" />;
+    return (
+      <LoadingScreen
+        message="กำลังโหลดข้อมูลระบบ..."
+        subMessage="โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์"
+        seasonalTheme={activeSeasonalTheme}
+      />
+    );
   }
 
-  // If user is not logged in, show full-page LoginScreen with school logo
+  // If user is not logged in, show full-page LoginScreen with school logo & seasonal atmosphere
   if (!currentTeacher) {
     return (
       <LoginScreen
         teachers={teachers}
         isSupabaseConnected={isSupabaseConnected}
         onLogin={handleSetCurrentUser}
+        seasonalTheme={activeSeasonalTheme}
+        seasonalConfig={seasonalThemeConfig}
+        showSeasonalParticles={!isSeasonalMuted && seasonalThemeConfig.show_particles && seasonalThemeConfig.mode !== 'off'}
         onShowLoadingDemo={() => {
           setIsLoading(true);
           setTimeout(() => setIsLoading(false), 2200);
@@ -2319,7 +2384,13 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-['Prompt',sans-serif]">
+    <div className={`min-h-screen bg-slate-50 flex font-['Prompt',sans-serif] ${activeSeasonalTheme.grayscaleRoot ? 'grayscale-[85%]' : ''}`}>
+      {/* Non-intrusive GPU-composited seasonal background particles (pointer-events-none) */}
+      <SeasonalParticlesOverlay
+        theme={activeSeasonalTheme}
+        enabled={!isSeasonalMuted && seasonalThemeConfig.show_particles && seasonalThemeConfig.mode !== 'off'}
+      />
+
       {/* 1. Desktop Left Sidebar: สีกรมท่าเข้ม (#0B1329) เมนูคมชัด */}
       <aside className="hidden md:flex flex-col w-64 lg:w-72 shrink-0 h-screen sticky top-0 bg-[#0B1329] border-r border-slate-800 z-30 select-none">
         <Sidebar
@@ -2361,6 +2432,8 @@ export default function App() {
           lastSyncTime={lastSyncTime}
           isSyncing={isSyncing}
           onManualSync={() => syncWithDatabase(false)}
+          seasonalTheme={activeSeasonalTheme}
+          onOpenSeasonalTheme={() => setIsSeasonalThemeModalOpen(true)}
         />
       </aside>
 
@@ -2411,6 +2484,8 @@ export default function App() {
               lastSyncTime={lastSyncTime}
               isSyncing={isSyncing}
               onManualSync={() => syncWithDatabase(false)}
+              seasonalTheme={activeSeasonalTheme}
+              onOpenSeasonalTheme={() => setIsSeasonalThemeModalOpen(true)}
             />
           </div>
         </div>
@@ -2419,7 +2494,7 @@ export default function App() {
       {/* 3. Right Workspace: สีขาวบริสุทธิ์ (Pure White / Crisp Slate Canvas) */}
       <div className="flex-1 min-w-0 flex flex-col min-h-screen bg-slate-50/70">
         {/* Mobile Header: สีกรมท่าเข้ม (#0B1329) */}
-        <header className="md:hidden sticky top-0 z-30 bg-[#0B1329] text-white px-3.5 py-2.5 flex items-center justify-between border-b border-slate-800 shadow-md">
+        <header className={`md:hidden sticky top-0 z-30 bg-[#0B1329] text-white px-3.5 py-2.5 flex items-center justify-between border-b border-slate-800 shadow-md ${activeSeasonalTheme.sidebarTopClass}`}>
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
@@ -2478,7 +2553,7 @@ export default function App() {
         </header>
 
         {/* Desktop Top Sub-header (Clean Academic Workspace Bar) */}
-        <div className="hidden md:flex sticky top-0 z-20 bg-white/90 backdrop-blur-md px-6 py-2.5 border-b border-slate-200/80 items-center justify-between gap-4">
+        <div className={`hidden md:flex sticky top-0 z-20 bg-white/90 backdrop-blur-md px-6 py-2.5 border-b items-center justify-between gap-4 transition-colors duration-300 ${activeSeasonalTheme.headerBorderClass}`}>
           <div className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
             <span className="font-semibold text-slate-700 whitespace-nowrap shrink-0">จ.ภ. กาฬสินธุ์</span>
             <span className="text-slate-300" aria-hidden="true">/</span>
@@ -2706,6 +2781,20 @@ export default function App() {
                             <div className="text-[10px] text-slate-400">รายชื่อครูทั้งหมด {teachers.length} ท่าน</div>
                           </div>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsSeasonalThemeModalOpen(true);
+                            setIsAdminTopMenuOpen(false);
+                          }}
+                          className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-amber-50 text-slate-700 hover:text-amber-950 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-xs">ธีมเทศกาลอัตโนมัติ</div>
+                            <div className="text-[10px] text-slate-400">ปีใหม่, วันครู, สงกรานต์, ฮาโลวีน, ลอยกระทง ฯลฯ</div>
+                          </div>
+                        </button>
                       </div>
                     </div>
                   </>
@@ -2734,6 +2823,19 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Compact Seasonal Greeting Strip (Non-sticky, dismissible, never blocks work) */}
+        <SeasonalBannerBar
+          theme={activeSeasonalTheme}
+          config={seasonalThemeConfig}
+          isAdmin={isAdmin}
+          isDismissed={isSeasonalMuted}
+          onDismiss={() => {
+            setIsSeasonalMuted(true);
+            setUserSeasonalMuted(true);
+          }}
+          onOpenSettings={() => setIsSeasonalThemeModalOpen(true)}
+        />
 
         {/* Workspace Main Content Area */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5 sm:space-y-6 pb-28 md:pb-12">
@@ -4275,6 +4377,21 @@ export default function App() {
         />
       )}
 
+      {/* Seasonal Theme Configuration Modal (Admin) */}
+      {isAdmin && isSeasonalThemeModalOpen && (
+        <SeasonalThemeModal
+          isOpen={isSeasonalThemeModalOpen}
+          config={seasonalThemeConfig}
+          isUserMuted={isSeasonalMuted}
+          onToggleUserMuted={(muted) => {
+            setIsSeasonalMuted(muted);
+            setUserSeasonalMuted(muted);
+          }}
+          onSave={handleSaveSeasonalThemeConfig}
+          onClose={() => setIsSeasonalThemeModalOpen(false)}
+        />
+      )}
+
       {/* Dynamic Assignment Submit Modal (when task has custom fields & dropdowns) */}
       {currentTeacher && selectedDynamicConfig && (
         <DynamicSubmitModal
@@ -4379,6 +4496,7 @@ export default function App() {
           teachers={teachers}
           isOpen={isLoginModalOpen}
           onLogin={handleSetCurrentUser}
+          seasonalTheme={activeSeasonalTheme}
         />
       )}
 

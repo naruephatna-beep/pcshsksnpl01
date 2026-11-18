@@ -13,11 +13,15 @@ import {
 } from 'lucide-react';
 import { GoogleSchoolSignInModal } from './GoogleSchoolSignInModal';
 
+import { SEASONAL_THEMES, SeasonalThemeMeta } from '../services/seasonalThemeService';
+import { SeasonalThemeIcon } from './SeasonalDecorations';
+
 interface LoginModalProps {
   teachers: Teacher[];
   isOpen: boolean;
   onLogin: (teacher: Teacher) => void;
   onClose?: () => void;
+  seasonalTheme?: SeasonalThemeMeta;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -25,6 +29,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onLogin,
   onClose,
+  seasonalTheme,
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,6 +38,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 
   if (!isOpen) return null;
+
+  const theme = seasonalTheme || SEASONAL_THEMES.default;
+  const isFestival = theme.id !== 'default';
 
   const handleFormLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,10 +62,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-4">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-4 ${theme.grayscaleRoot ? 'grayscale-[85%]' : ''}`}>
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Banner */}
-        <div className="relative bg-[#0B1329] p-6 text-white border-b border-slate-800">
+        <div className={`relative ${theme.sidebarTopClass || 'bg-[#0B1329]'} p-6 text-white border-b border-slate-800 transition-colors duration-300`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img
@@ -66,9 +74,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 className="w-10 h-14 object-contain drop-shadow-md"
               />
               <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/10 text-amber-300 mb-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  จ.ภ. กาฬสินธุ์
+                <div
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold mb-1 ${
+                    isFestival ? theme.accentBadgeClass : 'bg-white/10 text-amber-300'
+                  }`}
+                >
+                  {isFestival ? (
+                    <>
+                      <SeasonalThemeIcon iconType={theme.iconType} className="w-3.5 h-3.5" />
+                      <span>{theme.shortLabel} · จ.ภ. กาฬสินธุ์</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>จ.ภ. กาฬสินธุ์</span>
+                    </>
+                  )}
                 </div>
                 <h1 className="text-lg font-bold text-white tracking-tight">
                   เข้าสู่ระบบส่งเอกสารวิชาการ

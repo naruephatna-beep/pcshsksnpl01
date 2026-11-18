@@ -237,8 +237,8 @@ body {
 .login-spotlight {
   background: radial-gradient(
     280px circle at var(--spot-x, 50%) var(--spot-y, 38%),
-    rgba(251, 191, 36, 0.16),
-    rgba(251, 191, 36, 0.04) 45%,
+    rgba(var(--spot-rgb, 251, 191, 36), 0.18),
+    rgba(var(--spot-rgb, 251, 191, 36), 0.05) 45%,
     transparent 75%
   );
   transition: opacity 240ms ease;
@@ -264,6 +264,55 @@ body {
   transform: translateX(280%) skewX(-20deg);
 }
 
+/* Subtle GPU-Composited Seasonal Particles (non-intrusive, pointer-events-none) */
+@keyframes seasonal-fall {
+  0% {
+    transform: translate3d(0, -8vh, 0) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.7;
+  }
+  88% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(24px, 108vh, 0) rotate(220deg);
+    opacity: 0;
+  }
+}
+
+@keyframes seasonal-float-up {
+  0% {
+    transform: translate3d(0, 106vh, 0) scale(0.92);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.65;
+  }
+  85% {
+    opacity: 0.65;
+  }
+  100% {
+    transform: translate3d(-18px, -12vh, 0) scale(1.06);
+    opacity: 0;
+  }
+}
+
+.animate-seasonal-fall {
+  animation-name: seasonal-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+.animate-seasonal-float-up {
+  animation-name: seasonal-float-up;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
 /* Respect Reduced Motion Preference */
 @media (prefers-reduced-motion: reduce) {
   html {
@@ -276,7 +325,9 @@ body {
   .animate-orbit-medium,
   .animate-orbit-reverse,
   .animate-crest-breathe,
-  .animate-gold-sweep {
+  .animate-gold-sweep,
+  .animate-seasonal-fall,
+  .animate-seasonal-float-up {
     animation: none !important;
     transition: none !important;
   }
