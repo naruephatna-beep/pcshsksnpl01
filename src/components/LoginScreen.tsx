@@ -107,10 +107,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
   return (
     <div
-      className={`min-h-screen ${theme.loginBgClass} ${
-        theme.grayscaleRoot ? 'grayscale-[85%]' : ''
-      } flex flex-col justify-center gap-4 sm:gap-5 relative overflow-hidden font-['Prompt',sans-serif] px-3 sm:px-6 py-5 sm:py-8 transition-colors duration-500`}
+      className={`min-h-screen ${theme.loginBgClass} flex flex-col justify-center gap-4 sm:gap-5 relative overflow-hidden font-['Prompt',sans-serif] px-3 sm:px-6 py-5 sm:py-8 transition-colors duration-500`}
     >
+      {theme.grayscaleRoot && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-[9999] pointer-events-none print:hidden"
+          style={{
+            backdropFilter: 'grayscale(85%)',
+            WebkitBackdropFilter: 'grayscale(85%)',
+          }}
+        />
+      )}
+
       {/* Architectural Grid Stage Matching LoadingScreen */}
       <div
         aria-hidden="true"

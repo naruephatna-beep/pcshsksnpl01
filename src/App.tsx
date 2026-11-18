@@ -2384,7 +2384,19 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen bg-slate-50 flex font-['Prompt',sans-serif] ${activeSeasonalTheme.grayscaleRoot ? 'grayscale-[85%]' : ''}`}>
+    <div className="min-h-screen bg-slate-50 flex font-['Prompt',sans-serif]">
+      {/* Monochrome / Mourning Overlay (uses backdrop-filter on a pointer-events-none sibling so position:fixed modals never break) */}
+      {activeSeasonalTheme.grayscaleRoot && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-[9999] pointer-events-none print:hidden"
+          style={{
+            backdropFilter: 'grayscale(85%)',
+            WebkitBackdropFilter: 'grayscale(85%)',
+          }}
+        />
+      )}
+
       {/* Non-intrusive GPU-composited seasonal background particles (pointer-events-none) */}
       <SeasonalParticlesOverlay
         theme={activeSeasonalTheme}
@@ -2651,7 +2663,7 @@ export default function App() {
                       className="fixed inset-0 z-30"
                       onClick={() => setIsAdminTopMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200/90 z-40 p-2 text-xs text-slate-800 animate-in fade-in slide-in-from-top-2 divide-y divide-slate-100">
+                    <div className="absolute right-0 mt-2 w-72 max-h-[80vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-slate-200/90 z-40 p-2 text-xs text-slate-800 animate-in fade-in slide-in-from-top-2 divide-y divide-slate-100">
                       {/* Group 1: Analytics & Tracking */}
                       <div className="p-1 space-y-0.5">
                         <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">

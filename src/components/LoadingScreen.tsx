@@ -31,10 +31,18 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center ${theme.loginBgClass} ${
-        theme.grayscaleRoot ? 'grayscale-[85%]' : ''
-      } text-white font-['Prompt',sans-serif] px-6 overflow-hidden select-none`}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center ${theme.loginBgClass} text-white font-['Prompt',sans-serif] px-6 overflow-hidden select-none`}
     >
+      {theme.grayscaleRoot && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-[9999] pointer-events-none print:hidden"
+          style={{
+            backdropFilter: 'grayscale(85%)',
+            WebkitBackdropFilter: 'grayscale(85%)',
+          }}
+        />
+      )}
       {/* Architectural Grid Stage with Soft Radial Vignette */}
       <div
         aria-hidden="true"

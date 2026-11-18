@@ -62,8 +62,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   };
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-4 ${theme.grayscaleRoot ? 'grayscale-[85%]' : ''}`}>
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-4">
+      <div className={`w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${theme.grayscaleRoot ? 'grayscale-[85%]' : ''}`}>
         {/* Banner */}
         <div className={`relative ${theme.sidebarTopClass || 'bg-[#0B1329]'} p-6 text-white border-b border-slate-800 transition-colors duration-300`}>
           <div className="flex items-center justify-between">
