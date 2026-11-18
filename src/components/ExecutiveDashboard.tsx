@@ -875,8 +875,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                     >
                       <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
                       <div>
-                        <div className="font-semibold text-slate-900">กำหนดส่ง &amp; จัดการสถานะ</div>
-                        <div className="text-[11px] text-slate-500">ตั้งค่าเดดไลน์เอกสารแต่ละชนิด</div>
+                        <div className="font-semibold text-slate-900">เพิ่ม / แก้ไขงานที่ให้ครูส่ง</div>
+                        <div className="text-[11px] text-slate-500">สร้างหัวข้องาน แก้ไขวันส่ง และป้ายสถานะ</div>
                       </div>
                     </button>
                   )}

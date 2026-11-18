@@ -44,6 +44,8 @@ import {
   syncDeletedPlanIdsWithCloud,
   saveAssignmentSubmissionRecord,
   getPendingPlanSyncIds,
+  getPendingSubmissionSyncIds,
+  hydratePlanWithCloudMeta,
   filterPlansForTeacherScope,
   sanitizeTeacherForClient,
 } from './services/supabaseClient';
@@ -56,6 +58,7 @@ import {
   checkSubmissionTimeliness,
   getPlanStatusInfo,
   getSavedSubmissions,
+  saveSubmissions,
   classifyDocumentType,
   isPlanMatchingAssignment,
   DEFAULT_DEADLINE_CONFIGS,
@@ -325,9 +328,11 @@ export default function App() {
   const syncWithDatabase = async (silent: boolean = true, overrideTeacher?: Teacher | null) => {
     setIsSyncing(true);
     try {
-      // Snapshot pending offline writes BEFORE fetchPlans overwrites lp_local_plans
+      // Snapshot pending offline writes BEFORE fetchPlans / fetchAssignmentSubmissionsList overwrites localStorage
       const preSyncLocalPlans = getLocalPlans();
       const pendingSyncIds = getPendingPlanSyncIds();
+      const preSyncLocalSubs = getSavedSubmissions();
+      const pendingSubSyncIds = getPendingSubmissionSyncIds();
       const localWorkflowAssignBefore = getLocalWorkflowAssignments();
 
       // Execute all database fetches concurrently in a single parallel batch
@@ -368,9 +373,27 @@ export default function App() {
       setTeachers(teachersRes.data);
       setIsSupabaseConnected(teachersRes.isSupabase || plansRes.isSupabase);
 
+      // Flush any pending offline AssignmentSubmission writes
+      let effectiveSubmissions = submissionsRes || [];
+      if (pendingSubSyncIds.size > 0) {
+        const subMap = new Map(effectiveSubmissions.map((s) => [s.id, s]));
+        const pendingLocalSubs = preSyncLocalSubs.filter(
+          (s) => pendingSubSyncIds.has(s.id) && !deletedIds.has(s.id) && s.status !== 'deleted'
+        );
+        pendingLocalSubs.forEach((ls) => {
+          subMap.set(ls.id, ls);
+          saveAssignmentSubmissionRecord(ls).catch(() => {});
+        });
+        effectiveSubmissions = Array.from(subMap.values());
+        saveSubmissions(effectiveSubmissions);
+      }
+
       // Sync plan_workflow_assignments from Cloud into localStorage
       const remoteWfAssign =
-        wfAssignRes?.data && typeof wfAssignRes.data === 'object' && !Array.isArray(wfAssignRes.data)
+        wfAssignRes?.hasRemoteValue &&
+        wfAssignRes?.data &&
+        typeof wfAssignRes.data === 'object' &&
+        !Array.isArray(wfAssignRes.data)
           ? wfAssignRes.data
           : {};
       const mergedWfAssign: Record<string, any> = {};
@@ -383,9 +406,8 @@ export default function App() {
         });
         Object.entries(remoteWfAssign).forEach(([pid, meta]) => {
           if (meta && typeof meta === 'object') {
-            mergedWfAssign[pid] = pendingSyncIds.has(pid) && mergedWfAssign[pid]
-              ? mergedWfAssign[pid]
-              : meta;
+            mergedWfAssign[pid] =
+              pendingSyncIds.has(pid) && mergedWfAssign[pid] ? mergedWfAssign[pid] : meta;
           }
         });
       } else {
@@ -394,66 +416,117 @@ export default function App() {
       saveLocalWorkflowAssignments(mergedWfAssign);
 
       let currentActiveTerm = getLocalActiveTerm();
-      if (activeTermRes?.data && activeTermRes.data.academic_year && activeTermRes.data.semester) {
-        currentActiveTerm = {
-          academic_year: String(activeTermRes.data.academic_year).trim(),
-          semester: String(activeTermRes.data.semester).trim(),
-          updated_at: activeTermRes.data.updated_at,
-          updated_by: activeTermRes.data.updated_by,
-        };
-        setActiveTerm(currentActiveTerm);
-        saveLocalActiveTerm(currentActiveTerm);
+      if (activeTermRes?.isSupabase) {
+        if (activeTermRes.hasRemoteValue && activeTermRes.data?.academic_year && activeTermRes.data?.semester) {
+          currentActiveTerm = {
+            academic_year: String(activeTermRes.data.academic_year).trim(),
+            semester: String(activeTermRes.data.semester).trim(),
+            updated_at: activeTermRes.data.updated_at,
+            updated_by: activeTermRes.data.updated_by,
+          };
+          setActiveTerm(currentActiveTerm);
+          saveLocalActiveTerm(currentActiveTerm);
+        } else if (!activeTermRes.hasRemoteValue) {
+          currentActiveTerm = { ...DEFAULT_ACTIVE_TERM_CONFIG };
+          setActiveTerm(currentActiveTerm);
+          saveLocalActiveTerm(currentActiveTerm);
+          saveSystemSetting('school_active_term', currentActiveTerm).catch(() => {});
+        }
       }
 
-      if (allDocsAccessRes?.data && typeof allDocsAccessRes.data === 'object') {
-        setAllDocsAccessConfig(allDocsAccessRes.data);
+      if (allDocsAccessRes?.isSupabase) {
+        const nextAccess =
+          allDocsAccessRes.hasRemoteValue && allDocsAccessRes.data && typeof allDocsAccessRes.data === 'object'
+            ? allDocsAccessRes.data
+            : DEFAULT_ALL_DOCS_ACCESS_CONFIG;
+        setAllDocsAccessConfig(nextAccess);
         try {
-          localStorage.setItem('school_all_docs_access_config', JSON.stringify(allDocsAccessRes.data));
+          localStorage.setItem('school_all_docs_access_config', JSON.stringify(nextAccess));
         } catch {}
+        if (!allDocsAccessRes.hasRemoteValue) {
+          saveSystemSetting('school_all_docs_access_config', DEFAULT_ALL_DOCS_ACCESS_CONFIG).catch(() => {});
+        }
       }
 
-      if (seasonalThemeRes?.data && typeof seasonalThemeRes.data === 'object' && seasonalThemeRes.data.mode) {
-        setSeasonalThemeConfig(seasonalThemeRes.data);
-        saveLocalSeasonalThemeConfig(seasonalThemeRes.data);
+      if (seasonalThemeRes?.isSupabase) {
+        const nextTheme =
+          seasonalThemeRes.hasRemoteValue && seasonalThemeRes.data?.mode
+            ? seasonalThemeRes.data
+            : DEFAULT_SEASONAL_THEME_CONFIG;
+        setSeasonalThemeConfig(nextTheme);
+        saveLocalSeasonalThemeConfig(nextTheme);
+        if (!seasonalThemeRes.hasRemoteValue) {
+          saveSystemSetting('seasonal_theme_config', DEFAULT_SEASONAL_THEME_CONFIG).catch(() => {});
+        }
       }
 
-      if (deptRes?.data && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
-        setDepartments(deptRes.data);
-        saveLocalDepartments(deptRes.data);
+      if (deptRes?.isSupabase) {
+        if (deptRes.hasRemoteValue && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
+          setDepartments(deptRes.data);
+          saveLocalDepartments(deptRes.data);
+        } else if (!deptRes.hasRemoteValue) {
+          setDepartments(DEFAULT_DEPARTMENTS);
+          saveLocalDepartments(DEFAULT_DEPARTMENTS);
+          saveSystemSetting('school_departments', DEFAULT_DEPARTMENTS).catch(() => {});
+        }
       }
-      if (branchRes?.data && Array.isArray(branchRes.data) && branchRes.data.length > 0) {
-        setBranches(branchRes.data);
-        saveLocalBranches(branchRes.data);
+
+      if (branchRes?.isSupabase) {
+        if (branchRes.hasRemoteValue && Array.isArray(branchRes.data) && branchRes.data.length > 0) {
+          setBranches(branchRes.data);
+          saveLocalBranches(branchRes.data);
+        } else if (!branchRes.hasRemoteValue) {
+          setBranches(DEFAULT_BRANCHES);
+          saveLocalBranches(DEFAULT_BRANCHES);
+          saveSystemSetting('school_branches', DEFAULT_BRANCHES).catch(() => {});
+        }
       }
-      if (wfRes?.data && Array.isArray(wfRes.data) && wfRes.data.length > 0) {
-        setWorkflows(wfRes.data);
-        saveLocalWorkflows(wfRes.data);
+
+      if (wfRes?.isSupabase) {
+        if (wfRes.hasRemoteValue && Array.isArray(wfRes.data) && wfRes.data.length > 0) {
+          setWorkflows(wfRes.data);
+          saveLocalWorkflows(wfRes.data);
+        } else if (!wfRes.hasRemoteValue) {
+          setWorkflows(DEFAULT_WORKFLOWS);
+          saveLocalWorkflows(DEFAULT_WORKFLOWS);
+          saveSystemSetting('review_workflows', DEFAULT_WORKFLOWS).catch(() => {});
+        }
       }
 
       let effectiveDl = getSavedDeadlineConfigs();
-      if (dlSettingsRes.isSupabase && Array.isArray(dlSettingsRes.data) && dlSettingsRes.data.length > 0) {
-        effectiveDl = dlSettingsRes.data;
-        saveDeadlineConfigs(dlSettingsRes.data);
-        setDeadlineConfigs(dlSettingsRes.data);
-      } else if (dlSettingsRes.isSupabase && (!dlSettingsRes.data || (Array.isArray(dlSettingsRes.data) && dlSettingsRes.data.length === 0))) {
-        saveSystemSetting('deadline_configs', DEFAULT_DEADLINE_CONFIGS);
+      if (dlSettingsRes.isSupabase) {
+        if (dlSettingsRes.hasRemoteValue && Array.isArray(dlSettingsRes.data) && dlSettingsRes.data.length > 0) {
+          effectiveDl = dlSettingsRes.data;
+          saveDeadlineConfigs(dlSettingsRes.data);
+          setDeadlineConfigs(dlSettingsRes.data);
+        } else if (!dlSettingsRes.hasRemoteValue) {
+          effectiveDl = DEFAULT_DEADLINE_CONFIGS;
+          saveDeadlineConfigs(DEFAULT_DEADLINE_CONFIGS);
+          setDeadlineConfigs(DEFAULT_DEADLINE_CONFIGS);
+          saveSystemSetting('deadline_configs', DEFAULT_DEADLINE_CONFIGS).catch(() => {});
+        }
       }
 
-      if (statusSettingsRes.isSupabase && Array.isArray(statusSettingsRes.data) && statusSettingsRes.data.length > 0) {
-        saveStatusConfigs(statusSettingsRes.data);
-        setStatusConfigs(statusSettingsRes.data);
-      } else if (statusSettingsRes.isSupabase && (!statusSettingsRes.data || (Array.isArray(statusSettingsRes.data) && statusSettingsRes.data.length === 0))) {
-        saveSystemSetting('status_configs', DEFAULT_STATUS_CONFIGS);
+      if (statusSettingsRes.isSupabase) {
+        if (statusSettingsRes.hasRemoteValue && Array.isArray(statusSettingsRes.data) && statusSettingsRes.data.length > 0) {
+          saveStatusConfigs(statusSettingsRes.data);
+          setStatusConfigs(statusSettingsRes.data);
+        } else if (!statusSettingsRes.hasRemoteValue) {
+          saveStatusConfigs(DEFAULT_STATUS_CONFIGS);
+          setStatusConfigs(DEFAULT_STATUS_CONFIGS);
+          saveSystemSetting('status_configs', DEFAULT_STATUS_CONFIGS).catch(() => {});
+        }
       }
 
       // Sync Google Drive permanent webhook URL across all devices
-      const activeGdriveUrl = (gdriveRes?.data && typeof gdriveRes.data === 'string' && gdriveRes.data.trim())
-        ? gdriveRes.data.trim()
-        : DEFAULT_GDRIVE_WEBHOOK_URL;
+      const activeGdriveUrl =
+        gdriveRes?.hasRemoteValue && gdriveRes?.data && typeof gdriveRes.data === 'string' && gdriveRes.data.trim()
+          ? gdriveRes.data.trim()
+          : DEFAULT_GDRIVE_WEBHOOK_URL;
       try {
         localStorage.setItem(STORAGE_KEY_GDRIVE_WEBHOOK, activeGdriveUrl);
-        if (gdriveRes?.isSupabase && (!gdriveRes.data || !String(gdriveRes.data).trim())) {
-          saveSystemSetting('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL);
+        if (gdriveRes?.isSupabase && (!gdriveRes.hasRemoteValue || !String(gdriveRes.data || '').trim())) {
+          saveSystemSetting('gdrive_webhook_url', DEFAULT_GDRIVE_WEBHOOK_URL).catch(() => {});
         }
       } catch {
         // ignore
@@ -473,9 +546,10 @@ export default function App() {
           const sanitized = sanitizeTeacherForClient(refreshed);
           const prevJson = currentTeacherRef.current ? JSON.stringify(currentTeacherRef.current) : '';
           const nextJson = JSON.stringify(sanitized);
-          resolvedTeacher = prevJson === nextJson && currentTeacherRef.current
-            ? currentTeacherRef.current
-            : sanitized;
+          resolvedTeacher =
+            prevJson === nextJson && currentTeacherRef.current
+              ? currentTeacherRef.current
+              : sanitized;
           if (prevJson !== nextJson) {
             currentTeacherRef.current = sanitized;
             setCurrentTeacher(sanitized);
@@ -514,26 +588,18 @@ export default function App() {
         }
       }
 
+      const teacherPhotoMap = new Map(
+        teachersRes.data.map((t) => [String(t.Teacher_ID || '').trim().toLowerCase(), t.photo || ''])
+      );
+
       // Merge remote plans + dynamic submissions + cloud workflow metadata
       const remotePlans = (plansRes.data || [])
         .filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted')
-        .map((p) => {
-          const wfMeta = mergedWfAssign[p.id];
-          if (!wfMeta) return p;
-          return {
-            ...p,
-            assigned_reviewer_id: p.assigned_reviewer_id || wfMeta.assigned_reviewer_id,
-            assigned_reviewer_name: p.assigned_reviewer_name || wfMeta.assigned_reviewer_name,
-            current_stage_order: p.current_stage_order || wfMeta.current_stage_order || 1,
-            workflow_id: p.workflow_id || wfMeta.workflow_id,
-            stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (wfMeta.stage_reviews || []),
-            branch: p.branch || wfMeta.branch,
-          };
-        });
+        .map((p) => hydratePlanWithCloudMeta(p, mergedWfAssign));
       const remotePlanIds = new Set(remotePlans.map((p) => p.id));
 
       // 1. Convert dynamic submissions that are not yet in lesson_plans table
-      const convertedDynamicPlans: LessonPlan[] = (submissionsRes || [])
+      const convertedDynamicPlans: LessonPlan[] = effectiveSubmissions
         .filter((sub) => !remotePlanIds.has(sub.id) && !deletedIds.has(sub.id) && sub.status !== 'deleted')
         .map((sub) => {
           const firstAtt = sub.attachments?.[0];
@@ -550,40 +616,38 @@ export default function App() {
             answers[fields.find((f) => f.type === 'text')?.id || ''] ||
             sub.assignment_name;
 
-          return {
-            id: sub.id,
-            teacher_id: sub.teacher_id,
-            teacher_name: sub.teacher_name,
-            teacher_photo: '',
-            learning_area: sub.learning_area || '',
-            branch: wfMeta?.branch || '',
-            subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
-            subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
-            grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
-            semester: dlConfig?.semester || currentActiveTerm.semester || DEFAULT_ACTIVE_TERM_CONFIG.semester,
-            academic_year: dlConfig?.academic_year || currentActiveTerm.academic_year || DEFAULT_ACTIVE_TERM_CONFIG.academic_year,
-            plan_title: String(titleCandidate).substring(0, 120),
-            plan_type: sub.assignment_name,
-            total_hours: Number(answers['fld_hours']) || 1,
-            file_url: firstAtt?.file_url || answers[fields.find((f) => f.type === 'file')?.id || ''] || findFirstHttpUrlInObject(answers) || '#',
-            file_name: firstAtt?.file_name || 'เอกสารภาระงาน',
-            submitted_at: sub.submitted_at || new Date().toISOString(),
-            status: sub.status || 'submitted',
-            is_late: sub.is_late ?? false,
-            submission_delay_text: sub.submission_delay_text,
-            reviewed_by: sub.reviewed_by || undefined,
-            reviewer_name: sub.reviewer_name || undefined,
-            reviewed_at: sub.reviewed_at || undefined,
-            review_comment: sub.review_comment || undefined,
-            admin_notes: sub.admin_notes || undefined,
-            evaluation_type: dlConfig?.evaluation_type || 'approval_only',
-            notes: JSON.stringify(answers),
-            assigned_reviewer_id: wfMeta?.assigned_reviewer_id,
-            assigned_reviewer_name: wfMeta?.assigned_reviewer_name,
-            current_stage_order: wfMeta?.current_stage_order || 1,
-            workflow_id: wfMeta?.workflow_id,
-            stage_reviews: wfMeta?.stage_reviews || [],
-          };
+          return hydratePlanWithCloudMeta(
+            {
+              id: sub.id,
+              teacher_id: sub.teacher_id,
+              teacher_name: sub.teacher_name,
+              teacher_photo: teacherPhotoMap.get(String(sub.teacher_id || '').trim().toLowerCase()) || '',
+              learning_area: sub.learning_area || '',
+              branch: wfMeta?.branch || '',
+              subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
+              subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
+              grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
+              semester: dlConfig?.semester || currentActiveTerm.semester || DEFAULT_ACTIVE_TERM_CONFIG.semester,
+              academic_year: dlConfig?.academic_year || currentActiveTerm.academic_year || DEFAULT_ACTIVE_TERM_CONFIG.academic_year,
+              plan_title: String(titleCandidate).substring(0, 120),
+              plan_type: sub.assignment_name,
+              total_hours: Number(answers['fld_hours']) || 1,
+              file_url: firstAtt?.file_url || answers[fields.find((f) => f.type === 'file')?.id || ''] || findFirstHttpUrlInObject(answers) || '#',
+              file_name: firstAtt?.file_name || 'เอกสารภาระงาน',
+              submitted_at: sub.submitted_at || new Date().toISOString(),
+              status: sub.status || 'submitted',
+              is_late: sub.is_late ?? false,
+              submission_delay_text: sub.submission_delay_text,
+              reviewed_by: sub.reviewed_by || undefined,
+              reviewer_name: sub.reviewer_name || undefined,
+              reviewed_at: sub.reviewed_at || undefined,
+              review_comment: sub.review_comment || undefined,
+              admin_notes: sub.admin_notes || undefined,
+              evaluation_type: dlConfig?.evaluation_type || wfMeta?.evaluation_type || 'approval_only',
+              notes: JSON.stringify({ ...answers, _attachments: sub.attachments || [] }),
+            },
+            mergedWfAssign
+          );
         });
 
       // 2. Cloud-authoritative reconciliation:
@@ -682,34 +746,46 @@ export default function App() {
         const deletedIds = getDeletedPlanIds();
         const preSyncLocalPlans = getLocalPlans();
         const pendingSyncIds = getPendingPlanSyncIds();
-        const [plansRes, wfAssignRes] = await Promise.all([
+        const [plansRes, wfAssignRes, dlRes, wfRes, accessRes] = await Promise.all([
           fetchPlans(null),
           fetchSystemSetting<Record<string, any>>('plan_workflow_assignments', {}),
+          fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
+          fetchSystemSetting<ReviewWorkflowConfig[]>('review_workflows', getLocalWorkflows()),
+          fetchSystemSetting<AllDocumentsAccessConfig>('school_all_docs_access_config', DEFAULT_ALL_DOCS_ACCESS_CONFIG),
         ]);
+        if (dlRes.isSupabase && dlRes.hasRemoteValue && Array.isArray(dlRes.data) && dlRes.data.length > 0) {
+          saveDeadlineConfigs(dlRes.data);
+          setDeadlineConfigs(dlRes.data);
+        }
+        if (wfRes.isSupabase && wfRes.hasRemoteValue && Array.isArray(wfRes.data) && wfRes.data.length > 0) {
+          saveLocalWorkflows(wfRes.data);
+          setWorkflows(wfRes.data);
+        }
+        if (accessRes.isSupabase && accessRes.hasRemoteValue && accessRes.data) {
+          setAllDocsAccessConfig(accessRes.data);
+          try {
+            localStorage.setItem('school_all_docs_access_config', JSON.stringify(accessRes.data));
+          } catch {}
+        }
+
         if (plansRes.data) {
-          const effectiveDl = deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
+          const effectiveDl =
+            dlRes.hasRemoteValue && Array.isArray(dlRes.data) && dlRes.data.length > 0
+              ? dlRes.data
+              : deadlineConfigs.length > 0
+              ? deadlineConfigs
+              : getSavedDeadlineConfigs();
           const remoteWfAssign =
-            wfAssignRes?.data && typeof wfAssignRes.data === 'object' && !Array.isArray(wfAssignRes.data)
+            wfAssignRes?.hasRemoteValue && wfAssignRes?.data && typeof wfAssignRes.data === 'object' && !Array.isArray(wfAssignRes.data)
               ? wfAssignRes.data
+              : wfAssignRes?.isSupabase
+              ? {}
               : getLocalWorkflowAssignments();
           saveLocalWorkflowAssignments(remoteWfAssign);
 
           const remotePlans = (plansRes.data || [])
             .filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted')
-            .map((p) => {
-              const wfMeta = remoteWfAssign[p.id];
-              return wfMeta
-                ? {
-                    ...p,
-                    assigned_reviewer_id: p.assigned_reviewer_id || wfMeta.assigned_reviewer_id,
-                    assigned_reviewer_name: p.assigned_reviewer_name || wfMeta.assigned_reviewer_name,
-                    current_stage_order: p.current_stage_order || wfMeta.current_stage_order || 1,
-                    workflow_id: p.workflow_id || wfMeta.workflow_id,
-                    stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (wfMeta.stage_reviews || []),
-                    branch: p.branch || wfMeta.branch,
-                  }
-                : p;
-            });
+            .map((p) => hydratePlanWithCloudMeta(p, remoteWfAssign));
           const remotePlanIds = new Set(remotePlans.map((p) => p.id));
           const localSubmissions = await fetchAssignmentSubmissionsList();
           const convertedDynamicPlans: LessonPlan[] = (localSubmissions || [])
@@ -724,36 +800,41 @@ export default function App() {
                 answers['fld_title'] ||
                 answers['fld_research_topic'] ||
                 answers['fld_topic'] ||
+                answers[fields.find((f) => f.type === 'textarea')?.id || ''] ||
+                answers[fields.find((f) => f.type === 'text')?.id || ''] ||
                 sub.assignment_name;
-              return {
-                id: sub.id,
-                teacher_id: sub.teacher_id,
-                teacher_name: sub.teacher_name,
-                teacher_photo: '',
-                learning_area: sub.learning_area || '',
-                branch: wfMeta?.branch || '',
-                subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
-                subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
-                grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
-                semester: dlConfig?.semester || activeTerm.semester || DEFAULT_ACTIVE_TERM_CONFIG.semester,
-                academic_year: dlConfig?.academic_year || activeTerm.academic_year || DEFAULT_ACTIVE_TERM_CONFIG.academic_year,
-                plan_title: String(titleCandidate).substring(0, 120),
-                plan_type: sub.assignment_name,
-                total_hours: Number(answers['fld_hours']) || 1,
-                file_url: firstAtt?.file_url || answers[fields.find((f) => f.type === 'file')?.id || ''] || findFirstHttpUrlInObject(answers) || '#',
-                file_name: firstAtt?.file_name || 'เอกสารภาระงาน',
-                submitted_at: sub.submitted_at || new Date().toISOString(),
-                status: sub.status || 'submitted',
-                is_late: sub.is_late ?? false,
-                submission_delay_text: sub.submission_delay_text,
-                evaluation_type: dlConfig?.evaluation_type || 'approval_only',
-                notes: JSON.stringify(answers),
-                assigned_reviewer_id: wfMeta?.assigned_reviewer_id,
-                assigned_reviewer_name: wfMeta?.assigned_reviewer_name,
-                current_stage_order: wfMeta?.current_stage_order || 1,
-                workflow_id: wfMeta?.workflow_id,
-                stage_reviews: wfMeta?.stage_reviews || [],
-              };
+              return hydratePlanWithCloudMeta(
+                {
+                  id: sub.id,
+                  teacher_id: sub.teacher_id,
+                  teacher_name: sub.teacher_name,
+                  teacher_photo: '',
+                  learning_area: sub.learning_area || '',
+                  branch: wfMeta?.branch || '',
+                  subject_code: String(answers['fld_subject_code'] || 'ภาระงาน'),
+                  subject_name: String(answers['fld_subject_name'] || sub.assignment_name),
+                  grade_level: String(answers['fld_grade_level'] || 'มัธยมศึกษา'),
+                  semester: dlConfig?.semester || activeTerm.semester || DEFAULT_ACTIVE_TERM_CONFIG.semester,
+                  academic_year: dlConfig?.academic_year || activeTerm.academic_year || DEFAULT_ACTIVE_TERM_CONFIG.academic_year,
+                  plan_title: String(titleCandidate).substring(0, 120),
+                  plan_type: sub.assignment_name,
+                  total_hours: Number(answers['fld_hours']) || 1,
+                  file_url: firstAtt?.file_url || answers[fields.find((f) => f.type === 'file')?.id || ''] || findFirstHttpUrlInObject(answers) || '#',
+                  file_name: firstAtt?.file_name || 'เอกสารภาระงาน',
+                  submitted_at: sub.submitted_at || new Date().toISOString(),
+                  status: sub.status || 'submitted',
+                  is_late: sub.is_late ?? false,
+                  submission_delay_text: sub.submission_delay_text,
+                  reviewed_by: sub.reviewed_by || undefined,
+                  reviewer_name: sub.reviewer_name || undefined,
+                  reviewed_at: sub.reviewed_at || undefined,
+                  review_comment: sub.review_comment || undefined,
+                  admin_notes: sub.admin_notes || undefined,
+                  evaluation_type: dlConfig?.evaluation_type || wfMeta?.evaluation_type || 'approval_only',
+                  notes: JSON.stringify({ ...answers, _attachments: sub.attachments || [] }),
+                },
+                remoteWfAssign
+              );
             });
 
           const localPlans = preSyncLocalPlans.filter((lp) => !deletedIds.has(lp.id) && lp.status !== 'deleted');
@@ -806,31 +887,9 @@ export default function App() {
           }
         }
       } else if (table === 'system_settings') {
-        const [dlRes, stRes, termRes] = await Promise.all([
-          fetchSystemSetting<PlanTypeDeadlineConfig[]>('deadline_configs', getSavedDeadlineConfigs()),
-          fetchSystemSetting<PlanStatusConfig[]>('status_configs', getSavedStatusConfigs()),
-          fetchSystemSetting<ActiveTermConfig>('school_active_term', getLocalActiveTerm()),
-        ]);
-        if (dlRes.data && Array.isArray(dlRes.data)) {
-          setDeadlineConfigs(dlRes.data);
-          saveDeadlineConfigs(dlRes.data);
-        }
-        if (stRes.data && Array.isArray(stRes.data)) {
-          setStatusConfigs(stRes.data);
-          saveStatusConfigs(stRes.data);
-        }
-        if (termRes?.data && termRes.data.academic_year && termRes.data.semester) {
-          const syncedTerm: ActiveTermConfig = {
-            academic_year: String(termRes.data.academic_year).trim(),
-            semester: String(termRes.data.semester).trim(),
-            updated_at: termRes.data.updated_at,
-            updated_by: termRes.data.updated_by,
-          };
-          setActiveTerm(syncedTerm);
-          saveLocalActiveTerm(syncedTerm);
-        }
+        await syncWithDatabase(true);
       } else {
-        syncWithDatabase(true);
+        await syncWithDatabase(true);
       }
     } catch (err) {
       console.warn(`Targeted sync error for ${table}:`, err);
@@ -966,19 +1025,29 @@ export default function App() {
         localStorage.setItem('lp_current_user_email', sanitizedUpdated.Email);
       } catch {}
     }
-    // Also sync teacher name in existing lesson plans if name/area changed
+    // Also sync teacher name/photo/learning_area in existing lesson plans (both state and Cloudflare D1)
+    const ownedPlansToUpdate: LessonPlan[] = [];
     setPlans((prev) =>
-      prev.map((p) =>
-        isPlanOwnedByTeacher(p, sanitizedUpdated)
-          ? {
-              ...p,
-              teacher_name: sanitizedUpdated.Name,
-              teacher_photo: sanitizedUpdated.photo,
-              learning_area: sanitizedUpdated.Learning_Area,
-            }
-          : p
-      )
+      prev.map((p) => {
+        if (!isPlanOwnedByTeacher(p, sanitizedUpdated)) return p;
+        const needsUpdate =
+          p.teacher_name !== sanitizedUpdated.Name ||
+          (p.teacher_photo || '') !== (sanitizedUpdated.photo || '') ||
+          p.learning_area !== sanitizedUpdated.Learning_Area;
+        if (!needsUpdate) return p;
+        const updatedPlanRow: LessonPlan = {
+          ...p,
+          teacher_name: sanitizedUpdated.Name,
+          teacher_photo: sanitizedUpdated.photo || '',
+          learning_area: sanitizedUpdated.Learning_Area,
+        };
+        ownedPlansToUpdate.push(updatedPlanRow);
+        return updatedPlanRow;
+      })
     );
+    if (ownedPlansToUpdate.length > 0) {
+      Promise.all(ownedPlansToUpdate.map((p) => savePlanRecord(p))).catch(() => {});
+    }
 
     setToastNotice({
       type: 'success',
@@ -1072,8 +1141,12 @@ export default function App() {
 
     // Sync AssignmentSubmission if this plan originated from dynamic assignment submission
     try {
-      const savedSubs = getSavedSubmissions();
-      const targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+      let savedSubs = getSavedSubmissions();
+      let targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+      if (!targetSub && updatedPlan.id.startsWith('SUB-')) {
+        savedSubs = await fetchAssignmentSubmissionsList();
+        targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+      }
       if (targetSub) {
         const updatedSub: AssignmentSubmission = {
           ...targetSub,
@@ -1196,10 +1269,42 @@ export default function App() {
 
   // Resubmit plan (status -> 'submitted' to let admin review again)
   const handleResubmitPlan = async (updatedPlan: LessonPlan) => {
-    const res = await savePlanRecord(updatedPlan);
+    await savePlanRecord(updatedPlan);
     setPlans((prev) =>
       prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
     );
+
+    // Sync matching AssignmentSubmission if this originated from dynamic submission
+    if (updatedPlan.id.startsWith('SUB-')) {
+      try {
+        let savedSubs = getSavedSubmissions();
+        let targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+        if (!targetSub) {
+          savedSubs = await fetchAssignmentSubmissionsList();
+          targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+        }
+        if (targetSub) {
+          const nextAtts =
+            updatedPlan.file_url && updatedPlan.file_url !== '#'
+              ? [
+                  {
+                    field_id: targetSub.attachments?.[0]?.field_id || 'file',
+                    file_name: updatedPlan.file_name || targetSub.attachments?.[0]?.file_name || 'เอกสาร',
+                    file_url: updatedPlan.file_url,
+                  },
+                  ...(targetSub.attachments || []).slice(1),
+                ]
+              : targetSub.attachments;
+          await saveAssignmentSubmissionRecord({
+            ...targetSub,
+            status: updatedPlan.status,
+            is_late: updatedPlan.is_late,
+            submitted_at: updatedPlan.submitted_at || targetSub.submitted_at,
+            attachments: nextAtts,
+          });
+        }
+      } catch {}
+    }
 
     // Option B2: Sync Google Drive Editor permissions on any resubmitted/newly attached Drive links
     syncLessonPlanDriveEditors(updatedPlan, teachers);
@@ -1353,8 +1458,12 @@ export default function App() {
 
     // Also update dynamic assignment submission if applicable
     try {
-      const savedSubs = getSavedSubmissions();
-      const targetSub = savedSubs.find((s) => s.id === planId);
+      let savedSubs = getSavedSubmissions();
+      let targetSub = savedSubs.find((s) => s.id === planId);
+      if (!targetSub && planId.startsWith('SUB-')) {
+        savedSubs = await fetchAssignmentSubmissionsList();
+        targetSub = savedSubs.find((s) => s.id === planId);
+      }
       if (targetSub) {
         const updatedSub: AssignmentSubmission = {
           ...targetSub,
@@ -1419,6 +1528,23 @@ export default function App() {
     };
     setPlans((prev) => prev.map((p) => (p.id === plan.id ? updatedPlan : p)));
     await savePlanRecord(updatedPlan);
+
+    if (plan.id.startsWith('SUB-')) {
+      try {
+        let savedSubs = getSavedSubmissions();
+        let targetSub = savedSubs.find((s) => s.id === plan.id);
+        if (!targetSub) {
+          savedSubs = await fetchAssignmentSubmissionsList();
+          targetSub = savedSubs.find((s) => s.id === plan.id);
+        }
+        if (targetSub) {
+          await saveAssignmentSubmissionRecord({
+            ...targetSub,
+            is_late: nextLate,
+          });
+        }
+      } catch {}
+    }
 
     setToastNotice({
       type: 'info',
@@ -4444,6 +4570,10 @@ export default function App() {
           config={selectedDynamicConfig}
           isOpen={isDynamicSubmitModalOpen}
           activeTerm={activeTerm}
+          workflows={workflows}
+          teachers={teachers}
+          departments={departments}
+          branches={branches}
           onClose={() => {
             setIsDynamicSubmitModalOpen(false);
             setSelectedDynamicConfig(null);
@@ -4457,16 +4587,16 @@ export default function App() {
           onSubmitted={async (submission, correspondingPlan) => {
             if (correspondingPlan) {
               const rawAdded = Array.isArray(correspondingPlan) ? correspondingPlan : [correspondingPlan];
-              const resolvedAdded = rawAdded.map((p) => {
-                if (!p.assigned_reviewer_id) {
+              const resolvedAdded: LessonPlan[] = [];
+              for (const p of rawAdded) {
+                if (!p.workflow_id) {
                   const enriched = assignWorkflowToPlan(p, workflows, teachers, departments, branches);
-                  if (enriched.assigned_reviewer_id !== p.assigned_reviewer_id) {
-                    savePlanRecord(enriched).catch(() => {});
-                  }
-                  return enriched;
+                  await savePlanRecord(enriched);
+                  resolvedAdded.push(enriched);
+                } else {
+                  resolvedAdded.push(p);
                 }
-                return p;
-              });
+              }
               setPlans((prev) => [...resolvedAdded, ...prev]);
               resolvedAdded.forEach((p) => {
                 syncLessonPlanDriveEditors(p, teachers);
@@ -4500,6 +4630,36 @@ export default function App() {
             setPlans((prev) =>
               prev.map((p) => (p.id === updatedPlan.id ? updatedPlan : p))
             );
+            if (updatedPlan.id.startsWith('SUB-')) {
+              try {
+                let savedSubs = getSavedSubmissions();
+                let targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+                if (!targetSub) {
+                  savedSubs = await fetchAssignmentSubmissionsList();
+                  targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
+                }
+                if (targetSub) {
+                  const nextAtts =
+                    updatedPlan.file_url && updatedPlan.file_url !== '#'
+                      ? [
+                          {
+                            field_id: targetSub.attachments?.[0]?.field_id || 'file',
+                            file_name: updatedPlan.file_name || targetSub.attachments?.[0]?.file_name || 'เอกสาร',
+                            file_url: updatedPlan.file_url,
+                          },
+                          ...(targetSub.attachments || []).slice(1),
+                        ]
+                      : targetSub.attachments;
+                  await saveAssignmentSubmissionRecord({
+                    ...targetSub,
+                    status: updatedPlan.status,
+                    is_late: updatedPlan.is_late,
+                    admin_notes: updatedPlan.admin_notes,
+                    attachments: nextAtts,
+                  });
+                }
+              } catch {}
+            }
             syncLessonPlanDriveEditors(updatedPlan, teachers);
 
             setToastNotice({

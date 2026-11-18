@@ -7,6 +7,9 @@ import {
   LessonPlan,
   ActiveTermConfig,
   DEFAULT_ACTIVE_TERM_CONFIG,
+  ReviewWorkflowConfig,
+  DepartmentConfig,
+  BranchConfig,
 } from '../types';
 import { checkSubmissionTimeliness } from '../utils/deadlineUtils';
 import {
@@ -67,6 +70,10 @@ interface DynamicSubmitModalProps {
   existingSubmission?: AssignmentSubmission | null;
   onSwitchToStandard?: (typeName: string) => void;
   activeTerm?: ActiveTermConfig;
+  workflows?: ReviewWorkflowConfig[];
+  teachers?: Teacher[];
+  departments?: DepartmentConfig[];
+  branches?: BranchConfig[];
 }
 
 export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
@@ -78,6 +85,10 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
   existingSubmission,
   onSwitchToStandard,
   activeTerm = DEFAULT_ACTIVE_TERM_CONFIG,
+  workflows,
+  teachers,
+  departments,
+  branches,
 }) => {
   const fields: DynamicFormField[] = config.fields || [];
   const formRef = useRef<HTMLDivElement>(null);
@@ -577,7 +588,13 @@ export const DynamicSubmitModal: React.FC<DynamicSubmitModalProps> = ({
           }),
         };
 
-        const finalPlan = assignWorkflowToPlan(correspondingPlan);
+        const finalPlan = assignWorkflowToPlan(
+          correspondingPlan,
+          workflows,
+          teachers,
+          departments,
+          branches
+        );
         await savePlanRecord(finalPlan);
         createdPlans.push(finalPlan);
       }

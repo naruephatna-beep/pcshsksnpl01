@@ -171,13 +171,18 @@ export function getSavedNamingPattern(): string {
 export async function fetchGoogleDriveNamingPattern(): Promise<string> {
   const localVal = getSavedNamingPattern();
   try {
-    const res = await fetchSystemSetting<string>('gdrive_naming_pattern', localVal);
-    if (res.data && typeof res.data === 'string' && res.data.trim()) {
-      const cleanRemote = res.data.trim();
-      if (cleanRemote !== localVal) {
+    const res = await fetchSystemSetting<string>('gdrive_naming_pattern', DEFAULT_NAMING_PATTERN);
+    if (res.isSupabase) {
+      if (res.hasRemoteValue && res.data && typeof res.data === 'string' && res.data.trim()) {
+        const cleanRemote = res.data.trim();
         localStorage.setItem(STORAGE_KEY_GDRIVE_NAMING_PATTERN, cleanRemote);
+        return cleanRemote;
+      } else {
+        // Cloud reachable & not set yet: seed default pattern so every device uses identical naming
+        localStorage.setItem(STORAGE_KEY_GDRIVE_NAMING_PATTERN, DEFAULT_NAMING_PATTERN);
+        saveSystemSetting('gdrive_naming_pattern', DEFAULT_NAMING_PATTERN).catch(() => {});
+        return DEFAULT_NAMING_PATTERN;
       }
-      return cleanRemote;
     }
   } catch (err) {
     console.warn('Could not fetch gdrive_naming_pattern:', err);

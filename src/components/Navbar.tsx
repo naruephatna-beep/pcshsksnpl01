@@ -118,10 +118,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         onClick={onOpenDeadlineManager}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-300 hover:border-slate-400 text-slate-800 hover:bg-slate-50 shadow-2xs cursor-pointer active:scale-95"
-                        title="กำหนดช่วงเวลาส่งของแต่ละประเภทเอกสาร"
+                        title="เพิ่ม / แก้ไขงานที่ให้ครูส่ง กำหนดวันส่ง และป้ายสถานะ"
                       >
                         <Calendar className="w-3.5 h-3.5 text-slate-600" />
-                        <span>กำหนดส่ง & สถานะ</span>
+                        <span>เพิ่ม/แก้ไขงาน</span>
                       </button>
                     )}
 
@@ -387,7 +387,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50"
                   >
                     <Calendar className="w-4 h-4 text-slate-600" />
-                    <span>กำหนดวันเวลาส่ง & จัดการสถานะ</span>
+                    <span>เพิ่ม / แก้ไขงานที่ให้ครูส่ง</span>
                   </button>
                 )}
                 <button

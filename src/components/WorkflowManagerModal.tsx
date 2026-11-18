@@ -18,11 +18,13 @@ import {
   saveWorkflows,
   autoAssignPlansForStage,
   resolveReviewersForStage,
-  getLocalWorkflowAssignments,
-  saveLocalWorkflowAssignments,
   sanitizeStaleAdminAssignments,
 } from '../services/departmentWorkflowService';
-import { savePlanRecord, saveLocalPlans, saveSystemSetting } from '../services/supabaseClient';
+import {
+  savePlanRecord,
+  saveLocalPlans,
+  syncBatchPlanWorkflowMetaToCloud,
+} from '../services/supabaseClient';
 import { syncLessonPlanDriveEditors } from '../services/googleDriveService';
 import { formatGoogleDriveImageUrl, getInitials } from '../utils/imageUtils';
 import {
@@ -397,20 +399,9 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
 
     if (modifiedPlans.length > 0) {
       saveLocalPlans(updatedPlans);
-      const assignmentMap = getLocalWorkflowAssignments();
-      modifiedPlans.forEach((p) => {
-        assignmentMap[p.id] = {
-          assigned_reviewer_id: p.assigned_reviewer_id,
-          assigned_reviewer_name: p.assigned_reviewer_name,
-          current_stage_order: p.current_stage_order || 1,
-          workflow_id: p.workflow_id,
-          stage_reviews: p.stage_reviews,
-        };
-      });
-      saveLocalWorkflowAssignments(assignmentMap);
-      saveSystemSetting('plan_workflow_assignments', assignmentMap).catch(() => {});
       onUpdatePlans(updatedPlans);
-      Promise.all(modifiedPlans.map((p) => savePlanRecord(p))).catch(() => {});
+      await syncBatchPlanWorkflowMetaToCloud(modifiedPlans);
+      await Promise.all(modifiedPlans.map((p) => savePlanRecord(p))).catch(() => {});
     }
 
     showToast('บันทึกการตั้งค่าสายงานและผู้ตรวจของทุกประเภทเอกสารสำเร็จแล้ว!');
@@ -446,43 +437,31 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     });
     const allUpdatedPlans = plans.map((p) => updatedMap.get(p.id) || p);
 
-    // 2. Atomically persist to Local Storage
+    // 2. Atomically persist to Local Storage & React state
     saveLocalPlans(allUpdatedPlans);
-
-    // 3. Atomically persist workflow assignments map to localStorage and cloud system_settings
-    const assignmentMap = getLocalWorkflowAssignments();
-    res.updatedPlans.forEach((p) => {
-      assignmentMap[p.id] = {
-        assigned_reviewer_id: p.assigned_reviewer_id,
-        assigned_reviewer_name: p.assigned_reviewer_name,
-        current_stage_order: p.current_stage_order || stage.order,
-        workflow_id: p.workflow_id || currentWorkflow.id,
-        stage_reviews: p.stage_reviews,
-      };
-    });
-    saveLocalWorkflowAssignments(assignmentMap);
-    saveSystemSetting('plan_workflow_assignments', assignmentMap).catch((err) => {
-      console.warn('Error saving plan_workflow_assignments setting:', err);
-    });
-
-    // 4. Update React state in App.tsx
     onUpdatePlans(allUpdatedPlans);
 
-    // 5. Persist modified plans to database and local storage
+    // 3. Persist modified plans and merge remote plan_workflow_assignments safely (never overwrite other devices)
     const modifiedList = res.updatedPlans.filter((p) => {
       const original = plans.find((orig) => orig.id === p.id);
       return (
         original?.assigned_reviewer_id !== p.assigned_reviewer_id ||
-        original?.current_stage_order !== p.current_stage_order
+        original?.current_stage_order !== p.current_stage_order ||
+        original?.workflow_id !== p.workflow_id
       );
     });
 
-    if (modifiedList.length > 0) {
-      Promise.all(modifiedList.map((p) => savePlanRecord(p))).catch((err) => {
+    const syncedPlansList = modifiedList.map(
+      (p) => updatedMap.get(p.id) || { ...p, workflow_id: p.workflow_id || currentWorkflow.id }
+    );
+
+    if (syncedPlansList.length > 0) {
+      await syncBatchPlanWorkflowMetaToCloud(syncedPlansList);
+      await Promise.all(syncedPlansList.map((p) => savePlanRecord(p))).catch((err) => {
         console.warn('Error persisting auto-assigned plans to cloud:', err);
       });
       // Sync Google Drive Editor permissions to updated submitter + assigned reviewer emails (Option B2)
-      Promise.all(modifiedList.map((p) => syncLessonPlanDriveEditors(p, teachers))).catch((err) => {
+      Promise.all(syncedPlansList.map((p) => syncLessonPlanDriveEditors(p, teachers))).catch((err) => {
         console.warn('Error syncing Google Drive permissions for assigned plans:', err);
       });
     }

@@ -229,8 +229,8 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         baseActions.push({
           id: 'act-deadline',
           group: 'actions',
-          title: 'กำหนดส่ง & จัดการสถานะเอกสาร',
-          subtitle: 'ตั้งวันหมดเขตส่งงานและแก้ไขประเภทเอกสาร',
+          title: 'เพิ่ม / แก้ไขงานที่ให้ครูส่ง',
+          subtitle: 'สร้างงานใหม่ ตั้งวันส่ง ปรับป้ายสถานะ และจัดการฟอร์มส่งงาน',
           meta: 'แอดมิน',
           icon: <Calendar className="w-4 h-4 text-slate-600" />,
           onSelect: () => {

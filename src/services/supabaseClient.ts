@@ -55,7 +55,9 @@ const STORAGE_KEY_CONFIG = 'lp_supabase_config';
 const STORAGE_KEY_TEACHERS = 'lp_local_teachers';
 const STORAGE_KEY_PLANS = 'lp_local_plans';
 const STORAGE_KEY_DELETED_PLAN_IDS = 'lp_deleted_plan_ids';
+const STORAGE_KEY_PENDING_DELETED_IDS = 'lp_pending_deleted_ids';
 const STORAGE_KEY_PENDING_SYNC_IDS = 'lp_pending_plan_sync_ids';
+const STORAGE_KEY_PENDING_SUB_SYNC_IDS = 'lp_pending_sub_sync_ids';
 const STORAGE_KEY_CLOUD_PLANS_SYNCED = 'lp_cloud_plans_synced';
 
 export function getPendingPlanSyncIds(): Set<string> {
@@ -88,6 +90,53 @@ export function removePendingPlanSyncId(id: string): void {
   } catch {}
 }
 
+export function getPendingSubmissionSyncIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PENDING_SUB_SYNC_IDS);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.filter((id) => typeof id === 'string' && id));
+    }
+  } catch {}
+  return new Set();
+}
+
+export function addPendingSubmissionSyncId(id: string): void {
+  if (!id) return;
+  try {
+    const set = getPendingSubmissionSyncIds();
+    set.add(id);
+    localStorage.setItem(STORAGE_KEY_PENDING_SUB_SYNC_IDS, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+export function removePendingSubmissionSyncId(id: string): void {
+  if (!id) return;
+  try {
+    const set = getPendingSubmissionSyncIds();
+    if (set.delete(id)) {
+      localStorage.setItem(STORAGE_KEY_PENDING_SUB_SYNC_IDS, JSON.stringify(Array.from(set)));
+    }
+  } catch {}
+}
+
+function getPendingDeletedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PENDING_DELETED_IDS);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.filter((id) => typeof id === 'string' && id));
+    }
+  } catch {}
+  return new Set();
+}
+
+function savePendingDeletedIds(set: Set<string>): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_PENDING_DELETED_IDS, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
 function isCloudPlansSynced(): boolean {
   try {
     return localStorage.getItem(STORAGE_KEY_CLOUD_PLANS_SYNCED) === '1';
@@ -115,41 +164,71 @@ export function getDeletedPlanIds(): Set<string> {
   return new Set();
 }
 
+let deletedIdsQueue: Promise<any> = Promise.resolve();
+
+function enqueueDeletedIdsMutation<T>(fn: () => Promise<T>): Promise<T> {
+  const next = deletedIdsQueue.then(fn, fn);
+  deletedIdsQueue = next.catch(() => {});
+  return next;
+}
+
 /**
  * Synchronizes deleted document IDs across all devices and browsers via Cloudflare D1
+ * Uses cloud as authoritative source, only uploading pending local deletions not yet synced.
  */
 export async function syncDeletedPlanIdsWithCloud(): Promise<Set<string>> {
-  const localSet = getDeletedPlanIds();
-  try {
-    const cloudRes = await fetchSystemSetting<string[]>('deleted_document_ids', []);
-    if (cloudRes.data && Array.isArray(cloudRes.data)) {
-      cloudRes.data.forEach((id) => {
-        if (id && typeof id === 'string') localSet.add(id);
-      });
-      // Save merged set back to localStorage
-      localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(Array.from(localSet)));
+  return enqueueDeletedIdsMutation(async () => {
+    const localSet = getDeletedPlanIds();
+    const pendingSet = getPendingDeletedIds();
+    try {
+      const cloudRes = await fetchSystemSetting<string[]>('deleted_document_ids', []);
+      if (cloudRes.isSupabase) {
+        if (cloudRes.hasRemoteValue && Array.isArray(cloudRes.data)) {
+          const cloudSet = new Set(cloudRes.data.filter((id) => typeof id === 'string' && id));
+          let needsPush = false;
+          pendingSet.forEach((id) => {
+            if (id && !cloudSet.has(id)) {
+              cloudSet.add(id);
+              needsPush = true;
+            }
+          });
+          localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(Array.from(cloudSet)));
+          if (needsPush) {
+            const pushRes = await saveSystemSetting('deleted_document_ids', Array.from(cloudSet));
+            if (pushRes.success) {
+              savePendingDeletedIds(new Set());
+            }
+          } else if (pendingSet.size > 0) {
+            savePendingDeletedIds(new Set());
+          }
+          return cloudSet;
+        } else if (localSet.size > 0) {
+          // Key does not exist on cloud yet; seed once from local
+          const pushRes = await saveSystemSetting('deleted_document_ids', Array.from(localSet));
+          if (pushRes.success) {
+            savePendingDeletedIds(new Set());
+          }
+          return localSet;
+        }
+      }
+    } catch (e) {
+      console.warn('syncDeletedPlanIdsWithCloud warning:', e);
     }
-    // If local set has IDs that aren't yet in the cloud, push the merged set to Cloudflare D1
-    const cloudSet = new Set(cloudRes.data || []);
-    const hasNewLocal = Array.from(localSet).some((id) => !cloudSet.has(id));
-    if (hasNewLocal || (!cloudRes.data && localSet.size > 0)) {
-      await saveSystemSetting('deleted_document_ids', Array.from(localSet));
-    }
-  } catch (e) {
-    console.warn('syncDeletedPlanIdsWithCloud warning:', e);
-  }
-  return localSet;
+    return localSet;
+  });
 }
 
 let deletedSyncTimer: any = null;
 
-export function recordDeletedPlanId(id: string) {
-  if (!id) return;
+export function recordDeletedPlanId(id: string): Promise<void> {
+  if (!id) return Promise.resolve();
   const set = getDeletedPlanIds();
-  if (set.has(id)) return; // Already recorded! Avoid redundant writes and network calls
+  const pendingSet = getPendingDeletedIds();
+  const alreadyRecorded = set.has(id) && !pendingSet.has(id);
   set.add(id);
-  const arr = Array.from(set);
-  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(arr));
+  pendingSet.add(id);
+  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(Array.from(set)));
+  savePendingDeletedIds(pendingSet);
 
   // Purge immediately from local storage caches
   try {
@@ -159,29 +238,50 @@ export function recordDeletedPlanId(id: string) {
     saveSubmissions(localSubs);
   } catch {}
 
-  // Single debounced sync (60ms) to bundle simultaneous deletions into exactly 1 cloud request
+  if (alreadyRecorded) return Promise.resolve();
+
   if (deletedSyncTimer) clearTimeout(deletedSyncTimer);
-  deletedSyncTimer = setTimeout(() => {
-    saveSystemSetting('deleted_document_ids', arr).catch((err) => {
-      console.warn('Push deleted_document_ids to cloud warning:', err);
-    });
-  }, 60);
+  return new Promise<void>((resolve) => {
+    deletedSyncTimer = setTimeout(() => {
+      enqueueDeletedIdsMutation(async () => {
+        try {
+          const cloudRes = await fetchSystemSetting<string[]>('deleted_document_ids', []);
+          const currentPending = getPendingDeletedIds();
+          const merged = new Set<string>(
+            cloudRes.isSupabase && Array.isArray(cloudRes.data) ? cloudRes.data : Array.from(getDeletedPlanIds())
+          );
+          currentPending.forEach((pid) => {
+            if (pid) merged.add(pid);
+          });
+          const mergedArr = Array.from(merged);
+          localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(mergedArr));
+          const pushRes = await saveSystemSetting('deleted_document_ids', mergedArr);
+          if (pushRes.success) {
+            savePendingDeletedIds(new Set());
+          }
+        } catch (err) {
+          console.warn('Push deleted_document_ids to cloud warning:', err);
+        } finally {
+          resolve();
+        }
+      });
+    }, 30);
+  });
 }
 
 export async function recordDeletedPlanIdsBatch(ids: string[]): Promise<void> {
   if (!ids || ids.length === 0) return;
   const set = getDeletedPlanIds();
-  let changed = false;
+  const pendingSet = getPendingDeletedIds();
   ids.forEach((id) => {
-    if (id && !set.has(id)) {
+    if (id) {
       set.add(id);
-      changed = true;
+      pendingSet.add(id);
     }
   });
-  const arr = Array.from(set);
-  if (changed) {
-    localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(arr));
-  }
+  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(Array.from(set)));
+  savePendingDeletedIds(pendingSet);
+
   const idSet = new Set(ids);
   try {
     const localPlans = getLocalPlans().filter((p) => !idSet.has(p.id));
@@ -190,18 +290,55 @@ export async function recordDeletedPlanIdsBatch(ids: string[]): Promise<void> {
     saveSubmissions(localSubs);
   } catch {}
 
-  await saveSystemSetting('deleted_document_ids', arr).catch((err) => {
-    console.warn('Push batch deleted_document_ids to cloud warning:', err);
+  await enqueueDeletedIdsMutation(async () => {
+    try {
+      const cloudRes = await fetchSystemSetting<string[]>('deleted_document_ids', []);
+      const merged = new Set<string>(
+        cloudRes.isSupabase && Array.isArray(cloudRes.data) ? cloudRes.data : Array.from(getDeletedPlanIds())
+      );
+      ids.forEach((id) => {
+        if (id) merged.add(id);
+      });
+      const mergedArr = Array.from(merged);
+      localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(mergedArr));
+      const pushRes = await saveSystemSetting('deleted_document_ids', mergedArr);
+      if (pushRes.success) {
+        const remainingPending = getPendingDeletedIds();
+        ids.forEach((id) => remainingPending.delete(id));
+        savePendingDeletedIds(remainingPending);
+      }
+    } catch (err) {
+      console.warn('Push batch deleted_document_ids to cloud warning:', err);
+    }
   });
 }
 
-export function clearDeletedPlanId(id: string) {
+export async function clearDeletedPlanId(id: string): Promise<void> {
   if (!id) return;
   const set = getDeletedPlanIds();
+  const wasDeletedLocally = set.has(id);
   set.delete(id);
-  const arr = Array.from(set);
-  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(arr));
-  saveSystemSetting('deleted_document_ids', arr).catch(() => {});
+  localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(Array.from(set)));
+
+  const pendingSet = getPendingDeletedIds();
+  if (pendingSet.delete(id)) {
+    savePendingDeletedIds(pendingSet);
+  }
+
+  if (!wasDeletedLocally) return;
+
+  await enqueueDeletedIdsMutation(async () => {
+    try {
+      const cloudRes = await fetchSystemSetting<string[]>('deleted_document_ids', []);
+      if (cloudRes.isSupabase && Array.isArray(cloudRes.data)) {
+        const filtered = cloudRes.data.filter((item) => item && item !== id);
+        if (filtered.length !== cloudRes.data.length) {
+          localStorage.setItem(STORAGE_KEY_DELETED_PLAN_IDS, JSON.stringify(filtered));
+          await saveSystemSetting('deleted_document_ids', filtered);
+        }
+      }
+    } catch {}
+  });
 }
 
 let supabaseInstance: SupabaseClient | null = null;
@@ -452,7 +589,9 @@ export function getLocalPlans(): LessonPlan[] {
       // fallback
     }
   }
-  if (isCloudPlansSynced()) {
+  const hasCloudWorker =
+    getDatabaseProvider() === 'cloudflare' && Boolean(getSavedCloudflareConfig().workerUrl);
+  if (isCloudPlansSynced() || hasCloudWorker) {
     return [];
   }
   const filteredInitials = INITIAL_LESSON_PLANS.filter((p) => !deletedIds.has(p.id));
@@ -1102,6 +1241,83 @@ export function filterPlansForTeacherScope(
   });
 }
 
+export function extractFileReviewsFromNotes(notes?: string): any[] | undefined {
+  if (!notes || typeof notes !== 'string') return undefined;
+  try {
+    const parsed = JSON.parse(notes);
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed._file_reviews) && parsed._file_reviews.length > 0) {
+      return parsed._file_reviews;
+    }
+  } catch {}
+  return undefined;
+}
+
+export function embedFileReviewsIntoNotes(plan: LessonPlan): string | undefined {
+  if (!plan.file_reviews || plan.file_reviews.length === 0) return plan.notes;
+  try {
+    const cur = plan.notes ? JSON.parse(plan.notes) : {};
+    if (cur && typeof cur === 'object' && !Array.isArray(cur)) {
+      cur._file_reviews = plan.file_reviews;
+      return JSON.stringify(cur);
+    }
+  } catch {
+    return JSON.stringify({
+      _raw_notes: plan.notes || '',
+      _file_reviews: plan.file_reviews,
+    });
+  }
+  return plan.notes;
+}
+
+export function hydratePlanWithCloudMeta(
+  p: LessonPlan,
+  assignmentMap: Record<string, any> = {},
+  localPlan?: LessonPlan
+): LessonPlan {
+  const meta = assignmentMap[p.id];
+  const rawScores = (p as any).rubric_scores;
+  let parsedScores = rawScores;
+  if (typeof rawScores === 'string' && rawScores.trim().startsWith('{')) {
+    try {
+      parsedScores = JSON.parse(rawScores);
+    } catch {}
+  }
+
+  const extractedFileReviews =
+    (Array.isArray(p.file_reviews) && p.file_reviews.length > 0 ? p.file_reviews : undefined) ||
+    extractFileReviewsFromNotes(p.notes) ||
+    (Array.isArray(meta?.file_reviews) && meta.file_reviews.length > 0 ? meta.file_reviews : undefined) ||
+    localPlan?.file_reviews;
+
+  return {
+    ...p,
+    is_late: (p.is_late as any) === 1 || (p.is_late as any) === '1' || p.is_late === true,
+    rubric_scores: parsedScores,
+    file_reviews: extractedFileReviews,
+    evaluation_type: p.evaluation_type || meta?.evaluation_type || localPlan?.evaluation_type,
+    total_stages: p.total_stages || meta?.total_stages || localPlan?.total_stages,
+    assigned_reviewer_id:
+      p.assigned_reviewer_id !== undefined
+        ? p.assigned_reviewer_id
+        : meta && 'assigned_reviewer_id' in meta
+        ? meta.assigned_reviewer_id
+        : localPlan?.assigned_reviewer_id,
+    assigned_reviewer_name:
+      p.assigned_reviewer_name !== undefined
+        ? p.assigned_reviewer_name
+        : meta && 'assigned_reviewer_name' in meta
+        ? meta.assigned_reviewer_name
+        : localPlan?.assigned_reviewer_name,
+    current_stage_order: p.current_stage_order || meta?.current_stage_order || localPlan?.current_stage_order || 1,
+    workflow_id: p.workflow_id || meta?.workflow_id || localPlan?.workflow_id,
+    stage_reviews:
+      p.stage_reviews && p.stage_reviews.length > 0
+        ? p.stage_reviews
+        : meta?.stage_reviews || localPlan?.stage_reviews || [],
+    branch: p.branch || meta?.branch || localPlan?.branch,
+  };
+}
+
 export async function fetchPlans(
   currentTeacher?: Teacher | null
 ): Promise<{ data: LessonPlan[]; isSupabase: boolean; error?: string }> {
@@ -1134,19 +1350,7 @@ export async function fetchPlans(
 
           const merged = cfRes.data
             .filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted')
-            .map((p) => {
-              const lp = localMap.get(p.id);
-              const meta = assignmentMap[p.id];
-              return healFileUrl({
-                ...p,
-                assigned_reviewer_id: p.assigned_reviewer_id || meta?.assigned_reviewer_id || lp?.assigned_reviewer_id,
-                assigned_reviewer_name: p.assigned_reviewer_name || meta?.assigned_reviewer_name || lp?.assigned_reviewer_name,
-                current_stage_order: p.current_stage_order || meta?.current_stage_order || lp?.current_stage_order || 1,
-                workflow_id: p.workflow_id || meta?.workflow_id || lp?.workflow_id,
-                stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (meta?.stage_reviews || lp?.stage_reviews || []),
-                branch: p.branch || meta?.branch || lp?.branch,
-              });
-            });
+            .map((p) => healFileUrl(hydratePlanWithCloudMeta(p, assignmentMap, localMap.get(p.id))));
 
           saveLocalPlans(merged, true);
           return { data: applyScope(merged), isSupabase: true };
@@ -1175,19 +1379,7 @@ export async function fetchPlans(
 
         const merged = (data as LessonPlan[])
           .filter((p) => !deletedIds.has(p.id) && p.status !== 'deleted')
-          .map((p) => {
-            const lp = localMap.get(p.id);
-            const meta = assignmentMap[p.id];
-            return healFileUrl({
-              ...p,
-              assigned_reviewer_id: p.assigned_reviewer_id || meta?.assigned_reviewer_id || lp?.assigned_reviewer_id,
-              assigned_reviewer_name: p.assigned_reviewer_name || meta?.assigned_reviewer_name || lp?.assigned_reviewer_name,
-              current_stage_order: p.current_stage_order || meta?.current_stage_order || lp?.current_stage_order || 1,
-              workflow_id: p.workflow_id || meta?.workflow_id || lp?.workflow_id,
-              stage_reviews: (p.stage_reviews && p.stage_reviews.length > 0) ? p.stage_reviews : (meta?.stage_reviews || lp?.stage_reviews || []),
-              branch: p.branch || meta?.branch || lp?.branch,
-            });
-          });
+          .map((p) => healFileUrl(hydratePlanWithCloudMeta(p, assignmentMap, localMap.get(p.id))));
 
         saveLocalPlans(merged, true);
         return { data: applyScope(merged), isSupabase: true };
@@ -1202,79 +1394,115 @@ export async function fetchPlans(
   return { data: applyScope(getLocalPlans()), isSupabase: false };
 }
 
+let workflowMetaQueue: Promise<any> = Promise.resolve();
+
+function buildWorkflowMetaEntry(plan: LessonPlan) {
+  return {
+    assigned_reviewer_id: plan.assigned_reviewer_id ?? '',
+    assigned_reviewer_name: plan.assigned_reviewer_name ?? '',
+    current_stage_order: plan.current_stage_order || 1,
+    workflow_id: plan.workflow_id,
+    stage_reviews: plan.stage_reviews || [],
+    branch: plan.branch,
+    evaluation_type: plan.evaluation_type,
+    total_stages: plan.total_stages,
+  };
+}
+
+export function syncBatchPlanWorkflowMetaToCloud(plansToSync: LessonPlan[]): Promise<void> {
+  if (!plansToSync || plansToSync.length === 0) return Promise.resolve();
+
+  const task = workflowMetaQueue.then(async () => {
+    let localAssign: Record<string, any> = {};
+    try {
+      const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
+      if (rawAssign) localAssign = JSON.parse(rawAssign);
+    } catch {}
+
+    plansToSync.forEach((plan) => {
+      localAssign[plan.id] = { ...(localAssign[plan.id] || {}), ...buildWorkflowMetaEntry(plan) };
+    });
+    try {
+      localStorage.setItem('plan_workflow_assignments_v1', JSON.stringify(localAssign));
+    } catch {}
+
+    try {
+      const remoteRes = await fetchSystemSetting<Record<string, any>>('plan_workflow_assignments', {});
+      const remoteMap =
+        remoteRes?.isSupabase &&
+        remoteRes?.data &&
+        typeof remoteRes.data === 'object' &&
+        !Array.isArray(remoteRes.data)
+          ? remoteRes.data
+          : {};
+      const mergedMap: Record<string, any> = {
+        ...(remoteRes?.isSupabase ? remoteMap : localAssign),
+      };
+      plansToSync.forEach((plan) => {
+        mergedMap[plan.id] = { ...(mergedMap[plan.id] || {}), ...buildWorkflowMetaEntry(plan) };
+      });
+      localStorage.setItem('plan_workflow_assignments_v1', JSON.stringify(mergedMap));
+      await saveSystemSetting('plan_workflow_assignments', mergedMap);
+    } catch (err) {
+      console.warn('syncBatchPlanWorkflowMetaToCloud warning:', err);
+    }
+  });
+
+  workflowMetaQueue = task.catch(() => {});
+  return task;
+}
+
 async function syncSinglePlanWorkflowMetaToCloud(plan: LessonPlan): Promise<void> {
   if (
-    !plan.assigned_reviewer_id &&
+    plan.assigned_reviewer_id === undefined &&
     !plan.current_stage_order &&
     !plan.workflow_id &&
     !(plan.stage_reviews && plan.stage_reviews.length > 0) &&
-    !plan.branch
+    !plan.branch &&
+    !plan.evaluation_type &&
+    !plan.total_stages
   ) {
     return;
   }
-
-  const entry = {
-    assigned_reviewer_id: plan.assigned_reviewer_id,
-    assigned_reviewer_name: plan.assigned_reviewer_name,
-    current_stage_order: plan.current_stage_order,
-    workflow_id: plan.workflow_id,
-    stage_reviews: plan.stage_reviews,
-    branch: plan.branch,
-  };
-
-  let assignments: Record<string, any> = {};
-  try {
-    const rawAssign = localStorage.getItem('plan_workflow_assignments_v1');
-    if (rawAssign) assignments = JSON.parse(rawAssign);
-  } catch {}
-  assignments[plan.id] = { ...(assignments[plan.id] || {}), ...entry };
-  try {
-    localStorage.setItem('plan_workflow_assignments_v1', JSON.stringify(assignments));
-  } catch {}
-
-  try {
-    const remoteRes = await fetchSystemSetting<Record<string, any>>('plan_workflow_assignments', {});
-    const remoteMap =
-      remoteRes?.data && typeof remoteRes.data === 'object' && !Array.isArray(remoteRes.data)
-        ? remoteRes.data
-        : {};
-    const mergedMap = {
-      ...remoteMap,
-      ...assignments,
-      [plan.id]: { ...(remoteMap[plan.id] || {}), ...entry },
-    };
-    localStorage.setItem('plan_workflow_assignments_v1', JSON.stringify(mergedMap));
-    await saveSystemSetting('plan_workflow_assignments', mergedMap);
-  } catch {}
+  await syncBatchPlanWorkflowMetaToCloud([plan]);
 }
 
 export async function savePlanRecord(
   plan: LessonPlan
 ): Promise<{ success: boolean; isSupabase: boolean; error?: string; message?: string }> {
+  const normalizedPlan: LessonPlan = {
+    ...plan,
+    notes: embedFileReviewsIntoNotes(plan),
+  };
+
   // Clear from deleted IDs if being saved/resubmitted
-  clearDeletedPlanId(plan.id);
+  const clearDeletedPromise = clearDeletedPlanId(normalizedPlan.id).catch(() => {});
 
-  // Sync workflow assignments locally & to cloud system_settings (D1 lesson_plans table lacks workflow columns)
-  syncSinglePlanWorkflowMetaToCloud(plan).catch(() => {});
-
-  // Update local plans
+  // Update local plans immediately for UI responsiveness
   const plans = getLocalPlans();
-  const idx = plans.findIndex((p) => p.id === plan.id);
+  const idx = plans.findIndex((p) => p.id === normalizedPlan.id);
   if (idx !== -1) {
-    plans[idx] = plan;
+    plans[idx] = normalizedPlan;
   } else {
-    plans.unshift(plan);
+    plans.unshift(normalizedPlan);
   }
   saveLocalPlans(plans);
+
+  // Sync workflow assignments locally & to cloud system_settings (serialized & awaited!)
+  const wfMetaPromise = syncSinglePlanWorkflowMetaToCloud(normalizedPlan).catch(() => {});
 
   // If Cloudflare is active, save to Cloudflare D1
   if (getDatabaseProvider() === 'cloudflare') {
     try {
-      const cfRes = await savePlanToCloudflare(plan);
+      const [cfRes] = await Promise.all([
+        savePlanToCloudflare(normalizedPlan),
+        wfMetaPromise,
+        clearDeletedPromise,
+      ]);
       if (cfRes.success) {
-        removePendingPlanSyncId(plan.id);
+        removePendingPlanSyncId(normalizedPlan.id);
       } else {
-        addPendingPlanSyncId(plan.id);
+        addPendingPlanSyncId(normalizedPlan.id);
       }
       return {
         success: cfRes.success,
@@ -1285,10 +1513,12 @@ export async function savePlanRecord(
           : `บันทึกลง Cloudflare D1 ไม่สำเร็จ: ${cfRes.error}`,
       };
     } catch (e: any) {
-      addPendingPlanSyncId(plan.id);
+      addPendingPlanSyncId(normalizedPlan.id);
       return { success: false, isSupabase: true, error: e?.message };
     }
   }
+
+  await Promise.all([wfMetaPromise, clearDeletedPromise]);
 
   const client = getSupabaseClient();
   if (!client) {
@@ -1357,7 +1587,7 @@ export async function savePlanRecord(
       file_url: plan.file_url,
       file_name: plan.file_name,
       file_size: plan.file_size || '2.5 MB',
-      notes: plan.notes || '',
+      notes: normalizedPlan.notes || '',
       submitted_at: plan.submitted_at?.includes('T') ? plan.submitted_at : new Date().toISOString(),
       status: plan.status || 'submitted',
       reviewed_by: plan.reviewed_by || null,
@@ -1472,14 +1702,17 @@ export function subscribeToDatabaseChanges(
 export async function fetchSystemSetting<T>(
   key: string,
   fallbackValue: T
-): Promise<{ data: T; isSupabase: boolean; error?: string }> {
+): Promise<{ data: T; isSupabase: boolean; hasRemoteValue?: boolean; error?: string }> {
   if (getDatabaseProvider() === 'cloudflare') {
     const cf = getSavedCloudflareConfig();
     if (cf.workerUrl) {
       try {
         const cfRes = await fetchSettingFromCloudflare<T>(key);
-        if (cfRes.success && cfRes.data !== null && cfRes.data !== undefined) {
-          return { data: cfRes.data, isSupabase: true };
+        if (cfRes.success) {
+          if (cfRes.data !== null && cfRes.data !== undefined) {
+            return { data: cfRes.data, isSupabase: true, hasRemoteValue: true };
+          }
+          return { data: fallbackValue, isSupabase: true, hasRemoteValue: false };
         }
       } catch (err: any) {
         console.warn(`Cloudflare fetch system setting '${key}' error:`, err);
@@ -1496,14 +1729,17 @@ export async function fetchSystemSetting<T>(
         .eq('key', key)
         .maybeSingle();
 
-      if (!error && data && data.value) {
-        return { data: data.value as T, isSupabase: true };
+      if (!error) {
+        if (data && data.value !== null && data.value !== undefined) {
+          return { data: data.value as T, isSupabase: true, hasRemoteValue: true };
+        }
+        return { data: fallbackValue, isSupabase: true, hasRemoteValue: false };
       }
     } catch (err: any) {
       console.warn(`Could not fetch system setting '${key}' from Supabase:`, err);
     }
   }
-  return { data: fallbackValue, isSupabase: false };
+  return { data: fallbackValue, isSupabase: false, hasRemoteValue: false };
 }
 
 export async function saveSystemSetting<T>(
@@ -1634,13 +1870,14 @@ export async function saveAssignmentSubmissionRecord(
       try {
         const cfRes = await saveSubmissionToCloudflare(sanitizedSubmission);
         if (cfRes.success) {
+          removePendingSubmissionSyncId(sanitizedSubmission.id);
           removePendingPlanSyncId(sanitizedSubmission.id);
         } else {
-          addPendingPlanSyncId(sanitizedSubmission.id);
+          addPendingSubmissionSyncId(sanitizedSubmission.id);
         }
         return { success: cfRes.success, isSupabase: true, error: cfRes.error };
       } catch (e: any) {
-        addPendingPlanSyncId(sanitizedSubmission.id);
+        addPendingSubmissionSyncId(sanitizedSubmission.id);
         return { success: false, isSupabase: true, error: e?.message };
       }
     }
@@ -1724,7 +1961,7 @@ export async function fetchAssignmentSubmissionsList(): Promise<AssignmentSubmis
 
     // Check system_settings fallback
     const fallbackRes = await fetchSystemSetting<AssignmentSubmission[]>('dynamic_submissions_data', []);
-    if (fallbackRes.isSupabase && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
+    if (fallbackRes.isSupabase && fallbackRes.hasRemoteValue && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
       const filtered = fallbackRes.data.filter((s) => !deletedIds.has(s.id) && s.status !== 'deleted');
       saveSubmissions(filtered);
       return filtered;
@@ -1736,7 +1973,7 @@ export async function fetchAssignmentSubmissionsList(): Promise<AssignmentSubmis
 }
 
 export async function deleteAssignmentSubmissionRecord(id: string): Promise<boolean> {
-  recordDeletedPlanId(id);
+  await recordDeletedPlanId(id);
   const local = getSavedSubmissions().filter((s) => s.id !== id);
   saveSubmissions(local);
 
@@ -1992,8 +2229,8 @@ export async function seedPlansToSupabase(): Promise<{ success: boolean; count: 
 }
 
 export async function deletePlanRecord(planId: string): Promise<{ success: boolean; isSupabase: boolean; error?: string }> {
-  // 1. Immediately record in deleted plan IDs & cloud system_settings
-  recordDeletedPlanId(planId);
+  // 1. Immediately record in deleted plan IDs & await cloud system_settings push
+  await recordDeletedPlanId(planId);
 
   // 2. Remove from local lesson plans
   const plans = getLocalPlans().filter((p) => p.id !== planId);
