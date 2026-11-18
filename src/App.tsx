@@ -1549,22 +1549,7 @@ export default function App() {
       return false;
     }
 
-    // 3. Check if this is the teacher's own plan
-    const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
-    if (isOwner) {
-      const isDirectlyAssigned = isSameTeacherIdOrName(
-        plan.assigned_reviewer_id,
-        plan.assigned_reviewer_name,
-        teacher
-      );
-
-      // A submitter cannot peer-review their own plan unless an admin explicitly forced direct assignment
-      if (!isDirectlyAssigned) {
-        return false;
-      }
-    }
-
-    // 4. Resolve the exact workflow specifically designated for THIS plan's document type
+    // 3. Resolve the exact workflow specifically designated for THIS plan's document type
     const planWorkflow = getWorkflowForPlan(plan, allWorkflows);
     const currentStageOrder = plan.current_stage_order || 1;
     const stage = planWorkflow?.stages?.find((s) => s.order === currentStageOrder);
@@ -1575,12 +1560,47 @@ export default function App() {
       return false;
     }
 
-    // 5. Check direct assignment (ignoring stale admin assignments when current stage does not allow that admin)
+    const scopeMode = stage?.scope_mode || 'own_group_only';
+    const isOwnGroupStage = scopeMode === 'own_group_only';
+    const isBranchStage =
+      Boolean(stage) &&
+      (stage?.reviewer_selection_type === 'branch' ||
+        stage?.assigned_role === 'submitter_branch_head' ||
+        stage?.assigned_role === 'all_branch_heads' ||
+        Boolean(stage?.title?.toLowerCase().includes('สาขา')));
+    const isDeptStage =
+      Boolean(stage) &&
+      (stage?.reviewer_selection_type === 'department' ||
+        stage?.assigned_role === 'submitter_department_head' ||
+        stage?.assigned_role === 'all_department_heads' ||
+        Boolean(stage?.title?.toLowerCase().includes('กลุ่มสาระ')));
+
+    const isBranchHeadSelfStage =
+      !isTeacherAdmin(teacher) &&
+      isOwnGroupStage &&
+      isBranchStage &&
+      isTeacherBranchHeadOfPlan(teacher, plan, branches, allTeachers);
+    const isDeptHeadSelfStage =
+      !isTeacherAdmin(teacher) &&
+      isOwnGroupStage &&
+      isDeptStage &&
+      isTeacherDeptHeadOfPlan(teacher, plan, depts, allTeachers);
+
+    // 4. Direct assignment check
     const isDirectlyAssigned = isSameTeacherIdOrName(
       plan.assigned_reviewer_id,
       plan.assigned_reviewer_name,
       teacher
     );
+
+    // 5. Check if this is the teacher's own plan
+    // Branch/Dept Heads CAN review their own plan when the stage is own-group scoped for their branch/department,
+    // or when explicitly directly assigned.
+    const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
+    if (isOwner && !isDirectlyAssigned && !isBranchHeadSelfStage && !isDeptHeadSelfStage) {
+      return false;
+    }
+
     const assignedTeacherObj = plan.assigned_reviewer_id
       ? allTeachers.find((t) =>
           isSameTeacherIdOrName(plan.assigned_reviewer_id, plan.assigned_reviewer_name, t)
@@ -1596,8 +1616,30 @@ export default function App() {
               (id) => String(id || '').trim().toLowerCase() === String(plan.assigned_reviewer_id || '').trim().toLowerCase()
             ))));
 
+    const isStrictOwnGroupStage =
+      Boolean(stage) &&
+      isOwnGroupStage &&
+      ((stage?.reviewer_selection_type === 'role' &&
+        (stage?.assigned_role === 'submitter_branch_head' ||
+          stage?.assigned_role === 'all_branch_heads' ||
+          stage?.assigned_role === 'submitter_department_head' ||
+          stage?.assigned_role === 'all_department_heads')) ||
+        stage?.reviewer_selection_type === 'branch' ||
+        stage?.reviewer_selection_type === 'department');
+
+    let isMismatchedOwnGroupAssignment = false;
+    if (isStrictOwnGroupStage && stage && (plan.assigned_reviewer_id || plan.assigned_reviewer_name)) {
+      const expectedCandidates = resolveReviewersForStage(stage, plan, allTeachers, depts, branches);
+      const matchesExpected = expectedCandidates.some((c) =>
+        isSameTeacherIdOrName(plan.assigned_reviewer_id, plan.assigned_reviewer_name, c)
+      );
+      if (!matchesExpected) {
+        isMismatchedOwnGroupAssignment = true;
+      }
+    }
+
     // If a valid assigned reviewer has been set specifically for this plan, only they should see it as pending
-    if (plan.assigned_reviewer_id && !isStaleAdminAssignment) {
+    if (plan.assigned_reviewer_id && !isStaleAdminAssignment && !isMismatchedOwnGroupAssignment) {
       return isDirectlyAssigned;
     }
 
@@ -1626,21 +1668,9 @@ export default function App() {
 
     if (isEligible) return true;
 
-    // Direct check for branch head or dept head on their own plan when stage role matches (non-admins only)
-    if (isOwner && !isTeacherAdmin(teacher)) {
-      const isBranchHead = isTeacherBranchHeadOfPlan(teacher, plan, branches);
-      const isBranchStage =
-        stage.assigned_role === 'submitter_branch_head' ||
-        stage.assigned_role === 'all_branch_heads' ||
-        stage.title?.toLowerCase().includes('สาขา');
-      if (isBranchHead && isBranchStage) return true;
-
-      const isDeptHead = isTeacherDeptHeadOfPlan(teacher, plan, depts);
-      const isDeptStage =
-        stage.assigned_role === 'submitter_department_head' ||
-        stage.assigned_role === 'all_department_heads' ||
-        stage.title?.toLowerCase().includes('กลุ่มสาระ');
-      if (isDeptHead && isDeptStage) return true;
+    // Direct check for branch head or dept head on their own plan when stage is own-group scoped
+    if (isOwner && (isBranchHeadSelfStage || isDeptHeadSelfStage)) {
+      return true;
     }
 
     return false;
@@ -1687,7 +1717,10 @@ export default function App() {
 
       const isOwner = isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, teacher);
       if (isOwner) {
-        if (isTeacherBranchHeadOfPlan(teacher, plan, branches) || isTeacherDeptHeadOfPlan(teacher, plan, depts)) {
+        if (
+          isTeacherBranchHeadOfPlan(teacher, plan, branches, allTeachers) ||
+          isTeacherDeptHeadOfPlan(teacher, plan, depts, allTeachers)
+        ) {
           return true;
         }
       }
@@ -2129,8 +2162,8 @@ export default function App() {
       isPlanCompletedForMe(plan, currentTeacher, workflows, teachers, departments) ||
       (Boolean(currentTeacher) &&
         isSameTeacherIdOrName(plan.assigned_reviewer_id, plan.assigned_reviewer_name, currentTeacher) &&
-        (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches) ||
-          isTeacherDeptHeadOfPlan(currentTeacher, plan, departments) ||
+        (isTeacherBranchHeadOfPlan(currentTeacher, plan, branches, teachers) ||
+          isTeacherDeptHeadOfPlan(currentTeacher, plan, departments, teachers) ||
           !isPlanOwnedByTeacher(plan, currentTeacher)))
     );
   };

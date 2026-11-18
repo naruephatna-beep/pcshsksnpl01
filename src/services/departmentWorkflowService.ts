@@ -310,60 +310,64 @@ export const isTeacherInBranch = (teacherBranch?: string | null, branchName?: st
 };
 
 /**
- * Checks if a teacher is the appointed Branch Head of the specific branch of a plan
+ * Checks if a teacher is the appointed Branch Head of the specific branch of a plan.
+ * Strictly returns false when the plan (and its submitter) has no branch, preventing cross-branch leaks.
  */
 export const isTeacherBranchHeadOfPlan = (
   teacher?: Teacher | null,
   plan?: LessonPlan | null,
-  branches: BranchConfig[] = []
+  branches: BranchConfig[] = [],
+  allTeachers?: Teacher[]
 ): boolean => {
   if (!teacher || !plan) return false;
-  const planBranch = (plan.branch || '').trim();
-  const teacherId = teacher.Teacher_ID;
+  const submitter =
+    allTeachers?.find((t) => isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, t)) || null;
+  const planBranch = (plan.branch || submitter?.branch || '').trim();
+  if (!planBranch) return false;
 
   // 1. Is teacher appointed head in matching branch in branches list?
   const matchedBranch = branches.find((b) => {
-    if (b.head_teacher_id !== teacherId) return false;
-    if (!planBranch) return true;
+    if (!isSameTeacherIdOrName(b.head_teacher_id, b.head_teacher_name, teacher)) return false;
     return isTeacherInBranch(planBranch, b.name);
   });
   if (matchedBranch) return true;
 
   // 2. Is teacher flagged as is_head_of_branch or role head_of_branch with matching branch?
   const isHeadRole = teacher.is_head_of_branch === true || teacher.role === 'head_of_branch';
-  if (isHeadRole) {
-    if (!planBranch) return true;
-    if (isTeacherInBranch(teacher.branch, planBranch)) return true;
+  if (isHeadRole && isTeacherInBranch(teacher.branch, planBranch)) {
+    return true;
   }
 
   return false;
 };
 
 /**
- * Checks if a teacher is the appointed Department Head of the learning area of a plan
+ * Checks if a teacher is the appointed Department Head of the learning area of a plan.
+ * Strictly returns false when the plan (and its submitter) has no learning area.
  */
 export const isTeacherDeptHeadOfPlan = (
   teacher?: Teacher | null,
   plan?: LessonPlan | null,
-  departments: DepartmentConfig[] = []
+  departments: DepartmentConfig[] = [],
+  allTeachers?: Teacher[]
 ): boolean => {
   if (!teacher || !plan) return false;
-  const planArea = (plan.learning_area || '').trim();
-  const teacherId = teacher.Teacher_ID;
+  const submitter =
+    allTeachers?.find((t) => isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, t)) || null;
+  const planArea = (plan.learning_area || submitter?.Learning_Area || '').trim();
+  if (!planArea) return false;
 
   // 1. Is teacher appointed head in matching department?
   const matchedDept = departments.find((d) => {
-    if (d.head_teacher_id !== teacherId) return false;
-    if (!planArea) return true;
+    if (!isSameTeacherIdOrName(d.head_teacher_id, d.head_teacher_name, teacher)) return false;
     return isTeacherInDept(planArea, d.name);
   });
   if (matchedDept) return true;
 
   // 2. Is teacher flagged as is_head_of_department or role head_of_department with matching area?
   const isHeadRole = teacher.is_head_of_department === true || teacher.role === 'head_of_department';
-  if (isHeadRole) {
-    if (!planArea) return true;
-    if (isTeacherInDept(teacher.Learning_Area, planArea)) return true;
+  if (isHeadRole && isTeacherInDept(teacher.Learning_Area, planArea)) {
+    return true;
   }
 
   return false;
@@ -1274,26 +1278,22 @@ export function resolveReviewersForStage(
 ): Teacher[] {
   if (!stage) return [];
 
-  const submitterTeacher = allTeachers.find((t) => t.Teacher_ID === plan.teacher_id);
+  const submitterTeacher = allTeachers.find((t) =>
+    isSameTeacherIdOrName(plan.teacher_id, plan.teacher_name, t)
+  );
   const planBranch = (plan.branch || submitterTeacher?.branch || '').trim();
   const planLearningArea = (plan.learning_area || submitterTeacher?.Learning_Area || '').trim();
   const scopeMode = stage.scope_mode || 'own_group_only';
 
-  // Helper: Submitter's Department and Branch objects
-  const submitterDept = departments.find(
-    (d) =>
-      d.name.trim().toLowerCase() === planLearningArea.toLowerCase() ||
-      planLearningArea.toLowerCase().includes(d.name.trim().toLowerCase()) ||
-      d.name.trim().toLowerCase().includes(planLearningArea.toLowerCase())
-  );
+  // Helper: Submitter's Department and Branch objects (strictly guard against empty strings matching via .includes(""))
+  const submitterDept = planLearningArea
+    ? departments.find((d) => isTeacherInDept(planLearningArea, d.name))
+    : undefined;
   const submitterDeptHeadId = submitterDept?.head_teacher_id;
 
-  const submitterBranchObj = branches.find(
-    (b) =>
-      b.name.trim().toLowerCase() === planBranch.toLowerCase() ||
-      planBranch.toLowerCase().includes(b.name.trim().toLowerCase()) ||
-      b.name.trim().toLowerCase().includes(planBranch.toLowerCase())
-  );
+  const submitterBranchObj = planBranch
+    ? branches.find((b) => isTeacherInBranch(planBranch, b.name))
+    : undefined;
   const submitterBranchHeadId = submitterBranchObj?.head_teacher_id;
 
   // Strict invariant: Admin accounts (admin01, admin02, admin03, etc.) must NEVER
@@ -1335,17 +1335,19 @@ export function resolveReviewersForStage(
     const isSubmitterDept = targetDepts.has('submitter_department');
 
     if (scopeMode === 'own_group_only') {
-      result = nonAdminTeachers.filter(
-        (t) => t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()
-      );
+      result = planLearningArea
+        ? nonAdminTeachers.filter(
+            (t) => t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()
+          )
+        : [];
     } else if (scopeMode === 'random_cross_only') {
       result = nonAdminTeachers.filter(
-        (t) => t.Learning_Area.trim().toLowerCase() !== planLearningArea.toLowerCase()
+        (t) => !planLearningArea || t.Learning_Area.trim().toLowerCase() !== planLearningArea.toLowerCase()
       );
     } else {
       // random_all or custom department list
       result = nonAdminTeachers.filter((t) => {
-        if (isSubmitterDept && t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()) {
+        if (isSubmitterDept && planLearningArea && t.Learning_Area.trim().toLowerCase() === planLearningArea.toLowerCase()) {
           return true;
         }
         return targetDepts.has(t.Learning_Area.trim());
@@ -1361,16 +1363,24 @@ export function resolveReviewersForStage(
 
     if (scopeMode === 'own_group_only') {
       result = nonAdminTeachers.filter(
-        (t) => planBranch && (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase()
+        (t) => planBranch && isTeacherInBranch(t.branch, planBranch)
       );
+      // Prioritize the appointed branch head first so assignWorkflowToPlan assigns directly to them when applicable
+      if (submitterBranchHeadId && result.length > 1) {
+        result.sort((a, b) => {
+          const aIsHead = a.Teacher_ID === submitterBranchHeadId ? 1 : 0;
+          const bIsHead = b.Teacher_ID === submitterBranchHeadId ? 1 : 0;
+          return bIsHead - aIsHead;
+        });
+      }
     } else if (scopeMode === 'random_cross_only') {
       result = nonAdminTeachers.filter(
-        (t) => !planBranch || (t.branch || '').trim().toLowerCase() !== planBranch.toLowerCase()
+        (t) => !planBranch || !isTeacherInBranch(t.branch, planBranch)
       );
     } else {
       result = nonAdminTeachers.filter((t) => {
         const teacherBranch = (t.branch || '').trim();
-        if (isSubmitterBranch && planBranch && teacherBranch.toLowerCase() === planBranch.toLowerCase()) {
+        if (isSubmitterBranch && planBranch && isTeacherInBranch(teacherBranch, planBranch)) {
           return true;
         }
         return targetBranches.has(teacherBranch);
@@ -1396,31 +1406,22 @@ export function resolveReviewersForStage(
         );
         result = crossHeads.length > 0 ? crossHeads : allBranchHeads;
       } else {
-        // own_group_only: ตรวจเฉพาะคนในสาขาของตนเอง
+        // own_group_only: หัวหน้าสาขาตรวจเฉพาะคนในสาขาของตนเอง (และอนุญาตให้หัวหน้าสาขาตรวจของตนเองได้เมื่อตั้งตรวจระดับสาขา)
         if (submitterBranchHeadId) {
-          // If the submitter is the branch head themselves, escalate to Department Head to avoid self-review
-          if (submitterBranchHeadId === plan.teacher_id) {
-            if (submitterDeptHeadId && submitterDeptHeadId !== plan.teacher_id) {
-              const deptHead = nonAdminTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
-              if (deptHead) result = [deptHead];
-            }
-          } else {
-            const head = nonAdminTeachers.find((t) => t.Teacher_ID === submitterBranchHeadId);
-            if (head) result = [head];
-          }
+          const head = nonAdminTeachers.find((t) => t.Teacher_ID === submitterBranchHeadId);
+          if (head) result = [head];
         }
 
         if (result.length === 0 && planBranch) {
           const fallbackBranchHead = nonAdminTeachers.find(
             (t) =>
-              (t.branch || '').trim().toLowerCase() === planBranch.toLowerCase() &&
-              (isBranchHead(t) || t.role === 'head_of_branch') &&
-              t.Teacher_ID !== plan.teacher_id
+              isTeacherInBranch(t.branch, planBranch) &&
+              (isBranchHead(t) || t.role === 'head_of_branch')
           );
           if (fallbackBranchHead) result = [fallbackBranchHead];
         }
 
-        // Fallback to department head if branch head not yet appointed or is self
+        // Fallback to department head ONLY if no branch head exists at all for that branch
         if (result.length === 0 && submitterDeptHeadId && submitterDeptHeadId !== plan.teacher_id) {
           const deptHead = nonAdminTeachers.find((t) => t.Teacher_ID === submitterDeptHeadId);
           if (deptHead) result = [deptHead];
@@ -1491,13 +1492,26 @@ export function resolveReviewersForStage(
     result = result.filter((t) => !isTeacherAdmin(t));
   }
 
-  // Submitter should never evaluate their own plan, UNLESS they are the designated branch head or department head appointed for this stage
+  // Submitter should never evaluate their own plan, UNLESS they are the designated branch head or department head appointed for this own-group stage
+  const isBranchScopedStage =
+    (scopeMode === 'own_group_only') &&
+    (stage.reviewer_selection_type === 'branch' ||
+      stage.assigned_role === 'submitter_branch_head' ||
+      stage.assigned_role === 'all_branch_heads' ||
+      Boolean(stage.title?.includes('สาขา')));
   const isDesignatedBranchHead =
-    (stage.assigned_role === 'submitter_branch_head' || stage.title?.includes('สาขา')) &&
-    submitterBranchHeadId === plan.teacher_id;
+    isBranchScopedStage &&
+    isTeacherBranchHeadOfPlan(submitterTeacher, plan, branches, allTeachers);
+
+  const isDeptScopedStage =
+    (scopeMode === 'own_group_only') &&
+    (stage.reviewer_selection_type === 'department' ||
+      stage.assigned_role === 'submitter_department_head' ||
+      stage.assigned_role === 'all_department_heads' ||
+      Boolean(stage.title?.includes('กลุ่มสาระ')));
   const isDesignatedDeptHead =
-    (stage.assigned_role === 'submitter_department_head' || stage.title?.includes('กลุ่มสาระ')) &&
-    submitterDeptHeadId === plan.teacher_id;
+    isDeptScopedStage &&
+    isTeacherDeptHeadOfPlan(submitterTeacher, plan, departments, allTeachers);
 
   if (!isDesignatedBranchHead && !isDesignatedDeptHead && result.length > 1 && plan.teacher_id) {
     const withoutSelf = result.filter((t) => t.Teacher_ID !== plan.teacher_id);
@@ -1720,8 +1734,9 @@ export function isAdminAllowedOnStage(
 }
 
 /**
- * Clears stale admin assigned_reviewer_id/name on unapproved plans whose current workflow stage
- * does NOT explicitly select that admin via 'individual' mode, and re-resolves if eligible non-admin exists.
+ * Clears stale admin or mismatched own-group pending assignments on unapproved plans
+ * without ever modifying completed plans, review scores, or stage_reviews history.
+ * Also safely hydrates missing branch/learning_area from the submitter's teacher profile.
  */
 export function sanitizeStaleAdminAssignments(
   plans: LessonPlan[],
@@ -1731,26 +1746,26 @@ export function sanitizeStaleAdminAssignments(
   branches: BranchConfig[] = getLocalBranches()
 ): { updatedPlans: LessonPlan[]; modifiedPlans: LessonPlan[] } {
   const modifiedPlans: LessonPlan[] = [];
-  const updatedPlans = plans.map((p) => {
-    if (!p || p.status === 'deleted' || isPlanReviewCompleted(p)) {
-      return p;
-    }
-    if (!p.assigned_reviewer_id && !p.assigned_reviewer_name) {
-      return p;
+  const updatedPlans = plans.map((origPlan) => {
+    if (!origPlan || origPlan.status === 'deleted') {
+      return origPlan;
     }
 
-    const matchedReviewer = allTeachers.find((t) =>
-      isSameTeacherIdOrName(p.assigned_reviewer_id, p.assigned_reviewer_name, t)
+    // Safely hydrate missing branch / learning_area from teacher profile in memory (never overwrites existing non-empty values)
+    const submitter = allTeachers.find((t) =>
+      isSameTeacherIdOrName(origPlan.teacher_id, origPlan.teacher_name, t)
     );
-    const rawIdLower = String(p.assigned_reviewer_id || '').trim().toLowerCase();
-    const isAdminAssignee =
-      (matchedReviewer && isTeacherAdmin(matchedReviewer)) ||
-      rawIdLower === 'admin01' ||
-      rawIdLower === 'admin02' ||
-      rawIdLower === 'admin03' ||
-      rawIdLower.startsWith('admin');
+    const p: LessonPlan =
+      submitter && (!origPlan.branch || !origPlan.learning_area)
+        ? {
+            ...origPlan,
+            branch: origPlan.branch || submitter.branch || '',
+            learning_area: origPlan.learning_area || submitter.Learning_Area || '',
+          }
+        : origPlan;
 
-    if (!isAdminAssignee) {
+    // NEVER modify completed/approved/needs_revision/rejected plans
+    if (isPlanReviewCompleted(p)) {
       return p;
     }
 
@@ -1759,31 +1774,90 @@ export function sanitizeStaleAdminAssignments(
     const stageOrder = Math.min(Math.max(p.current_stage_order || 1, 1), totalStages);
     const stage = wf?.stages?.find((s) => s.order === stageOrder);
 
-    const allowed = matchedReviewer
-      ? isAdminAllowedOnStage(stage, matchedReviewer)
-      : stage?.reviewer_selection_type === 'individual' &&
-        (stage.assigned_teacher_ids || []).some(
-          (id) => String(id || '').trim().toLowerCase() === rawIdLower
-        );
+    // 1. Check stale Admin assignments
+    if (p.assigned_reviewer_id || p.assigned_reviewer_name) {
+      const matchedReviewer = allTeachers.find((t) =>
+        isSameTeacherIdOrName(p.assigned_reviewer_id, p.assigned_reviewer_name, t)
+      );
+      const rawIdLower = String(p.assigned_reviewer_id || '').trim().toLowerCase();
+      const isAdminAssignee =
+        (matchedReviewer && isTeacherAdmin(matchedReviewer)) ||
+        rawIdLower === 'admin01' ||
+        rawIdLower === 'admin02' ||
+        rawIdLower === 'admin03' ||
+        rawIdLower.startsWith('admin');
 
-    if (allowed) {
-      return p;
+      if (isAdminAssignee) {
+        const allowed = matchedReviewer
+          ? isAdminAllowedOnStage(stage, matchedReviewer)
+          : stage?.reviewer_selection_type === 'individual' &&
+            (stage.assigned_teacher_ids || []).some(
+              (id) => String(id || '').trim().toLowerCase() === rawIdLower
+            );
+
+        if (!allowed) {
+          const cleared: LessonPlan = {
+            ...p,
+            assigned_reviewer_id: undefined,
+            assigned_reviewer_name: undefined,
+          };
+          const reResolved = assignWorkflowToPlan(
+            cleared,
+            workflows,
+            allTeachers,
+            departments,
+            branches
+          );
+          modifiedPlans.push(reResolved);
+          return reResolved;
+        }
+      }
     }
 
-    const cleared: LessonPlan = {
-      ...p,
-      assigned_reviewer_id: undefined,
-      assigned_reviewer_name: undefined,
-    };
-    const reResolved = assignWorkflowToPlan(
-      cleared,
-      workflows,
-      allTeachers,
-      departments,
-      branches
-    );
-    modifiedPlans.push(reResolved);
-    return reResolved;
+    // 2. Enforce strict branch/department scoping on pending own_group_only role/branch/department stages
+    // (fixes older pending plans that were misrouted due to empty-branch wildcard or branch-head self-escalation)
+    const isStrictOwnGroupStage =
+      Boolean(stage) &&
+      (stage?.scope_mode === 'own_group_only' || !stage?.scope_mode) &&
+      ((stage?.reviewer_selection_type === 'role' &&
+        (stage.assigned_role === 'submitter_branch_head' ||
+          stage.assigned_role === 'all_branch_heads' ||
+          stage.assigned_role === 'submitter_department_head' ||
+          stage.assigned_role === 'all_department_heads')) ||
+        stage?.reviewer_selection_type === 'branch' ||
+        stage?.reviewer_selection_type === 'department');
+
+    if (isStrictOwnGroupStage && stage && (p.assigned_reviewer_id || p.assigned_reviewer_name)) {
+      const expectedCandidates = resolveReviewersForStage(
+        stage,
+        p,
+        allTeachers,
+        departments,
+        branches
+      );
+      const currentMatchesExpected = expectedCandidates.some((c) =>
+        isSameTeacherIdOrName(p.assigned_reviewer_id, p.assigned_reviewer_name, c)
+      );
+
+      if (!currentMatchesExpected) {
+        const cleared: LessonPlan = {
+          ...p,
+          assigned_reviewer_id: undefined,
+          assigned_reviewer_name: undefined,
+        };
+        const reResolved = assignWorkflowToPlan(
+          cleared,
+          workflows,
+          allTeachers,
+          departments,
+          branches
+        );
+        modifiedPlans.push(reResolved);
+        return reResolved;
+      }
+    }
+
+    return p;
   });
 
   return { updatedPlans, modifiedPlans };
