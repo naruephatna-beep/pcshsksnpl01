@@ -6,41 +6,26 @@ import { resolvePrimaryPlanFileUrl, isValidHttpFileUrl } from '../utils/fileLink
 import { DataDrivenOrgView } from './DataDrivenOrgView';
 import {
   BarChart3,
-  PieChart,
-  TrendingUp,
   CheckCircle2,
   Clock,
   AlertTriangle,
-  Award,
   Users,
   Search,
-  Filter,
   Printer,
   ChevronRight,
-  ShieldCheck,
   FileText,
   Calendar,
   Sparkles,
   ExternalLink,
   BellRing,
-  Download,
-  Info,
-  Layers,
-  ArrowUpRight,
   X,
-  FileCheck2,
   BrainCircuit,
   Trophy,
-  Table as TableIcon,
-  LayoutGrid,
   ChevronDown,
-  CheckSquare,
-  Square,
   Check,
-  Eye,
-  Copy,
   MoreHorizontal,
   UserCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { DepartmentRankingLeaderboard } from './DepartmentRankingLeaderboard';
 import { IndividualTrackerPrintModal } from './IndividualTrackerPrintModal';
@@ -161,6 +146,24 @@ export const getDocTypeColorConfig = (docType: string, allTypes: string[]): DocT
   return DOC_TYPE_COLORS[Math.abs(hash) % DOC_TYPE_COLORS.length];
 };
 
+const shortDocTypeLabel = (name: string): string => {
+  const trimmed = name.trim();
+  if (trimmed === 'แผนการจัดการเรียนรู้ฉบับย่อ') return 'แผนฉบับย่อ';
+  if (trimmed === 'แผนการจัดการเรียนรู้ฉบับสมบูรณ์') return 'แผนฉบับสมบูรณ์';
+  if (trimmed === 'กำหนดการจัดการเรียนรู้') return 'กำหนดการสอน';
+  if (trimmed === 'บันทึกหลังการสอน') return 'บันทึกหลังสอน';
+  if (trimmed.includes('วิจัยในชั้นเรียน')) return 'วิจัยในชั้นเรียน';
+  return trimmed;
+};
+
+const shortAreaLabel = (name: string): string => {
+  const trimmed = name.trim();
+  if (trimmed === 'วิทยาศาสตร์และเทคโนโลยี') return 'วิทยาศาสตร์ฯ';
+  if (trimmed === 'สังคมศึกษา ศาสนา และวัฒนธรรม') return 'สังคมศึกษาฯ';
+  if (trimmed === 'สุขศึกษาและพลศึกษา') return 'สุขศึกษาและพละฯ';
+  return trimmed;
+};
+
 export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   teachers,
   plans,
@@ -199,6 +202,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       onExecutiveModeChange(newMode);
     }
   };
+
   // Filters (Multi-select enabled for Document Types and Learning Areas)
   const [selectedAreas, setSelectedAreas] = useState<string[]>(['ทั้งหมด']);
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'ontime' | 'late' | 'pending'>('all');
@@ -206,44 +210,42 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const [searchTeacher, setSearchTeacher] = useState<string>('');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [reminderSentMap, setReminderSentMap] = useState<Record<string, boolean>>({});
-  const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
-  const [individualViewMode, setIndividualViewMode] = useState<'table' | 'cards'>('table');
+  const [selectedDetailTeacherId, setSelectedDetailTeacherId] = useState<string | null>(null);
   const [isIndividualPrintModalOpen, setIsIndividualPrintModalOpen] = useState(false);
   const [isInfographicModalOpen, setIsInfographicModalOpen] = useState(false);
   const [copyToastMessage, setCopyToastMessage] = useState<string | null>(null);
 
-  // Popover state for multi-select dropdowns & secondary actions
+  // Popover state
   const [isDocTypeDropdownOpen, setIsDocTypeDropdownOpen] = useState<boolean>(false);
-  const [isAreaDropdownOpen, setIsAreaDropdownOpen] = useState<boolean>(false);
   const [isSecondaryMenuOpen, setIsSecondaryMenuOpen] = useState<boolean>(false);
-
-  // Graph 1 View Mode: 'by_doctype' (คนละประเภทเอกสารคนละสีคนละแท่ง) vs 'by_timeliness' (สรุปสัดส่วนตรงเวลา/ล่าช้า)
-  const [graph1ViewMode, setGraph1ViewMode] = useState<'by_doctype' | 'by_timeliness'>('by_doctype');
 
   // Teaching staff (excluding admins)
   const teachingStaff = useMemo(() => {
     return teachers.filter((t) => !isTeacherAdmin(t));
   }, [teachers]);
 
-  const areas = [
-    'ทั้งหมด',
-    'วิทยาศาสตร์และเทคโนโลยี',
-    'คณิตศาสตร์',
-    'ภาษาต่างประเทศ',
-    'ภาษาไทย',
-    'สังคมศึกษา ศาสนา และวัฒนธรรม',
-    'ศิลปะ',
-    'สุขศึกษาและพลศึกษา',
-    'การงานอาชีพ',
-  ];
+  const areas = useMemo(
+    () => [
+      'ทั้งหมด',
+      'วิทยาศาสตร์และเทคโนโลยี',
+      'คณิตศาสตร์',
+      'ภาษาต่างประเทศ',
+      'ภาษาไทย',
+      'สังคมศึกษา ศาสนา และวัฒนธรรม',
+      'ศิลปะ',
+      'สุขศึกษาและพลศึกษา',
+      'การงานอาชีพ',
+    ],
+    []
+  );
 
   // Dynamic document types based on deadline configs + plans
   const docTypes = useMemo(() => {
     const list: string[] = ['ทั้งหมด'];
     const seen = new Set<string>();
 
-    // 1. Types from deadline settings configured by academic admin (synced from Cloud/state)
-    const activeDeadlines = deadlineConfigs && deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
+    const activeDeadlines =
+      deadlineConfigs && deadlineConfigs.length > 0 ? deadlineConfigs : getSavedDeadlineConfigs();
     activeDeadlines.forEach((cfg) => {
       const name = (cfg.name || '').trim();
       if (name && !seen.has(name)) {
@@ -252,7 +254,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       }
     });
 
-    // 2. Types from actual submitted plans
     plans.forEach((p) => {
       if (p.plan_type && !seen.has(p.plan_type.trim())) {
         seen.add(p.plan_type.trim());
@@ -260,7 +261,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       }
     });
 
-    // 3. Fallback standard academic document types if not already included
     const standardDefaults = [
       'แผนการจัดการเรียนรู้ฉบับย่อ',
       'แผนการจัดการเรียนรู้ฉบับสมบูรณ์',
@@ -280,14 +280,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
   const isAllDocTypes = selectedDocTypes.length === 0 || selectedDocTypes.includes('ทั้งหมด');
   const isAllAreas = selectedAreas.length === 0 || selectedAreas.includes('ทั้งหมด');
-
   const allRealDocTypes = useMemo(() => docTypes.filter((d) => d !== 'ทั้งหมด'), [docTypes]);
-  const activeTypesForBars = useMemo(() => {
-    if (isAllDocTypes) return allRealDocTypes;
-    return allRealDocTypes.filter((dt) => selectedDocTypes.includes(dt));
-  }, [isAllDocTypes, allRealDocTypes, selectedDocTypes]);
 
-  // Multi-select handlers for Document Types
+  const matchesDocType = (plan: LessonPlan, dt: string): boolean => {
+    const pType = (plan.plan_type || '').trim();
+    if (dt === pType) return true;
+    if (dt === 'แผนการจัดการเรียนรู้' && (pType.includes('แผนการจัดการเรียนรู้') || !pType)) {
+      return true;
+    }
+    return false;
+  };
+
+  // Multi-select handlers
   const toggleDocType = (dt: string) => {
     if (dt === 'ทั้งหมด') {
       setSelectedDocTypes(['ทั้งหมด']);
@@ -307,75 +311,60 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     setSelectedDocTypes(next);
   };
 
-  const selectAllDocTypes = () => setSelectedDocTypes(['ทั้งหมด']);
-  const clearDocTypes = () => setSelectedDocTypes(['ทั้งหมด']);
+  const selectSingleOrToggleDocType = (dt: string) => {
+    if (!isAllDocTypes && selectedDocTypes.length === 1 && selectedDocTypes[0] === dt) {
+      setSelectedDocTypes(['ทั้งหมด']);
+    } else {
+      setSelectedDocTypes([dt]);
+    }
+  };
 
-  // Multi-select handlers for Learning Areas
   const toggleArea = (area: string) => {
     if (area === 'ทั้งหมด') {
       setSelectedAreas(['ทั้งหมด']);
       return;
     }
-    const realAreas = areas.filter((a) => a !== 'ทั้งหมด');
-    let next: string[];
-    if (isAllAreas) {
-      next = [area];
-    } else if (selectedAreas.includes(area)) {
-      next = selectedAreas.filter((a) => a !== area);
-      if (next.length === 0) next = ['ทั้งหมด'];
+    // Single-click department selection makes 1-screen cockpit intuitive for newcomers
+    if (!isAllAreas && selectedAreas.length === 1 && selectedAreas[0] === area) {
+      setSelectedAreas(['ทั้งหมด']);
     } else {
-      next = [...selectedAreas.filter((a) => a !== 'ทั้งหมด'), area];
-      if (next.length === realAreas.length) next = ['ทั้งหมด'];
+      setSelectedAreas([area]);
     }
-    setSelectedAreas(next);
   };
 
-  const selectAllAreas = () => setSelectedAreas(['ทั้งหมด']);
-  const clearAreas = () => setSelectedAreas(['ทั้งหมด']);
+  const resetAllFilters = () => {
+    setSelectedDocTypes(['ทั้งหมด']);
+    setSelectedAreas(['ทั้งหมด']);
+    setSelectedStatus('all');
+    setSearchTeacher('');
+  };
 
-  // Filtered plans based on multi-selected docTypes
+  // Filtered plans based on selected docTypes
   const activePlans = useMemo(() => {
     if (isAllDocTypes) return plans;
-    return plans.filter((p) => {
-      const pType = (p.plan_type || '').trim();
-      return selectedDocTypes.some((selected) => {
-        if (selected === pType) return true;
-        if (
-          selected === 'แผนการจัดการเรียนรู้' &&
-          (pType.includes('แผนการจัดการเรียนรู้') || !pType)
-        ) {
-          return true;
-        }
-        return false;
-      });
-    });
+    return plans.filter((p) => selectedDocTypes.some((selected) => matchesDocType(p, selected)));
   }, [plans, selectedDocTypes, isAllDocTypes]);
 
-  // Scoped teaching staff according to multi-selected areas
+  // Scoped teaching staff according to selected areas
   const scopedTeachingStaff = useMemo(() => {
     if (isAllAreas) return teachingStaff;
     return teachingStaff.filter((t) => selectedAreas.includes(t.Learning_Area));
   }, [teachingStaff, isAllAreas, selectedAreas]);
 
-  // Overall Statistics for scoped staff
   const totalTeachersCount = scopedTeachingStaff.length;
 
-  // Teachers who submitted at least 1 plan
   const submittedTeachers = useMemo(() => {
     return scopedTeachingStaff.filter((t) => activePlans.some((p) => p.teacher_id === t.Teacher_ID));
   }, [scopedTeachingStaff, activePlans]);
 
-  // Teachers who have not submitted any plan
   const pendingTeachers = useMemo(() => {
     return scopedTeachingStaff.filter((t) => !activePlans.some((p) => p.teacher_id === t.Teacher_ID));
   }, [scopedTeachingStaff, activePlans]);
 
-  // Submission rate %
-  const submissionRate = totalTeachersCount > 0
-    ? Math.round((submittedTeachers.length / totalTeachersCount) * 100)
-    : 0;
+  const submissionRate =
+    totalTeachersCount > 0 ? Math.round((submittedTeachers.length / totalTeachersCount) * 100) : 0;
 
-  // On-time vs Late plans within scoped areas & doc types
+  // Scoped plans (by both docTypes & areas)
   const scopedPlans = useMemo(() => {
     if (isAllAreas) return activePlans;
     return activePlans.filter((p) => selectedAreas.includes(p.learning_area || ''));
@@ -385,86 +374,160 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const onTimePlans = scopedPlans.filter((p) => !p.is_late);
   const latePlans = scopedPlans.filter((p) => p.is_late);
 
-  const onTimeRate = totalPlansCount > 0
-    ? Math.round((onTimePlans.length / totalPlansCount) * 100)
-    : 0;
-  const lateRate = totalPlansCount > 0
-    ? Math.round((latePlans.length / totalPlansCount) * 100)
-    : 0;
+  const onTimeRate = totalPlansCount > 0 ? Math.round((onTimePlans.length / totalPlansCount) * 100) : 0;
+  const lateRate = totalPlansCount > 0 ? Math.round((latePlans.length / totalPlansCount) * 100) : 0;
 
-  // Average Score across school (from real evaluated plans only)
+  const approvedPlansCount = useMemo(
+    () =>
+      scopedPlans.filter((p) => {
+        const s = String(p.status || '').toLowerCase().trim();
+        return s === 'approved' || s === 'passed' || s === 'completed';
+      }).length,
+    [scopedPlans]
+  );
+
+  const pendingReviewPlansCount = useMemo(
+    () =>
+      scopedPlans.filter((p) => {
+        const s = String(p.status || '').toLowerCase().trim();
+        return s === 'submitted' || s === 'late' || s === 'pending';
+      }).length,
+    [scopedPlans]
+  );
+
   const plansWithScore = scopedPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
-  const avgScore = plansWithScore.length > 0
-    ? (plansWithScore.reduce((acc, p) => acc + (p.total_score || 0), 0) / plansWithScore.length).toFixed(1)
-    : '-';
+  const avgScore =
+    plansWithScore.length > 0
+      ? (plansWithScore.reduce((acc, p) => acc + (p.total_score || 0), 0) / plansWithScore.length).toFixed(1)
+      : '-';
 
-  // Area statistics breakdown (dynamically filtered by multi-selected areas!)
-  const areaStats = useMemo(() => {
+  // Area statistics breakdown (always show all 8 learning areas in left panel so user can compare & click-to-filter!)
+  const allAreaStats = useMemo(() => {
     const list = areas.filter((a) => a !== 'ทั้งหมด');
-    const targetAreas = isAllAreas ? list : list.filter((a) => selectedAreas.includes(a));
 
-    return targetAreas.map((area) => {
-      const areaTeachers = teachingStaff.filter((t) => t.Learning_Area === area);
-      const areaPlans = activePlans.filter((p) => p.learning_area === area);
-      const submittedAreaTeachers = areaTeachers.filter((t) =>
-        areaPlans.some((p) => p.teacher_id === t.Teacher_ID)
-      );
-      const areaOnTimePlans = areaPlans.filter((p) => !p.is_late);
-      const areaLatePlans = areaPlans.filter((p) => p.is_late);
+    return list
+      .map((area) => {
+        const areaTeachers = teachingStaff.filter((t) => t.Learning_Area === area);
+        const areaPlans = activePlans.filter((p) => p.learning_area === area);
+        const submittedAreaTeachers = areaTeachers.filter((t) =>
+          areaPlans.some((p) => p.teacher_id === t.Teacher_ID)
+        );
+        const areaOnTimePlans = areaPlans.filter((p) => !p.is_late);
+        const areaLatePlans = areaPlans.filter((p) => p.is_late);
 
-      const onTimeTeachers = areaTeachers.filter((t) => {
-        const tPlans = areaPlans.filter((p) => p.teacher_id === t.Teacher_ID);
-        return tPlans.length > 0 && !tPlans.some((p) => p.is_late);
+        const onTimeTeachers = areaTeachers.filter((t) => {
+          const tPlans = areaPlans.filter((p) => p.teacher_id === t.Teacher_ID);
+          return tPlans.length > 0 && !tPlans.some((p) => p.is_late);
+        });
+        const lateTeachers = areaTeachers.filter((t) => {
+          const tPlans = areaPlans.filter((p) => p.teacher_id === t.Teacher_ID);
+          return tPlans.some((p) => p.is_late);
+        });
+
+        const rate =
+          areaTeachers.length > 0
+            ? Math.round((submittedAreaTeachers.length / areaTeachers.length) * 100)
+            : 0;
+
+        const scored = areaPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
+        const areaAvgScore =
+          scored.length > 0
+            ? (scored.reduce((acc, p) => acc + (p.total_score || 0), 0) / scored.length).toFixed(1)
+            : '-';
+
+        return {
+          name: area,
+          totalTeachers: areaTeachers.length,
+          submittedTeachers: submittedAreaTeachers.length,
+          pendingTeachers: areaTeachers.length - submittedAreaTeachers.length,
+          onTimeTeachersCount: onTimeTeachers.length,
+          lateTeachersCount: lateTeachers.length,
+          totalPlans: areaPlans.length,
+          onTimePlans: areaOnTimePlans.length,
+          latePlans: areaLatePlans.length,
+          submissionRate: rate,
+          avgScore: areaAvgScore,
+          isCompleted: rate === 100 && areaTeachers.length > 0,
+        };
+      })
+      .sort((a, b) => {
+        if (b.submissionRate !== a.submissionRate) return b.submissionRate - a.submissionRate;
+        return a.pendingTeachers - b.pendingTeachers;
       });
-      const lateTeachers = areaTeachers.filter((t) => {
-        const tPlans = areaPlans.filter((p) => p.teacher_id === t.Teacher_ID);
-        return tPlans.some((p) => p.is_late);
-      });
+  }, [areas, teachingStaff, activePlans]);
 
-      const rate = areaTeachers.length > 0
-        ? Math.round((submittedAreaTeachers.length / areaTeachers.length) * 100)
-        : 0;
+  // Scoped areaStats for Printout & AI Prompt
+  const areaStats = useMemo(() => {
+    if (isAllAreas) return allAreaStats;
+    return allAreaStats.filter((a) => selectedAreas.includes(a.name));
+  }, [allAreaStats, isAllAreas, selectedAreas]);
 
-      const scored = areaPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
-      const areaAvgScore = scored.length > 0
-        ? (scored.reduce((acc, p) => acc + (p.total_score || 0), 0) / scored.length).toFixed(1)
-        : '-';
+  // Quick summary per document type (scoped to current learning area filter)
+  const docTypeStats = useMemo(() => {
+    const areaFilteredPlans = isAllAreas
+      ? plans
+      : plans.filter((p) => selectedAreas.includes(p.learning_area || ''));
 
-      return {
-        name: area,
-        totalTeachers: areaTeachers.length,
-        submittedTeachers: submittedAreaTeachers.length,
-        pendingTeachers: areaTeachers.length - submittedAreaTeachers.length,
-        onTimeTeachersCount: onTimeTeachers.length,
-        lateTeachersCount: lateTeachers.length,
-        totalPlans: areaPlans.length,
-        onTimePlans: areaOnTimePlans.length,
-        latePlans: areaLatePlans.length,
-        submissionRate: rate,
-        avgScore: areaAvgScore,
-        isCompleted: rate === 100 && areaTeachers.length > 0,
-      };
-    }).sort((a, b) => b.submissionRate - a.submissionRate);
-  }, [areas, teachingStaff, activePlans, isAllAreas, selectedAreas]);
+    return allRealDocTypes
+      .map((dt) => {
+        const matchingPlans = areaFilteredPlans.filter((p) => matchesDocType(p, dt));
+        const submittedTeacherIds = new Set(matchingPlans.map((p) => p.teacher_id));
+        const submittedTeacherCount = scopedTeachingStaff.filter((t) =>
+          submittedTeacherIds.has(t.Teacher_ID)
+        ).length;
+        const rate =
+          totalTeachersCount > 0 ? Math.round((submittedTeacherCount / totalTeachersCount) * 100) : 0;
+        return {
+          name: dt,
+          shortName: shortDocTypeLabel(dt),
+          planCount: matchingPlans.length,
+          submittedTeachers: submittedTeacherCount,
+          rate,
+        };
+      })
+      .filter((d) => d.planCount > 0 || deadlineConfigs?.some((c) => c.name === d.name))
+      .slice(0, 5);
+  }, [allRealDocTypes, plans, isAllAreas, selectedAreas, scopedTeachingStaff, totalTeachersCount, deadlineConfigs]);
 
-  // Payload for AI Infographic Prompt Generator (grounded in real school data)
-  const promptPayload: InfographicPromptPayload = useMemo(() => ({
-    schoolNameTh: 'โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์',
-    schoolNameEn: 'Princess Chulabhorn Science High School Kalasin',
-    academicYear: 'ปีการศึกษา 2568',
-    selectedDocTypes,
-    areaStats,
-    totalTeachers: totalTeachersCount,
-    totalSubmittedTeachers: submittedTeachers.length,
-    overallSubmissionRate: submissionRate,
-    onTimeRate,
-    lateRate,
-    pendingTeachersCount: pendingTeachers.length,
-    aspectRatio: '4:5',
-    style: 'official_science',
-  }), [selectedDocTypes, areaStats, totalTeachersCount, submittedTeachers, submissionRate, onTimeRate, lateRate, pendingTeachers]);
+  // Active academic term label from actual plans
+  const activeTermLabel = useMemo(() => {
+    const first = plans.find((p) => p.semester && p.academic_year);
+    if (first) {
+      return `ภาคเรียนที่ ${first.semester}/${first.academic_year}`;
+    }
+    return 'ปีการศึกษาปัจจุบัน';
+  }, [plans]);
 
-  // 1-Click Instant Copy Handler for AI Infographic Prompt
+  // Payload for AI Infographic Prompt Generator
+  const promptPayload: InfographicPromptPayload = useMemo(
+    () => ({
+      schoolNameTh: 'โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์',
+      schoolNameEn: 'Princess Chulabhorn Science High School Kalasin',
+      academicYear: activeTermLabel,
+      selectedDocTypes,
+      areaStats,
+      totalTeachers: totalTeachersCount,
+      totalSubmittedTeachers: submittedTeachers.length,
+      overallSubmissionRate: submissionRate,
+      onTimeRate,
+      lateRate,
+      pendingTeachersCount: pendingTeachers.length,
+      aspectRatio: '4:5',
+      style: 'official_science',
+    }),
+    [
+      activeTermLabel,
+      selectedDocTypes,
+      areaStats,
+      totalTeachersCount,
+      submittedTeachers,
+      submissionRate,
+      onTimeRate,
+      lateRate,
+      pendingTeachers,
+    ]
+  );
+
   const handleInstantCopyPrompt = async () => {
     try {
       const text = generateEnglishInfographicPrompt(promptPayload);
@@ -478,7 +541,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         document.execCommand('copy');
         document.body.removeChild(textArea);
       }
-      setCopyToastMessage('คัดลอก Prompt สำหรับ AI เจนอินโฟกราฟิกเรียบร้อยแล้ว!');
+      setCopyToastMessage('คัดลอก Prompt สถิติจริงเรียบร้อยแล้ว');
       setTimeout(() => setCopyToastMessage(null), 3000);
     } catch (err) {
       console.error('Failed to copy prompt:', err);
@@ -486,31 +549,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     }
   };
 
-  // Score distribution tiers
-  const scoreDistribution = useMemo(() => {
-    const excellent = plansWithScore.filter((p) => (p.total_score || 0) >= 90).length;
-    const veryGood = plansWithScore.filter((p) => (p.total_score || 0) >= 80 && (p.total_score || 0) < 90).length;
-    const good = plansWithScore.filter((p) => (p.total_score || 0) >= 70 && (p.total_score || 0) < 80).length;
-    const needsImprovement = plansWithScore.filter((p) => (p.total_score || 0) < 70).length;
-    const totalScored = plansWithScore.length;
-
-    return {
-      excellent,
-      veryGood,
-      good,
-      needsImprovement,
-      totalScored,
-      excellentPct: totalScored > 0 ? Math.round((excellent / totalScored) * 100) : 0,
-      veryGoodPct: totalScored > 0 ? Math.round((veryGood / totalScored) * 100) : 0,
-      goodPct: totalScored > 0 ? Math.round((good / totalScored) * 100) : 0,
-      needsImprovementPct: totalScored > 0 ? Math.round((needsImprovement / totalScored) * 100) : 0,
-    };
-  }, [plansWithScore]);
-
-  // Filtered teachers list for Individual tracking
+  // Filtered + Priority-sorted teachers (Pending first -> Late -> On-time)
   const filteredTeachers = useMemo(() => {
-    return teachingStaff.filter((teacher) => {
-      // Area filter (multi-select)
+    const list = teachingStaff.filter((teacher) => {
       if (!isAllAreas && !selectedAreas.includes(teacher.Learning_Area)) {
         return false;
       }
@@ -519,12 +560,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
       const hasSubmitted = teacherPlans.length > 0;
       const hasLate = teacherPlans.some((p) => p.is_late);
 
-      // Status filter
       if (selectedStatus === 'ontime' && (!hasSubmitted || hasLate)) return false;
       if (selectedStatus === 'late' && !hasLate) return false;
       if (selectedStatus === 'pending' && hasSubmitted) return false;
 
-      // Search filter
       if (searchTeacher.trim()) {
         const q = searchTeacher.toLowerCase();
         const matchName = teacher.Name.toLowerCase().includes(q);
@@ -535,9 +574,22 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
       return true;
     });
+
+    // Always surface Pending -> Late -> On-time so urgent follow-ups are visible first
+    return list.sort((a, b) => {
+      const aPlans = activePlans.filter((p) => p.teacher_id === a.Teacher_ID);
+      const bPlans = activePlans.filter((p) => p.teacher_id === b.Teacher_ID);
+      const rankOf = (tPlans: LessonPlan[]) => {
+        if (tPlans.length === 0) return 0; // Pending first
+        if (tPlans.some((p) => p.is_late)) return 1; // Late second
+        return 2; // On-time third
+      };
+      const diff = rankOf(aPlans) - rankOf(bPlans);
+      if (diff !== 0) return diff;
+      return a.Name.localeCompare(b.Name, 'th');
+    });
   }, [teachingStaff, activePlans, isAllAreas, selectedAreas, selectedStatus, searchTeacher]);
 
-  // Counts for individual tracking status tabs
   const individualCounts = useMemo(() => {
     let pending = 0;
     let ontime = 0;
@@ -562,241 +614,313 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
     return { total, pending, ontime, late };
   }, [teachingStaff, activePlans, isAllAreas, selectedAreas]);
 
-  const handleSendReminder = (teacherId: string, teacherName: string) => {
+  const handleSendReminder = (teacherId: string) => {
     setReminderSentMap((prev) => ({ ...prev, [teacherId]: true }));
   };
 
+  const selectedDetailTeacher = useMemo(
+    () => teachers.find((t) => t.Teacher_ID === selectedDetailTeacherId) || null,
+    [teachers, selectedDetailTeacherId]
+  );
+
+  const selectedDetailPlans = useMemo(() => {
+    if (!selectedDetailTeacher) return [];
+    return activePlans.filter((p) => p.teacher_id === selectedDetailTeacher.Teacher_ID);
+  }, [selectedDetailTeacher, activePlans]);
+
+  const hasActiveFilter = !isAllDocTypes || !isAllAreas || selectedStatus !== 'all' || Boolean(searchTeacher.trim());
+
+  const completedDeptNames = useMemo(
+    () => allAreaStats.filter((a) => a.isCompleted).map((a) => shortAreaLabel(a.name)),
+    [allAreaStats]
+  );
+  const topPendingDept = useMemo(
+    () => [...allAreaStats].sort((a, b) => b.pendingTeachers - a.pendingTeachers)[0],
+    [allAreaStats]
+  );
+
   return (
-    <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-300">
-      {/* Executive Header Banner (Matte #0B1329 Authority Surface) */}
-      <div className="rounded-2xl bg-[#0B1329] text-white p-4 sm:p-5 border border-slate-800 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1.5 min-w-0">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white/10 text-emerald-300 border border-white/15">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>ศูนย์บัญชาการข้อมูลผู้บริหาร · Executive Analytics</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              <span>แดชบอร์ดติดตามและประเมินผลฝ่ายบริหาร</span>
-            </h2>
-            <p className="text-slate-300 text-xs max-w-xl leading-relaxed">
-              ภาพรวมการส่งเอกสารวิชาการ วิเคราะห์ความตรงต่อเวลา สรุปรายกลุ่มสาระและรายบุคคล
-              โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
-            </p>
+    <div className="space-y-3 animate-in fade-in duration-200">
+      {/* Backdrop to close dropdown popovers */}
+      {(isDocTypeDropdownOpen || isSecondaryMenuOpen) && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => {
+            setIsDocTypeDropdownOpen(false);
+            setIsSecondaryMenuOpen(false);
+          }}
+        />
+      )}
+
+      {/* TOP COCKPIT BAR: Single compact row combining Title, Mode Switcher, Primary Filter & Actions */}
+      <div className="bg-white rounded-xl border border-slate-200 px-3.5 py-2.5 flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
+        {/* Left: Plain Title + Inline Unboxed Metadata */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+          <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight whitespace-nowrap">
+            ติดตามการส่งเอกสารวิชาการ
+          </h2>
+          <div className="flex items-center gap-2 text-xs text-slate-500 tabular-nums">
+            <span>{activeTermLabel}</span>
+            <span aria-hidden="true">·</span>
+            <span>ครู {totalTeachersCount} ท่าน</span>
+            <span aria-hidden="true">·</span>
+            <span>ส่งแล้ว {totalPlansCount} ฉบับ</span>
+          </div>
+        </div>
+
+        {/* Center/Right Controls: Mode Tabs + Doc Filter + Actions */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Clean Segmented Mode Switcher (Plain Thai Labels) */}
+          <div className="inline-flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => handleModeChange('standard')}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                currentMode === 'standard'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-slate-700" />
+              <span>ภาพรวมหน้าเดียว</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleModeChange('ranking')}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                currentMode === 'ranking'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-600" />
+              <span>จัดอันดับกลุ่มสาระ</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleModeChange('ddo')}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                currentMode === 'ddo'
+                  ? 'bg-slate-900 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
+              <span>วิเคราะห์เชิงลึก</span>
+            </button>
           </div>
 
-          {/* Grouped Action Buttons with Uniform Heights & Secondary Dropdown */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start lg:self-center">
-            {/* Primary Action 1: Instant AI Infographic Prompt */}
-            <button
-              type="button"
-              onClick={handleInstantCopyPrompt}
-              className="h-8.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0"
-              title="คลิกเดียวคัดลอก Prompt สถิติจริงเพื่อนำไปสร้างอินโฟกราฟิกด้วย AI ทันที"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-              <span>คัดลอก Prompt AI</span>
-            </button>
-
-            {/* Primary Action 2: Individual Printable Summary */}
-            <button
-              type="button"
-              onClick={() => setIsIndividualPrintModalOpen(true)}
-              className="h-8.5 px-3 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล"
-            >
-              <Printer className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <span>พิมพ์สรุปรายบุคคล</span>
-            </button>
-
-            {/* Primary Action 3: Reviewer Workload Audit */}
-            {onOpenReviewerWorkload && (
-              <button
-                type="button"
-                onClick={onOpenReviewerWorkload}
-                className="h-8.5 px-3 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-semibold border border-white/15 transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
-                title="ตรวจสอบว่าใครตรวจงานไปกี่ฉบับ และมีงานรอตรวจกี่รายการ"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span>ภาระงานผู้ตรวจ</span>
-              </button>
-            )}
-
-            {/* Secondary Actions Dropdown */}
+          {/* Document Type Filter Dropdown (in standard mode) */}
+          {currentMode === 'standard' && (
             <div className="relative">
               <button
                 type="button"
                 onClick={() => {
-                  setIsSecondaryMenuOpen(!isSecondaryMenuOpen);
-                  setIsDocTypeDropdownOpen(false);
-                  setIsAreaDropdownOpen(false);
+                  setIsDocTypeDropdownOpen(!isDocTypeDropdownOpen);
+                  setIsSecondaryMenuOpen(false);
                 }}
-                className={`h-8.5 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border shrink-0 ${
-                  isSecondaryMenuOpen
-                    ? 'bg-white text-slate-900 border-white shadow-xs'
-                    : 'bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm'
+                className={`h-8 px-2.5 text-xs font-semibold border rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap ${
+                  !isAllDocTypes
+                    ? 'border-indigo-400 bg-indigo-50 text-indigo-900'
+                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
                 }`}
-                title="ตัวเลือกและการจัดการเพิ่มเติม"
               >
-                <MoreHorizontal className="w-3.5 h-3.5" />
-                <span>ตัวเลือกเพิ่มเติม</span>
-                <ChevronDown className={`w-3 h-3 transition-transform ${isSecondaryMenuOpen ? 'rotate-180' : ''}`} />
+                <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span className="max-w-[130px] truncate">
+                  {isAllDocTypes
+                    ? 'เอกสาร: ทุกประเภท'
+                    : selectedDocTypes.length === 1
+                    ? shortDocTypeLabel(selectedDocTypes[0])
+                    : `เลือก ${selectedDocTypes.length} ประเภท`}
+                </span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
               </button>
 
-              {isSecondaryMenuOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-30 p-1.5 text-slate-800 text-xs animate-in fade-in slide-in-from-top-1 divide-y divide-slate-100">
-                  <div className="space-y-0.5 pb-1">
+              {isDocTypeDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-30 p-2">
+                  <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 text-xs">
+                    <span className="font-semibold text-slate-800">กรองตามประเภทเอกสาร</span>
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsPrintModalOpen(true);
-                        setIsSecondaryMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-slate-900"
+                      onClick={() => setSelectedDocTypes(['ทั้งหมด'])}
+                      className="text-indigo-600 hover:underline font-medium cursor-pointer"
                     >
-                      <Printer className="w-4 h-4 text-indigo-600 shrink-0" />
-                      <div>
-                        <div className="font-bold text-xs text-slate-900">พิมพ์รายงานภาพรวมผู้บริหาร</div>
-                        <div className="text-[10px] text-slate-400">แบบฟอร์มทางการ A4 มีลายเซ็น</div>
-                      </div>
+                      ดูทั้งหมด
                     </button>
-
-                    {onOpenDeadlineManager && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenDeadlineManager();
-                          setIsSecondaryMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-slate-900"
-                      >
-                        <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
-                        <div>
-                          <div className="font-bold text-xs text-slate-900">กำหนดส่ง & จัดการสถานะ</div>
-                          <div className="text-[10px] text-slate-400">ตั้งค่าเดดไลน์แต่ละประเภทเอกสาร</div>
-                        </div>
-                      </button>
-                    )}
-
-                    {onOpenDirectoryModal && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenDirectoryModal();
-                          setIsSecondaryMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-slate-900"
-                      >
-                        <Users className="w-4 h-4 text-sky-600 shrink-0" />
-                        <div>
-                          <div className="font-bold text-xs text-slate-900">ทำเนียบบุคลากร ({totalTeachersCount} ท่าน)</div>
-                          <div className="text-[10px] text-slate-400">รายชื่อครูและกลุ่มสาระทั้งหมด</div>
-                        </div>
-                      </button>
-                    )}
-
-                    {onOpenReviewerWorkload && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenReviewerWorkload();
-                          setIsSecondaryMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-slate-900"
-                      >
-                        <UserCheck className="w-4 h-4 text-indigo-600 shrink-0" />
-                        <div>
-                          <div className="font-bold text-xs text-slate-900">ภาระงานผู้ตรวจ (ใครตรวจกี่อัน)</div>
-                          <div className="text-[10px] text-slate-400">ตรวจสอบยอดตรวจจริงและคิวงานค้าง</div>
-                        </div>
-                      </button>
-                    )}
                   </div>
+                  <div className="max-h-60 overflow-y-auto space-y-0.5 pt-1">
+                    {docTypes.map((dt) => {
+                      const isSelected =
+                        dt === 'ทั้งหมด' ? isAllDocTypes : !isAllDocTypes && selectedDocTypes.includes(dt);
+                      const count =
+                        dt === 'ทั้งหมด' ? plans.length : plans.filter((p) => matchesDocType(p, dt)).length;
 
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsInfographicModalOpen(true);
-                        setIsSecondaryMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-amber-50/70 flex items-center gap-2.5 transition-colors cursor-pointer text-slate-700 font-medium hover:text-amber-950"
-                    >
-                      <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                      <div>
-                        <div className="font-bold text-xs text-amber-950">ดู/ปรับแต่ง AI Infographic Prompt</div>
-                        <div className="text-[10px] text-amber-700/80">ตรวจทาน Prompt ภาษาไทย & อังกฤษ</div>
-                      </div>
-                    </button>
+                      return (
+                        <button
+                          key={dt}
+                          type="button"
+                          onClick={() => toggleDocType(dt)}
+                          className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
+                            isSelected ? 'bg-indigo-50 text-indigo-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <div
+                              className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${
+                                isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'
+                              }`}
+                            >
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <span className="truncate">{dt === 'ทั้งหมด' ? 'ทุกประเภทเอกสาร' : dt}</span>
+                          </div>
+                          <span className="text-[11px] font-mono tabular-nums text-slate-400">{count}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
+          )}
+
+          {/* Reset Filters Button (only when filtered) */}
+          {currentMode === 'standard' && hasActiveFilter && (
+            <button
+              type="button"
+              onClick={resetAllFilters}
+              className="h-8 px-2.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg flex items-center gap-1 cursor-pointer whitespace-nowrap transition-colors"
+              title="ล้างตัวกรองทั้งหมดกลับเป็นภาพรวมทั้งโรงเรียน"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>ล้างตัวกรอง</span>
+            </button>
+          )}
+
+          {/* Primary Action: Print Official Report */}
+          <button
+            type="button"
+            onClick={() => setIsPrintModalOpen(true)}
+            className="h-8 px-3 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>พิมพ์รายงาน</span>
+          </button>
+
+          {/* Secondary Executive Tools Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSecondaryMenuOpen(!isSecondaryMenuOpen);
+                setIsDocTypeDropdownOpen(false);
+              }}
+              className={`h-8 px-2.5 rounded-lg text-xs font-semibold flex items-center gap-1 border transition-colors cursor-pointer whitespace-nowrap ${
+                isSecondaryMenuOpen
+                  ? 'bg-slate-100 border-slate-300 text-slate-900'
+                  : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+              }`}
+              title="เครื่องมือผู้บริหารเพิ่มเติม"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+              <span className="hidden sm:inline">เพิ่มเติม</span>
+            </button>
+
+            {isSecondaryMenuOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-30 p-1.5 text-xs divide-y divide-slate-100">
+                <div className="space-y-0.5 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsIndividualPrintModalOpen(true);
+                      setIsSecondaryMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer text-slate-700"
+                  >
+                    <Printer className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-slate-900">พิมพ์สรุปรายบุคคล</div>
+                      <div className="text-[11px] text-slate-500">ใบติดตามการส่งรายชื่อครู</div>
+                    </div>
+                  </button>
+
+                  {onOpenReviewerWorkload && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenReviewerWorkload();
+                        setIsSecondaryMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer text-slate-700"
+                    >
+                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">เช็กภาระงานผู้ตรวจ</div>
+                        <div className="text-[11px] text-slate-500">ดูยอดตรวจจริงและคิวรอตรวจ</div>
+                      </div>
+                    </button>
+                  )}
+
+                  {onOpenDeadlineManager && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenDeadlineManager();
+                        setIsSecondaryMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer text-slate-700"
+                    >
+                      <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">กำหนดส่ง &amp; จัดการสถานะ</div>
+                        <div className="text-[11px] text-slate-500">ตั้งค่าเดดไลน์เอกสารแต่ละชนิด</div>
+                      </div>
+                    </button>
+                  )}
+
+                  {onOpenDirectoryModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenDirectoryModal();
+                        setIsSecondaryMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer text-slate-700"
+                    >
+                      <Users className="w-4 h-4 text-sky-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">ทำเนียบบุคลากร ({teachingStaff.length} ท่าน)</div>
+                        <div className="text-[11px] text-slate-500">รายชื่อครูและกลุ่มสาระทั้งหมด</div>
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+                <div className="pt-1 space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleInstantCopyPrompt();
+                      setIsSecondaryMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer text-slate-700"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div>
+                      <div className="font-semibold text-slate-900">คัดลอก Prompt ทำอินโฟกราฟิก AI</div>
+                      <div className="text-[11px] text-slate-500">ส่งสถิติจริงไปสร้างภาพสรุปทันที</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Executive View Mode Switcher: Standard Operational vs Ranking Leaderboard vs Data-Driven Organization */}
-      <div className="bg-white rounded-2xl p-2 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-        <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-xl">
-          <button
-            type="button"
-            onClick={() => handleModeChange('standard')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              currentMode === 'standard'
-                ? 'bg-white text-slate-900 font-bold shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
-            <span>ภาพรวมการดำเนินงาน</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleModeChange('ranking')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              currentMode === 'ranking'
-                ? 'bg-white text-slate-900 font-bold shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            <span>ทำเนียบจัดอันดับกลุ่มสาระ</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${currentMode === 'ranking' ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/90' : 'bg-slate-200/80 text-slate-600'}`}>
-              เร็ว &amp; ตรงเวลา
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleModeChange('ddo')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              currentMode === 'ddo'
-                ? 'bg-slate-900 text-white font-bold shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
-            <span>วิเคราะห์ Data-Driven</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 font-bold">
-              DDO
-            </span>
-          </button>
-        </div>
-
-        <div className="text-[11px] text-slate-500 px-2 flex items-center gap-1.5">
-          <span className="font-semibold text-slate-700">มุมมอง:</span>
-          <span className="font-semibold text-indigo-600">
-            {currentMode === 'ddo'
-              ? 'การวินิจฉัยจุดติดขัด · เรดาร์ความเสี่ยง · ข้อเสนอแนะเชิงยุทธศาสตร์'
-              : currentMode === 'ranking'
-              ? 'จัดอันดับกลุ่มสาระส่งครบ 100% ตรงเวลาก่อน'
-              : 'สถิติการส่งงาน · ราย 8 กลุ่มสาระ · รายการครูรายบุคคล'}
-          </span>
-        </div>
-      </div>
-
+      {/* MODE ROUTING: DDO / Ranking / Standard 1-Screen Cockpit */}
       {currentMode === 'ddo' ? (
         <DataDrivenOrgView
           teachers={teachers}
@@ -814,1967 +938,636 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           onOpenPlan={onOpenPlan}
         />
       ) : (
-        <>
-          {/* Top 4 KPI Cards: Swiss Executive Bento Surfaces */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {/* KPI 1: Submission Rate */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-slate-300 transition-colors cursor-default">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-slate-500 truncate">
-                  อัตราการส่งทั้งโรงเรียน
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                  <FileCheck2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-slate-900">
-                  <AnimatedCounter value={submissionRate} suffix="%" />
-                </span>
-                <span className="text-[11px] text-slate-400 font-medium tabular-nums">
-                  ({submittedTeachers.length}/{totalTeachersCount} ท่าน)
-                </span>
-              </div>
-              {/* Progress bar */}
-              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
-                <div
-                  className="bg-indigo-600 h-1.5 rounded-full transition-all duration-700 ease-out"
-                  style={{ width: `${submissionRate}%` }}
-                ></div>
-              </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
-                <span>ส่งแล้ว {totalPlansCount} ฉบับ</span>
-                <span className="font-semibold text-rose-600">
-                  {pendingTeachers.length > 0 ? `ค้าง ${pendingTeachers.length} ท่าน` : 'ครบ 100%'}
-                </span>
-              </div>
-            </div>
-
-            {/* KPI 2: Punctuality Breakdown */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-emerald-300/80 transition-colors cursor-default">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-slate-500 truncate">
-                  ความตรงต่อเวลา
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-                  <Clock className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-emerald-600">
-                  <AnimatedCounter value={onTimeRate} suffix="%" />
-                </span>
-                <span className="text-[11px] text-slate-400 font-medium tabular-nums">({onTimePlans.length} ฉบับ)</span>
-              </div>
-              {/* Progress bar with ontime and late segments */}
-              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2.5 overflow-hidden flex">
-                <div
-                  className="bg-emerald-500 h-1.5 transition-all duration-700 ease-out"
-                  style={{ width: `${onTimeRate}%` }}
-                ></div>
-                <div
-                  className="bg-amber-500 h-1.5 transition-all duration-700 ease-out"
-                  style={{ width: `${lateRate}%` }}
-                ></div>
-              </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] tabular-nums">
-                <span className="text-emerald-700 font-semibold">ตรงเวลา {onTimePlans.length}</span>
-                <span className="text-amber-700 font-semibold">ช้า {latePlans.length}</span>
-              </div>
-            </div>
-
-            {/* KPI 3: Average Quality Score */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-amber-300/80 transition-colors cursor-default">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-slate-500 truncate">
-                  คะแนนคุณภาพเฉลี่ย
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                  <Award className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-slate-900">{avgScore}</span>
-                {avgScore !== '-' && <span className="text-[11px] text-slate-400 font-medium tabular-nums">/ 100</span>}
-              </div>
-              <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold">
-                {avgScore === '-' ? (
-                  <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
-                    รอผลประเมินจริง
-                  </span>
-                ) : Number(avgScore) >= 90 ? (
-                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 ring-1 ring-emerald-200/90 px-2 py-0.5 rounded-md">
-                    ระดับดีเยี่ยม (90+)
-                  </span>
-                ) : Number(avgScore) >= 80 ? (
-                  <span className="text-[10px] text-blue-700 font-semibold bg-blue-50 ring-1 ring-blue-200/90 px-2 py-0.5 rounded-md">
-                    ระดับดีมาก (80-89)
-                  </span>
-                ) : Number(avgScore) >= 70 ? (
-                  <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 ring-1 ring-amber-200/90 px-2 py-0.5 rounded-md">
-                    ระดับดี (70-79)
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-rose-700 font-semibold bg-rose-50 ring-1 ring-rose-200/90 px-2 py-0.5 rounded-md">
-                    ควรปรับปรุง (&lt;70)
-                  </span>
-                )}
-              </div>
-              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 truncate tabular-nums">
-                <span>ประเมินแล้ว</span>
-                <span className="font-semibold text-slate-600">{plansWithScore.length} ฉบับ</span>
-              </div>
-            </div>
-
-            {/* KPI 4: Department Completion */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:border-sky-300/80 transition-colors cursor-default">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-slate-500 truncate">
-                  กลุ่มสาระส่งครบ 100%
-                </span>
-                <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center text-sky-600 shrink-0">
-                  <Layers className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight text-sky-600">
-                  <AnimatedCounter value={areaStats.filter((a) => a.isCompleted).length} />
-                </span>
-                <span className="text-[11px] text-slate-400 font-medium tabular-nums">/ {areaStats.length} กลุ่มสาระ</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2.5 overflow-hidden">
-                <div
-                  className="bg-sky-500 h-1.5 rounded-full transition-all duration-700 ease-out"
-                  style={{
-                    width: `${Math.round(
-                      (areaStats.filter((a) => a.isCompleted).length / (areaStats.length || 1)) * 100
-                    )}%`,
-                  }}
-                ></div>
-              </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
-                <span>กลุ่มสาระดีเด่น</span>
-                <span className="font-semibold text-indigo-600">
-                  {areaStats.filter((a) => a.isCompleted).length} กลุ่มสำเร็จ
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Leaderboard Announcement Banner: Crisp Bento Strip */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 ring-1 ring-amber-200/80">
-                <Trophy className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
-                    ทำเนียบจัดอันดับกลุ่มสาระยอดเยี่ยม (Leaderboard)
-                  </h4>
-                  <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-amber-50 text-amber-800 ring-1 ring-amber-200/90">
-                    ความเร็ว &amp; ตรงเวลา
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                  เช็คกลุ่มสาระที่ส่งเอกสารครบ 100% ตรงเวลาทุกคนก่อนเป็นกลุ่มแรก พร้อมสถิติเวลาจริงและแท่นรางวัล
-                </p>
-              </div>
-            </div>
-
+        /* STANDARD 1-SCREEN COCKPIT: Fits inside desktop viewport without outer vertical scrolling */
+        <div className="flex flex-col gap-2.5 lg:h-[calc(100vh-200px)] lg:min-h-[470px] lg:max-h-[720px]">
+          {/* ROW 1: 4 Interactive KPI Summary Cards (1 Big Metric + 1 Plain Subtitle each) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+            {/* KPI 1: Overall Submission */}
             <button
               type="button"
-              onClick={() => handleModeChange('ranking')}
-              className="h-8 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 self-start sm:self-auto"
-            >
-              <Trophy className="w-3.5 h-3.5 text-slate-950" />
-              <span>เปิดดูอันดับ</span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-950" />
-            </button>
-          </div>
-
-          {/* Backdrop to close popovers on outside click */}
-          {(isDocTypeDropdownOpen || isAreaDropdownOpen || isSecondaryMenuOpen) && (
-            <div
-              className="fixed inset-0 z-20"
-              onClick={() => {
-                setIsDocTypeDropdownOpen(false);
-                setIsAreaDropdownOpen(false);
-                setIsSecondaryMenuOpen(false);
-              }}
-            />
-          )}
-
-      {/* Filter Controls Bar with Multi-Select: Compact Layout */}
-      <div className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs space-y-2.5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 shrink-0">
-              <Filter className="w-3.5 h-3.5 text-indigo-600" />
-              <span>ตัวกรอง:</span>
-            </div>
-
-            {/* Doc Type Multi-Select Dropdown Popover */}
-            <div className="relative" title="เลือกประเภทเอกสารที่ต้องการดู (สามารถเลือกได้หลายประเภทพร้อมกัน)">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDocTypeDropdownOpen(!isDocTypeDropdownOpen);
-                  setIsAreaDropdownOpen(false);
-                  setIsSecondaryMenuOpen(false);
-                }}
-                className={`h-8 px-2.5 text-xs font-bold border rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs ${
-                  !isAllDocTypes
-                    ? 'border-indigo-400 bg-indigo-50 text-indigo-950 ring-2 ring-indigo-200'
-                    : 'border-indigo-200 bg-indigo-50/70 hover:bg-white text-indigo-950'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                <span className="truncate max-w-[130px] sm:max-w-none">
-                  {isAllDocTypes
-                    ? 'เอกสาร: ทั้งหมด'
-                    : selectedDocTypes.length === 1
-                    ? `ประเภท: ${selectedDocTypes[0]}`
-                    : `ประเภท (${selectedDocTypes.length})`}
-                </span>
-                {!isAllDocTypes && (
-                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                    {selectedDocTypes.length}
-                  </span>
-                )}
-                <ChevronDown className={`w-3 h-3 text-indigo-500 transition-transform ${isDocTypeDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isDocTypeDropdownOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 bg-white rounded-xl shadow-xl border border-slate-200/90 z-30 p-2 animate-in fade-in slide-in-from-top-1">
-                  <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100">
-                    <span className="text-xs font-bold text-slate-800">
-                      ประเภทเอกสาร ({isAllDocTypes ? 'ทุกประเภท' : `${selectedDocTypes.length} ที่เลือก`})
-                    </span>
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={selectAllDocTypes}
-                        className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
-                      >
-                        เลือกทั้งหมด
-                      </button>
-                      <span className="text-slate-300">|</span>
-                      <button
-                        type="button"
-                        onClick={clearDocTypes}
-                        className="text-slate-500 hover:text-rose-600 font-medium hover:underline cursor-pointer"
-                      >
-                        รีเซ็ต
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="max-h-60 overflow-y-auto space-y-0.5 p-1 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleDocType('ทั้งหมด')}
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                        isAllDocTypes ? 'bg-indigo-50 text-indigo-900' : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${isAllDocTypes ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
-                          {isAllDocTypes && <Check className="w-3 h-3 stroke-[3]" />}
-                        </div>
-                        <span>ทั้งหมด (ทุกประเภทเอกสาร)</span>
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-400 font-normal">
-                        {plans.length} ฉบับ
-                      </span>
-                    </button>
-
-                    {docTypes.filter(dt => dt !== 'ทั้งหมด').map((dt) => {
-                      const isSelected = !isAllDocTypes && selectedDocTypes.includes(dt);
-                      const docCount = plans.filter((p) => {
-                        const pType = (p.plan_type || '').trim();
-                        if (pType === dt) return true;
-                        if (dt === 'แผนการจัดการเรียนรู้' && (pType.includes('แผนการจัดการเรียนรู้') || !pType)) return true;
-                        return false;
-                      }).length;
-
-                      return (
-                        <button
-                          key={dt}
-                          type="button"
-                          onClick={() => toggleDocType(dt)}
-                          className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
-                            isSelected ? 'bg-indigo-50 text-indigo-950 font-bold' : 'text-slate-700 hover:bg-slate-50 font-medium'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate pr-2">
-                            <div className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
-                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                            </div>
-                            <span className="truncate">{dt}</span>
-                          </div>
-                          <span className="text-[11px] font-mono text-slate-400 shrink-0 font-normal">
-                            {docCount}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Learning Area Multi-Select Dropdown Popover */}
-            <div className="relative" title="เลือกกลุ่มสาระการเรียนรู้ที่ต้องการเปรียบเทียบ (สามารถเลือกได้หลายกลุ่มสาระ)">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAreaDropdownOpen(!isAreaDropdownOpen);
-                  setIsDocTypeDropdownOpen(false);
-                  setIsSecondaryMenuOpen(false);
-                }}
-                className={`h-8 px-2.5 text-xs font-bold border rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs ${
-                  !isAllAreas
-                    ? 'border-indigo-400 bg-indigo-50 text-indigo-950 ring-2 ring-indigo-200'
-                    : 'border-slate-200 bg-slate-50 hover:bg-white text-slate-800'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                <span className="truncate max-w-[130px] sm:max-w-none">
-                  {isAllAreas
-                    ? 'กลุ่มสาระ: ทั้งหมด (8 สาระ)'
-                    : selectedAreas.length === 1
-                    ? `กลุ่มสาระ: ${selectedAreas[0]}`
-                    : `กลุ่มสาระ (${selectedAreas.length} สาระ)`}
-                </span>
-                {!isAllAreas && (
-                  <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                    {selectedAreas.length}
-                  </span>
-                )}
-                <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform ${isAreaDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isAreaDropdownOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 bg-white rounded-xl border border-slate-200/90 shadow-xl z-30 p-2 animate-in fade-in slide-in-from-top-1">
-                  <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100">
-                    <span className="text-xs font-bold text-slate-800">
-                      กลุ่มสาระการเรียนรู้ ({isAllAreas ? 'ครบ 8 สาระ' : `${selectedAreas.length} ที่เลือก`})
-                    </span>
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={selectAllAreas}
-                        className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
-                      >
-                        เลือกทั้งหมด
-                      </button>
-                      <span className="text-slate-300">|</span>
-                      <button
-                        type="button"
-                        onClick={clearAreas}
-                        className="text-slate-500 hover:text-rose-600 font-medium hover:underline cursor-pointer"
-                      >
-                        รีเซ็ต
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="max-h-60 overflow-y-auto space-y-0.5 p-1 mt-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleArea('ทั้งหมด')}
-                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                        isAllAreas ? 'bg-indigo-50 text-indigo-900' : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${isAllAreas ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
-                          {isAllAreas && <Check className="w-3 h-3 stroke-[3]" />}
-                        </div>
-                        <span>ทั้งหมด (8 กลุ่มสาระ)</span>
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-400 font-normal">
-                        {teachingStaff.length} คน
-                      </span>
-                    </button>
-
-                    {areas.filter(a => a !== 'ทั้งหมด').map((area) => {
-                      const isSelected = !isAllAreas && selectedAreas.includes(area);
-                      const staffCount = teachingStaff.filter((t) => t.Learning_Area === area).length;
-
-                      return (
-                        <button
-                          key={area}
-                          type="button"
-                          onClick={() => toggleArea(area)}
-                          className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
-                            isSelected ? 'bg-indigo-50 text-indigo-950 font-bold' : 'text-slate-700 hover:bg-slate-50 font-medium'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate pr-2">
-                            <div className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
-                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                            </div>
-                            <span className="truncate">{area}</span>
-                          </div>
-                          <span className="text-[11px] font-mono text-slate-400 shrink-0 font-normal">
-                            {staffCount} คน
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Status Tabs */}
-            <div className="h-8 inline-flex rounded-lg bg-slate-100 p-0.5 text-xs items-center">
-              <button
-                type="button"
-                onClick={() => setSelectedStatus('all')}
-                className={`h-7 px-2.5 rounded-md font-medium transition-colors cursor-pointer ${
-                  selectedStatus === 'all' ? 'bg-white shadow-2xs text-slate-900 font-bold' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                ทั้งหมด ({totalTeachersCount})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedStatus('ontime')}
-                className={`h-7 px-2.5 rounded-md font-medium transition-colors cursor-pointer ${
-                  selectedStatus === 'ontime' ? 'bg-white shadow-2xs text-emerald-700 font-bold' : 'text-slate-600 hover:text-emerald-700'
-                }`}
-              >
-                ตรงเวลา
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedStatus('late')}
-                className={`h-7 px-2.5 rounded-md font-medium transition-colors cursor-pointer ${
-                  selectedStatus === 'late' ? 'bg-white shadow-2xs text-amber-700 font-bold' : 'text-slate-600 hover:text-amber-700'
-                }`}
-              >
-                ส่งล่าช้า
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedStatus('pending')}
-                className={`h-7 px-2.5 rounded-md font-medium transition-colors cursor-pointer ${
-                  selectedStatus === 'pending' ? 'bg-white shadow-2xs text-rose-700 font-bold' : 'text-slate-600 hover:text-rose-700'
-                }`}
-              >
-                ยังไม่ส่ง ({pendingTeachers.length})
-              </button>
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="relative min-w-[200px] lg:w-56 shrink-0">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTeacher}
-              onChange={(e) => setSearchTeacher(e.target.value)}
-              placeholder="ค้นหาชื่อครู, รหัส, สาระ..."
-              className="w-full h-8 pl-8 pr-2.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 focus:bg-white"
-            />
-          </div>
-        </div>
-
-        {/* Active Filter Chips Bar */}
-        {(!isAllDocTypes || !isAllAreas) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-[11px]">
-            <span className="font-bold text-slate-500 flex items-center gap-1 shrink-0">
-              <Filter className="w-3 h-3 text-indigo-600" />
-              <span>หัวข้อที่เลือก:</span>
-            </span>
-
-            {/* Doc Type Chips */}
-            {!isAllDocTypes &&
-              selectedDocTypes.map((dt) => {
-                const colorCfg = getDocTypeColorConfig(dt, allRealDocTypes);
-                return (
-                  <span
-                    key={`chip-dt-${dt}`}
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 ${colorCfg.lightBg} border ${colorCfg.border} ${colorCfg.text} rounded-md text-[11px] font-semibold shadow-2xs`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${colorCfg.dot}`} />
-                    <span>{dt}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleDocType(dt)}
-                      className="hover:text-rose-600 p-0.5 rounded hover:bg-white/80 transition-colors cursor-pointer"
-                      title={`ยกเลิกการกรอง ${dt}`}
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </span>
-                );
-              })}
-
-            {/* Area Chips */}
-            {!isAllAreas &&
-              selectedAreas.map((area) => (
-                <span
-                  key={`chip-area-${area}`}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-md text-[11px] font-semibold shadow-2xs"
-                >
-                  <Users className="w-3 h-3 text-blue-600" />
-                  <span>{area}</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleArea(area)}
-                    className="hover:text-rose-600 p-0.5 rounded hover:bg-blue-100 transition-colors cursor-pointer"
-                    title={`ยกเลิกการกรอง ${area}`}
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-
-            {/* Reset All Filters Button */}
-            <button
-              type="button"
-              onClick={() => {
-                selectAllDocTypes();
-                selectAllAreas();
-              }}
-              className="text-[11px] text-rose-600 hover:text-rose-800 font-bold underline px-1.5 py-0.5 cursor-pointer transition-colors"
-            >
-              ล้างตัวกรองทั้งหมด
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* SECTION 2: CHARTS & VISUAL GRAPHS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 sm:gap-4">
-        {/* GRAPH 1: Departmental Comparison Bar Chart (2 columns on large screens) */}
-        <div className="lg:col-span-2 bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 pb-2.5 gap-2.5">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                <BarChart3 className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
-                  กราฟเปรียบเทียบอัตราการส่งงาน {isAllAreas ? '8 กลุ่มสาระ' : `${areaStats.length} กลุ่มสาระที่เลือก`}
-                </h3>
-                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                  {graph1ViewMode === 'by_doctype' ? (
-                    <span>แยกแท่งตามประเภทเอกสาร ({activeTypesForBars.length} ประเภท) — <span className="font-semibold text-indigo-700">คนละประเภทคนละสีคนละแท่ง</span></span>
-                  ) : (
-                    <span>แสดงสัดส่วนส่งตรงเวลา (เขียว), ส่งช้า (ส้ม), ยังไม่ส่ง (เทา)</span>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            {/* Controls: View Mode Toggle & Actions Group */}
-            <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start lg:self-center">
-              {/* Toggle: แยกประเภทเอกสาร VS สรุปตรงเวลา/ล่าช้า */}
-              <div className="h-8 inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold items-center">
-                <button
-                  type="button"
-                  onClick={() => setGraph1ViewMode('by_doctype')}
-                  className={`h-7 px-2.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                    graph1ViewMode === 'by_doctype'
-                      ? 'bg-white text-indigo-900 shadow-2xs font-bold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="แสดงคนละประเภทเอกสารเป็นคนละสีคนละแท่ง"
-                >
-                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>แยกประเภท</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGraph1ViewMode('by_timeliness')}
-                  className={`h-7 px-2.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                    graph1ViewMode === 'by_timeliness'
-                      ? 'bg-white text-indigo-900 shadow-2xs font-bold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="สรุปภาพรวมสัดส่วนส่งตรงเวลาและล่าช้า"
-                >
-                  <TrendingUp className="w-3.5 h-3.5 text-slate-500" />
-                  <span>ตรงเวลา/ช้า</span>
-                </button>
-              </div>
-
-              {/* AI Infographic Prompt Copy Button */}
-              <button
-                type="button"
-                onClick={handleInstantCopyPrompt}
-                className="h-8 px-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer border border-amber-400 shrink-0"
-                title="คลิกเดียวคัดลอก Prompt สถิติจริงเพื่อนำไปสร้างอินโฟกราฟิกด้วย AI ทันที"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-                <span>AI Prompt</span>
-              </button>
-
-              {/* Inspect & Customize Prompt Button */}
-              <button
-                type="button"
-                onClick={() => setIsInfographicModalOpen(true)}
-                className="h-8 w-8 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80 rounded-lg flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                title="เปิดดูและปรับแต่ง Prompt ละเอียด (ภาษาไทย/อังกฤษ)"
-              >
-                <Eye className="w-3.5 h-3.5 text-slate-700" />
-              </button>
-
-              <span className="h-8 px-2 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-semibold flex items-center shrink-0">
-                {isAllAreas ? '8 กลุ่มสาระ' : `${areaStats.length} สาระ`}
-              </span>
-            </div>
-          </div>
-
-          {/* Bar Chart Container */}
-          {graph1ViewMode === 'by_doctype' ? (
-            /* VIEW 1: SEPARATE BARS & DISTINCT COLORS FOR EACH DOC TYPE */
-            <div className="space-y-2.5 pt-0.5">
-              {areaStats.map((stat) => {
-                const deptTeachers = teachingStaff.filter((t) => t.Learning_Area === stat.name);
-                const totalStaffInDept = deptTeachers.length;
-
-                return (
-                  <div
-                    key={stat.name}
-                    className="p-2.5 sm:p-3 rounded-xl border border-slate-200/90 bg-slate-50/50 hover:bg-slate-50 transition-all space-y-2 shadow-2xs"
-                  >
-                    {/* Department Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-slate-200/70 pb-1.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {stat.isCompleted && (
-                          <span className="text-amber-500 inline-flex items-center" title="ส่งครบทุกรายการ">
-                            <Trophy className="w-3.5 h-3.5" />
-                          </span>
-                        )}
-                        <span className="text-slate-900 font-bold text-xs truncate">{stat.name}</span>
-                        <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.2 rounded-md font-mono shrink-0">
-                          ครู {totalStaffInDept} ท่าน
-                        </span>
-                      </div>
-                      <div className="text-[11px] font-semibold text-slate-600 flex items-center gap-1.5 shrink-0">
-                        <span className="text-slate-500">ส่งแล้ว:</span>
-                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded-md">
-                          {stat.submittedTeachers}/{totalStaffInDept} ท่าน ({stat.submissionRate}%)
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Distinct Bar for Each Document Type */}
-                    <div className="space-y-1.5 pt-0.5">
-                      {activeTypesForBars.map((dt) => {
-                        const colorCfg = getDocTypeColorConfig(dt, allRealDocTypes);
-
-                        const submittedCount = deptTeachers.filter((t) =>
-                          plans.some((p) => {
-                            if (p.teacher_id !== t.Teacher_ID) return false;
-                            const pType = (p.plan_type || '').trim();
-                            if (pType === dt) return true;
-                            if (dt === 'แผนการจัดการเรียนรู้' && (pType.includes('แผนการจัดการเรียนรู้') || !pType)) return true;
-                            return false;
-                          })
-                        ).length;
-
-                        const docPlans = plans.filter((p) => {
-                          const isDeptTeacher = deptTeachers.some((t) => t.Teacher_ID === p.teacher_id);
-                          if (!isDeptTeacher) return false;
-                          const pType = (p.plan_type || '').trim();
-                          if (pType === dt) return true;
-                          if (dt === 'แผนการจัดการเรียนรู้' && (pType.includes('แผนการจัดการเรียนรู้') || !pType)) return true;
-                          return false;
-                        });
-
-                        const lateCount = docPlans.filter((p) => p.is_late).length;
-                        const rate = totalStaffInDept > 0 ? Math.round((submittedCount / totalStaffInDept) * 100) : 0;
-
-                        return (
-                          <div key={`${stat.name}-${dt}`} className="space-y-0.5">
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-1.5 truncate max-w-[240px] sm:max-w-[320px]">
-                                <span className={`w-2 h-2 rounded-full ${colorCfg.dot} shrink-0`} />
-                                <span className="font-semibold text-slate-800 text-[11px] truncate">{dt}</span>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0 text-[11px]">
-                                {lateCount > 0 && (
-                                  <span className="text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded font-medium text-[9px]">
-                                    ช้า {lateCount}
-                                  </span>
-                                )}
-                                <span className="text-slate-400 font-mono text-[10px]">
-                                  {submittedCount}/{totalStaffInDept}
-                                </span>
-                                <span className={`font-mono font-bold ${colorCfg.text} min-w-[32px] text-right text-xs`}>
-                                  {rate}%
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Distinct Colored Bar */}
-                            <div className="w-full bg-slate-200/80 rounded-md h-2.5 overflow-hidden flex shadow-2xs">
-                              {rate > 0 && (
-                                <div
-                                  className={`bg-gradient-to-r ${colorCfg.barGradient} h-2.5 rounded-md transition-all duration-500`}
-                                  style={{ width: `${rate}%` }}
-                                  title={`${stat.name} - ${dt}: ${rate}% (${submittedCount}/${totalStaffInDept} ท่าน)`}
-                                ></div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Color Legend for Document Types */}
-              <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
-                <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1 uppercase tracking-wider">
-                  <Layers className="w-3 h-3 text-indigo-600" />
-                  <span>สัญลักษณ์ประเภทเอกสาร ({activeTypesForBars.length} ประเภท):</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  {activeTypesForBars.map((dt) => {
-                    const color = getDocTypeColorConfig(dt, allRealDocTypes);
-                    return (
-                      <div
-                        key={`legend-doctype-${dt}`}
-                        className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md ${color.lightBg} border ${color.border} shadow-2xs`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${color.dot}`} />
-                        <span className={`font-semibold ${color.text}`}>{dt}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* VIEW 2: STACKED TIMELINESS OVERVIEW */
-            <div className="space-y-2.5 pt-0.5">
-              {areaStats.map((stat) => {
-                const onTimeWidth = stat.totalTeachers > 0
-                  ? Math.round((stat.onTimeTeachersCount / stat.totalTeachers) * 100)
-                  : 0;
-                const lateWidth = stat.totalTeachers > 0
-                  ? Math.round((stat.lateTeachersCount / stat.totalTeachers) * 100)
-                  : 0;
-                const pendingWidth = Math.max(0, 100 - onTimeWidth - lateWidth);
-
-                return (
-                  <div key={stat.name} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-800 flex items-center gap-1.5 truncate max-w-[240px]">
-                        {stat.isCompleted && (
-                          <span className="inline-flex items-center shrink-0" title="ส่งครบ 100%">
-                            <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                          </span>
-                        )}
-                        <span>{stat.name}</span>
-                      </span>
-                      <div className="flex items-center gap-2.5 text-[11px]">
-                        <span className="text-slate-400 font-mono text-[10px]">ครู {stat.totalTeachers} คน</span>
-                        <span className="font-bold text-indigo-600 font-mono">
-                          {stat.submissionRate}% ({stat.submittedTeachers}/{stat.totalTeachers})
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Stacked Bar with tooltips */}
-                    <div className="w-full bg-slate-100 rounded-md h-4 overflow-hidden flex shadow-2xs">
-                      {onTimeWidth > 0 && (
-                        <div
-                          className="bg-emerald-500 hover:bg-emerald-600 transition-all flex items-center justify-center text-[9px] font-bold text-white px-1"
-                          style={{ width: `${onTimeWidth}%` }}
-                          title={`ตรงเวลา ${onTimeWidth}% (${stat.onTimeTeachersCount} ท่าน)`}
-                        >
-                          {onTimeWidth >= 15 ? `${onTimeWidth}%` : ''}
-                        </div>
-                      )}
-                      {lateWidth > 0 && (
-                        <div
-                          className="bg-amber-500 hover:bg-amber-600 transition-all flex items-center justify-center text-[9px] font-bold text-white px-1"
-                          style={{ width: `${lateWidth}%` }}
-                          title={`ส่งช้า ${lateWidth}% (${stat.lateTeachersCount} ท่าน)`}
-                        >
-                          {lateWidth >= 12 ? `ช้า` : ''}
-                        </div>
-                      )}
-                      {pendingWidth > 0 && (
-                        <div
-                          className="bg-slate-200/90 transition-all flex items-center justify-center text-[9px] font-medium text-slate-500 px-1"
-                          style={{ width: `${pendingWidth}%` }}
-                          title={`ยังไม่ส่ง ${pendingWidth}% (${stat.pendingTeachers} ท่าน)`}
-                        >
-                          {pendingWidth >= 15 ? `${pendingWidth}%` : ''}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Legend */}
-              <div className="flex flex-wrap items-center justify-center gap-4 pt-2.5 border-t border-slate-100 text-[11px]">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span className="text-slate-600 font-medium">ส่งตรงเวลา</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                  <span className="text-slate-600 font-medium">ส่งล่าช้า</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
-                  <span className="text-slate-600 font-medium">ยังไม่ส่ง</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* GRAPH 2: Donut Chart - Punctuality & Timeliness Proportion (Compact, Zero Dead Space) */}
-        <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs flex flex-col space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-                <PieChart className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
-                  สัดส่วนความตรงต่อเวลา
-                </h3>
-                <p className="text-[11px] text-slate-400 truncate">
-                  วิเคราะห์จาก {totalPlansCount} ฉบับ ({totalTeachersCount} บุคลากร)
-                </p>
-              </div>
-            </div>
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                onTimeRate >= 80
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : onTimeRate >= 60
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-rose-100 text-rose-800'
+              onClick={() => setSelectedStatus('all')}
+              className={`text-left bg-white rounded-xl p-3.5 border transition-colors cursor-pointer ${
+                selectedStatus === 'all'
+                  ? 'border-slate-300 ring-1 ring-slate-200'
+                  : 'border-slate-200 hover:border-slate-300'
               }`}
             >
-              {onTimeRate >= 80 ? 'เกณฑ์ดีเยี่ยม' : onTimeRate >= 60 ? 'เฝ้าระวัง' : 'ต้องเร่งรัด'}
-            </span>
-          </div>
-
-          {/* Circular SVG Donut Chart (Compact proportions) */}
-          <div className="flex flex-col items-center justify-center py-0.5 relative">
-            <svg className="w-36 h-36 -rotate-90 transform" viewBox="0 0 100 100">
-              {/* Background Circle */}
-              <circle
-                cx="50"
-                cy="50"
-                r="38"
-                className="text-slate-100 stroke-current"
-                strokeWidth="11"
-                fill="transparent"
-              />
-              {/* On-Time Arc (Emerald) */}
-              {onTimeRate > 0 && (
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  className="text-emerald-500 stroke-current transition-all duration-700"
-                  strokeWidth="11"
-                  strokeDasharray={`${(onTimeRate * 238.76) / 100} 238.76`}
-                  strokeDashoffset="0"
-                  strokeLinecap="round"
-                  fill="transparent"
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-slate-600">
+                  ส่งงานแล้ว{!isAllAreas ? ` (${shortAreaLabel(selectedAreas[0])})` : 'ทั้งโรงเรียน'}
+                </span>
+                <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                <span className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
+                  <AnimatedCounter value={submissionRate} suffix="%" />
+                </span>
+                <span className="text-xs text-slate-500 tabular-nums">
+                  {submittedTeachers.length}/{totalTeachersCount} ท่าน
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div
+                  className="bg-indigo-600 h-1.5 rounded-full transition-all duration-500"
+                  style={{ width: `${submissionRate}%` }}
                 />
-              )}
-              {/* Late Arc (Amber) */}
-              {lateRate > 0 && (
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  className="text-amber-500 stroke-current transition-all duration-700"
-                  strokeWidth="11"
-                  strokeDasharray={`${(lateRate * 238.76) / 100} 238.76`}
-                  strokeDashoffset={`-${(onTimeRate * 238.76) / 100}`}
-                  strokeLinecap="round"
-                  fill="transparent"
+              </div>
+            </button>
+
+            {/* KPI 2: Timeliness */}
+            <button
+              type="button"
+              onClick={() => setSelectedStatus((prev) => (prev === 'ontime' ? 'late' : 'ontime'))}
+              className={`text-left bg-white rounded-xl p-3.5 border transition-colors cursor-pointer ${
+                selectedStatus === 'ontime' || selectedStatus === 'late'
+                  ? 'border-emerald-400 ring-1 ring-emerald-200'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
+              title="คลิกเพื่อสลับกรองดูครูที่ส่งตรงเวลา / ส่งช้า"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-slate-600">ส่งตรงเวลา</span>
+                <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                <span className="text-2xl font-bold tabular-nums tracking-tight text-emerald-700">
+                  <AnimatedCounter value={onTimeRate} suffix="%" />
+                </span>
+                <span className="text-xs text-slate-500 tabular-nums">
+                  ตรงเวลา {onTimePlans.length} · ช้า {latePlans.length} ฉบับ
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden flex">
+                <div
+                  className="bg-emerald-600 h-1.5 transition-all duration-500"
+                  style={{ width: `${onTimeRate}%` }}
                 />
-              )}
-            </svg>
+                <div
+                  className="bg-amber-500 h-1.5 transition-all duration-500"
+                  style={{ width: `${lateRate}%` }}
+                />
+              </div>
+            </button>
 
-            {/* Inner Center Badge: Prominent Stat Number */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-              {totalPlansCount === 0 ? (
-                <>
-                  <span className="text-base font-bold text-slate-400">0 ฉบับ</span>
-                  <span className="text-[10px] text-slate-400">ยังไม่มีเอกสาร</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-2xl sm:text-3xl font-mono font-black text-slate-900 tracking-tight leading-none">
-                    {onTimeRate}%
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">
-                    ส่งตรงเวลา
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono mt-0.5">รวม {totalPlansCount} ฉบับ</span>
-                </>
-              )}
-            </div>
+            {/* KPI 3: Pending / Action Required */}
+            <button
+              type="button"
+              onClick={() => setSelectedStatus((prev) => (prev === 'pending' ? 'all' : 'pending'))}
+              className={`text-left bg-white rounded-xl p-3.5 border transition-colors cursor-pointer ${
+                selectedStatus === 'pending'
+                  ? 'border-rose-400 ring-1 ring-rose-200 bg-rose-50/30'
+                  : 'border-slate-200 hover:border-rose-300'
+              }`}
+              title="คลิกเพื่อแสดงเฉพาะรายชื่อครูที่ยังไม่ส่ง"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-slate-600">ยังไม่ส่ง (ต้องติดตาม)</span>
+                <AlertTriangle
+                  className={`w-4 h-4 shrink-0 ${
+                    pendingTeachers.length > 0 ? 'text-rose-600' : 'text-emerald-600'
+                  }`}
+                />
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                <span
+                  className={`text-2xl font-bold tabular-nums tracking-tight ${
+                    pendingTeachers.length > 0 ? 'text-rose-600' : 'text-emerald-700'
+                  }`}
+                >
+                  <AnimatedCounter value={pendingTeachers.length} suffix=" ท่าน" />
+                </span>
+                <span className="text-xs text-slate-500">
+                  {pendingTeachers.length > 0
+                    ? selectedStatus === 'pending'
+                      ? 'กำลังแสดงเฉพาะผู้ค้างส่ง'
+                      : 'คลิกเพื่อดูรายชื่อ'
+                    : 'ส่งครบทุกคนแล้ว'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-500 ${
+                    pendingTeachers.length > 0 ? 'bg-rose-500' : 'bg-emerald-500'
+                  }`}
+                  style={{
+                    width:
+                      totalTeachersCount > 0
+                        ? `${Math.round((pendingTeachers.length / totalTeachersCount) * 100) || 100}%`
+                        : '0%',
+                  }}
+                />
+              </div>
+            </button>
+
+            {/* KPI 4: Reviewed & Approved */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenReviewerWorkload) onOpenReviewerWorkload();
+              }}
+              className="text-left bg-white rounded-xl p-3.5 border border-slate-200 hover:border-slate-300 transition-colors cursor-pointer"
+              title="คลิกเพื่อดูรายละเอียดภาระงานผู้ตรวจ"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-slate-600">ตรวจอนุมัติแล้ว</span>
+                <UserCheck className="w-4 h-4 text-slate-600 shrink-0" />
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                <span className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
+                  {approvedPlansCount}
+                  <span className="text-sm font-medium text-slate-400"> / {totalPlansCount}</span>
+                </span>
+                <span className="text-xs text-slate-500 tabular-nums">ฉบับ</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 tabular-nums">
+                <span>รอตรวจ {pendingReviewPlansCount} ฉบับ</span>
+                <span>คะแนนเฉลี่ย {avgScore !== '-' ? `${avgScore}/100` : 'รอประเมิน'}</span>
+              </div>
+            </button>
           </div>
 
-          {/* Donut Legend (High scanability) */}
-          <div className="space-y-1.5 pt-1 border-t border-slate-100 text-xs">
-            <div className="flex items-center justify-between p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                <span className="font-semibold text-emerald-900 text-xs">ส่งตรงเวลา (On-Time)</span>
-              </div>
-              <span className="font-mono font-bold text-emerald-700 text-xs">
-                {onTimePlans.length} ฉบับ ({onTimeRate}%)
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-1.5 rounded-lg bg-amber-50/70 border border-amber-100">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                <span className="font-semibold text-amber-900 text-xs">ส่งล่าช้า (Late)</span>
-              </div>
-              <span className="font-mono font-bold text-amber-700 text-xs">
-                {latePlans.length} ฉบับ ({lateRate}%)
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between p-1.5 rounded-lg bg-rose-50/70 border border-rose-100">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
-                <span className="font-semibold text-rose-900 text-xs">ยังไม่ส่ง (Pending)</span>
-              </div>
-              <span className="font-mono font-bold text-rose-700 text-xs">
-                {pendingTeachers.length} ท่าน ({Math.round(((pendingTeachers.length) / (totalTeachersCount || 1)) * 100)}%)
-              </span>
-            </div>
-          </div>
-
-          {/* Compact Department Insights (Eliminates dead space with actionable executive intelligence) */}
-          <div className="space-y-2 pt-1 border-t border-slate-100">
-            {/* Top Punctual Departments */}
-            {areaStats.filter((a) => a.submissionRate === 100).length > 0 && (
-              <div className="p-2 rounded-lg bg-emerald-50/50 border border-emerald-100/90 text-[11px] space-y-1">
-                <div className="flex items-center gap-1 text-emerald-900 font-bold">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                  <span>กลุ่มสาระที่ส่งครบ 100%:</span>
+          {/* ROW 2: Main 2-Column Single-Screen Workspace */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0">
+            {/* LEFT COLUMN (~42%): All 8 Learning Areas Comparison (No Chart Noise, Click to Filter) */}
+            <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 flex flex-col min-h-0 overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                    ความคืบหน้า 8 กลุ่มสาระ
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    คลิกชื่อกลุ่มสาระเพื่อเจาะดูรายชื่อครูฝั่งขวา
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {areaStats
-                    .filter((a) => a.submissionRate === 100)
-                    .map((a) => (
-                      <span
-                        key={`punctual-${a.name}`}
-                        className="px-1.5 py-0.2 bg-white text-emerald-800 border border-emerald-200 rounded text-[10px] font-semibold"
+                {!isAllAreas && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAreas(['ทั้งหมด'])}
+                    className="text-[11px] font-semibold text-indigo-600 hover:underline cursor-pointer shrink-0"
+                  >
+                    แสดงครบ 8 สาระ
+                  </button>
+                )}
+              </div>
+
+              {/* 8 Departments Progress List */}
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                {allAreaStats.map((stat, idx) => {
+                  const isSelected = !isAllAreas && selectedAreas.includes(stat.name);
+                  const barColor =
+                    stat.submissionRate === 100
+                      ? 'bg-emerald-600'
+                      : stat.submissionRate >= 70
+                      ? 'bg-indigo-600'
+                      : stat.submissionRate >= 40
+                      ? 'bg-amber-500'
+                      : 'bg-rose-500';
+
+                  return (
+                    <button
+                      key={stat.name}
+                      type="button"
+                      onClick={() => toggleArea(stat.name)}
+                      className={`w-full px-3.5 py-2 text-left transition-colors cursor-pointer flex flex-col gap-1 ${
+                        isSelected ? 'bg-indigo-50/80 ring-1 ring-inset ring-indigo-300' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-4 text-[11px] font-mono tabular-nums text-slate-400 shrink-0">
+                            {idx + 1}.
+                          </span>
+                          <span className="font-semibold text-slate-900 truncate">
+                            {shortAreaLabel(stat.name)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 shrink-0 text-[11px] tabular-nums">
+                          {stat.isCompleted ? (
+                            <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>ครบ 100%</span>
+                            </span>
+                          ) : (
+                            <span
+                              className={`font-semibold ${
+                                stat.pendingTeachers > 0 ? 'text-rose-600' : 'text-amber-700'
+                              }`}
+                            >
+                              ค้าง {stat.pendingTeachers} ท่าน
+                            </span>
+                          )}
+                          <span className="font-mono font-bold text-slate-900 w-9 text-right">
+                            {stat.submissionRate}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 pl-6">
+                        <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`}
+                            style={{ width: `${stat.submissionRate}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-mono tabular-nums text-slate-400 shrink-0">
+                          {stat.submittedTeachers}/{stat.totalTeachers}
+                          {stat.latePlans > 0 ? ` · ช้า ${stat.latePlans}` : ''}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 1-Line Plain Executive Takeaway Footer */}
+              <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-600 shrink-0 truncate">
+                {completedDeptNames.length === allAreaStats.length && allAreaStats.length > 0 ? (
+                  <span className="text-emerald-700 font-semibold">
+                    ส่งครบ 100% ครบทุกกลุ่มสาระการเรียนรู้แล้ว
+                  </span>
+                ) : (
+                  <>
+                    <span className="font-semibold text-slate-800">สรุปเร็ว: </span>
+                    {completedDeptNames.length > 0
+                      ? `ครบแล้ว ${completedDeptNames.length} สาระ`
+                      : 'ยังไม่มีสาระที่ครบ 100%'}
+                    {topPendingDept && topPendingDept.pendingTeachers > 0
+                      ? ` · ต้องเร่งติดตามที่ ${shortAreaLabel(topPendingDept.name)} (ค้าง ${topPendingDept.pendingTeachers} ท่าน)`
+                      : ''}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN (~58%): Document Progress Strip + Priority-Sorted Teacher List */}
+            <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 flex flex-col min-h-0 overflow-hidden">
+              {/* Top Strip: Document Types Overview (Click to filter by Doc Type) */}
+              {docTypeStats.length > 0 && (
+                <div className="px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/60 shrink-0">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold text-slate-600">
+                      ความคืบหน้าแยกตามประเภทเอกสาร (คลิกเพื่อกรอง)
+                    </span>
+                    {!isAllDocTypes && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDocTypes(['ทั้งหมด'])}
+                        className="text-[11px] font-semibold text-indigo-600 hover:underline cursor-pointer"
                       >
-                        ✓ {a.name}
-                      </span>
-                    ))}
+                        ดูทุกประเภท
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                    {docTypeStats.map((dt) => {
+                      const isActive =
+                        !isAllDocTypes && selectedDocTypes.length === 1 && selectedDocTypes[0] === dt.name;
+                      return (
+                        <button
+                          key={dt.name}
+                          type="button"
+                          onClick={() => selectSingleOrToggleDocType(dt.name)}
+                          className={`text-left px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            isActive
+                              ? 'bg-indigo-50 border-indigo-400 text-indigo-950'
+                              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                          }`}
+                          title={dt.name}
+                        >
+                          <div className="text-[11px] font-semibold truncate">{dt.shortName}</div>
+                          <div className="flex items-baseline justify-between gap-1 mt-0.5 tabular-nums">
+                            <span className="text-sm font-bold text-slate-900">{dt.rate}%</span>
+                            <span className="text-[10px] text-slate-500">{dt.planCount} ฉบับ</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Actionable Watchlist: Areas with pending submissions */}
-            {pendingTeachers.length > 0 && (
-              <div className="p-2 rounded-lg bg-rose-50/50 border border-rose-100/90 text-[11px] space-y-1">
-                <div className="flex items-center justify-between text-rose-900 font-bold">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-rose-600 shrink-0" />
-                    <span>กลุ่มที่ยังมีงานค้างส่ง ({pendingTeachers.length} ท่าน):</span>
-                  </span>
+              {/* Teacher Table Filter Controls */}
+              <div className="px-3.5 py-2.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+                <div className="inline-flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg border border-slate-200/70 overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStatus('all')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap tabular-nums ${
+                      selectedStatus === 'all'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ทั้งหมด ({individualCounts.total})
+                  </button>
                   <button
                     type="button"
                     onClick={() => setSelectedStatus('pending')}
-                    className="text-[10px] text-rose-700 hover:text-rose-900 font-bold underline cursor-pointer"
-                  >
-                    ดูรายคน
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {areaStats
-                    .filter((a) => a.pendingTeachers > 0)
-                    .map((a) => (
-                      <span
-                        key={`pending-dept-${a.name}`}
-                        className="px-1.5 py-0.2 bg-white text-rose-800 border border-rose-200 rounded text-[10px] font-medium"
-                      >
-                        {a.name} (ค้าง {a.pendingTeachers})
-                      </span>
-                    ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* GRAPH 3 & 4: Score Distribution & Document Types */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4">
-        {/* GRAPH 3: Quality Score Distribution Histogram */}
-        <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                <Award className="w-4 h-4" />
-              </div>
-              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
-                การกระจายคะแนนคุณภาพแผน
-              </h3>
-            </div>
-            <span className="text-[11px] font-mono text-slate-500 font-semibold">
-              {avgScore !== '-' ? `เฉลี่ย ${avgScore} / 100` : 'รอผลตรวจ'}
-            </span>
-          </div>
-
-          {scoreDistribution.totalScored === 0 ? (
-            <div className="py-6 text-center text-xs text-slate-400 space-y-1">
-              <Award className="w-7 h-7 text-slate-300 mx-auto" />
-              <p className="font-semibold text-slate-600 text-xs">ยังไม่มีข้อมูลการประเมินคะแนนจริง</p>
-              <p className="text-[10px] text-slate-400">ระบบจะแสดงผลเมื่อผู้ตรวจวิชาการบันทึกคะแนน</p>
-            </div>
-          ) : (
-            <div className="space-y-2 pt-0.5">
-              {/* Tier 1: ดีเยี่ยม (90-100) */}
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-700 text-[11px]">ระดับดีเยี่ยม (90 - 100)</span>
-                  <span className="font-mono font-bold text-emerald-600 text-xs">
-                    {scoreDistribution.excellent} ฉบับ ({scoreDistribution.excellentPct}%)
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden">
-                  <div
-                    className="bg-emerald-500 h-2 rounded-md transition-all"
-                    style={{ width: `${scoreDistribution.excellentPct}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Tier 2: ดีมาก (80-89) */}
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-700 text-[11px]">ระดับดีมาก (80 - 89)</span>
-                  <span className="font-mono font-bold text-blue-600 text-xs">
-                    {scoreDistribution.veryGood} ฉบับ ({scoreDistribution.veryGoodPct}%)
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden">
-                  <div
-                    className="bg-blue-500 h-2 rounded-md transition-all"
-                    style={{ width: `${scoreDistribution.veryGoodPct}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Tier 3: ดี (70-79) */}
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-700 text-[11px]">ระดับดี (70 - 79)</span>
-                  <span className="font-mono font-bold text-amber-600 text-xs">
-                    {scoreDistribution.good} ฉบับ ({scoreDistribution.goodPct}%)
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden">
-                  <div
-                    className="bg-amber-500 h-2 rounded-md transition-all"
-                    style={{ width: `${scoreDistribution.goodPct}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Tier 4: ต้องปรับปรุง (<70) */}
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-700 text-[11px]">ระดับปรับปรุง (&lt; 70)</span>
-                  <span className="font-mono font-bold text-rose-600 text-xs">
-                    {scoreDistribution.needsImprovement} ฉบับ ({scoreDistribution.needsImprovementPct}%)
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden">
-                  <div
-                    className="bg-rose-500 h-2 rounded-md transition-all"
-                    style={{ width: `${scoreDistribution.needsImprovementPct}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* GRAPH 4: Breakdown by Document Type */}
-        <div className="bg-white rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                <FileText className="w-4 h-4" />
-              </div>
-              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
-                สถิติแยกตามประเภทเอกสาร
-              </h3>
-            </div>
-            <span className="text-[11px] font-mono text-slate-500 font-semibold">
-              ทั้งหมด {plans.length} ฉบับ
-            </span>
-          </div>
-
-          <div className="space-y-2 pt-0.5">
-            {(() => {
-              const typesToRender = docTypes.filter((d) => {
-                if (d === 'ทั้งหมด') return false;
-                const hasPlans = plans.some((p) => p.plan_type === d);
-                const hasConfig = (deadlineConfigs || []).some((c) => c.name === d);
-                return hasPlans || hasConfig;
-              });
-
-              if (typesToRender.length === 0) {
-                return (
-                  <div className="py-6 text-center text-xs text-slate-400">
-                    ยังไม่มีข้อมูลประเภทเอกสารในระบบ
-                  </div>
-                );
-              }
-
-              return typesToRender.map((type) => {
-                const count = plans.filter((p) => p.plan_type === type).length;
-                const typeLate = plans.filter((p) => p.plan_type === type && p.is_late).length;
-                const pct = plans.length > 0 ? Math.round((count / plans.length) * 100) : 0;
-                const colorCfg = getDocTypeColorConfig(type, allRealDocTypes);
-
-                return (
-                  <div key={type} className="space-y-0.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-800 truncate max-w-[190px] flex items-center gap-1.5 text-[11px]">
-                        <span className={`w-2 h-2 rounded-full ${colorCfg.dot} shrink-0`} />
-                        <span className="truncate">{type}</span>
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {typeLate > 0 && (
-                          <span className="text-[9px] text-amber-800 bg-amber-100 border border-amber-200 px-1 py-0.2 rounded font-semibold">
-                            ช้า {typeLate}
-                          </span>
-                        )}
-                        <span className={`font-mono font-bold ${colorCfg.text} text-xs`}>
-                          {count} ฉบับ ({pct}%)
-                        </span>
-                      </div>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-md h-2 overflow-hidden shadow-2xs">
-                      <div
-                        className={`bg-gradient-to-r ${colorCfg.barGradient} h-2 rounded-md transition-all duration-500`}
-                        style={{ width: `${pct}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </div>
-      </div>
-
-      {/* SECTION 3: DEPARTMENTAL LEADERBOARD (ตารางสรุปรายกลุ่มสาระ) */}
-      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
-        <div className="p-3.5 sm:p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
-                ตารางจัดอันดับและสถิติราย 8 กลุ่มสาระการเรียนรู้
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                เปรียบเทียบจำนวนครู สถิติส่งตรงเวลา/ล่าช้า และคะแนนประเมินคุณภาพ
-              </p>
-            </div>
-          </div>
-          <span className="text-[11px] text-slate-400 font-medium">
-            เรียงตามร้อยละความสำเร็จ (% การส่งงาน)
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50/90 text-slate-500 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
-              <tr>
-                <th className="py-2.5 px-3 w-10 text-center">อันดับ</th>
-                <th className="py-2.5 px-3">กลุ่มสาระการเรียนรู้</th>
-                <th className="py-2.5 px-3 text-center">จำนวนครู</th>
-                <th className="py-2.5 px-3 text-center">ส่งแล้ว</th>
-                <th className="py-2.5 px-3 w-36">อัตราความสำเร็จ</th>
-                <th className="py-2.5 px-3 text-center">ตรงเวลา</th>
-                <th className="py-2.5 px-3 text-center">ส่งช้า</th>
-                <th className="py-2.5 px-3 text-center">คะแนนเฉลี่ย</th>
-                <th className="py-2.5 px-3 text-center">สถานะ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {areaStats.map((stat, idx) => {
-                const isSelected = !isAllAreas && selectedAreas.includes(stat.name);
-                return (
-                  <tr
-                    key={stat.name}
-                    onClick={() => toggleArea(stat.name)}
-                    className={`hover:bg-indigo-50/40 transition-colors cursor-pointer ${
-                      isSelected ? 'bg-indigo-50/80 font-semibold ring-1 ring-indigo-200' : ''
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap tabular-nums ${
+                      selectedStatus === 'pending'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'text-rose-700 hover:bg-rose-50'
                     }`}
                   >
-                    <td className="py-2 px-3 text-center font-mono">
-                      <span
-                        className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
-                          idx === 0
-                            ? 'bg-amber-100 text-amber-800'
-                            : idx === 1
-                            ? 'bg-slate-200 text-slate-800'
-                            : idx === 2
-                            ? 'bg-orange-100 text-orange-800'
-                            : 'text-slate-400'
-                        }`}
-                      >
-                        {idx + 1}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3 font-bold text-slate-800 flex items-center gap-1.5">
-                      <span>{stat.name}</span>
-                      {isSelected && (
-                        <span className="text-[9px] text-indigo-700 bg-indigo-100 px-1 py-0.2 rounded font-bold">
-                          เลือก
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-center font-mono text-slate-600">
-                      {stat.totalTeachers} ท่าน
-                    </td>
-                    <td className="py-2 px-3 text-center font-mono font-bold text-indigo-700">
-                      {stat.submittedTeachers} ท่าน
-                    </td>
-                    <td className="py-2 px-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className={`h-1.5 rounded-full ${
-                              stat.submissionRate === 100
-                                ? 'bg-emerald-500'
-                                : stat.submissionRate >= 80
-                                ? 'bg-indigo-500'
-                                : 'bg-amber-500'
+                    ยังไม่ส่ง ({individualCounts.pending})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStatus('late')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap tabular-nums ${
+                      selectedStatus === 'late'
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'text-amber-700 hover:bg-amber-50'
+                    }`}
+                  >
+                    ส่งช้า ({individualCounts.late})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStatus('ontime')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap tabular-nums ${
+                      selectedStatus === 'ontime'
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'text-emerald-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    ตรงเวลา ({individualCounts.ontime})
+                  </button>
+                </div>
+
+                {/* Compact Search */}
+                <div className="relative w-full sm:w-48 shrink-0">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อครู..."
+                    value={searchTeacher}
+                    onChange={(e) => setSearchTeacher(e.target.value)}
+                    className="w-full h-8 pl-8 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                  {searchTeacher && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTeacher('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Scrollable Teacher List (Internal Scroll Only) */}
+              <div className="flex-1 overflow-y-auto">
+                {filteredTeachers.length === 0 ? (
+                  <div className="h-full min-h-[180px] flex flex-col items-center justify-center text-center p-6 text-slate-500">
+                    <CheckCircle2 className="w-7 h-7 text-emerald-500 mb-2" />
+                    <p className="text-xs font-semibold text-slate-700">
+                      ไม่พบรายชื่อครูตามเงื่อนไขที่เลือก
+                    </p>
+                    <button
+                      type="button"
+                      onClick={resetAllFilters}
+                      className="mt-2 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg cursor-pointer"
+                    >
+                      ดูรายชื่อทั้งหมด
+                    </button>
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 z-10">
+                      <tr>
+                        <th className="py-2 px-3.5">ครูผู้สอน · กลุ่มสาระ</th>
+                        <th className="py-2 px-2.5 text-center w-24">สถานะ</th>
+                        <th className="py-2 px-2.5 text-right w-20">จำนวน</th>
+                        <th className="py-2 px-3.5 text-right w-24">ดำเนินการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredTeachers.map((teacher) => {
+                        const teacherPlans = activePlans.filter((p) => p.teacher_id === teacher.Teacher_ID);
+                        const hasSubmitted = teacherPlans.length > 0;
+                        const hasLate = teacherPlans.some((p) => p.is_late);
+                        const photoUrl = formatGoogleDriveImageUrl(teacher.photo);
+                        const isReminderSent = !!reminderSentMap[teacher.Teacher_ID];
+                        const scoredPlans = teacherPlans.filter(
+                          (p) => typeof p.total_score === 'number' && p.total_score > 0
+                        );
+                        const teacherAvgScore =
+                          scoredPlans.length > 0
+                            ? (
+                                scoredPlans.reduce((acc, p) => acc + (p.total_score || 0), 0) /
+                                scoredPlans.length
+                              ).toFixed(0)
+                            : null;
+
+                        return (
+                          <tr
+                            key={teacher.Teacher_ID}
+                            onClick={() => {
+                              if (hasSubmitted) setSelectedDetailTeacherId(teacher.Teacher_ID);
+                            }}
+                            className={`transition-colors ${
+                              hasSubmitted ? 'hover:bg-slate-50 cursor-pointer' : 'bg-rose-50/20 hover:bg-rose-50/40'
                             }`}
-                            style={{ width: `${stat.submissionRate}%` }}
-                          ></div>
-                        </div>
-                        <span className="font-mono font-bold text-[11px] min-w-[28px] text-right">
-                          {stat.submissionRate}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-2 px-3 text-center font-mono text-emerald-600 font-bold">
-                      {stat.onTimePlans}
-                    </td>
-                    <td className="py-2 px-3 text-center font-mono text-amber-600 font-bold">
-                      {stat.latePlans > 0 ? stat.latePlans : '-'}
-                    </td>
-                    <td className="py-2 px-3 text-center font-mono font-bold text-slate-800">
-                      {stat.avgScore}
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      {stat.isCompleted ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          ครบ 100%
-                        </span>
-                      ) : stat.pendingTeachers > 0 ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                          <Clock className="w-3 h-3 text-amber-600" />
-                          ค้าง {stat.pendingTeachers}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-700">
-                          เรียบร้อย
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* SECTION 4: INDIVIDUAL TEACHER TRACKING (การส่งงานรายคน) */}
-      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
-        {/* Section 4 Header */}
-        <div className="p-3.5 sm:p-4 border-b border-slate-100 space-y-2.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
-                <Users className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>การติดตามการส่งงานรายบุคคล</span>
-                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-md font-mono">
-                    {filteredTeachers.length} / {individualCounts.total} ท่าน
-                  </span>
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  ตรวจสอบสถานะส่งงานรายบุคคล ความตรงต่อเวลา และส่งสัญญาณเตือนครูที่มีงานค้าง
-                </p>
-              </div>
-            </div>
-
-            {/* View Mode Switcher & Print Summary Button */}
-            <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-auto">
-              <div className="h-8 inline-flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg border border-slate-200/80">
-                <button
-                  type="button"
-                  onClick={() => setIndividualViewMode('table')}
-                  className={`h-7 px-2.5 rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                    individualViewMode === 'table'
-                      ? 'bg-white text-indigo-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="มุมมองตาราง"
-                >
-                  <TableIcon className="w-3 h-3" />
-                  <span>ตาราง</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIndividualViewMode('cards')}
-                  className={`h-7 px-2.5 rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                    individualViewMode === 'cards'
-                      ? 'bg-white text-indigo-700 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="มุมมองการ์ด"
-                >
-                  <LayoutGrid className="w-3 h-3" />
-                  <span>การ์ด</span>
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsIndividualPrintModalOpen(true)}
-                className="h-8 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-                title="พิมพ์รายงานสรุปผลการส่งเอกสารรายบุคคล"
-              >
-                <Printer className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-                <span>พิมพ์สรุปรายบุคคล</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Controls: Quick Status Filter Tabs + In-Section Search Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pt-0.5">
-            {/* Quick Status Tabs */}
-            <div className="h-8 inline-flex rounded-lg bg-slate-100 p-0.5 text-xs items-center">
-              <button
-                type="button"
-                onClick={() => setSelectedStatus('all')}
-                className={`h-7 px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                  selectedStatus === 'all'
-                    ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'text-slate-700 hover:text-slate-900'
-                }`}
-              >
-                ทั้งหมด ({individualCounts.total})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedStatus('pending')}
-                className={`h-7 px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  selectedStatus === 'pending'
-                    ? 'bg-rose-600 text-white shadow-2xs'
-                    : 'text-rose-700 hover:bg-rose-50'
-                }`}
-              >
-                <Clock className="w-3 h-3" />
-                <span>ยังไม่ส่ง ({individualCounts.pending})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedStatus('ontime')}
-                className={`h-7 px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  selectedStatus === 'ontime'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'text-emerald-700 hover:bg-emerald-50'
-                }`}
-              >
-                <CheckCircle2 className="w-3 h-3" />
-                <span>ตรงเวลา ({individualCounts.ontime})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedStatus('late')}
-                className={`h-7 px-2.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  selectedStatus === 'late'
-                    ? 'bg-amber-600 text-white shadow-2xs'
-                    : 'text-amber-700 hover:bg-amber-50'
-                }`}
-              >
-                <AlertTriangle className="w-3 h-3" />
-                <span>ส่งช้า ({individualCounts.late})</span>
-              </button>
-            </div>
-
-            {/* In-Section Quick Search */}
-            <div className="relative w-full md:w-56">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="ค้นหาชื่อ, รหัสครู..."
-                value={searchTeacher}
-                onChange={(e) => setSearchTeacher(e.target.value)}
-                className="w-full h-8 pl-8 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
-              {searchTeacher && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTeacher('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {filteredTeachers.length === 0 ? (
-          <div className="p-12 text-center text-slate-400">
-            <Info className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-            <p className="text-sm font-semibold text-slate-600">ไม่พบบุคลากรครูที่ตรงกับเงื่อนไขการค้นหา</p>
-            <p className="text-xs mt-1 text-slate-400">ลองเปลี่ยนตัวกรองสถานะ หรือเคลียร์คำค้นหา</p>
-            {(selectedStatus !== 'all' || searchTeacher) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedStatus('all');
-                  setSearchTeacher('');
-                }}
-                className="mt-3 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl"
-              >
-                ล้างตัวกรองทั้งหมด
-              </button>
-            )}
-          </div>
-        ) : individualViewMode === 'table' ? (
-          /* TABLE VIEW: Clean, High-Scanability Rows */
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50/90 text-slate-500 font-semibold border-b border-slate-200/80 uppercase tracking-wider text-[11px]">
-                  <th className="py-2.5 px-3 min-w-[180px]">ครูผู้สอน</th>
-                  <th className="py-2.5 px-3 min-w-[130px]">กลุ่มสาระ</th>
-                  <th className="py-2.5 px-3 min-w-[110px] text-center">สถานะ</th>
-                  <th className="py-2.5 px-3 min-w-[240px]">
-                    เอกสารที่ส่ง ({isAllDocTypes ? 'ทุกประเภท' : selectedDocTypes.length === 1 ? selectedDocTypes[0] : `${selectedDocTypes.length} ประเภท`})
-                  </th>
-                  <th className="py-2.5 px-2.5 min-w-[80px] text-center">คะแนน</th>
-                  <th className="py-2.5 px-3 min-w-[100px] text-right">การจัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredTeachers.map((teacher) => {
-                  const teacherPlans = activePlans.filter((p) => p.teacher_id === teacher.Teacher_ID);
-                  const hasSubmitted = teacherPlans.length > 0;
-                  const hasLate = teacherPlans.some((p) => p.is_late);
-                  const photoUrl = formatGoogleDriveImageUrl(teacher.photo);
-                  const isReminderSent = !!reminderSentMap[teacher.Teacher_ID];
-                  const isExpanded = expandedTeacherId === teacher.Teacher_ID;
-
-                  // Average score for this teacher
-                  const scoredPlans = teacherPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
-                  const teacherAvgScore = scoredPlans.length > 0
-                    ? (scoredPlans.reduce((acc, p) => acc + (p.total_score || 0), 0) / scoredPlans.length).toFixed(1)
-                    : '-';
-
-                  return (
-                    <React.Fragment key={teacher.Teacher_ID}>
-                      <tr className={`hover:bg-indigo-50/30 transition-colors ${isExpanded ? 'bg-indigo-50/20' : ''}`}>
-                        {/* 1. Teacher Profile */}
-                        <td className="py-2 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                              {photoUrl ? (
-                                <img
-                                  src={photoUrl}
-                                  alt={teacher.Name}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLElement).style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                <span className="text-[10px] font-bold text-indigo-700">
-                                  {getInitials(teacher.Name)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-bold text-slate-900 text-xs truncate">{teacher.Name}</div>
-                              <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.2">
-                                <span className="bg-slate-100 px-1 py-0.2 rounded font-bold text-slate-700">{teacher.Teacher_ID}</span>
-                                {teacher.position && (
-                                  <span className="truncate max-w-[90px] text-slate-400 font-sans">• {teacher.position}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 2. Department */}
-                        <td className="py-2 px-3">
-                          <span className="inline-block px-1.5 py-0.2 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 max-w-[140px] truncate" title={teacher.Learning_Area}>
-                            {teacher.Learning_Area}
-                          </span>
-                        </td>
-
-                        {/* 3. Status Badge */}
-                        <td className="py-2 px-3 text-center">
-                          {hasSubmitted ? (
-                            hasLate ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300">
-                                <AlertTriangle className="w-3 h-3 text-amber-600" />
-                                <span>มีส่งช้า</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>ตรงเวลา</span>
-                              </span>
-                            )
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-300">
-                              <Clock className="w-3 h-3 text-rose-600" />
-                              <span>ยังไม่ส่ง</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 4. Submitted Plans Chips */}
-                        <td className="py-2 px-3">
-                          {hasSubmitted ? (
-                            <div className="flex flex-wrap items-center gap-1">
-                              {teacherPlans.slice(0, 3).map((plan) => (
-                                <div
-                                  key={plan.id}
-                                  onClick={() => onOpenPlan && onOpenPlan(plan)}
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium border cursor-pointer transition-colors max-w-[160px] ${
-                                    plan.is_late
-                                      ? 'bg-amber-50/70 text-amber-900 border-amber-200 hover:bg-amber-100/70'
-                                      : 'bg-emerald-50/60 text-emerald-900 border-emerald-200 hover:bg-emerald-100/60'
-                                  }`}
-                                  title={`${plan.subject_code} ${plan.subject_name || plan.plan_title} (${plan.is_late ? 'ส่งช้า' : 'ตรงเวลา'})`}
-                                >
-                                  <span className="font-mono font-bold text-[9px]">{plan.subject_code || 'แผน'}</span>
-                                  <span className="truncate">{plan.subject_name || plan.plan_title}</span>
-                                  {plan.file_url && (
-                                    <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                          >
+                            {/* Teacher Name & Dept */}
+                            <td className="py-2 px-3.5">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-7 h-7 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                  {photoUrl ? (
+                                    <img
+                                      src={photoUrl}
+                                      alt={teacher.Name}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLElement).style.display = 'none';
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-slate-600">
+                                      {getInitials(teacher.Name)}
+                                    </span>
                                   )}
                                 </div>
-                              ))}
-                              {teacherPlans.length > 3 && (
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-slate-900 truncate">{teacher.Name}</div>
+                                  <div className="text-[11px] text-slate-500 truncate">
+                                    {shortAreaLabel(teacher.Learning_Area)}
+                                    {teacherAvgScore && ` · คะแนนเฉลี่ย ${teacherAvgScore}`}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Traffic-Light Status */}
+                            <td className="py-2 px-2.5 text-center whitespace-nowrap">
+                              {!hasSubmitted ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600">
+                                  <AlertTriangle className="w-3.5 h-3.5" />
+                                  <span>ยังไม่ส่ง</span>
+                                </span>
+                              ) : hasLate ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span>ส่งช้า</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>ตรงเวลา</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Submitted Count */}
+                            <td className="py-2 px-2.5 text-right font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                              {hasSubmitted ? `${teacherPlans.length} ฉบับ` : '-'}
+                            </td>
+
+                            {/* Quick Action */}
+                            <td className="py-2 px-3.5 text-right whitespace-nowrap">
+                              {hasSubmitted ? (
                                 <button
                                   type="button"
-                                  onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
-                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 px-1 py-0.2 rounded bg-indigo-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDetailTeacherId(teacher.Teacher_ID);
+                                  }}
+                                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
                                 >
-                                  +{teacherPlans.length - 3}
+                                  <span>ดูเอกสาร</span>
+                                  <ChevronRight className="w-3 h-3" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendReminder(teacher.Teacher_ID);
+                                  }}
+                                  disabled={isReminderSent}
+                                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 transition-colors ${
+                                    isReminderSent
+                                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                      : 'bg-amber-400 hover:bg-amber-300 text-slate-950 cursor-pointer'
+                                  }`}
+                                  title="ส่งการแจ้งเตือนครูท่านนี้"
+                                >
+                                  <BellRing className="w-3 h-3" />
+                                  <span>{isReminderSent ? 'เตือนแล้ว' : 'แจ้งเตือน'}</span>
                                 </button>
                               )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 italic text-[10px]">- ยังไม่มีเอกสารในระบบ -</span>
-                          )}
-                        </td>
-
-                        {/* 5. Average Score */}
-                        <td className="py-2 px-2.5 text-center">
-                          {hasSubmitted && teacherAvgScore !== '-' ? (
-                            <span className={`inline-block px-1.5 py-0.2 rounded font-mono font-bold text-[11px] ${
-                              Number(teacherAvgScore) >= 80
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : Number(teacherAvgScore) >= 70
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}>
-                              {teacherAvgScore}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 font-mono text-[11px]">-</span>
-                          )}
-                        </td>
-
-                        {/* 6. Actions */}
-                        <td className="py-2 px-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {hasSubmitted ? (
-                              <button
-                                type="button"
-                                onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
-                                className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-0.5"
-                              >
-                                <span>{isExpanded ? 'ซ่อน' : 'ดูฉบับ'}</span>
-                                <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleSendReminder(teacher.Teacher_ID, teacher.Name)}
-                                disabled={isReminderSent}
-                                className={`px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 transition-all ${
-                                  isReminderSent
-                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                    : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs active:scale-95'
-                                }`}
-                                title="ส่งอีเมลแจ้งเตือนให้ส่งงาน"
-                              >
-                                <BellRing className="w-3 h-3 text-slate-950" />
-                                <span>{isReminderSent ? 'เตือนแล้ว' : 'เตือน'}</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Expanded Plan List Drawer inside Table */}
-                      {isExpanded && hasSubmitted && (
-                        <tr className="bg-slate-50/70 border-b border-slate-200">
-                          <td colSpan={6} className="p-4 pl-14">
-                            <div className="space-y-2">
-                              <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                                <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                                <span>รายการเอกสารทั้งหมดของ {teacher.Name} ({teacherPlans.length} ฉบับ)</span>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                {teacherPlans.map((plan) => (
-                                  <div
-                                    key={plan.id}
-                                    className="p-2.5 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 transition-colors flex items-start justify-between gap-2 shadow-2xs"
-                                  >
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-bold text-slate-800 truncate">
-                                          {plan.subject_code} {plan.subject_name}
-                                        </span>
-                                        {plan.is_late ? (
-                                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1 py-0.2 rounded shrink-0">
-                                            ส่งช้า
-                                          </span>
-                                        ) : (
-                                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded shrink-0">
-                                            ตรงเวลา
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                        {plan.plan_title}
-                                      </p>
-                                      <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
-                                        <span>ส่ง: {new Date(plan.submitted_at).toLocaleDateString('th-TH')}</span>
-                                        {typeof plan.total_score === 'number' && (
-                                          <span className="font-bold text-indigo-600">
-                                            • คะแนน: {plan.total_score}/100
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      {(() => {
-                                        const resolvedUrl = resolvePrimaryPlanFileUrl(plan);
-                                        return isValidHttpFileUrl(resolvedUrl) ? (
-                                          <a
-                                            href={resolvedUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0 transition-colors"
-                                            title="เปิดดูไฟล์เอกสาร"
-                                          >
-                                            <ExternalLink className="w-3.5 h-3.5" />
-                                          </a>
-                                        ) : null;
-                                      })()}
-                                      {onOpenPlan && (
-                                        <button
-                                          type="button"
-                                          onClick={() => onOpenPlan(plan)}
-                                          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                                          title="ตรวจและประเมิน / อนุมัติเอกสารนี้"
-                                        >
-                                          <UserCheck className="w-3 h-3 text-amber-300" />
-                                          <span>{plan.status === 'submitted' ? 'ตรวจอนุมัติ' : 'ดูผลตรวจ'}</span>
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
           </div>
-        ) : (
-          /* CARDS VIEW: Sleek Modular Cards */
-          <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {filteredTeachers.map((teacher) => {
-              const teacherPlans = activePlans.filter((p) => p.teacher_id === teacher.Teacher_ID);
-              const hasSubmitted = teacherPlans.length > 0;
-              const hasLate = teacherPlans.some((p) => p.is_late);
-              const photoUrl = formatGoogleDriveImageUrl(teacher.photo);
-              const isReminderSent = !!reminderSentMap[teacher.Teacher_ID];
-              const isExpanded = expandedTeacherId === teacher.Teacher_ID;
+        </div>
+      )}
 
-              // Average score for this teacher
-              const scoredPlans = teacherPlans.filter((p) => typeof p.total_score === 'number' && p.total_score > 0);
-              const teacherAvgScore = scoredPlans.length > 0
-                ? (scoredPlans.reduce((acc, p) => acc + (p.total_score || 0), 0) / scoredPlans.length).toFixed(1)
-                : '-';
+      {/* TEACHER DETAIL POPUP: Clean Drill-Down Modal when clicking any teacher row */}
+      {selectedDetailTeacher && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4"
+          onClick={() => setSelectedDetailTeacherId(null)}
+        >
+          <div
+            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                  {selectedDetailTeacher.Name}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {selectedDetailTeacher.Learning_Area} · ส่งแล้ว {selectedDetailPlans.length} ฉบับ
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDetailTeacherId(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 rounded-lg cursor-pointer"
+                aria-label="ปิดหน้าต่าง"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              return (
-                <div
-                  key={teacher.Teacher_ID}
-                  className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-sm hover:border-slate-300 transition-all p-4 flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    {/* Top Info */}
-                    <div className="flex items-start justify-between gap-2.5">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                          {photoUrl ? (
-                            <img
-                              src={photoUrl}
-                              alt={teacher.Name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <span className="text-xs font-bold text-indigo-700">
-                              {getInitials(teacher.Name)}
-                            </span>
-                          )}
+            <div className="p-4 max-h-[65vh] overflow-y-auto divide-y divide-slate-100">
+              {selectedDetailPlans.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-500">
+                  ยังไม่มีเอกสารส่งเข้ามาในเงื่อนไขที่เลือก
+                </div>
+              ) : (
+                selectedDetailPlans.map((plan) => {
+                  const resolvedUrl = resolvePrimaryPlanFileUrl(plan);
+                  return (
+                    <div
+                      key={plan.id}
+                      className="py-3 first:pt-1 last:pb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
+                          <span className="truncate">
+                            {plan.subject_code} {plan.subject_name || plan.plan_title}
+                          </span>
+                          <span className={plan.is_late ? 'text-amber-700 shrink-0' : 'text-emerald-700 shrink-0'}>
+                            {plan.is_late ? '· ส่งช้า' : '· ตรงเวลา'}
+                          </span>
                         </div>
-                        <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-slate-800 truncate">{teacher.Name}</h4>
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-0.5">
-                            <span className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-bold">{teacher.Teacher_ID}</span>
-                            <span className="text-slate-600 truncate max-w-[120px] font-sans">{teacher.Learning_Area}</span>
-                          </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          {plan.plan_type} · ส่งเมื่อ{' '}
+                          {new Date(plan.submitted_at).toLocaleDateString('th-TH')}
+                          {typeof plan.total_score === 'number' && ` · คะแนน ${plan.total_score}/100`}
                         </div>
                       </div>
 
-                      {/* Status */}
-                      <div className="shrink-0">
-                        {hasSubmitted ? (
-                          hasLate ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300">
-                              <AlertTriangle className="w-3 h-3 text-amber-600" />
-                              <span>ส่งช้า</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>ตรงเวลา</span>
-                            </span>
-                          )
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-800 border border-rose-300">
-                            <Clock className="w-3 h-3 text-rose-600" />
-                            <span>ยังไม่ส่ง</span>
-                          </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isValidHttpFileUrl(resolvedUrl) && (
+                          <a
+                            href={resolvedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>เปิดไฟล์</span>
+                          </a>
+                        )}
+                        {onOpenPlan && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDetailTeacherId(null);
+                              onOpenPlan(plan);
+                            }}
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>{plan.status === 'submitted' ? 'ตรวจอนุมัติ' : 'ดูผลตรวจ'}</span>
+                          </button>
                         )}
                       </div>
                     </div>
-
-                    {/* Plans Chips */}
-                    {hasSubmitted ? (
-                      <div className="space-y-1.5 pt-1">
-                        <div className="flex items-center justify-between text-[11px] text-slate-500">
-                          <span>เอกสารที่ส่ง:</span>
-                          <span className="font-bold text-slate-700 font-mono">{teacherPlans.length} ฉบับ</span>
-                        </div>
-                        <div className="space-y-1 max-h-36 overflow-y-auto">
-                          {teacherPlans.map((plan) => (
-                            <div
-                              key={plan.id}
-                              className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-xs"
-                            >
-                              <div className="min-w-0 pr-1.5">
-                                <div className="font-semibold text-slate-800 text-[11px] truncate">
-                                  {plan.subject_code} {plan.subject_name || plan.plan_title}
-                                </div>
-                                <div className="text-[10px] text-slate-400">
-                                  {plan.is_late ? 'ส่งล่าช้า' : 'ตรงเวลา'} • {new Date(plan.submitted_at).toLocaleDateString('th-TH')}
-                                </div>
-                              </div>
-                              {(() => {
-                                const resolvedUrl = resolvePrimaryPlanFileUrl(plan);
-                                return isValidHttpFileUrl(resolvedUrl) ? (
-                                  <a
-                                    href={resolvedUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                                    title="เปิดดูไฟล์เอกสาร"
-                                  >
-                                    <ExternalLink className="w-3.5 h-3.5" />
-                                  </a>
-                                ) : null;
-                              })()}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="py-4 text-center text-xs text-rose-600 bg-rose-50/50 rounded-xl border border-rose-100 font-medium">
-                        ยังไม่มีการส่งเอกสารในระบบ
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Card Bottom Actions */}
-                  <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    {hasSubmitted && teacherAvgScore !== '-' ? (
-                      <span className="font-mono text-xs text-slate-600 font-bold">
-                        คะแนน: <span className="text-indigo-600">{teacherAvgScore}</span>
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 text-[11px]">-</span>
-                    )}
-
-                    {!hasSubmitted ? (
-                      <button
-                        type="button"
-                        onClick={() => handleSendReminder(teacher.Teacher_ID, teacher.Name)}
-                        disabled={isReminderSent}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                          isReminderSent
-                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                            : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs active:scale-95'
-                        }`}
-                      >
-                        <BellRing className="w-3.5 h-3.5 text-slate-950" />
-                        <span>{isReminderSent ? 'เตือนแล้ว ✓' : 'ส่งเตือน'}</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setExpandedTeacherId(isExpanded ? null : teacher.Teacher_ID)}
-                        className="text-indigo-600 hover:text-indigo-800 text-xs font-bold"
-                      >
-                        {isExpanded ? 'ย่อรายละเอียด' : 'ดูรายละเอียด'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* SECTION 5: EXECUTIVE STRATEGIC INSIGHTS (Swiss Executive Bento) */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.04)] space-y-3">
-        <div className="flex items-center gap-2 text-slate-900">
-          <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
-          <h3 className="text-xs sm:text-sm font-bold">
-            ข้อสรุปและข้อเสนอแนะเชิงบริหาร (Executive Strategic Insights)
-          </h3>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 text-xs">
-          <div className="bg-white/90 p-3 rounded-lg border border-indigo-100/80 shadow-2xs space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-emerald-700 text-xs">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>ความตรงต่อเวลา</span>
-            </div>
-            <p className="text-slate-600 leading-relaxed text-[11px]">
-              {totalPlansCount === 0 ? (
-                'ยังไม่มีข้อมูลการส่งแผนการสอนในระบบ'
-              ) : (
-                <>
-                  อัตราการส่งงานตรงเวลาอยู่ที่ {onTimeRate}% ({onTimePlans.length} จาก {totalPlansCount} ฉบับ)
-                  {areaStats.some((a) => a.isCompleted) ? (
-                    ` โดยมีกลุ่มสาระ ${areaStats.filter((a) => a.isCompleted).map((a) => a.name).join(', ')} ส่งครบ 100%`
-                  ) : (
-                    ' อยู่ระหว่างการติดตามการส่งให้ครบทุกกลุ่มสาระ'
-                  )}
-                  {latePlans.length > 0 && ` และพบการส่งล่าช้า ${latePlans.length} ฉบับ (${lateRate}%)`}
-                </>
+                  );
+                })
               )}
-            </p>
-          </div>
-
-          <div className="bg-white/90 p-3 rounded-lg border border-indigo-100/80 shadow-2xs space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-indigo-700 text-xs">
-              <Award className="w-3.5 h-3.5" />
-              <span>คุณภาพการจัดการเรียนรู้</span>
             </div>
-            <p className="text-slate-600 leading-relaxed text-[11px]">
-              {plansWithScore.length === 0 ? (
-                'ยังไม่มีข้อมูลคะแนนประเมินคุณภาพจริงในระบบ (รอฝ่ายวิชาการตรวจบันทึกคะแนน)'
-              ) : (
-                <>
-                  คะแนนคุณภาพเฉลี่ยของแผนที่ตรวจประเมินแล้วอยู่ที่ {avgScore}/100 
-                  (ตรวจแล้ว {plansWithScore.length} จาก {totalPlansCount} ฉบับ) 
-                  {Number(avgScore) >= 90
-                    ? ' อยู่ในเกณฑ์ดีเยี่ยม'
-                    : Number(avgScore) >= 80
-                    ? ' อยู่ในเกณฑ์ดีมาก'
-                    : Number(avgScore) >= 70
-                    ? ' อยู่ในเกณฑ์ดี'
-                    : ' อยู่ในเกณฑ์ควรได้รับการพัฒนา'}
-                </>
-              )}
-            </p>
-          </div>
-
-          <div className="bg-white/90 p-3 rounded-lg border border-indigo-100/80 shadow-2xs space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-amber-700 text-xs">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              <span>มาตรการเร่งรัดติดตาม</span>
-            </div>
-            <p className="text-slate-600 leading-relaxed text-[11px]">
-              {pendingTeachers.length === 0 ? (
-                'บุคลากรครูทุกคนส่งแผนการสอนเข้าระบบครบถ้วน 100% แล้ว'
-              ) : (
-                `ตรวจพบบุคลากรค้างส่งจำนวน ${pendingTeachers.length} ท่าน ฝ่ายบริหารสามารถกดส่งสัญญาณแจ้งเตือนผ่านระบบหรือประสานหัวหน้ากลุ่มสาระติดตามโดยตรง`
-              )}
-            </p>
           </div>
         </div>
-      </div>
-        </>
       )}
 
       {/* PRINTABLE EXECUTIVE REPORT MODAL */}
       {isPrintModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header Controls */}
             <div className="bg-slate-900 p-4 text-white flex items-center justify-between print:hidden">
               <div className="flex items-center gap-2">
                 <Printer className="w-5 h-5 text-indigo-400" />
@@ -2783,23 +1576,21 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => window.print()}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
                   <span>พิมพ์เอกสาร</span>
                 </button>
                 <button
                   onClick={() => setIsPrintModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-white rounded-xl transition-colors"
+                  className="p-2 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Official Report Content (Printable Layout) */}
             <div className="p-8 sm:p-12 space-y-6 text-slate-900 bg-white">
-              {/* Official School Header */}
               <div className="text-center space-y-2 border-b-2 border-slate-900 pb-6">
                 <img
                   src="/logo.svg"
@@ -2813,38 +1604,41 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์
                 </p>
                 <p className="text-xs text-slate-500">
-                  ภาคเรียนที่ 1 ปีการศึกษา 2569 • เอกสารสำหรับฝ่ายบริหารและคณะกรรมการสถานศึกษา
+                  {activeTermLabel} • เอกสารสำหรับฝ่ายบริหารและคณะกรรมการสถานศึกษา
                 </p>
                 <p className="text-xs text-slate-400">
-                  วันที่ออกรายงาน: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  วันที่ออกรายงาน:{' '}
+                  {new Date().toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
                 </p>
               </div>
 
-              {/* Summary KPIs */}
               <div className="grid grid-cols-4 gap-4 text-center border-b border-slate-200 pb-6 text-xs">
                 <div className="p-3 bg-slate-50 rounded-xl">
                   <div className="text-slate-500">จำนวนครูทั้งหมด</div>
-                  <div className="text-xl font-bold text-slate-900 mt-1">{totalTeachersCount} ท่าน</div>
+                  <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">{totalTeachersCount} ท่าน</div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl">
                   <div className="text-slate-500">ส่งแผนแล้ว</div>
-                  <div className="text-xl font-bold text-indigo-600 mt-1">
+                  <div className="text-xl font-bold text-indigo-600 mt-1 tabular-nums">
                     {submittedTeachers.length} ({submissionRate}%)
                   </div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl">
                   <div className="text-slate-500">ส่งตรงเวลา</div>
-                  <div className="text-xl font-bold text-emerald-600 mt-1">
+                  <div className="text-xl font-bold text-emerald-600 mt-1 tabular-nums">
                     {onTimePlans.length} ({onTimeRate}%)
                   </div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl">
                   <div className="text-slate-500">คะแนนเฉลี่ยรวม</div>
-                  <div className="text-xl font-bold text-amber-600 mt-1">{avgScore} / 100</div>
+                  <div className="text-xl font-bold text-amber-600 mt-1 tabular-nums">{avgScore} / 100</div>
                 </div>
               </div>
 
-              {/* Department Table in Printout */}
               <div className="space-y-3">
                 <h3 className="text-sm font-bold text-slate-800">
                   1. ตารางสรุปการส่งงานจำแนกตามกลุ่มสาระการเรียนรู้
@@ -2861,7 +1655,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                       <th className="p-2 text-center">คะแนนเฉลี่ย</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-200 tabular-nums">
                     {areaStats.map((stat) => (
                       <tr key={stat.name}>
                         <td className="p-2 border-r border-slate-200 font-medium">{stat.name}</td>
@@ -2877,7 +1671,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 </table>
               </div>
 
-              {/* Pending Teachers List if any */}
               {pendingTeachers.length > 0 && (
                 <div className="space-y-2 pt-2">
                   <h3 className="text-sm font-bold text-rose-800">
@@ -2886,7 +1679,9 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-1">
                     {pendingTeachers.map((t, i) => (
                       <div key={t.Teacher_ID} className="flex items-center justify-between">
-                        <span>{i + 1}. {t.Name} ({t.Teacher_ID})</span>
+                        <span>
+                          {i + 1}. {t.Name} ({t.Teacher_ID})
+                        </span>
                         <span className="font-medium text-rose-700">{t.Learning_Area}</span>
                       </div>
                     ))}
@@ -2894,7 +1689,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                 </div>
               )}
 
-              {/* Official Signature Lines */}
               <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs">
                 <div className="space-y-14">
                   <p>ลงชื่อ............................................................</p>
@@ -2917,7 +1711,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
       )}
 
-      {/* MODAL: Printable Individual Tracker Summary with School Logo */}
+      {/* MODAL: Printable Individual Tracker Summary */}
       <IndividualTrackerPrintModal
         isOpen={isIndividualPrintModalOpen}
         onClose={() => setIsIndividualPrintModalOpen(false)}
@@ -2936,7 +1730,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         payload={promptPayload}
       />
 
-      {/* FLOATING TOAST: Instant Copy Feedback */}
+      {/* FLOATING TOAST */}
       {copyToastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-bottom-2 text-xs font-bold">
           <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
