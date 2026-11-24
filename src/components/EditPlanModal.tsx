@@ -19,6 +19,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { PdfPermissionNotice } from './PdfPermissionNotice';
+import { syncNotesForSingleFileUrl } from '../utils/fileLinkUtils';
 
 interface EditPlanModalProps {
   plan: LessonPlan;
@@ -64,6 +65,14 @@ export const EditPlanModal: React.FC<EditPlanModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormData({ ...plan });
+      setIsPermissionConfirmed(true);
+      setError('');
+    }
+  }, [isOpen, plan]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -104,9 +113,52 @@ export const EditPlanModal: React.FC<EditPlanModalProps> = ({
     setIsSaving(true);
 
     try {
+      let parsedNotes: Record<string, any> | null = null;
+      if (formData.notes) {
+        try {
+          const p = JSON.parse(formData.notes);
+          if (p && typeof p === 'object') parsedNotes = p;
+        } catch {}
+      }
+
+      const candidateOldUrls: Array<string | undefined> = [
+        plan.file_url,
+        formData.file_url,
+        parsedNotes && Array.isArray(parsedNotes._attachments)
+          ? parsedNotes._attachments[0]?.file_url
+          : undefined,
+        formData.file_reviews?.[0]?.file_url,
+        parsedNotes && Array.isArray(parsedNotes._file_reviews)
+          ? parsedNotes._file_reviews[0]?.file_url
+          : undefined,
+      ];
+
+      const existingReviews =
+        formData.file_reviews && formData.file_reviews.length > 0
+          ? formData.file_reviews
+          : parsedNotes && Array.isArray(parsedNotes._file_reviews) && parsedNotes._file_reviews.length > 0
+          ? parsedNotes._file_reviews
+          : undefined;
+
+      const updatedReviews = existingReviews
+        ? existingReviews.map((fr: any, idx: number) =>
+            idx === 0 ? { ...fr, file_url: finalUrl } : fr
+          )
+        : undefined;
+
+      const syncedNotes = syncNotesForSingleFileUrl(
+        formData.notes,
+        candidateOldUrls,
+        finalUrl,
+        formData.file_name,
+        updatedReviews
+      );
+
       await onSave({
         ...formData,
         file_url: finalUrl,
+        notes: syncedNotes,
+        ...(updatedReviews ? { file_reviews: updatedReviews } : {}),
       });
       onClose();
     } catch (err: any) {

@@ -1284,8 +1284,30 @@ export default function App() {
           targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
         }
         if (targetSub) {
+          let parsedNotes: Record<string, any> | null = null;
+          if (updatedPlan.notes) {
+            try {
+              const p = JSON.parse(updatedPlan.notes);
+              if (p && typeof p === 'object' && !Array.isArray(p)) parsedNotes = p;
+            } catch {}
+          }
+
           const nextAtts =
-            updatedPlan.file_url && updatedPlan.file_url !== '#'
+            parsedNotes && Array.isArray(parsedNotes._attachments) && parsedNotes._attachments.length > 0
+              ? parsedNotes._attachments.map((att: any, idx: number) => ({
+                  field_id:
+                    targetSub!.attachments?.[idx]?.field_id ||
+                    targetSub!.attachments?.[0]?.field_id ||
+                    'file',
+                  file_name:
+                    att.file_name ||
+                    targetSub!.attachments?.[idx]?.file_name ||
+                    updatedPlan.file_name ||
+                    `เอกสาร (${idx + 1})`,
+                  file_url: att.file_url || updatedPlan.file_url,
+                  file_size: att.file_size ?? targetSub!.attachments?.[idx]?.file_size,
+                }))
+              : updatedPlan.file_url && updatedPlan.file_url !== '#'
               ? [
                   {
                     field_id: targetSub.attachments?.[0]?.field_id || 'file',
@@ -1295,12 +1317,29 @@ export default function App() {
                   ...(targetSub.attachments || []).slice(1),
                 ]
               : targetSub.attachments;
+
+          const nextAnswers: Record<string, any> = { ...(targetSub.answers || {}) };
+          if (parsedNotes) {
+            Object.entries(parsedNotes).forEach(([k, v]) => {
+              if (k === '_attachments' || k === '_file_reviews' || k === '_raw_notes') return;
+              nextAnswers[k] = v;
+            });
+          } else if (updatedPlan.file_url && updatedPlan.file_url !== '#') {
+            const oldFirstUrl = targetSub.attachments?.[0]?.file_url;
+            Object.entries(nextAnswers).forEach(([k, v]) => {
+              if (typeof v === 'string' && oldFirstUrl && v.trim() === oldFirstUrl.trim()) {
+                nextAnswers[k] = updatedPlan.file_url;
+              }
+            });
+          }
+
           await saveAssignmentSubmissionRecord({
             ...targetSub,
             status: updatedPlan.status,
             is_late: updatedPlan.is_late,
             submitted_at: updatedPlan.submitted_at || targetSub.submitted_at,
             attachments: nextAtts,
+            answers: nextAnswers,
           });
         }
       } catch {}
@@ -4639,8 +4678,30 @@ export default function App() {
                   targetSub = savedSubs.find((s) => s.id === updatedPlan.id);
                 }
                 if (targetSub) {
+                  let parsedNotes: Record<string, any> | null = null;
+                  if (updatedPlan.notes) {
+                    try {
+                      const p = JSON.parse(updatedPlan.notes);
+                      if (p && typeof p === 'object' && !Array.isArray(p)) parsedNotes = p;
+                    } catch {}
+                  }
+
                   const nextAtts =
-                    updatedPlan.file_url && updatedPlan.file_url !== '#'
+                    parsedNotes && Array.isArray(parsedNotes._attachments) && parsedNotes._attachments.length > 0
+                      ? parsedNotes._attachments.map((att: any, idx: number) => ({
+                          field_id:
+                            targetSub!.attachments?.[idx]?.field_id ||
+                            targetSub!.attachments?.[0]?.field_id ||
+                            'file',
+                          file_name:
+                            att.file_name ||
+                            targetSub!.attachments?.[idx]?.file_name ||
+                            updatedPlan.file_name ||
+                            `เอกสาร (${idx + 1})`,
+                          file_url: att.file_url || updatedPlan.file_url,
+                          file_size: att.file_size ?? targetSub!.attachments?.[idx]?.file_size,
+                        }))
+                      : updatedPlan.file_url && updatedPlan.file_url !== '#'
                       ? [
                           {
                             field_id: targetSub.attachments?.[0]?.field_id || 'file',
@@ -4650,12 +4711,29 @@ export default function App() {
                           ...(targetSub.attachments || []).slice(1),
                         ]
                       : targetSub.attachments;
+
+                  const nextAnswers: Record<string, any> = { ...(targetSub.answers || {}) };
+                  if (parsedNotes) {
+                    Object.entries(parsedNotes).forEach(([k, v]) => {
+                      if (k === '_attachments' || k === '_file_reviews' || k === '_raw_notes') return;
+                      nextAnswers[k] = v;
+                    });
+                  } else if (updatedPlan.file_url && updatedPlan.file_url !== '#') {
+                    const oldFirstUrl = targetSub.attachments?.[0]?.file_url;
+                    Object.entries(nextAnswers).forEach(([k, v]) => {
+                      if (typeof v === 'string' && oldFirstUrl && v.trim() === oldFirstUrl.trim()) {
+                        nextAnswers[k] = updatedPlan.file_url;
+                      }
+                    });
+                  }
+
                   await saveAssignmentSubmissionRecord({
                     ...targetSub,
                     status: updatedPlan.status,
                     is_late: updatedPlan.is_late,
                     admin_notes: updatedPlan.admin_notes,
                     attachments: nextAtts,
+                    answers: nextAnswers,
                   });
                 }
               } catch {}

@@ -18,6 +18,10 @@ import {
   Eye,
 } from 'lucide-react';
 import { PdfPermissionNotice } from './PdfPermissionNotice';
+import {
+  syncNotesForSingleFileUrl,
+  syncNotesForMultiFileAttachments,
+} from '../utils/fileLinkUtils';
 
 interface ResubmitPlanModalProps {
   isOpen: boolean;
@@ -127,7 +131,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
       }
       setMultiFiles(list);
     }
-  }, [plan, parsedFormFields]);
+  }, [isOpen, plan, parsedFormFields]);
 
   if (!isOpen || !plan) return null;
 
@@ -227,22 +231,34 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
           };
         });
 
-        // Notes JSON
-        let finalNotes = plan.notes;
-        try {
-          const cur = plan.notes ? JSON.parse(plan.notes) : {};
-          if (typeof cur === 'object' && cur !== null) {
-            cur._attachments = updatedAttachments;
-            cur._file_reviews = updatedReviews;
-            finalNotes = JSON.stringify(cur);
+        // Map replaced old URLs -> new URLs so form answer fields (fld_*) in notes also update
+        const oldToNewUrlMap = new Map<string, string>();
+        const origRawAtts =
+          parsedFormFields && Array.isArray(parsedFormFields._attachments)
+            ? parsedFormFields._attachments
+            : [];
+        multiFiles.forEach((f, idx) => {
+          const nextUrl = f.file_url.trim();
+          const prevAttUrl = String(origRawAtts[idx]?.file_url || '').trim();
+          if (prevAttUrl && nextUrl && prevAttUrl !== nextUrl) {
+            oldToNewUrlMap.set(prevAttUrl, nextUrl);
           }
-        } catch {
-          finalNotes = JSON.stringify({
-            _raw_notes: plan.notes,
-            _attachments: updatedAttachments,
-            _file_reviews: updatedReviews,
-          });
+        });
+        if (plan.file_url && plan.file_url !== '#' && multiFiles[0]?.file_url) {
+          const prevMain = plan.file_url.trim();
+          const nextMain = multiFiles[0].file_url.trim();
+          if (prevMain && nextMain && prevMain !== nextMain) {
+            oldToNewUrlMap.set(prevMain, nextMain);
+          }
         }
+
+        // Notes JSON (syncs _attachments, _file_reviews, and any matching fld_* URLs)
+        const finalNotes = syncNotesForMultiFileAttachments(
+          plan.notes,
+          updatedAttachments,
+          updatedReviews,
+          oldToNewUrlMap
+        );
 
         const revisedNames = multiFiles
           .filter((f, idx) => f.status === 'needs_revision' || overrideApproved[idx])
@@ -255,7 +271,7 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
 
         const updatedPlan: LessonPlan = {
           ...plan,
-          file_url: multiFiles[0]?.file_url || plan.file_url,
+          file_url: multiFiles[0]?.file_url?.trim() || plan.file_url,
           status: 'submitted',
           submitted_at: `${thaiDateTime} (ส่งแก้ไขใหม่)`,
           review_comment: combinedComment,
@@ -316,9 +332,45 @@ export const ResubmitPlanModal: React.FC<ResubmitPlanModalProps> = ({
         ? `[ส่งใหม่ ${thaiDateTime}]: ${resubmitNote.trim()}${plan.review_comment ? `\n(ข้อเสนอแนะเดิม: ${plan.review_comment})` : ''}`
         : plan.review_comment;
 
+      const candidateOldUrls: Array<string | undefined> = [
+        plan.file_url,
+        parsedFormFields && Array.isArray(parsedFormFields._attachments)
+          ? parsedFormFields._attachments[0]?.file_url
+          : undefined,
+        fileReviews?.[0]?.file_url,
+      ];
+
+      const updatedSingleFileReviews: FileReviewResult[] | undefined =
+        fileReviews && fileReviews.length > 0
+          ? fileReviews.map((fr, idx) =>
+              idx === 0
+                ? {
+                    ...fr,
+                    file_url: finalUrl,
+                    file_name: fr.file_name || plan.file_name || 'ไฟล์เอกสารหลัก',
+                    status: 'pending',
+                    total_score: undefined,
+                    comment: resubmitNote.trim()
+                      ? `ส่งแก้ไขใหม่เมื่อ ${thaiDateTime}: ${resubmitNote.trim()}`
+                      : `ส่งแก้ไขใหม่เมื่อ ${thaiDateTime}`,
+                  }
+                : fr
+            )
+          : undefined;
+
+      const finalNotes = syncNotesForSingleFileUrl(
+        plan.notes,
+        candidateOldUrls,
+        finalUrl,
+        plan.file_name,
+        updatedSingleFileReviews
+      );
+
       const updatedPlan: LessonPlan = {
         ...plan,
         file_url: finalUrl,
+        notes: finalNotes,
+        ...(updatedSingleFileReviews ? { file_reviews: updatedSingleFileReviews } : {}),
         status: 'submitted',
         submitted_at: `${thaiDateTime} (ส่งแก้ไขใหม่)`,
         review_comment: combinedComment,

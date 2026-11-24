@@ -206,14 +206,29 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
     }));
   });
 
-  // Keep file reviews list synced if attachedFiles changes
+  // Keep file reviews list synced if attachedFiles changes (including URL updates on resubmit)
   React.useEffect(() => {
     if (attachedFiles.length > 0) {
       setFileReviews((prev) => {
-        if (prev.length === attachedFiles.length) return prev;
+        const isExactMatch =
+          prev.length === attachedFiles.length &&
+          attachedFiles.every(
+            (f, idx) =>
+              prev[idx]?.file_url === f.file_url && prev[idx]?.file_name === f.file_name
+          );
+        if (isExactMatch) return prev;
+
         return attachedFiles.map((f, idx) => {
-          const existing = prev.find((p) => p.file_index === idx || p.file_url === f.file_url);
-          if (existing) return existing;
+          const existing = prev[idx] || prev.find((p) => p.file_url === f.file_url);
+          if (existing) {
+            return {
+              ...existing,
+              file_index: idx,
+              file_name: f.file_name,
+              file_url: f.file_url,
+              file_size: f.file_size ?? existing.file_size,
+            };
+          }
           return {
             file_index: idx,
             file_name: f.file_name,
@@ -957,7 +972,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
             </div>
 
             {/* Dynamic Form Details (Collapsible & Scrollable if long) */}
-            {parsedFormFields && Object.keys(parsedFormFields).filter((k) => k !== '_attachments').length > 0 && (
+            {parsedFormFields && Object.keys(parsedFormFields).filter((k) => k !== '_attachments' && k !== '_file_reviews').length > 0 && (
               <div className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
                 <button
                   type="button"
@@ -967,7 +982,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                   <span className="flex items-center gap-1.5">
                     <span className="w-1.5 h-3 rounded-full bg-purple-600"></span>
                     <span>
-                      รายละเอียดข้อมูลที่ครูกรอกส่ง ({Object.keys(parsedFormFields).filter((k) => k !== '_attachments').length} รายการ)
+                      รายละเอียดข้อมูลที่ครูกรอกส่ง ({Object.keys(parsedFormFields).filter((k) => k !== '_attachments' && k !== '_file_reviews').length} รายการ)
                     </span>
                   </span>
                   <span className="flex items-center gap-1 text-[11px] text-indigo-600 font-semibold">
@@ -979,7 +994,7 @@ export const ReviewPlanModal: React.FC<ReviewPlanModalProps> = ({
                   <div className="p-3 border-t border-slate-100 max-h-56 overflow-y-auto space-y-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600 text-[11px]">
                       {Object.entries(parsedFormFields).map(([key, value]) => {
-                        if (key === '_attachments') return null;
+                        if (key === '_attachments' || key === '_file_reviews') return null;
                         if (typeof value !== 'string' && typeof value !== 'number') return null;
                         const labelMap: Record<string, string> = {
                           fld_teacher_name: 'ครูผู้สอน',

@@ -72,6 +72,7 @@ export function findFirstHttpUrlInObject(obj?: Record<string, any> | null): stri
 
 /**
  * ดึงไฟล์แนบและลิงก์เอกสารทั้งหมดของแผน/ภาระงาน (ทั้งจาก _attachments, fields ใน notes, file_url และ plan_title)
+ * ป้องกันกรณีงานไฟล์เดียวที่แก้ไข/ส่งใหม่แล้ว (plan.file_url เปลี่ยนเป็นลิงก์ใหม่) แต่ notes เก่ายังค้างลิงก์เดิม
  */
 export function extractAllFileLinksFromPlan(plan?: Partial<LessonPlan> | null): ResolvedFileAttachment[] {
   if (!plan) return [];
@@ -91,6 +92,7 @@ export function extractAllFileLinksFromPlan(plan?: Partial<LessonPlan> | null): 
   };
 
   let parsedFormFields: Record<string, any> | null = null;
+  let plainTextNotesUrl: string | null = null;
   if (plan.notes && typeof plan.notes === 'string') {
     try {
       const parsed = JSON.parse(plan.notes);
@@ -98,24 +100,19 @@ export function extractAllFileLinksFromPlan(plan?: Partial<LessonPlan> | null): 
         parsedFormFields = parsed;
       }
     } catch {
-      // plain text notes - also extract any URL embedded in plain text
       const urlMatch = plan.notes.match(/https?:\/\/[^\s"'<>]+/i);
       if (urlMatch && urlMatch[0]) {
-        addFile(plan.file_name || 'ลิงก์เอกสารแนบ', urlMatch[0]);
+        plainTextNotesUrl = urlMatch[0].trim();
       }
     }
   }
 
-  // 1. Check parsedFormFields._attachments
-  if (parsedFormFields && Array.isArray(parsedFormFields._attachments)) {
-    parsedFormFields._attachments.forEach((att: any, idx: number) => {
-      if (att && isValidHttpFileUrl(att.file_url)) {
-        addFile(att.file_name || `ไฟล์แนบที่ ${idx + 1}`, att.file_url, att.file_size);
-      }
-    });
-  }
+  const rawAtts: any[] =
+    parsedFormFields && Array.isArray(parsedFormFields._attachments)
+      ? parsedFormFields._attachments.filter((att: any) => att && isValidHttpFileUrl(att.file_url))
+      : [];
 
-  // 2. Check all other fields in parsedFormFields (including text/link fields, 1drv.ms, docs.google.com, etc.)
+  const otherFieldEntries: ResolvedFileAttachment[] = [];
   if (parsedFormFields) {
     Object.entries(parsedFormFields).forEach(([key, val]) => {
       if (key === '_attachments' || key === '_file_reviews') return;
@@ -124,30 +121,282 @@ export function extractAllFileLinksFromPlan(plan?: Partial<LessonPlan> | null): 
       if (Array.isArray(val)) {
         val.forEach((item: any, itemIdx: number) => {
           if (item && typeof item === 'object' && isValidHttpFileUrl(item.file_url)) {
-            addFile(item.file_name || `ไฟล์แนบ (${itemIdx + 1})`, item.file_url, item.file_size);
+            otherFieldEntries.push({
+              file_name: item.file_name || `ไฟล์แนบ (${itemIdx + 1})`,
+              file_url: item.file_url.trim(),
+              file_size: item.file_size,
+            });
           } else if (isValidHttpFileUrl(item)) {
-            addFile(`ลิงก์เอกสาร (${itemIdx + 1})`, item);
+            otherFieldEntries.push({
+              file_name: `ลิงก์เอกสาร (${itemIdx + 1})`,
+              file_url: item.trim(),
+            });
           }
         });
       } else if (typeof val === 'object' && isValidHttpFileUrl((val as any).file_url)) {
-        addFile((val as any).file_name || 'ไฟล์เอกสาร', (val as any).file_url, (val as any).file_size);
+        otherFieldEntries.push({
+          file_name: (val as any).file_name || 'ไฟล์เอกสาร',
+          file_url: String((val as any).file_url).trim(),
+          file_size: (val as any).file_size,
+        });
       } else if (isValidHttpFileUrl(val)) {
-        addFile(plan.file_name && plan.file_name !== 'เอกสารภาระงาน' ? plan.file_name : 'ลิงก์เอกสารที่ส่ง', val);
+        otherFieldEntries.push({
+          file_name:
+            plan.file_name && plan.file_name !== 'เอกสารภาระงาน'
+              ? plan.file_name
+              : 'ลิงก์เอกสารที่ส่ง',
+          file_url: val.trim(),
+        });
       }
     });
   }
 
-  // 3. Main plan.file_url
+  const hasValidMainUrl = isValidHttpFileUrl(plan.file_url) && !isHomeOrInvalidDriveUrl(plan.file_url);
+  const mainUrl = hasValidMainUrl ? plan.file_url!.trim() : '';
+
+  // Check if notes only holds a stale single-file URL while plan.file_url was already updated
+  const distinctNotesUrls = new Set<string>([
+    ...rawAtts.map((a) => String(a.file_url).trim()),
+    ...otherFieldEntries.map((f) => f.file_url),
+    ...(plainTextNotesUrl ? [plainTextNotesUrl] : []),
+  ]);
+
+  const isStaleSingleAttachmentInNotes =
+    Boolean(mainUrl) &&
+    rawAtts.length <= 1 &&
+    distinctNotesUrls.size === 1 &&
+    !distinctNotesUrls.has(mainUrl);
+
+  if (isStaleSingleAttachmentInNotes) {
+    // Single-file plan where plan.file_url is already updated: use the updated primary URL only
+    addFile(
+      plan.file_name || rawAtts[0]?.file_name || 'ไฟล์เอกสารหลัก',
+      mainUrl,
+      plan.file_size || rawAtts[0]?.file_size
+    );
+    return list;
+  }
+
+  // If this is a multi-file submission where file_url was updated without syncing _attachments[0],
+  // place mainUrl first so reviewers always see the latest primary link at index 0.
+  if (mainUrl && rawAtts.length > 1 && !rawAtts.some((a) => String(a.file_url).trim() === mainUrl)) {
+    addFile(plan.file_name || 'ไฟล์เอกสารหลัก', mainUrl, plan.file_size);
+  }
+
+  // 1. Check parsedFormFields._attachments
+  rawAtts.forEach((att: any, idx: number) => {
+    addFile(att.file_name || `ไฟล์แนบที่ ${idx + 1}`, att.file_url, att.file_size);
+  });
+
+  // 2. Check all other fields in parsedFormFields (including text/link fields, 1drv.ms, docs.google.com, etc.)
+  otherFieldEntries.forEach((entry) => {
+    addFile(entry.file_name, entry.file_url, entry.file_size);
+  });
+
+  // 3. Main plan.file_url (placed before plain-text note URLs when valid)
   if (isValidHttpFileUrl(plan.file_url)) {
     addFile(plan.file_name || 'ไฟล์เอกสารหลัก', plan.file_url, plan.file_size);
   }
 
-  // 4. Fallback: if someone pasted URL inside plan_title
+  // 4. URL embedded in plain text notes (if distinct from main file_url)
+  if (plainTextNotesUrl) {
+    addFile(plan.file_name || 'ลิงก์เอกสารแนบ', plainTextNotesUrl);
+  }
+
+  // 5. Fallback: if someone pasted URL inside plan_title
   if (list.length === 0 && isValidHttpFileUrl(plan.plan_title)) {
     addFile('ลิงก์เอกสารที่ส่ง', plan.plan_title);
   }
 
   return list;
+}
+
+/**
+ * อัปเดต URL ใหม่ลงใน notes (JSON: _attachments, ฟิลด์ฟอร์ม, _file_reviews หรือ plain text) สำหรับงานไฟล์เดียว
+ * โดยรักษาข้อมูลฟิลด์ข้อความ/คำตอบอื่นๆ ที่ครูกรอกไว้ทั้งหมด
+ */
+export function syncNotesForSingleFileUrl(
+  notes: string | undefined,
+  candidateOldUrls: Array<string | undefined | null>,
+  newUrl: string,
+  fallbackFileName?: string,
+  updatedFileReviews?: any[]
+): string | undefined {
+  const cleanNewUrl = (newUrl || '').trim();
+  if (!cleanNewUrl) return notes;
+
+  const oldUrlSet = new Set(
+    candidateOldUrls
+      .map((u) => (typeof u === 'string' ? u.trim() : ''))
+      .filter((u) => Boolean(u) && u !== '#')
+  );
+
+  if (!notes || typeof notes !== 'string' || !notes.trim()) {
+    if (updatedFileReviews && updatedFileReviews.length > 0) {
+      return JSON.stringify({ _file_reviews: updatedFileReviews });
+    }
+    return notes;
+  }
+
+  try {
+    const parsed = JSON.parse(notes);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const next: Record<string, any> = { ...parsed };
+
+      // 1. Update _attachments
+      if (Array.isArray(next._attachments)) {
+        if (next._attachments.length === 1) {
+          next._attachments = [
+            {
+              ...next._attachments[0],
+              file_name: next._attachments[0]?.file_name || fallbackFileName || 'ไฟล์เอกสารหลัก',
+              file_url: cleanNewUrl,
+            },
+          ];
+        } else if (next._attachments.length > 1) {
+          next._attachments = next._attachments.map((att: any) => {
+            if (att && typeof att === 'object' && typeof att.file_url === 'string' && oldUrlSet.has(att.file_url.trim())) {
+              return { ...att, file_url: cleanNewUrl };
+            }
+            return att;
+          });
+        }
+      }
+
+      // 2. Replace matching old URLs in form answer fields (fld_*, etc.)
+      const urlFieldKeys: string[] = [];
+      Object.entries(next).forEach(([key, val]) => {
+        if (key === '_attachments' || key === '_file_reviews') return;
+        if (typeof val === 'string') {
+          const trimmedVal = val.trim();
+          if (isValidHttpFileUrl(trimmedVal)) {
+            urlFieldKeys.push(key);
+          }
+          if (oldUrlSet.has(trimmedVal)) {
+            next[key] = cleanNewUrl;
+          }
+        } else if (Array.isArray(val)) {
+          next[key] = val.map((item: any) => {
+            if (typeof item === 'string' && oldUrlSet.has(item.trim())) {
+              return cleanNewUrl;
+            }
+            if (item && typeof item === 'object' && typeof item.file_url === 'string' && oldUrlSet.has(item.file_url.trim())) {
+              return { ...item, file_url: cleanNewUrl };
+            }
+            return item;
+          });
+        } else if (val && typeof val === 'object' && typeof (val as any).file_url === 'string' && oldUrlSet.has((val as any).file_url.trim())) {
+          next[key] = { ...val, file_url: cleanNewUrl };
+        }
+      });
+
+      // Fallback if _attachments was empty and there was exactly 1 URL field in form answers
+      if ((!Array.isArray(next._attachments) || next._attachments.length === 0) && urlFieldKeys.length === 1) {
+        next[urlFieldKeys[0]] = cleanNewUrl;
+      }
+
+      // 3. Update _file_reviews
+      if (updatedFileReviews && updatedFileReviews.length > 0) {
+        next._file_reviews = updatedFileReviews;
+      } else if (Array.isArray(next._file_reviews)) {
+        if (next._file_reviews.length === 1) {
+          next._file_reviews = [{ ...next._file_reviews[0], file_url: cleanNewUrl }];
+        } else {
+          next._file_reviews = next._file_reviews.map((fr: any) => {
+            if (fr && typeof fr === 'object' && typeof fr.file_url === 'string' && oldUrlSet.has(fr.file_url.trim())) {
+              return { ...fr, file_url: cleanNewUrl };
+            }
+            return fr;
+          });
+        }
+      }
+
+      return JSON.stringify(next);
+    }
+  } catch {
+    // Plain-text notes: replace any old URL occurrence while keeping surrounding text
+    let updatedText = notes;
+    oldUrlSet.forEach((oldUrl) => {
+      if (oldUrl !== cleanNewUrl && updatedText.includes(oldUrl)) {
+        updatedText = updatedText.split(oldUrl).join(cleanNewUrl);
+      }
+    });
+    if (updatedFileReviews && updatedFileReviews.length > 0) {
+      return JSON.stringify({
+        _raw_notes: updatedText,
+        _file_reviews: updatedFileReviews,
+      });
+    }
+    return updatedText;
+  }
+
+  return notes;
+}
+
+/**
+ * อัปเดต notes JSON สำหรับงานหลายไฟล์ (ซิงค์ทั้ง _attachments, _file_reviews และฟิลด์ fld_* ที่เคยอ้างอิง URL เก่า)
+ */
+export function syncNotesForMultiFileAttachments(
+  notes: string | undefined,
+  updatedAttachments: Array<{ file_name: string; file_url: string; file_size?: string }>,
+  updatedReviews: any[],
+  oldToNewUrlMap: Map<string, string>
+): string {
+  if (!notes || typeof notes !== 'string' || !notes.trim()) {
+    return JSON.stringify({
+      _attachments: updatedAttachments,
+      _file_reviews: updatedReviews,
+    });
+  }
+
+  try {
+    const parsed = JSON.parse(notes);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const next: Record<string, any> = {
+        ...parsed,
+        _attachments: updatedAttachments,
+        _file_reviews: updatedReviews,
+      };
+
+      Object.entries(next).forEach(([key, val]) => {
+        if (key === '_attachments' || key === '_file_reviews') return;
+        if (typeof val === 'string' && oldToNewUrlMap.has(val.trim())) {
+          next[key] = oldToNewUrlMap.get(val.trim())!;
+        } else if (Array.isArray(val)) {
+          next[key] = val.map((item: any) => {
+            if (typeof item === 'string' && oldToNewUrlMap.has(item.trim())) {
+              return oldToNewUrlMap.get(item.trim())!;
+            }
+            if (item && typeof item === 'object' && typeof item.file_url === 'string' && oldToNewUrlMap.has(item.file_url.trim())) {
+              return { ...item, file_url: oldToNewUrlMap.get(item.file_url.trim())! };
+            }
+            return item;
+          });
+        } else if (val && typeof val === 'object' && typeof (val as any).file_url === 'string' && oldToNewUrlMap.has((val as any).file_url.trim())) {
+          next[key] = { ...val, file_url: oldToNewUrlMap.get((val as any).file_url.trim())! };
+        }
+      });
+
+      return JSON.stringify(next);
+    }
+  } catch {
+    let updatedRaw = notes;
+    oldToNewUrlMap.forEach((nextUrl, prevUrl) => {
+      if (prevUrl && prevUrl !== nextUrl && updatedRaw.includes(prevUrl)) {
+        updatedRaw = updatedRaw.split(prevUrl).join(nextUrl);
+      }
+    });
+    return JSON.stringify({
+      _raw_notes: updatedRaw,
+      _attachments: updatedAttachments,
+      _file_reviews: updatedReviews,
+    });
+  }
+
+  return JSON.stringify({
+    _attachments: updatedAttachments,
+    _file_reviews: updatedReviews,
+  });
 }
 
 /**
