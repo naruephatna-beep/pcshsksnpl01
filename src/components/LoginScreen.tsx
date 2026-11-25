@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Loader2,
   CheckCircle2,
+  BookOpen,
 } from 'lucide-react';
 
 import {
@@ -21,6 +22,7 @@ import {
   SeasonalThemeMeta,
 } from '../services/seasonalThemeService';
 import { SeasonalParticlesOverlay, SeasonalThemeIcon } from './SeasonalDecorations';
+import { UserManualModal } from './UserManualModal';
 
 interface LoginScreenProps {
   teachers: Teacher[];
@@ -44,6 +46,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isManualOpen, setIsManualOpen] = useState(false);
   const leftPanelRef = useRef<HTMLDivElement>(null);
 
   const theme = seasonalTheme || SEASONAL_THEMES.default;
@@ -184,19 +187,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
         </div>
 
-        {isFestival ? (
-          <div
-            className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold shrink-0 shadow-xs ${theme.accentBadgeClass}`}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {isFestival ? (
+            <div
+              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold shrink-0 shadow-xs ${theme.accentBadgeClass}`}
+            >
+              <SeasonalThemeIcon iconType={theme.iconType} className="w-3.5 h-3.5" />
+              <span>{theme.shortLabel}</span>
+            </div>
+          ) : (
+            <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-400 shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span>ระบบสารสนเทศวิชาการ</span>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsManualOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 backdrop-blur-xs"
+            title="เปิดอ่านคู่มือการใช้งานระบบสำหรับทุกบทบาท"
           >
-            <SeasonalThemeIcon iconType={theme.iconType} className="w-3.5 h-3.5" />
-            <span>{theme.shortLabel}</span>
-          </div>
-        ) : (
-          <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-400 shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            <span>ระบบสารสนเทศวิชาการ</span>
-          </div>
-        )}
+            <BookOpen className="w-3.5 h-3.5 text-amber-300" />
+            <span>คู่มือการใช้งาน</span>
+          </button>
+        </div>
       </header>
 
       {/* Non-intrusive Seasonal Greeting Strip on Login Page */}
@@ -466,11 +481,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </div>
 
             {/* Footer inside card */}
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-              <div className="flex items-center gap-2">
-                <span>กลุ่มบริหารวิชาการ · จ.ภ. กาฬสินธุ์</span>
-              </div>
-              <span className="text-slate-500 font-mono">v2.5 (2569)</span>
+            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+              <button
+                type="button"
+                onClick={() => setIsManualOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 hover:text-amber-950 hover:underline cursor-pointer"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                <span>อ่านคู่มือการใช้งาน (ทุกบทบาท)</span>
+              </button>
+              <span className="text-slate-400 font-mono">กลุ่มบริหารวิชาการ · v2.5</span>
             </div>
           </div>
         </div>
@@ -480,6 +500,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       <footer className="relative z-20 text-center text-xs text-slate-400/80">
         <p>© 2026 โรงเรียนวิทยาศาสตร์จุฬาภรณราชวิทยาลัย กาฬสินธุ์</p>
       </footer>
+
+      <UserManualModal
+        isOpen={isManualOpen}
+        onClose={() => setIsManualOpen(false)}
+        currentTeacher={null}
+      />
     </div>
   );
 };

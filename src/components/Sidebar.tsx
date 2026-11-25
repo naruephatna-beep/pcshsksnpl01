@@ -31,6 +31,7 @@ import {
   UserCheck,
   Crown,
   Palette,
+  BookOpen,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 import { SeasonalThemeMeta } from '../services/seasonalThemeService';
@@ -71,6 +72,7 @@ interface SidebarProps {
   onManualSync?: () => void;
   seasonalTheme?: SeasonalThemeMeta;
   onOpenSeasonalTheme?: () => void;
+  onOpenUserManual?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -108,6 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onManualSync,
   seasonalTheme,
   onOpenSeasonalTheme,
+  onOpenUserManual,
 }) => {
   if (!currentTeacher) return null;
 
@@ -652,17 +655,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-800/60">
+          {onOpenUserManual && (
+            <button
+              type="button"
+              onClick={() => handleNavClick(onOpenUserManual)}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-amber-300 hover:text-amber-200 hover:bg-slate-800 text-xs font-semibold transition-colors cursor-pointer shrink-0"
+              title="เปิดคู่มือการใช้งานระบบ (ทุกบทบาท)"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>คู่มือ</span>
+            </button>
+          )}
+
           <button
             onClick={() => handleNavClick(onOpenProfileModal)}
-            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-medium transition-colors cursor-pointer"
+            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-medium transition-colors cursor-pointer min-w-0"
           >
-            <User className="w-3.5 h-3.5 text-slate-400" />
+            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span className="truncate">ข้อมูลส่วนตัว</span>
           </button>
 
           <button
             onClick={onLogout}
-            className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer shrink-0"
             title="ออกจากระบบ"
           >
             <LogOut className="w-4 h-4" />

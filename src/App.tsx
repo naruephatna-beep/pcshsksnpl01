@@ -136,6 +136,7 @@ import { StaffStructureManagerModal } from './components/StaffStructureManagerMo
 import { WorkflowManagerModal } from './components/WorkflowManagerModal';
 import { AllDocumentsPermissionModal } from './components/AllDocumentsPermissionModal';
 import { ReviewerWorkloadModal } from './components/ReviewerWorkloadModal';
+import { UserManualModal } from './components/UserManualModal';
 import { Sidebar } from './components/Sidebar';
 import { LessonPlanTableRow } from './components/LessonPlanTableRow';
 import { DeadlineCountdownBanner } from './components/DeadlineCountdownBanner';
@@ -257,6 +258,7 @@ export default function App() {
   const [isSeasonalMuted, setIsSeasonalMuted] = useState<boolean>(() => getUserSeasonalMuted());
   const [isAdminTopMenuOpen, setIsAdminTopMenuOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isUserManualOpen, setIsUserManualOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [activeTerm, setActiveTerm] = useState<ActiveTermConfig>(() => getLocalActiveTerm());
 
@@ -2644,6 +2646,7 @@ export default function App() {
           onManualSync={() => syncWithDatabase(false)}
           seasonalTheme={activeSeasonalTheme}
           onOpenSeasonalTheme={() => setIsSeasonalThemeModalOpen(true)}
+          onOpenUserManual={() => setIsUserManualOpen(true)}
         />
       </aside>
 
@@ -2696,6 +2699,7 @@ export default function App() {
               onManualSync={() => syncWithDatabase(false)}
               seasonalTheme={activeSeasonalTheme}
               onOpenSeasonalTheme={() => setIsSeasonalThemeModalOpen(true)}
+              onOpenUserManual={() => setIsUserManualOpen(true)}
             />
           </div>
         </div>
@@ -2729,6 +2733,15 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsUserManualOpen(true)}
+              className="p-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-amber-300 hover:text-amber-200 active:scale-95 transition-all cursor-pointer"
+              aria-label="คู่มือการใช้งานระบบ"
+              title="คู่มือการใช้งานระบบ (ทุกบทบาท)"
+            >
+              <BookOpen className="w-4 h-4" />
+            </button>
             <button
               type="button"
               onClick={() => setIsCommandPaletteOpen(true)}
@@ -2793,6 +2806,17 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
+            {/* User Manual Quick Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsUserManualOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-semibold text-amber-900 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="เปิดอ่านคู่มือการใช้งานระบบสำหรับทุกบทบาท"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+              <span>คู่มือใช้งาน</span>
+            </button>
+
             {/* Modern Quick Command / Search Trigger (⌘K) */}
             <button
               type="button"
@@ -3141,6 +3165,16 @@ export default function App() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsUserManualOpen(true)}
+                  className="px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
+                  title="เปิดอ่านคู่มือการใช้งานระบบสำหรับทุกบทบาท"
+                >
+                  <BookOpen className="w-4 h-4 text-amber-600" />
+                  <span>คู่มือการใช้งาน</span>
+                </button>
+
                 <button
                   onClick={() => setIsDirectoryModalOpen(true)}
                   className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
@@ -4807,6 +4841,15 @@ export default function App() {
           branches={branches}
           onOpenPlan={(plan) => setSelectedPlanForReview(plan)}
           onOpenReview={(plan) => setSelectedPlanForReview(plan)}
+        />
+      )}
+
+      {/* User Manual Modal (All Roles) */}
+      {isUserManualOpen && (
+        <UserManualModal
+          isOpen={isUserManualOpen}
+          onClose={() => setIsUserManualOpen(false)}
+          currentTeacher={currentTeacher}
         />
       )}
 

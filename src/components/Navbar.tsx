@@ -20,6 +20,7 @@ import {
   Building2,
   Workflow,
   UserCheck,
+  BookOpen,
 } from 'lucide-react';
 import { getDatabaseProvider } from '../services/cloudflareClient';
 
@@ -37,6 +38,7 @@ interface NavbarProps {
   onOpenExecutiveDashboard?: () => void;
   onOpenGoogleDriveConfig?: () => void;
   onOpenReviewerWorkload?: () => void;
+  onOpenUserManual?: () => void;
   onLogout: () => void;
   lastSyncTime?: string;
   isSyncing?: boolean;
@@ -57,6 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenExecutiveDashboard,
   onOpenGoogleDriveConfig,
   onOpenReviewerWorkload,
+  onOpenUserManual,
   onLogout,
   pendingAssignmentsCount,
   onScrollToAssignments,
@@ -228,6 +231,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <Upload className="w-4 h-4 text-slate-950" />
                     <span>ส่งเอกสาร</span>
+                  </button>
+                )}
+
+                {/* User Manual trigger */}
+                {onOpenUserManual && (
+                  <button
+                    type="button"
+                    onClick={onOpenUserManual}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                    title="คู่มือการใช้งานระบบ (ทุกบทบาท)"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                    <span>คู่มือ</span>
                   </button>
                 )}
 
